@@ -40,6 +40,7 @@ for element in elements:
     atomArraysAll[element]=[]
 
 energies=np.zeros((len(images),1))
+natoms=np.zeros((len(images),1))
 for j in range(len(images)):
     atoms=images[keylist[j]]
     fp=fingerprints[keylist[j]]
@@ -50,7 +51,12 @@ for j in range(len(images)):
             atomArraysTemp.append(fp[curatoms[i].index])  
         atomArraysAll[element].append(atomArraysTemp)
     energies[j]=atoms.get_potential_energy()
+    natoms[j]=len(atoms)
 
+energies=energies
+energies=energies-np.mean(energies)
+energyScale=np.mean(np.abs(energies))
+#energyScale=1.
 #Since we're not going to precondition the neural network with the simulatedannealing solver, instead we need to scale the inputs so that they're approximately all [-1,1].  We assign a scale for each element to make this happen.  There's probably a more clever way of doing this.
 for element in elements:
     elementFPScales[element]=np.max(np.max(atomArraysAll[element]))
@@ -66,26 +72,31 @@ def bias_variable(shape):
 
 #This is the heart of the NN model.  We define a generic two-layer neural network that will be used for each atom type.  It would be very easy to generalize this for any number of layers, and for different number of neurons in each layer.  This example has a 2x2 hidden-layer network
 def model(x,segmentinds,keep_prob,batchsize):
-    nNeurons=2
+    nNeurons=10
 
     #Pass  the input tensors through the first soft-plus layer
     W_fc1 = weight_variable([elementFPLengths[element], nNeurons])
     b_fc1 = bias_variable([nNeurons])
-    h_fc1 = tf.nn.softplus(tf.matmul(x, W_fc1) + b_fc1)
+    h_fc1 = tf.nn.relu(tf.matmul(x, W_fc1) + b_fc1)
 
-    #Define a drop-out layer (taken from the MNIST tutorial)
+    #Define a drop-out layer (taken from the MNIST tutorial), currently not being used
     h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
 
     #Pass the output of the first layer through the second layer
-    nNeurons2=2
+    nNeurons2=10
     W_fc2 = weight_variable([nNeurons, nNeurons2])
-    b_fc2 = bias_variable([1])
-    h_fc2=tf.nn.softplus(tf.matmul(h_fc1, W_fc2) + b_fc2)
+    b_fc2 = bias_variable([nNeurons2])
+    h_fc2=tf.nn.relu(tf.matmul(h_fc1, W_fc2) + b_fc2)
 
     #The output will be a linear combination of the second layer outputs
     W_fc3 = weight_variable([ nNeurons2, 1])
     b_fc3 = bias_variable([1])
     y_out=tf.matmul(h_fc2, W_fc3) + b_fc3
+
+    #W_fc4=weight_variable([ nNeurons, 1])
+    #b_fc4=bias_variable([1])
+
+    #y_out=tf.matmul(h_fc1,W_fc4)+b_fc4
 
     #Sum the predicted energy for each atom
     return tf.unsorted_segment_sum(y_out,segmentinds,batchsize)
@@ -102,9 +113,11 @@ y_ = tf.placeholder("float", shape=[None, 1])
 
 #Define a probability for dropout
 keep_prob = tf.placeholder("float")
-
+nAtoms_in=tf.placeholder("float",shape=[None,1])
 #define the batchsize
 batchsizeInput=tf.placeholder("int32")
+
+learningrate=tf.placeholder("float")
 
 #Construct the neural network for each atom type
 outdict={}
@@ -123,10 +136,12 @@ for i in range(1,len(keylist)):
     ytot=ytot+outdict[keylist[i]]
 
 #Define a loss function, this is the MAE of the predicted energy
-loss=tf.reduce_mean(tf.abs(tf.sub(ytot,y_)))
+loss=tf.sqrt(tf.reduce_mean(tf.square(tf.sub(ytot,y_))))
+lossPerAtom=tf.sqrt(tf.reduce_mean(tf.square(tf.div(tf.sub(ytot,y_),nAtoms_in))))
+
 
 #Define a stochastic optimizer.  The optimizer automatically works over the entire variables space, which encompasses all of the neural networks
-train_step=tf.train.AdamOptimizer(5e-5).minimize(loss)
+train_step=tf.train.AdamOptimizer(learningrate).minimize(loss)
 
 #Start the session
 sess = tf.InteractiveSession()
@@ -136,59 +151,69 @@ def tfeval(obj):
     return obj.eval(feed_dict=feedinput)
 
 #Batch gradient descent.  Do an optimization over 1000 epochs of the input set.  For each epoch, the set of training images is broken up into random batches defined by batchsize above.  The key assumption is that the batch is representative of the entire sample.  This allows us to make optimization steps very quickly (based on info from a small number of images).  This technique is very common in literature (look for batch SGD).  The fact that it's stochastic is actually good, because it allows for some robust behavior against local minima
-icount=1
-batchsize=20
-indlist=np.arange(len(images))
-for j in range(100000):
-    np.random.shuffle(indlist)
+
+batchsize=100
+
+
+def generateBatch(curinds,elements,atomArraysAll,nAtomsDict):
+    atomArrays={}
+    for element in elements:
+        atomArrays[element]=[] 
+    atomArraysFinal={}
     
-    for i in range(int(len(images)/batchsize)):
-        #For each batch, construct a new set of inputs
-        curinds=indlist[np.arange(batchsize)+i*batchsize]
+    curNAtoms={}
+    for element in elements:
+        curNAtoms[element]=[]
+        for ind in curinds:
+            if len(atomArraysAll[element][ind])>0:
+                atomArrays[element].append(atomArraysAll[element][ind])
+            curNAtoms[element].append(len(atomArraysAll[element][ind]))
+        atomArraysFinal[element]=np.concatenate(atomArrays[element])
+
+    atomInds={}
+    for element in elements:
+        atomInds[element]=np.zeros(np.sum(nAtomsDict[element][curinds]))
+    
+    for element in elements:
+        curind=0
+        for i in range(batchsize):
+            for j in range(curNAtoms[element][i]):
+                atomInds[element][curind]=i
+                curind+=1
+
+    return atomArraysFinal,atomInds
+
+def trainmodel(nepoch,trainingrate,keepprob):
+    icount=1
+    indlist=np.arange(len(images))
+    for j in range(nepoch):
+        np.random.shuffle(indlist)
         
-        atomArrays={}
-        for element in elements:
-            atomArrays[element]=[] 
-        atomArraysFinal={}
-        
-        curNAtoms={}
-        for element in elements:
-            curNAtoms[element]=[]
-            for ind in curinds:
-                if len(atomArraysAll[element][ind])>0:
-                    atomArrays[element].append(atomArraysAll[element][ind])
-                curNAtoms[element].append(len(atomArraysAll[element][ind]))
-            atomArraysFinal[element]=np.concatenate(atomArrays[element])
+        for i in range(int(len(images)/batchsize)):
+            #For each batch, construct a new set of inputs
+            curinds=indlist[np.arange(batchsize)+i*batchsize]
+            
+            atomArraysFinal,atomInds=generateBatch(curinds,elements,atomArraysAll,nAtomsDict)
+            
+            feedinput={}
+            for element in elements:
+                feedinput[tensordict[element]]=atomArraysFinal[element]/elementFPScales[element]
+                feedinput[indsdict[element]]=atomInds[element]
+            feedinput[y_]=energies[curinds]/energyScale
+            feedinput[batchsizeInput]=batchsize
+            feedinput[learningrate]=trainingrate
+            feedinput[keep_prob]=keepprob
+            feedinput[nAtoms_in]=natoms[curinds]
 
-        atomsPositions={}
-        for element in elements:
-            atomsPositions[element]=np.cumsum(nAtomsDict[element][curinds])-nAtomsDict[element][curinds]
-        
-        atomInds={}
-        for element in elements:
-            atomInds[element]=np.zeros(np.sum(nAtomsDict[element][curinds]))
-        
-        for element in elements:
-            curind=0
-            for i in range(batchsize):
-                for j in range(curNAtoms[element][i]):
-                    atomInds[element][curind]=i
-                    curind+=1
+            #run a training step with the new inputs
+            sess.run(train_step, feed_dict=feedinput)
 
-        feedinput={}
-        for element in elements:
-            feedinput[tensordict[element]]=atomArraysFinal[element]/curtensorscale
-            feedinput[indsdict[element]]=atomInds[element]
-        feedinput[y_]=energies[curinds]/curenergyscale
-        feedinput[batchsizeInput]=batchsize
+            #Print the loss function every 100 evals.  Would be better to handle this by evaluating the loss function on the entire dataset, but batchsize is currently hardcoded at the moment
+            if icount%100==0:
+                print(lossPerAtom.eval(feed_dict=feedinput)*energyScale)
+            icount=icount+1
 
-        #run a training step with the new inputs
-        sess.run(train_step, feed_dict=feedinput)
-
-        #Print the loss function every 100 evals.  Would be better to handle this by evaluating the loss function on the entire dataset, but batchsize is currently hardcoded at the moment
-        if icount%100==0:
-            print(loss.eval(feed_dict=feedinput)*curenergyscale)
-        icount=icount+1
-
+trainmodel(100000,1.e-4,0.5)
+#trainmodel(10000,1.e-4,0.5)
 
 
