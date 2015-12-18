@@ -1,6 +1,12 @@
 import numpy as np
+
 from ase.data import atomic_numbers
-from amp.utilities import FingerprintsError
+from ase.calculators.neighborlist import NeighborList
+
+from ..utilities import FingerprintsError
+from ..utilities import Data
+
+#FIXME/ap: below needs to disappear?
 try:
     from amp import fmodules
 except ImportError:
@@ -8,63 +14,51 @@ except ImportError:
 
 ###############################################################################
 
-
-class Behler:
-
+class CalculateNeighborlist:
+    """For integration with .utilities.Data
+    For each image fed to calculate, a list of neihbors with offset
+    distances is returned.
     """
-    Class that calculates Behler fingerprints.
 
-    :param cutoff: Radius above which neighbor interactions are ignored.
-                   Default is 6.5 Angstroms.
-    :type cutoff: float
-    :param Gs: Dictionary of symbols and lists of dictionaries for making
-               symmetry functions. Either auto-genetrated, or given in the
-               following form, for example:
-
-               >>> Gs = {"O": [{"type":"G2", "element":"O", "eta":10.},
-               ...             {"type":"G4", "elements":["O", "Au"],
-               ...              "eta":5., "gamma":1., "zeta":1.0}],
-               ...       "Au": [{"type":"G2", "element":"O", "eta":2.},
-               ...              {"type":"G4", "elements":["O", "Au"],
-               ...               "eta":2., "gamma":1., "zeta":5.0}]}
-
-    :type Gs: dict
-    :param fingerprints_tag: An internal tag for identifying the functional
-                             form of fingerprints used in the code.
-    :type fingerprints_tag: int
-    :param fortran: If True, will use the fortran subroutines, else will not.
-    :type fortran: bool
-
-    :raises: FingerprintsError, NotImplementedError
-    """
-    ###########################################################################
-
-    def __init__(self, cutoff=6.5, Gs=None, fingerprints_tag=1, fortran=True,):
-
+    def __init__(self, cutoff):
         self.cutoff = cutoff
+
+    def calculate(self, image, key):
+        n = NeighborList(cutoffs=[self.cutoff / 2.] * len(image),
+                         self_interaction=False,
+                         bothways=True,
+                         skin=0.)
+        n.update(image)
+        return [n.get_neighbors(index) for index in range(len(image))]
+
+
+class CalculateFingerprint:
+    """For integration with .utilities.Data"""
+    def __init__(self, neighborlist, Gs, cutoff,
+                 fortran=False):
+        self.nl = neighborlist
         self.Gs = Gs
-        self.fingerprints_tag = fingerprints_tag
+        self.cutoff = cutoff
         self.fortran = fortran
 
-        # Checking if the functional forms of fingerprints in the train set
-        # is the same as those of the current version of the code:
-        if self.fingerprints_tag != 1:
-            raise FingerprintsError('Functional form of fingerprints has been '
-                                    'changed. Re-train you train images set, '
-                                    'and use the new variables.')
+    def calculate(self, image, key):
+        """Makes a list of fingerprints, one per atom, for the fed image."""
+        #FIXME/ap I am reproducing _calculate_fingerprints here
+        # This and the functions/methods it calls can be simplified.
+        nl = self.nl[key]
+        fingerprints = []
+        for atom in image:
+            symbol = atom.symbol
+            neighbors, offsets = nl[atom.index]
+            neighborsymbols = [image[_].symbol for _ in neighbors]
+            Rs = [image.positions[neighbor] + np.dot(offset, image.cell)
+                  for (neighbor, offset) in zip(neighbors, offsets)]
+            self.atoms = image
+            indexfp = self.get_fingerprint(atom.index, symbol,
+                                           neighborsymbols, Rs)
+            fingerprints.append(indexfp)
 
-    ###########################################################################
-
-    def initialize(self, atoms):
-        """
-        Initializing atoms object.
-
-        :param atoms: ASE atoms object.
-        :type atoms: ASE dict
-        """
-        self.atoms = atoms
-
-    ###########################################################################
+        return fingerprints
 
     def get_fingerprint(self, index, symbol, n_symbols, Rs):
         """
@@ -107,6 +101,125 @@ class Behler:
             count += 1
 
         return fingerprint
+
+
+class Behler:
+
+    """
+    Class that calculates Behler fingerprints.
+
+    :param cutoff: Radius above which neighbor interactions are ignored.
+                   Default is 6.5 Angstroms.
+    :type cutoff: float
+
+    :param Gs: Dictionary of symbols and lists of dictionaries for making
+               symmetry functions. Either auto-genetrated, or given in the
+               following form, for example:
+
+               >>> Gs = {"O": [{"type":"G2", "element":"O", "eta":10.},
+               ...             {"type":"G4", "elements":["O", "Au"],
+               ...              "eta":5., "gamma":1., "zeta":1.0}],
+               ...       "Au": [{"type":"G2", "element":"O", "eta":2.},
+               ...              {"type":"G4", "elements":["O", "Au"],
+               ...               "eta":2., "gamma":1., "zeta":5.0}]}
+
+    :type Gs: dict
+
+    :param fingerprints_tag: An internal tag for identifying the functional
+                             form of fingerprints used in the code.
+    :type fingerprints_tag: int
+
+    :param fortran: If True, will use the fortran subroutines, else will not.
+    :type fortran: bool
+
+    :param elements: List of allowed elements present in the system. If not
+                     provided, will be found automatically.
+    :type elements: list
+
+
+    :raises: FingerprintsError, NotImplementedError
+    """
+    ###########################################################################
+
+    #FIXME/ap: There should be a todict method called at the end of this to
+    # allow it to reconstruct itself from a dictionary.
+
+    def __init__(self, cutoff=6.5, Gs=None, fingerprints_tag=1, fortran=True,
+                 dblabel=None, elements=None,
+                ):
+
+
+        self.cutoff = cutoff
+        self.Gs = Gs
+        self.fingerprints_tag = fingerprints_tag
+        self.fortran = fortran
+        self.dblabel = dblabel
+        self.elements = elements
+
+        # Checking if the functional forms of fingerprints in the train set
+        # is the same as those of the current version of the code.
+        # FIXME/ap: This could be a hash of dictionary parameters instead?
+        if self.fingerprints_tag != 1:
+            raise FingerprintsError('Functional form of fingerprints has been '
+                                    'changed. Re-train you train images set, '
+                                    'and use the new variables.')
+
+    ###########################################################################
+
+    def training_startup(self, images, log, param):
+        """
+        Passes the initial data for the training routine.
+        """
+        print('param in startup')
+        print(param)
+        print('selfGs in startup')
+        print(self.Gs)
+        if self.elements is None:
+            log('Finding unique set of elements in training data.')
+            self.elements = set([atom.symbol for atoms in images.values()
+                                 for atom in atoms])
+            self.elements = sorted(self.elements)
+        param = self.check_symmetry_functions(log, param, self.elements)
+        self.dblabel
+        print('selfGs in startup end')
+        print(self.Gs)
+
+    ###########################################################################
+
+    def calculate_fingerprints(self, images, cores=1, fortran=False,
+                               log=None):
+        """Calculates the fingerpints of the images, for the ones not
+        already done.
+        """
+        log = Logger(filename=None) if log is None else log
+
+        if self.elements is None:
+            log('Finding unique set of elements in training data.')
+            self.elements = set([atom.symbol for atoms in images.values()
+                                 for atom in atoms])
+        self.elements = sorted(self.elements)
+        log('%i unique elements included: ' % len(self.elements)
+            + ', '.join(self.elements))
+
+        log('Calculating neighborlists...', tic='nl')
+        nl = Data(filename='%s-neighborlists' % self.dblabel,
+                  calculator=CalculateNeighborlist(cutoff=self.cutoff))
+        nl.calculate_items(images, cores=cores, log=log)
+        log('...neighborlists calculated.', toc='nl')
+
+        key = images.keys()[3]
+
+        log('Fingerprinting images...', tic='fp')
+        print('selfGs')
+        print(self.Gs)
+        calc = CalculateFingerprint(neighborlist=nl,
+                                    Gs=self.Gs,
+                                    cutoff=self.cutoff,
+                                    fortran=fortran)
+        fp = Data(filename='%s-fingerprints' % self.dblabel,
+                  calculator=calc)
+        fp.calculate_items(images, cores=cores, log=log)
+        self.fingerprints = fp
 
     ###########################################################################
 
@@ -183,7 +296,7 @@ class Behler:
 
     ###########################################################################
 
-    def log(self, log, param, elements):
+    def check_symmetry_functions(self, log, param, elements):
         """
         Generates symmetry functions if do not exist, and prints out in the log
         file.
@@ -198,6 +311,7 @@ class Behler:
 
         :returns: Object containing descriptor properties.
         """
+        #FIXME: This seems like a strange name for a symmetry function!
         # If Gs is not given, generates symmetry functions
         if not param.descriptor.Gs:
             param.descriptor.Gs = make_symmetry_functions(elements)
@@ -710,4 +824,4 @@ def calculate_der_G4(n_indices, symbols, Rs, G_elements, gamma, zeta, eta,
 
     return ridge
 
-###############################################################################
+

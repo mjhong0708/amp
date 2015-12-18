@@ -1,22 +1,24 @@
-import numpy as np
-from ase.calculators.calculator import Calculator
-from ase.data import atomic_numbers
-from ase.parallel import paropen
 import os
-from ase import io as aseio
+import numpy as np
 import tempfile
-from datetime import datetime
 import multiprocessing as mp
 import gc
 import sqlite3
+from datetime import datetime
 from collections import OrderedDict
 from scipy.optimize import fmin_bfgs as optimizer
+
+from ase.calculators.calculator import Calculator
+from ase.data import atomic_numbers
+from ase.parallel import paropen
+from ase import io as aseio
 from ase.calculators.neighborlist import NeighborList
-from utilities import make_filename, load_parameters, ConvergenceOccurred, IO
-from utilities import TrainingConvergenceError, ExtrapolateError, hash_image
-from utilities import Logger, save_parameters
-from descriptor import Behler
-from regression import NeuralNetwork
+
+from .utilities import make_filename, load_parameters, ConvergenceOccurred, IO
+from .utilities import TrainingConvergenceError, ExtrapolateError, hash_image
+from .utilities import Logger, save_parameters
+from .descriptor import Behler
+from .regression import NeuralNetwork
 try:
     from amp import fmodules  # version 4 of fmodules
     fmodules_version = 4
@@ -25,191 +27,6 @@ except ImportError:
 
 ###############################################################################
 
-
-class SimulatedAnnealing:
-
-    """
-    Class that implements simulated annealing algorithm for global search of
-    variables. This algorithm is helpful to be used for pre-conditioning of the
-    initial guess of variables for optimization of non-convex functions.
-
-    :param temperature: Initial temperature which corresponds to initial
-                         variance of the likelihood normal probability
-                         distribution. Should take a value from 50 to 100.
-    :type temperature: float
-    :param steps: Number of search iterations.
-    :type steps: int
-    :param acceptance_criteria: A float in the range of zero to one.
-                                Temperature will be controlled such that
-                                acceptance rate meets this criteria.
-    :type acceptance_criteria: float
-    """
-    ###########################################################################
-
-    def __init__(self, temperature, steps, acceptance_criteria=0.5):
-        self.temperature = temperature
-        self.steps = steps
-        self.acceptance_criteria = acceptance_criteria
-
-    ###########################################################################
-
-    def initialize(self, variables, log, costfxn):
-        """
-        Function to initialize this class with.
-
-        :param variables: Calibrating variables.
-        :type variables: list
-        :param log: Write function at which to log data. Note this must be a
-                    callable function.
-        :type log: Logger object
-        :param costfxn: Object of the CostFxnandDer class.
-        :type costfxn: object
-        """
-        self.variables = variables
-        self.log = log
-        self.costfxn = costfxn
-        self.log.tic('simulated_annealing')
-        self.log('Simulated annealing started. ')
-
-    ###########################################################################
-
-    def get_variables(self,):
-        """
-        Function that samples from the space of variables according to
-        simulated annealing algorithm.
-
-        :returns: Best variables minimizing the cost function.
-        """
-        head1 = ('%4s %6s %6s %6s %6s %6s %6s %8s')
-        self.log(head1 % ('step',
-                          'temp',
-                          'newcost',
-                          'newlogp',
-                          'oldlogp',
-                          'pratio',
-                          'rand',
-                          'accpt?(%)'))
-        self.log(head1 % ('=' * 4,
-                          '=' * 6,
-                          '=' * 6,
-                          '=' * 6,
-                          '=' * 6,
-                          '=' * 6,
-                          '=' * 6,
-                          '=' * 8))
-        variables = self.variables
-        len_of_variables = len(variables)
-        temp = self.temperature
-
-        calculate_gradient = False
-        self.costfxn.param.regression._variables = variables
-
-        if self.costfxn.fortran:
-            task_args = (self.costfxn.param, calculate_gradient)
-            (energy_square_error, force_square_error, _) = \
-                self.costfxn._mp.share_cost_function_task_between_cores(
-                task=_calculate_cost_function_fortran,
-                _args=task_args, len_of_variables=len_of_variables)
-        else:
-            task_args = (self.costfxn.reg, self.costfxn.param,
-                         self.costfxn.sfp, self.costfxn.snl,
-                         self.costfxn.energy_coefficient,
-                         self.costfxn.force_coefficient,
-                         self.costfxn.train_forces, len_of_variables,
-                         calculate_gradient, self.costfxn.save_memory,)
-            (energy_square_error, force_square_error, _) = \
-                self.costfxn._mp.share_cost_function_task_between_cores(
-                task=_calculate_cost_function_python,
-                _args=task_args, len_of_variables=len_of_variables)
-
-        square_error = \
-            self.costfxn.energy_coefficient * energy_square_error + \
-            self.costfxn.force_coefficient * force_square_error
-
-        allvariables = [variables]
-        besterror = square_error
-        bestvariables = variables
-
-        accepted = 0
-
-        step = 0
-        while step < self.steps:
-
-            # Calculating old log of probability
-            logp = - square_error / temp
-
-            # Calculating new log of probability
-            _steps = np.random.rand(len_of_variables) * 2. - 1.
-            _steps *= 0.2
-            newvariables = variables + _steps
-            calculate_gradient = False
-            self.costfxn.param.regression._variables = newvariables
-
-            if self.costfxn.fortran:
-                task_args = (self.costfxn.param, calculate_gradient)
-                (energy_square_error, force_square_error, _) = \
-                    self.costfxn._mp.share_cost_function_task_between_cores(
-                    task=_calculate_cost_function_fortran,
-                    _args=task_args, len_of_variables=len_of_variables)
-            else:
-                task_args = (self.costfxn.reg, self.costfxn.param,
-                             self.costfxn.sfp, self.costfxn.snl,
-                             self.costfxn.energy_coefficient,
-                             self.costfxn.force_coefficient,
-                             self.costfxn.train_forces, len_of_variables,
-                             calculate_gradient, self.costfxn.save_memory)
-                (energy_square_error, force_square_error, _) = \
-                    self.costfxn._mp.share_cost_function_task_between_cores(
-                    task=_calculate_cost_function_python,
-                    _args=task_args, len_of_variables=len_of_variables)
-
-            new_square_error = \
-                self.costfxn.energy_coefficient * energy_square_error + \
-                self.costfxn.force_coefficient * force_square_error
-            newlogp = - new_square_error / temp
-
-            # Calculating probability ratio
-            pratio = np.exp(newlogp - logp)
-            rand = np.random.rand()
-            if rand < pratio:
-                accept = True
-                accepted += 1.
-            else:
-                accept = False
-            line = ('%5s' ' %5.2f' ' %5.2f' ' %5.2f' ' %5.2f' ' %3.2f'
-                    ' %3.2f' ' %5s')
-            self.log(line % (step,
-                             temp,
-                             new_square_error,
-                             newlogp,
-                             logp,
-                             pratio,
-                             rand,
-                             '%s(%i)' % (accept,
-                                         int(accepted * 100 / (step + 1)))))
-            if new_square_error < besterror:
-                bestvariables = newvariables
-                besterror = new_square_error
-            if accept:
-                variables = newvariables
-                allvariables.append(newvariables)
-                square_error = new_square_error
-
-            # Changing temprature according to acceptance ratio
-            if (accepted / (step + 1) < self.acceptance_criteria):
-                temp += 0.0005 * temp
-            else:
-                temp -= 0.002 * temp
-            step += 1
-
-        self.log('Simulated annealing exited. ', toc='simulated_annealing')
-        self.log('\n')
-
-        return bestvariables
-
-###############################################################################
-###############################################################################
-###############################################################################
 
 
 class Amp(Calculator):
@@ -261,9 +78,7 @@ class Amp(Calculator):
 
         self.extrapolate = extrapolate
         self.fortran = fortran
-        self.dblabel = dblabel
-        if not dblabel:
-            self.dblabel = label
+        self.dblabel = label if dblabel is None else dblabel
 
         if self.fortran and not fmodules:
             raise RuntimeError('Not using fortran modules. '
@@ -296,7 +111,8 @@ class Amp(Calculator):
                     Behler(cutoff=parameters['cutoff'],
                            Gs=parameters['Gs'],
                            fingerprints_tag=parameters['fingerprints_tag'],
-                           fortran=fortran,)
+                           fortran=fortran,
+                           dblabel=dblabel)
             elif parameters['descriptor'] == 'None':
                 kwargs['descriptor'] = None
                 if parameters['no_of_atoms'] == 'None':
@@ -325,6 +141,9 @@ class Amp(Calculator):
 
         if param.descriptor is not None:
             self.fp = param.descriptor
+            if hasattr(self.fp, 'dblabel'):
+                if self.fp.dblabel is None:
+                    self.fp.dblabel = self.dblabel
 
         self.reg = param.regression
 
@@ -588,22 +407,12 @@ class Amp(Calculator):
 
     ###########################################################################
 
-    def train(
-            self,
-            images,
-            energy_goal=0.001,
-            force_goal=0.005,
-            overfitting_constraint=0.,
-            force_coefficient=None,
-            cores=None,
-            optimizer=optimizer,
-            overwrite=False,
-            data_format='json',
-            global_search=SimulatedAnnealing(temperature=70,
-                                             steps=2000),
-            perturb_variables=None,
-            extend_variables=True,
-            save_memory=False,):
+    def train(self,
+              images,
+              energy_goal=0.001,
+              cores=None,
+              overwrite=False,
+              data_format='json'):
         """
         Fits a variable set to the data, by default using the "fmin_bfgs"
         optimizer. The optimizer takes as input a cost function to reduce and
@@ -618,69 +427,20 @@ class Amp(Calculator):
         :param energy_goal: Threshold energy per atom rmse at which simulation
                             is converged.
         :type energy_goal: float
-        :param force_goal: Threshold force rmse at which simulation is
-                           converged. The default value is in unit of eV/Ang.
-                           If 'force_goal = None', forces will not be trained.
-        :type force_goal: float
-        :param overfitting_constraint: Multiplier of the weights norm penalty
-                                       term.
-        :type overfitting_constraint: float
-        :param force_coefficient: Coefficient of the force contribution in the
-                                  cost function.
-        :type force_coefficient: float
         :param cores: Number of cores to parallelize over. If not specified,
                       attempts to determine from environment.
         :type cores: int
-        :param optimizer: The optimization object. The default is to use
-                          scipy's fmin_bfgs, but any optimizer that behaves in
-                          the same way will do.
-        :type optimizer: object
         :param overwrite: If a trained output file with the same name exists,
                           overwrite it.
         :type overwrite: bool
         :param data_format: Format of saved data. Can be either "json" or "db".
         :type data_format: str
-        :param global_search: Method for global search of initial variables.
-                              Will ignore, if initial variables are already
-                              given. For now, it can be either None, or
-                              SimulatedAnnealing(temperature, steps).
-        :type global_search: object
-        :param perturb_variables: If not None, after training, variables
-                                  will be perturbed by the amount specified,
-                                  and plotted as pdf book. A typical value is
-                                  0.01.
-        :type perturb_variables: float
-        :param extend_variables: Determines whether or not the code should
-                                 extend the number of variables if convergence
-                                 does not happen.
-        :type extend_variables: bool
-        :param save_memory: If True, memory efficient mode will be used.
-        :type save_memory: bool
         """
-        if save_memory:
-            data_format = 'db'
         param = self.parameters
         filename = make_filename(self.label, 'trained-parameters.json')
-        if (not overwrite) and os.path.exists(filename):
-            raise IOError('File exists: %s.\nIf you want to overwrite,'
-                          ' set overwrite=True or manually delete.'
-                          % filename)
-
-        self.overfitting_constraint = overfitting_constraint
-
-        if force_goal is None:
-            train_forces = False
-            if not force_coefficient:
-                force_coefficient = 0.
-        else:
-            train_forces = True
-            if not force_coefficient:
-                force_coefficient = (energy_goal / force_goal)**2.
-
-        energy_coefficient = 1.
 
         log = Logger(make_filename(self.label, 'train-log.txt'))
-
+        self._log = log # Make available to other methods.
         log('Amp training started. ' + now() + '\n')
         if param.descriptor is None:  # pure atomic-coordinates scheme
             log('Local environment descriptor: None')
@@ -694,92 +454,78 @@ class Amp(Calculator):
             cores = count_allocated_cpus()
         log('Parallel processing over %i cores.\n' % cores)
 
+
+        #FIXME/ap: This is ANN-specific. Needs to be updated.
+        if not (param.regression._weights or param.regression._variables):
+            variables_exist = False
+        else:
+            variables_exist = True
+
         if isinstance(images, str):
             extension = os.path.splitext(images)[1]
             if extension == '.traj':
                 images = aseio.Trajectory(images, 'r')
             elif extension == '.db':
                 images = aseio.read(images)
-        no_of_images = len(images)
 
-        if param.descriptor is None:  # pure atomic-coordinates scheme
-            param.no_of_atoms = len(images[0])
-            count = 0
-            while count < no_of_images:
-                image = images[count]
+        fp = self.fingerprint(images, cores=cores)
+
+
+        self.log = None
+
+
+    def fingerprint(self, images, cores=None):
+        """Fingerprints according to the specified scheme."""
+
+        log = self._log
+        if not log:
+            log = Logger(make_filename(self.label, 'fingerprint-log.txt'))
+
+        log('Fingerprinting %i images.' % len(images))
+
+        if self.parameters.descriptor is None:  # pure atomic-coordinates scheme
+            #FIXME/ap: we should consider putting this as a class like
+            # Behler to illustrate the bare methods needed?
+            log(' Using pure atomic coordinates without transformation.')
+            self.parameters.no_of_atoms = len(images[0])
+            for image in images:
                 if len(image) != param.no_of_atoms:
                     raise RuntimeError('Number of atoms in different images '
-                                       'is not the same. Try '
-                                       'descriptor=Behler.')
-                count += 1
-
-        log('Training on %i images.' % no_of_images)
+                                       'is not the same. Try different '
+                                       'descriptor. ')
 
         # Images is converted to dictionary form; key is hash of image.
-        log.tic()
-        log('Hashing images...')
+        # FIXME/ap This could be in the train method?
+        log('Hashing images...', tic=True)
         dict_images = {}
-        count = 0
-        while count < no_of_images:
-            image = images[count]
+        for image in images:
             hash = hash_image(image)
             if hash in dict_images.keys():
                 log('Warning: Duplicate image (based on identical hash).'
                     ' Was this expected? Hash: %s' % hash)
             dict_images[hash] = image
-            count += 1
         del hash
-        images = dict_images.copy()
-        del dict_images
-        hashs = sorted(images.keys())
-        no_of_images = len(hashs)
+        images = dict_images
+
+        hashs = sorted(images.keys()) #FIXME/ap Delete this?
+        no_of_images = len(images) #FIXME/ap Delete this?
         log(' %i unique images after hashing.' % no_of_images)
         log(' ...hashing completed.', toc=True)
 
-        self.elements = set([atom.symbol for hash in hashs
-                             for atom in images[hash]])
-        self.elements = sorted(self.elements)
+        
+        # Switch to the fp module.
+        self.fp.training_startup(images, log, param=self.parameters)
+        # FIXME/ap: Above is probably not necessary.
+        self.fp.calculate_fingerprints(images=images, cores=cores,
+                                       fortran=self.fortran, log=log)
 
-        msg = '%i unique elements included: ' % len(self.elements)
-        msg += ', '.join(self.elements)
-        log(msg)
 
-        if param.descriptor is not None:  # fingerprinting scheme
-            param = self.fp.log(log, param, self.elements)
 
-        if not (param.regression._weights or param.regression._variables):
-            variables_exist = False
-        else:
-            variables_exist = True
+        aaa
 
-        # "MultiProcess" object is initialized
-        _mp = MultiProcess(self.fortran, no_procs=cores)
+        #FIXME/ap: Below needs to be moved into descriptor, and parallel
+        # figured out.
 
-        # all images are shared between cores for feed-forward and
-        # back-propagation calculations
-        _mp.make_list_of_sub_images(no_of_images, hashs, images)
-
-        io = IO(hashs, images,)  # utilities.IO object initialized.
-
-        if param.descriptor is None:  # pure atomic-coordinates scheme
-            self.sfp = None
-            snl = None
-        else:  # fingerprinting scheme
-            # Neighborlist for all images are calculated and saved
-            log.tic()
-            snl = SaveNeighborLists(param.descriptor.cutoff, no_of_images,
-                                    hashs, images, self.dblabel, log,
-                                    train_forces, io, data_format, save_memory)
-
-            gc.collect()
-
-            # Fingerprints are calculated and saved
-            self.sfp = SaveFingerprints(self.fp, self.elements, no_of_images,
-                                        hashs, images, self.dblabel,
-                                        train_forces, snl, log,
-                                        _mp, io, data_format, save_memory)
-
-            gc.collect()
 
         if param.descriptor is None:  # pure atomic-coordinates scheme
             param = self.reg.log(log, param, self.elements, images)
@@ -1480,6 +1226,7 @@ class SaveNeighborLists:
                                       bothways=True, skin=0.)
                     # FIXME: Is update necessary?
                     nl.update(image)
+                    # FIXME/ap: It seems so, to know the image.
 
                     if save_memory:
                         self_index = 0
@@ -2133,6 +1880,7 @@ def _calculate_fingerprints(proc_no, hashs, images, fp, childfiles, io,
                            self_interaction=False,
                            bothways=True,
                            skin=0.)
+        #FIXME/ap Weren't nl's calculated previously??
         _nl.update(atoms)
         index = 0
         while index < no_of_atoms:

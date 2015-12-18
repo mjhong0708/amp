@@ -8,6 +8,67 @@ import json
 import sqlite3
 from ase import io as aseio
 from ase.parallel import paropen
+import shelve
+
+
+class Data:
+    """
+    Serves as a container (dictionary-like) for (key, value) pairs that
+    also serves to calculate them.
+    Works by default with python's shelve module, but something that is
+    built to share the same commands as shelve will work fine; just specify
+    this in dbinstance.
+    Designed to hold things like neighborlists, which have a hash, value
+    format.
+    """
+
+    # FIXME/ap sqlitedict probably behaves teh same, but supports
+    # multi-thread access.
+
+    def __init__(self, filename, db=shelve, calculator=None):
+        self.calc = calculator
+        self.db = db
+        self.filename = filename
+        self.d = None
+
+    def calculate_items(self, images, cores=1, log=None):
+        """Calculates the data value with 'calculator' for the specified
+        images. images is a dictionary, and the same keys will be used for
+        the current database."""
+        if log is None:
+            log = lambda (msg) : None  # dummy function
+        if self.d:
+            self.d.close()
+            self.d = None
+        log(' Data stored in file %s.' % self.filename)
+        d = self.db.open(self.filename, 'c')
+        calcs_needed = [key for key in images.keys() if key not in
+                        d.keys()]
+        dblength = len(d)
+        d.close()
+        log(' File exists with %i total images, %i of which are needed.' %
+            (dblength, len(images) - len(calcs_needed)))
+        if cores == 1:
+            d = self.db.open(self.filename, 'c')  #FIXME/ap Should have a lock?
+            for key in calcs_needed:
+                d[key] = self.calc.calculate(images[key], key)
+            d.close()  # Necessary to get out of write mode and unlock?
+        else:
+            raise NotImplementedError('Need to write this!')
+        log(' Calculated %i new images.' % len(calcs_needed))
+
+    def __getitem__(self, key):
+        if not self.d:
+            self.d = self.db.open(self.filename, 'r')
+        return self.d[key]
+
+    def close(self):
+        if self.d:
+            self.d.close()
+
+    def __del__(self):
+        self.close()
+
 
 ###############################################################################
 
@@ -136,11 +197,15 @@ class Logger:
     Logger that can also deliver timing information.
 
     :param filename: File object or path to the file to write to.
+                     Or set to None for a logger that does nothing.
     :type filename: str
     """
     ###########################################################################
 
     def __init__(self, filename):
+        if filename is None:
+            self._f = None
+            return
         self._f = paropen(filename, 'a')
         self._tics = {}
 
@@ -153,6 +218,8 @@ class Logger:
         :param label: Label for managing multiple timers.
         :type label: str
         """
+        if self._f is None:
+            return
         if label:
             self._tics[label] = time.time()
         else:
@@ -160,16 +227,22 @@ class Logger:
 
     ###########################################################################
 
-    def __call__(self, message, toc=None):
+    def __call__(self, message, toc=None, tic=False):
         """
         Writes message to the log file.
 
         :param message: Message to be written.
         :type message: str
-        :param toc: tic is used to start a timer. If toc=True or toc=label, it
-                    will append timing information in minutes to the timer.
+        :param toc: If toc=True or toc=label, it will append timing information
+                    in minutes to the timer.
         :type toc: bool or str
+        :param tic: If tic=True or tic=label, will start the generic timer
+                    or a timer associated with label. Equivalent to
+                    self.tic(label).
+        :type tic: bool or str
         """
+        if self._f is None:
+            return
         dt = ''
         if toc:
             if toc is True:
@@ -180,6 +253,11 @@ class Logger:
             dt = ' %.1f min.' % dt
         self._f.write(message + dt + '\n')
         self._f.flush()
+        if tic:
+            if tic is True:
+                self.tic()
+            else:
+                self.tic(label=tic)
 
 ###############################################################################
 
@@ -718,3 +796,189 @@ class IO:
         return hashs, data
 
 ###############################################################################
+
+class SimulatedAnnealing:
+
+    """
+    Class that implements simulated annealing algorithm for global search of
+    variables. This algorithm is helpful to be used for pre-conditioning of the
+    initial guess of variables for optimization of non-convex functions.
+
+    :param temperature: Initial temperature which corresponds to initial
+                         variance of the likelihood normal probability
+                         distribution. Should take a value from 50 to 100.
+    :type temperature: float
+    :param steps: Number of search iterations.
+    :type steps: int
+    :param acceptance_criteria: A float in the range of zero to one.
+                                Temperature will be controlled such that
+                                acceptance rate meets this criteria.
+    :type acceptance_criteria: float
+    """
+    ###########################################################################
+
+    def __init__(self, temperature, steps, acceptance_criteria=0.5):
+        self.temperature = temperature
+        self.steps = steps
+        self.acceptance_criteria = acceptance_criteria
+
+    ###########################################################################
+
+    def initialize(self, variables, log, costfxn):
+        """
+        Function to initialize this class with.
+
+        :param variables: Calibrating variables.
+        :type variables: list
+        :param log: Write function at which to log data. Note this must be a
+                    callable function.
+        :type log: Logger object
+        :param costfxn: Object of the CostFxnandDer class.
+        :type costfxn: object
+        """
+        self.variables = variables
+        self.log = log
+        self.costfxn = costfxn
+        self.log.tic('simulated_annealing')
+        self.log('Simulated annealing started. ')
+
+    ###########################################################################
+
+    def get_variables(self,):
+        """
+        Function that samples from the space of variables according to
+        simulated annealing algorithm.
+
+        :returns: Best variables minimizing the cost function.
+        """
+        head1 = ('%4s %6s %6s %6s %6s %6s %6s %8s')
+        self.log(head1 % ('step',
+                          'temp',
+                          'newcost',
+                          'newlogp',
+                          'oldlogp',
+                          'pratio',
+                          'rand',
+                          'accpt?(%)'))
+        self.log(head1 % ('=' * 4,
+                          '=' * 6,
+                          '=' * 6,
+                          '=' * 6,
+                          '=' * 6,
+                          '=' * 6,
+                          '=' * 6,
+                          '=' * 8))
+        variables = self.variables
+        len_of_variables = len(variables)
+        temp = self.temperature
+
+        calculate_gradient = False
+        self.costfxn.param.regression._variables = variables
+
+        if self.costfxn.fortran:
+            task_args = (self.costfxn.param, calculate_gradient)
+            (energy_square_error, force_square_error, _) = \
+                self.costfxn._mp.share_cost_function_task_between_cores(
+                task=_calculate_cost_function_fortran,
+                _args=task_args, len_of_variables=len_of_variables)
+        else:
+            task_args = (self.costfxn.reg, self.costfxn.param,
+                         self.costfxn.sfp, self.costfxn.snl,
+                         self.costfxn.energy_coefficient,
+                         self.costfxn.force_coefficient,
+                         self.costfxn.train_forces, len_of_variables,
+                         calculate_gradient, self.costfxn.save_memory,)
+            (energy_square_error, force_square_error, _) = \
+                self.costfxn._mp.share_cost_function_task_between_cores(
+                task=_calculate_cost_function_python,
+                _args=task_args, len_of_variables=len_of_variables)
+
+        square_error = \
+            self.costfxn.energy_coefficient * energy_square_error + \
+            self.costfxn.force_coefficient * force_square_error
+
+        allvariables = [variables]
+        besterror = square_error
+        bestvariables = variables
+
+        accepted = 0
+
+        step = 0
+        while step < self.steps:
+
+            # Calculating old log of probability
+            logp = - square_error / temp
+
+            # Calculating new log of probability
+            _steps = np.random.rand(len_of_variables) * 2. - 1.
+            _steps *= 0.2
+            newvariables = variables + _steps
+            calculate_gradient = False
+            self.costfxn.param.regression._variables = newvariables
+
+            if self.costfxn.fortran:
+                task_args = (self.costfxn.param, calculate_gradient)
+                (energy_square_error, force_square_error, _) = \
+                    self.costfxn._mp.share_cost_function_task_between_cores(
+                    task=_calculate_cost_function_fortran,
+                    _args=task_args, len_of_variables=len_of_variables)
+            else:
+                task_args = (self.costfxn.reg, self.costfxn.param,
+                             self.costfxn.sfp, self.costfxn.snl,
+                             self.costfxn.energy_coefficient,
+                             self.costfxn.force_coefficient,
+                             self.costfxn.train_forces, len_of_variables,
+                             calculate_gradient, self.costfxn.save_memory)
+                (energy_square_error, force_square_error, _) = \
+                    self.costfxn._mp.share_cost_function_task_between_cores(
+                    task=_calculate_cost_function_python,
+                    _args=task_args, len_of_variables=len_of_variables)
+
+            new_square_error = \
+                self.costfxn.energy_coefficient * energy_square_error + \
+                self.costfxn.force_coefficient * force_square_error
+            newlogp = - new_square_error / temp
+
+            # Calculating probability ratio
+            pratio = np.exp(newlogp - logp)
+            rand = np.random.rand()
+            if rand < pratio:
+                accept = True
+                accepted += 1.
+            else:
+                accept = False
+            line = ('%5s' ' %5.2f' ' %5.2f' ' %5.2f' ' %5.2f' ' %3.2f'
+                    ' %3.2f' ' %5s')
+            self.log(line % (step,
+                             temp,
+                             new_square_error,
+                             newlogp,
+                             logp,
+                             pratio,
+                             rand,
+                             '%s(%i)' % (accept,
+                                         int(accepted * 100 / (step + 1)))))
+            if new_square_error < besterror:
+                bestvariables = newvariables
+                besterror = new_square_error
+            if accept:
+                variables = newvariables
+                allvariables.append(newvariables)
+                square_error = new_square_error
+
+            # Changing temprature according to acceptance ratio
+            if (accepted / (step + 1) < self.acceptance_criteria):
+                temp += 0.0005 * temp
+            else:
+                temp -= 0.002 * temp
+            step += 1
+
+        self.log('Simulated annealing exited. ', toc='simulated_annealing')
+        self.log('\n')
+
+        return bestvariables
+
+###############################################################################
+###############################################################################
+###############################################################################
+
