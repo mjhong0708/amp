@@ -453,25 +453,33 @@ class Amp(Calculator):
             from utilities import count_allocated_cpus
             cores = count_allocated_cpus()
         log('Parallel processing over %i cores.\n' % cores)
-
-
-        #FIXME/ap: This is ANN-specific. Needs to be updated.
-        if not (param.regression._weights or param.regression._variables):
-            variables_exist = False
-        else:
-            variables_exist = True
+        self.cores = cores
 
         if isinstance(images, str):
+            log('Attempting to read training images from file %s.' %
+                images)
             extension = os.path.splitext(images)[1]
             if extension == '.traj':
                 images = aseio.Trajectory(images, 'r')
             elif extension == '.db':
                 images = aseio.read(images)
 
-        fp = self.fingerprint(images, cores=cores)
+        # Images is converted to dictionary form; key is hash of image.
+        log('Hashing images...', tic=True)
+        dict_images = {}
+        for image in images:
+            hash = hash_image(image)
+            if hash in dict_images.keys():
+                log('Warning: Duplicate image (based on identical hash).'
+                    ' Was this expected? Hash: %s' % hash)
+            dict_images[hash] = image
+        del hash
+        images = dict_images
+        log(' %i unique images after hashing.' % len(images))
+        log(' ...hashing completed.', toc=True)
 
-
-        self.log = None
+        self.fingerprint(images, cores=cores)
+        self.regress_model
 
 
     def fingerprint(self, images, cores=None):
@@ -493,34 +501,14 @@ class Amp(Calculator):
                     raise RuntimeError('Number of atoms in different images '
                                        'is not the same. Try different '
                                        'descriptor. ')
-
-        # Images is converted to dictionary form; key is hash of image.
-        # FIXME/ap This could be in the train method?
-        log('Hashing images...', tic=True)
-        dict_images = {}
-        for image in images:
-            hash = hash_image(image)
-            if hash in dict_images.keys():
-                log('Warning: Duplicate image (based on identical hash).'
-                    ' Was this expected? Hash: %s' % hash)
-            dict_images[hash] = image
-        del hash
-        images = dict_images
-
-        hashs = sorted(images.keys()) #FIXME/ap Delete this?
-        no_of_images = len(images) #FIXME/ap Delete this?
-        log(' %i unique images after hashing.' % no_of_images)
-        log(' ...hashing completed.', toc=True)
-
         
         # Switch to the fp module.
-        self.fp.training_startup(images, log, param=self.parameters)
-        # FIXME/ap: Above is probably not necessary.
         self.fp.calculate_fingerprints(images=images, cores=cores,
                                        fortran=self.fortran, log=log)
 
 
 
+    def regress_model(self, cores=None):
         aaa
 
         #FIXME/ap: Below needs to be moved into descriptor, and parallel

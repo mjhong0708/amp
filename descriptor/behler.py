@@ -166,26 +166,6 @@ class Behler:
 
     ###########################################################################
 
-    def training_startup(self, images, log, param):
-        """
-        Passes the initial data for the training routine.
-        """
-        print('param in startup')
-        print(param)
-        print('selfGs in startup')
-        print(self.Gs)
-        if self.elements is None:
-            log('Finding unique set of elements in training data.')
-            self.elements = set([atom.symbol for atoms in images.values()
-                                 for atom in atoms])
-            self.elements = sorted(self.elements)
-        param = self.check_symmetry_functions(log, param, self.elements)
-        self.dblabel
-        print('selfGs in startup end')
-        print(self.Gs)
-
-    ###########################################################################
-
     def calculate_fingerprints(self, images, cores=1, fortran=False,
                                log=None):
         """Calculates the fingerpints of the images, for the ones not
@@ -200,6 +180,14 @@ class Behler:
         self.elements = sorted(self.elements)
         log('%i unique elements included: ' % len(self.elements)
             + ', '.join(self.elements))
+
+
+        if not self.Gs:
+            log('No symmetry functions suppplied; creating defaults.')
+            self.Gs = make_symmetry_functions(self.elements)
+        log('Symmetry functions for each element:')
+        for _ in self.Gs.keys():
+            log(' %2s: %i' % (_, len(self.Gs[_])))
 
         log('Calculating neighborlists...', tic='nl')
         nl = Data(filename='%s-neighborlists' % self.dblabel,
@@ -296,30 +284,6 @@ class Behler:
 
     ###########################################################################
 
-    def check_symmetry_functions(self, log, param, elements):
-        """
-        Generates symmetry functions if do not exist, and prints out in the log
-        file.
-
-        :param log: Write function at which to log data. Note this must be a
-                    callable function.
-        :type log: Logger object
-        :param param: Object containing descriptor properties.
-        :type param: ASE calculator's Parameters class
-        :param elements: List of atom symbols.
-        :type elements: list of str
-
-        :returns: Object containing descriptor properties.
-        """
-        #FIXME: This seems like a strange name for a symmetry function!
-        # If Gs is not given, generates symmetry functions
-        if not param.descriptor.Gs:
-            param.descriptor.Gs = make_symmetry_functions(elements)
-        log('Symmetry functions for each element:')
-        for _ in param.descriptor.Gs.keys():
-            log(' %2s: %i' % (_, len(param.descriptor.Gs[_])))
-
-        return param
 
 ###############################################################################
 ###############################################################################
