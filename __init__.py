@@ -8,7 +8,7 @@ from datetime import datetime
 from collections import OrderedDict
 from scipy.optimize import fmin_bfgs as optimizer
 
-from ase.calculators.calculator import Calculator
+from ase.calculators.calculator import Calculator, Parameters
 from ase.data import atomic_numbers
 from ase.parallel import paropen
 from ase import io as aseio
@@ -62,6 +62,10 @@ class Amp(Calculator):
     :param fortran: If True, will use fortran modules, if False, will not.
     :type fortran: bool
 
+    :param cores: Can specify cores to use for parallel training;
+                  if None, will determine from environment
+    :type cores: int
+
     :raises: RuntimeError
     """
     implemented_properties = ['energy', 'forces']
@@ -74,7 +78,7 @@ class Amp(Calculator):
     ###########################################################################
 
     def __init__(self, load=None, label=None, dblabel=None, extrapolate=True,
-                 fortran=True, **kwargs):
+                 fortran=True, cores=None, **kwargs):
 
         self.extrapolate = extrapolate
         self.fortran = fortran
@@ -93,6 +97,11 @@ class Amp(Calculator):
                                    'with f2py as described in the README. '
                                    'Correct version is %i.'
                                    % fmodules_version)
+
+        if cores is None:
+            from .utilities import count_allocated_cpus
+            cores = count_allocated_cpus()
+        self.cores = cores
 
         # Reading parameters from existing file if any:
         if load:
@@ -410,7 +419,6 @@ class Amp(Calculator):
     def train(self,
               images,
               energy_goal=0.001,
-              cores=None,
               overwrite=False,
               data_format='json'):
         """
@@ -427,67 +435,90 @@ class Amp(Calculator):
         :param energy_goal: Threshold energy per atom rmse at which simulation
                             is converged.
         :type energy_goal: float
-        :param cores: Number of cores to parallelize over. If not specified,
-                      attempts to determine from environment.
-        :type cores: int
         :param overwrite: If a trained output file with the same name exists,
                           overwrite it.
         :type overwrite: bool
         :param data_format: Format of saved data. Can be either "json" or "db".
         :type data_format: str
         """
-        param = self.parameters
-        filename = make_filename(self.label, 'trained-parameters.json')
-
         log = Logger(make_filename(self.label, 'train-log.txt'))
-        self._log = log # Make available to other methods.
         log('Amp training started. ' + now() + '\n')
-        if param.descriptor is None:  # pure atomic-coordinates scheme
+        
+        log('Checking input parameters.')
+        self._set_training_parameters(images=images, log=log)
+
+        if self.parameters.descriptor is None:  # pure atomic-coordinates scheme
+            #FIXME/ap Again, this should be a module?
             log('Local environment descriptor: None')
         else:  # fingerprinting scheme
             log('Local environment descriptor: ' +
-                param.descriptor.__class__.__name__)
-        log('Regression: ' + param.regression.__class__.__name__ + '\n')
+                self.parameters.descriptor.__class__.__name__)
+        log('Regression: ' + self.parameters.regression.__class__.__name__ + '\n')
 
-        if not cores:
-            from utilities import count_allocated_cpus
-            cores = count_allocated_cpus()
-        log('Parallel processing over %i cores.\n' % cores)
-        self.cores = cores
 
-        if isinstance(images, str):
-            log('Attempting to read training images from file %s.' %
-                images)
-            extension = os.path.splitext(images)[1]
-            if extension == '.traj':
-                images = aseio.Trajectory(images, 'r')
-            elif extension == '.db':
-                images = aseio.read(images)
-
-        # Images is converted to dictionary form; key is hash of image.
-        log('Hashing images...', tic=True)
-        dict_images = {}
-        for image in images:
-            hash = hash_image(image)
-            if hash in dict_images.keys():
-                log('Warning: Duplicate image (based on identical hash).'
-                    ' Was this expected? Hash: %s' % hash)
-            dict_images[hash] = image
-        del hash
-        images = dict_images
-        log(' %i unique images after hashing.' % len(images))
-        log(' ...hashing completed.', toc=True)
-
-        self.fingerprint(images, cores=cores)
+        #FIXME/ap My new scheme may start training over all the saved-to-
+        #-disk images, not just the specified ones! This is a problem.
+        # Need to think it through. Actually I think it is fine, it goes
+        # by the list of hashes in the images dictionary.
+        self.fingerprint()
         self.regress_model
 
 
-    def fingerprint(self, images, cores=None):
-        """Fingerprints according to the specified scheme."""
+        #FIXME/ap: below can be deleted? Was probably related to last
+        # line of regress_model.
+        filename = make_filename(self.label, 'trained-parameters.json')
 
-        log = self._log
-        if not log:
-            log = Logger(make_filename(self.label, 'fingerprint-log.txt'))
+
+    def _set_training_parameters(self, images=None, log=None):
+        """Interprets and saves any updates to training parameters."""
+
+        print('in set trainging parameters')
+        if not hasattr(self, 'trainingparameters'):
+            self.trainingparameters = Parameters()
+        tp = self.trainingparameters
+
+        if log is not None:
+            tp.log = log
+        elif not hasattr(tp, 'log'):
+            tp.log = Logger(make_filename(self.label, 'train-log.txt'))
+
+        if images is None:
+            print('images is none')
+            pass  # No update.
+        elif hasattr(images, 'keys'):
+            tp['images'] = images  # Apparently already hashed.
+        else:
+            # Need to be hashed, and possibly read.
+            if isinstance(images, str):
+                log('Attempting to read training images from file %s.' %
+                    images)
+                extension = os.path.splitext(images)[1]
+                if extension == '.traj':
+                    images = aseio.Trajectory(images, 'r')
+                elif extension == '.db':
+                    images = aseio.read(images)
+
+            # images converted to dictionary form; key is hash of image.
+            log('Hashing images...', tic=True)
+            dict_images = {}
+            for _ in xrange(len(images)):
+                image = images.pop(0)  # Remove from memory as transfered.
+                hash = hash_image(image)
+                if hash in dict_images.keys():
+                    log('Warning: Duplicate image (based on identical hash).'
+                        ' Was this expected? Hash: %s' % hash)
+                dict_images[hash] = image
+            tp['images'] = dict_images
+            log(' %i unique images after hashing.' % len(tp['images']))
+            log(' ...hashing completed.', toc=True)
+
+
+    def fingerprint(self, images=None):
+        """Fingerprints according to the specified scheme."""
+        self._set_training_parameters(images=images)
+
+        log = self.trainingparameters.log
+        images = self.trainingparameters.images
 
         log('Fingerprinting %i images.' % len(images))
 
@@ -503,12 +534,12 @@ class Amp(Calculator):
                                        'descriptor. ')
         
         # Switch to the fp module.
-        self.fp.calculate_fingerprints(images=images, cores=cores,
+        self.fp.calculate_fingerprints(images=images, cores=self.cores,
                                        fortran=self.fortran, log=log)
 
 
 
-    def regress_model(self, cores=None):
+    def regress_model(self):
         aaa
 
         #FIXME/ap: Below needs to be moved into descriptor, and parallel

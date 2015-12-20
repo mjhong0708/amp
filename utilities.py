@@ -25,6 +25,10 @@ class Data:
     # FIXME/ap sqlitedict probably behaves teh same, but supports
     # multi-thread access.
 
+    # FIXME/ap Do I need a method to get the keys? Actually, those are
+    # the hashes stored in images, so probably not. The sophisticated
+    # user, with pipe in hand, can access self.db.keys for this.
+
     def __init__(self, filename, db=shelve, calculator=None):
         self.calc = calculator
         self.db = db
