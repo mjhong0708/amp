@@ -12,6 +12,8 @@ images,fingerprints=pickle.load(open('./image_fp_dump_20.pkl','r'))
 elements=['Rh','O','C','H']
 elementFPLengths={'Rh': 56, 'O': 56,'C':56,'H':56}
 elementFPScales={'Rh': 1.,'O': 1.,'C':1.,'H':1.}
+networkList=[5,5]
+activationType=tf.nn.relu
 
 nAtomsDict={}
 for element in elements:
@@ -56,7 +58,7 @@ for j in range(len(images)):
 energies=energies
 energies=energies-np.mean(energies)
 energyScale=np.mean(np.abs(energies))
-#energyScale=1.
+
 #Since we're not going to precondition the neural network with the simulatedannealing solver, instead we need to scale the inputs so that they're approximately all [-1,1].  We assign a scale for each element to make this happen.  There's probably a more clever way of doing this.
 for element in elements:
     elementFPScales[element]=np.max(np.max(atomArraysAll[element]))
@@ -71,36 +73,6 @@ def bias_variable(shape):
     return tf.Variable(initial)
 
 #This is the heart of the NN model.  We define a generic two-layer neural network that will be used for each atom type.  It would be very easy to generalize this for any number of layers, and for different number of neurons in each layer.  This example has a 2x2 hidden-layer network
-def model(x,segmentinds,keep_prob,batchsize):
-    nNeurons=10
-
-    #Pass  the input tensors through the first soft-plus layer
-    W_fc1 = weight_variable([elementFPLengths[element], nNeurons])
-    b_fc1 = bias_variable([nNeurons])
-    h_fc1 = tf.nn.relu(tf.matmul(x, W_fc1) + b_fc1)
-
-    #Define a drop-out layer (taken from the MNIST tutorial), currently not being used
-    h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
-
-    #Pass the output of the first layer through the second layer
-    nNeurons2=10
-    W_fc2 = weight_variable([nNeurons, nNeurons2])
-    b_fc2 = bias_variable([nNeurons2])
-    h_fc2=tf.nn.relu(tf.matmul(h_fc1, W_fc2) + b_fc2)
-
-    #The output will be a linear combination of the second layer outputs
-    W_fc3 = weight_variable([ nNeurons2, 1])
-    b_fc3 = bias_variable([1])
-    y_out=tf.matmul(h_fc2, W_fc3) + b_fc3
-
-    #W_fc4=weight_variable([ nNeurons, 1])
-    #b_fc4=bias_variable([1])
-
-    #y_out=tf.matmul(h_fc1,W_fc4)+b_fc4
-
-    #Sum the predicted energy for each atom
-    return tf.unsorted_segment_sum(y_out,segmentinds,batchsize)
-
 #here we define the inputs into the system.  We have one large tensor for each atom type.
 tensordict={}
 indsdict={}
@@ -116,18 +88,16 @@ keep_prob = tf.placeholder("float")
 nAtoms_in=tf.placeholder("float",shape=[None,1])
 #define the batchsize
 batchsizeInput=tf.placeholder("int32")
-
 learningrate=tf.placeholder("float")
 
 #Construct the neural network for each atom type
 outdict={}
 for element in elements:
-    outdict[element]=model(tensordict[element],indsdict[element],keep_prob,batchsizeInput)
+    outdict[element]=model(tensordict[element],indsdict[element],keep_prob,batchsizeInput,networkList,activationType)
 
 #Set the input scaling based on the one for rhodium
 curtensorscale=elementFPScales['Rh']
 curenergyscale=100000.
-#Test for just Rh
 
 #The total energy is the sum of the energies over each atom type
 keylist=elements
@@ -139,7 +109,6 @@ for i in range(1,len(keylist)):
 loss=tf.sqrt(tf.reduce_mean(tf.square(tf.sub(ytot,y_))))
 lossPerAtom=tf.sqrt(tf.reduce_mean(tf.square(tf.div(tf.sub(ytot,y_),nAtoms_in))))
 
-
 #Define a stochastic optimizer.  The optimizer automatically works over the entire variables space, which encompasses all of the neural networks
 train_step=tf.train.AdamOptimizer(learningrate).minimize(loss)
 
@@ -147,12 +116,10 @@ train_step=tf.train.AdamOptimizer(learningrate).minimize(loss)
 sess = tf.InteractiveSession()
 sess.run(tf.initialize_all_variables())
 
-def tfeval(obj):
-    return obj.eval(feed_dict=feedinput)
 
 #Batch gradient descent.  Do an optimization over 1000 epochs of the input set.  For each epoch, the set of training images is broken up into random batches defined by batchsize above.  The key assumption is that the batch is representative of the entire sample.  This allows us to make optimization steps very quickly (based on info from a small number of images).  This technique is very common in literature (look for batch SGD).  The fact that it's stochastic is actually good, because it allows for some robust behavior against local minima
 
-batchsize=100
+batchsize=20
 
 
 def generateBatch(curinds,elements,atomArraysAll,nAtomsDict):
@@ -214,6 +181,5 @@ def trainmodel(nepoch,trainingrate,keepprob):
             icount=icount+1
 
 trainmodel(100000,1.e-4,0.5)
-#trainmodel(10000,1.e-4,0.5)
 
 
