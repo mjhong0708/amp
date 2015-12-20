@@ -60,8 +60,9 @@ calc = Amp(label=label,
 
 calc.fingerprint(images=train_images)
 
-
-print('Interact with fingerprints')
+print('Interact with fingerprints.')
 fp = Data(filename=label + '-fingerprints')
-
-
+# Try in interactive shell.
+# >>> fp.open()
+# >>> keys = fp.d.keys()
+# >>> print(fp[keys[3]])

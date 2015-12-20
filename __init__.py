@@ -194,6 +194,10 @@ class Amp(Calculator):
         :param atoms: ASE atoms object.
         :type atoms: ASE dict
         """
+        #FIXME/ap This needs a description of what this method does.
+        # Specificially why it is necessary in addition to the regular
+        # __init__ method. If it is required by the ASE Calculator
+        # format, we should state that.
         self.par = {}
         self.rc = 0.0
         self.numbers = atoms.get_atomic_numbers()
@@ -461,7 +465,7 @@ class Amp(Calculator):
         # Need to think it through. Actually I think it is fine, it goes
         # by the list of hashes in the images dictionary.
         self.fingerprint()
-        self.regress_model
+        self.regress_model()
 
 
         #FIXME/ap: below can be deleted? Was probably related to last
@@ -481,6 +485,7 @@ class Amp(Calculator):
             tp.log = log
         elif not hasattr(tp, 'log'):
             tp.log = Logger(make_filename(self.label, 'train-log.txt'))
+        log = tp.log
 
         if images is None:
             print('images is none')
@@ -515,6 +520,7 @@ class Amp(Calculator):
 
     def fingerprint(self, images=None):
         """Fingerprints according to the specified scheme."""
+        print(images)
         self._set_training_parameters(images=images)
 
         log = self.trainingparameters.log
@@ -523,8 +529,8 @@ class Amp(Calculator):
         log('Fingerprinting %i images.' % len(images))
 
         if self.parameters.descriptor is None:  # pure atomic-coordinates scheme
-            #FIXME/ap: we should consider putting this as a class like
-            # Behler to illustrate the bare methods needed?
+            #FIXME/ap: we should consider putting this as a class, like
+            # Behler, which will illustrate the bare methods needed?
             log(' Using pure atomic coordinates without transformation.')
             self.parameters.no_of_atoms = len(images[0])
             for image in images:
@@ -537,13 +543,14 @@ class Amp(Calculator):
         self.fp.calculate_fingerprints(images=images, cores=self.cores,
                                        fortran=self.fortran, log=log)
 
+    def regress_model(self, images=None, fingerprints=None):
+        """Regress the model. This method is not normally called by the
+        user, it is generally part of the 'train' method, but the user can
+        optionally use this model to specify their own custom
+        fingerprints."""
 
-
-    def regress_model(self):
         aaa
-
-        #FIXME/ap: Below needs to be moved into descriptor, and parallel
-        # figured out.
+        #FIXME/ap This needs to be done still.
 
 
         if param.descriptor is None:  # pure atomic-coordinates scheme

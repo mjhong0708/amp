@@ -67,8 +67,15 @@ class Data:
         return self.d[key]
 
     def close(self):
+        """Safely close the database."""
         if self.d:
             self.d.close()
+
+    def open(self, mode='r'):
+        """Open the database connection with mode specified."""
+        if self.d is not None:
+            raise RuntimeError('Database connection already open')
+        self.d = self.db.open(self.filename, mode)
 
     def __del__(self):
         self.close()
