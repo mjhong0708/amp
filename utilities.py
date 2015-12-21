@@ -20,6 +20,13 @@ class Data:
     this in dbinstance.
     Designed to hold things like neighborlists, which have a hash, value
     format.
+    This will work like a dictionary in that items can be accessed with
+    data[key], but other advanced dictionary functions should be accessed
+    with through the .d attribute:
+    >>> data = Data(...)
+    >>> data.open()
+    >>> keys = data.d.keys()
+    >>> values = data.d.values()
     """
 
     # FIXME/ap sqlitedict probably behaves teh same, but supports
@@ -60,22 +67,22 @@ class Data:
         else:
             raise NotImplementedError('Need to write this!')
         log(' Calculated %i new images.' % len(calcs_needed))
+        self.d = None
 
     def __getitem__(self, key):
-        if not self.d:
-            self.d = self.db.open(self.filename, 'r')
+        self.open()
         return self.d[key]
 
     def close(self):
         """Safely close the database."""
         if self.d:
             self.d.close()
+        self.d = None
 
     def open(self, mode='r'):
         """Open the database connection with mode specified."""
-        if self.d is not None:
-            raise RuntimeError('Database connection already open')
-        self.d = self.db.open(self.filename, mode)
+        if self.d is None:
+            self.d = self.db.open(self.filename, mode)
 
     def __del__(self):
         self.close()
