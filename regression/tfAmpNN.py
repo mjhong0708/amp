@@ -16,6 +16,8 @@ class tfAmpNN:
         self.initializeVariables()
     
     def constructModel(self):
+        
+        #first, define all of the input placeholders to the tf system
         tensordict={}
         indsdict={}
         for element in self.elements:
@@ -24,12 +26,14 @@ class tfAmpNN:
         self.indsdict=indsdict
         self.tensordict=tensordict
 
+        #y_ is the known energy of each configuration
         self.y_ = tf.placeholder("float", shape=[None, 1])
         self.keep_prob = tf.placeholder("float")
         self.nAtoms_in=tf.placeholder("float",shape=[None,1])
         self.batchsizeInput=tf.placeholder("int32")
         self.learningrate=tf.placeholder("float")
 
+        #generate a multilayer neural network for each element type
         outdict={}
         for element in self.elements:
             if isinstance(self.hiddenlayers,dict):
@@ -44,13 +48,15 @@ class tfAmpNN:
         ytot=outdict[keylist[0]]
         for i in range(1,len(keylist)):
             energy=ytot+outdict[keylist[i]]
-
+        
+        #Define output nodes for the energy of a configuration, a loss function, and the loss per atom (which is what we usually track)
         self.energy=energy
         self.loss=tf.sqrt(tf.reduce_mean(tf.square(tf.sub(self.energy,self.y_))))
         self.lossPerAtom=tf.sqrt(tf.reduce_mean(tf.square(tf.div(tf.sub(self.energy,self.y_),self.nAtoms_in))))
 
         self.train_step=tf.train.AdamOptimizer(self.learningrate).minimize(self.loss)
 
+    #this function resets all of the variables in the current tensorflow model
     def initializeVariables(self):
         self.sess.run(tf.initialize_all_variables())
 
@@ -114,7 +120,7 @@ class tfAmpNN:
                     #For each batch, construct a new set of inputs
                     curinds=indlist[np.arange(batchsize)+i*batchsize]
 
-                    atomArraysFinal,atomInds=generateBatch(curinds,self.elements,atomArraysAll,nAtomsDict,batchsize)
+                    atomArraysFinal,atomInds=generateBatch(curinds,self.elements,atomArraysAll,nAtomsDict)
                     feedinput={}
                     for element in self.elements:
                         feedinput[self.tensordict[element]]=atomArraysFinal[element]/self.elementFPScales[element]
@@ -124,16 +130,16 @@ class tfAmpNN:
                     feedinput[self.learningrate]=trainingrate
                     feedinput[self.keep_prob]=keepprob
                     feedinput[self.nAtoms_in]=natoms[curinds]
-                    
+
                     #run a training step with the new inputs
                     self.sess.run(self.train_step, feed_dict=feedinput)
                     
                     #Print the loss function every 100 evals.  Would be better to handle this by evaluating the loss function on the entire dataset, but batchsize is currently hardcoded at the moment
                     if icount%100==0:
-                        print(self.lossPerAtom.eval(feed_dict=feedinput)*self.energyScale)
-                icount=icount+1
+                        print('Loss per atom=%1.3f'%(self.lossPerAtom.eval(feed_dict=feedinput)*self.energyScale))
+                    icount+=1
 
-        trainmodel(100000,1.e-4,0.5)
+        trainmodel(100,1.e-4,0.5)
 
     #implement methods to get the energy and forces for a set of configurations
     #def get_energy():
@@ -141,9 +147,7 @@ class tfAmpNN:
     #def get_forces():
 
 
-
-
-
+#This function generates a multilayer neural network with variable number of neurons
 def model(x,segmentinds,keep_prob,batchsize,neuronList,activationType,fplength):
     
     nNeurons=neuronList[0]
@@ -167,6 +171,8 @@ def model(x,segmentinds,keep_prob,batchsize,neuronList,activationType,fplength):
     #Sum the predicted energy for each atom
     return tf.unsorted_segment_sum(y_out,segmentinds,batchsize)
 
+
+#Helper functions taken from the MNIST tutorial to generate weight and bias variables
 def weight_variable(shape):
     initial = tf.truncated_normal(shape, stddev=1.)
     return tf.Variable(initial)
@@ -175,7 +181,8 @@ def bias_variable(shape):
     initial = tf.constant(0.5, shape=shape)
     return tf.Variable(initial)
 
-def generateBatch(curinds,elements,atomArraysAll,nAtomsDict,batchsize):
+#This method generates batches from a large dataset using a set of selected indices curinds.  Very slow, should be done in tensorflow instead
+def generateBatch(curinds,elements,atomArraysAll,nAtomsDict):
     atomArrays={}
     for element in elements:
         atomArrays[element]=[]
@@ -196,7 +203,7 @@ def generateBatch(curinds,elements,atomArraysAll,nAtomsDict,batchsize):
 
     for element in elements:
         curind=0
-        for i in range(batchsize):
+        for i in range(len(curinds)):
             for j in range(curNAtoms[element][i]):
                 atomInds[element][curind]=i
                 curind+=1
