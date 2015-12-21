@@ -60,7 +60,7 @@ class tfAmpNN:
     def initializeVariables(self):
         self.sess.run(tf.initialize_all_variables())
 
-    def train(self,images,fingerprintDB,batchsize=20):
+    def train(self,images,fingerprintDB,batchsize=20,nEpochs=100):
         nAtomsDict={}
         for element in self.elements:
             nAtomsDict[element]=np.zeros(len(images))
@@ -77,11 +77,13 @@ class tfAmpNN:
         for element in self.elements:
             atomsPositions[element]=np.cumsum(nAtomsDict[element])-nAtomsDict[element]
 
-        atomsInds={}
+        atomsIndsReverse={}
         for element in self.elements:
-            atomsInds[element]=[]
+            atomsIndsReverse[element]=[]
             for i in range(len(keylist)):
-                atomsInds[element].append(np.arange(nAtomsDict[element][i])+atomsPositions[element][i])
+                if nAtomsDict[element][i]>0:
+                    atomsIndsReverse[element].append(np.ones((nAtomsDict[element][i],1))*i)
+            atomsIndsReverse[element]=np.concatenate(atomsIndsReverse[element])
 
         atomArraysAll={}
         for element in self.elements:
@@ -97,9 +99,13 @@ class tfAmpNN:
                 curatoms=[atom for atom in atoms if atom.symbol==element]
                 for i in range(len(curatoms)):
                     atomArraysTemp.append(fp[curatoms[i].index])
-                atomArraysAll[element].append(atomArraysTemp)
+                if len(atomArraysTemp)>0:
+                    atomArraysAll[element].append(atomArraysTemp)
             energies[j]=atoms.get_potential_energy()
             natoms[j]=len(atoms)
+
+        for element in self.elements:
+            atomArraysAll[element]=np.concatenate(atomArraysAll[element])
 
         energies=energies
         energies=energies-np.mean(energies)
@@ -120,7 +126,7 @@ class tfAmpNN:
                     #For each batch, construct a new set of inputs
                     curinds=indlist[np.arange(batchsize)+i*batchsize]
 
-                    atomArraysFinal,atomInds=generateBatch(curinds,self.elements,atomArraysAll,nAtomsDict)
+                    atomArraysFinal,atomInds=generateBatch(curinds,self.elements,atomArraysAll,nAtomsDict,atomsIndsReverse)
                     feedinput={}
                     for element in self.elements:
                         feedinput[self.tensordict[element]]=atomArraysFinal[element]/self.elementFPScales[element]
@@ -139,7 +145,7 @@ class tfAmpNN:
                         print('Loss per atom=%1.3f'%(self.lossPerAtom.eval(feed_dict=feedinput)*self.energyScale))
                     icount+=1
 
-        trainmodel(100,1.e-4,0.5)
+        trainmodel(nEpochs,1.e-4,0.5)
 
     #implement methods to get the energy and forces for a set of configurations
     #def get_energy():
@@ -181,31 +187,28 @@ def bias_variable(shape):
     initial = tf.constant(0.5, shape=shape)
     return tf.Variable(initial)
 
-#This method generates batches from a large dataset using a set of selected indices curinds.  Very slow, should be done in tensorflow instead
-def generateBatch(curinds,elements,atomArraysAll,nAtomsDict):
+#This method generates batches from a large dataset using a set of selected indices curinds.  Pretty slow due to the concatenate call, should be done in tensorflow instead
+def generateBatch(curinds,elements,atomArraysAll,nAtomsDict,atomsIndsReverse):
     atomArrays={}
     for element in elements:
         atomArrays[element]=[]
     atomArraysFinal={}
     
+    
     curNAtoms={}
     for element in elements:
+        validKeys=np.in1d(atomsIndsReverse[element],curinds)
         curNAtoms[element]=[]
         for ind in curinds:
-            if len(atomArraysAll[element][ind])>0:
-                atomArrays[element].append(atomArraysAll[element][ind])
             curNAtoms[element].append(len(atomArraysAll[element][ind]))
-        atomArraysFinal[element]=np.concatenate(atomArrays[element])
+        atomArraysFinal[element]=atomArraysAll[element][validKeys]
 
     atomInds={}
-    for element in elements:
-        atomInds[element]=np.zeros(np.sum(nAtomsDict[element][curinds]))
 
     for element in elements:
-        curind=0
+        validKeys=np.in1d(atomsIndsReverse[element],curinds)
+        atomIndsTemp=np.sum(atomsIndsReverse[element][validKeys],1)
+        atomInds[element]=atomIndsTemp*0.
         for i in range(len(curinds)):
-            for j in range(curNAtoms[element][i]):
-                atomInds[element][curind]=i
-                curind+=1
-
+            atomInds[element][atomIndsTemp==curinds[i]]=i
     return atomArraysFinal,atomInds
