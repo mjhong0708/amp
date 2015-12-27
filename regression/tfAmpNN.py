@@ -49,10 +49,10 @@ class tfAmpNN:
         keylist=self.elements
         ytot=outdict[keylist[0]]
         for i in range(1,len(keylist)):
-            energy=ytot+outdict[keylist[i]]
+            ytot=ytot+outdict[keylist[i]]
         
         #Define output nodes for the energy of a configuration, a loss function, and the loss per atom (which is what we usually track)
-        self.energy=energy
+        self.energy=ytot
         self.loss=tf.sqrt(tf.reduce_mean(tf.square(tf.sub(self.energy,self.y_))))
         self.lossPerAtom=tf.sqrt(tf.reduce_mean(tf.square(tf.div(tf.sub(self.energy,self.y_),self.nAtoms_in))))
 
@@ -62,56 +62,85 @@ class tfAmpNN:
     def initializeVariables(self):
         self.sess.run(tf.initialize_all_variables())
 
-    def train(self,images,fingerprintDB,batchsize=20,nEpochs=100):
+    def generateFeedInput(self,curinds,energies,atomArraysAll,nAtomsDict,atomsIndsReverse,batchsize,trainingrate,keepprob,natoms):
+        atomArraysFinal,atomInds=generateBatch(curinds,self.elements,atomArraysAll,nAtomsDict,atomsIndsReverse)
+        feedinput={}
+        for element in self.elements:
+            if len(atomArraysFinal[element])>0:
+                feedinput[self.tensordict[element]]=atomArraysFinal[element]/self.elementFPScales[element]
+                feedinput[self.indsdict[element]]=atomInds[element]
+                feedinput[self.maskdict[element]]=np.ones(batchsize)
+            else:
+                feedinput[self.tensordict[element]]=np.zeros((1,self.elementFingerprintLengths[element]))
+                feedinput[self.indsdict[element]]=[0]
+                feedinput[self.maskdict[element]]=np.zeros(batchsize)
+        feedinput[self.y_]=energies[curinds]
+        feedinput[self.batchsizeInput]=batchsize
+        feedinput[self.learningrate]=trainingrate
+        feedinput[self.keep_prob]=keepprob
+        feedinput[self.nAtoms_in]=natoms[curinds]
+        return feedinput
+                
+    def train(self,images,fingerprintDB,batchsize=20,nEpochs=100,initialTrainingRate=1.e-4,miniBatch=True):
 
         atomArraysAll,nAtomsDict,atomsIndsReverse,energies,natoms=generateTensorFlowArrays(images,fingerprintDB,self.elements,images.keys())
         
-        #energies=energies-np.mean(energies)
-        #energies=energies
+        natomsArray=np.zeros((len(images),len(self.elements)))
+        for i in range(len(images)):
+            for j in range(len(self.elements)):
+                natomsArray[i][j]=nAtomsDict[self.elements[j]][i]
+        energyPerElement=np.linalg.lstsq(a=natomsArray,b=energies)
+        energyPerElement=energyPerElement[0]
+        self.energyPerElement={}
+        for j in range(len(self.elements)):
+            self.energyPerElement[self.elements[j]]=energyPerElement[j]
+        energies=energies-np.dot(natomsArray,energyPerElement)
+        
+            #for i in range(len(energies)):
+            #for element in self.elements:
+#    energies[i]=energies[i]-nAtomsDict[element][j]*self.energyPerElement[element]
+
         self.energyMeanScale=np.mean(energies)
+        self.energyMeanScale=0.
         energies=energies-self.energyMeanScale
         self.energyProdScale=np.mean(np.abs(energies))
+        self.energyProdScale=1.
         energies=energies/self.energyProdScale
         self.elementFPScales={}
         for element in self.elements:
             self.elementFPScales[element]=np.max(np.max(atomArraysAll[element]))
 
+        if not(miniBatch):
+            batchsize=len(images)
         def trainmodel(nepoch,trainingrate,keepprob):
             icount=1
             indlist=np.arange(len(images))
             for j in range(nepoch):
-                np.random.shuffle(indlist)
+                
+                if miniBatch:
+                    np.random.shuffle(indlist)
                 
                 for i in range(int(len(images)/batchsize)):
                     #For each batch, construct a new set of inputs
-                    curinds=indlist[np.arange(batchsize)+i*batchsize]
-
-                    atomArraysFinal,atomInds=generateBatch(curinds,self.elements,atomArraysAll,nAtomsDict,atomsIndsReverse)
-                    feedinput={}
-                    for element in self.elements:
-                        if len(atomArraysFinal[element])>0:
-                            feedinput[self.tensordict[element]]=atomArraysFinal[element]/self.elementFPScales[element]
-                            feedinput[self.indsdict[element]]=atomInds[element]
-                            feedinput[self.maskdict[element]]=np.ones(batchsize)
+                    if miniBatch or (not(miniBatch)and(icount==1)):
+                        if miniBatch:
+                            curinds=indlist[np.arange(batchsize)+i*batchsize]
                         else:
-                            feedinput[self.tensordict[element]]=np.zeros((1,self.elementFingerprintLengths[element]))
-                            feedinput[self.indsdict[element]]=[0]
-                            feedinput[self.maskdict[element]]=np.zeros(batchsize)
-                    feedinput[self.y_]=energies[curinds]
-                    feedinput[self.batchsizeInput]=batchsize
-                    feedinput[self.learningrate]=trainingrate
-                    feedinput[self.keep_prob]=keepprob
-                    feedinput[self.nAtoms_in]=natoms[curinds]
+                            curinds=range(len(images))
+
+                        feedinput=self.generateFeedInput(curinds,energies,atomArraysAll,nAtomsDict,atomsIndsReverse,batchsize,trainingrate,keepprob,natoms)
 
                     #run a training step with the new inputs
                     self.sess.run(self.train_step, feed_dict=feedinput)
                     
                     #Print the loss function every 100 evals.  Would be better to handle this by evaluating the loss function on the entire dataset, but batchsize is currently hardcoded at the moment
-                    if icount%100==0:
-                        print('Loss per atom=%1.3f'%(self.lossPerAtom.eval(feed_dict=feedinput)*self.energyProdScale))
-                    icount+=1
+                if icount%10==0:
+                    print('RMSE(energy)=%1.3e'%(self.loss.eval(feed_dict=self.generateFeedInput(range(len(images)),energies,atomArraysAll,nAtomsDict,atomsIndsReverse,len(images),trainingrate,keepprob,natoms))*self.energyProdScale))
+                icount+=1
 
-        trainmodel(nEpochs,1.e-4,0.5)
+        trainmodel(nEpochs,initialTrainingRate,0.5)
+
+
 
     #implement methods to get the energy and forces for a set of configurations
     def get_energy(self,hashs,images,fingerprintDB):
@@ -149,9 +178,9 @@ def model(x,segmentinds,keep_prob,batchsize,neuronList,activationType,fplength,m
     
     nNeurons=neuronList[0]
     #Pass  the input tensors through the first soft-plus layer
-    W_fc1 = weight_variable([fplength, nNeurons])
-    b_fc1 = bias_variable([nNeurons])
-    h_fc1 = activationType(tf.matmul(x, W_fc1) + b_fc1)
+    W_fc = weight_variable([fplength, nNeurons])
+    b_fc = bias_variable([nNeurons])
+    h_fc = activationType(tf.matmul(x, W_fc) + b_fc)
     
     if len(neuronList)>1:
         for i in range(1,len(neuronList)):
@@ -159,10 +188,10 @@ def model(x,segmentinds,keep_prob,batchsize,neuronList,activationType,fplength,m
             nNeuronsOld=neuronList[i-1]
             W_fc = weight_variable([nNeuronsOld, nNeurons])
             b_fc = bias_variable([nNeurons])
-            h_fc = activationType(tf.matmul(h_fc1, W_fc) + b_fc)
+            h_fc = activationType(tf.matmul(h_fc, W_fc) + b_fc)
 
     W_fc_out = weight_variable([ neuronList[-1], 1])
-    b_fc_out = bias_variable([1])
+    b_fc_out = bias_variable([1],a=-1e-5)
     y_out=tf.matmul(h_fc, W_fc_out) + b_fc_out
     
     #Sum the predicted energy for each atom
@@ -175,8 +204,8 @@ def weight_variable(shape):
     initial = tf.truncated_normal(shape, stddev=1.)
     return tf.Variable(initial)
 
-def bias_variable(shape):
-    initial = tf.constant(0.5, shape=shape)
+def bias_variable(shape,a=0.5):
+    initial = tf.constant(a, shape=shape)
     return tf.Variable(initial)
 
 #This method generates batches from a large dataset using a set of selected indices curinds.
