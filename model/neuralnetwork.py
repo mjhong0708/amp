@@ -1,11 +1,16 @@
 import numpy as np
 from collections import OrderedDict
+
+from ase.calculators.calculator import Parameters
+
+from ..regression import Regressor, calculate_fingerprints_range
+from . import LossFunction
+
 try:
     from amp import fmodules
 except ImportError:
     fmodules = None
 
-###############################################################################
 
 
 class NeuralNetwork:
@@ -66,27 +71,82 @@ class NeuralNetwork:
     ###########################################################################
 
     def __init__(self, hiddenlayers=(1, 1), activation='tanh', weights=None,
-                 scalings=None,):
+                 scalings=None, fprange=None, regressor=None):
 
-        self.hiddenlayers = hiddenlayers
-        self._weights = weights
-        self._scalings = scalings
+        #FIXME/ap Document that the self.parameters should contain exactly
+        # the information needed to re-create the calculator in its current
+        # state. E.g., nothing about training, optimization tehcniques,
+        # or databanks of calculated fingerprints.
+        self.parameters = Parameters()  
+        self.parameters['hiddenlayers'] = hiddenlayers
+        self.parameters['weights'] = weights
+        self.parameters['scalings'] = scalings
+        self.parameters['fprange'] = fprange
+        self.parameters['activation'] = activation
 
-        self.activation = activation
         # Checking that the activation function is given correctly:
-        if self.activation not in ['linear', 'tanh', 'sigmoid']:
+        if activation not in ['linear', 'tanh', 'sigmoid']:
             raise NotImplementedError('Unknown activation function; '
                                       'activation must be one of '
                                       '"linear", "tanh", or "sigmoid".')
 
-        # Switch to check whether number of atoms are available. Used in the
-        # pure atomic-coordinates scheme.
-        self.switch = False
-        self.no_of_atoms = None
-        self.global_search = False
-        self._variables = None
+        # Items to be used for training.
+        self.regressor = regressor
 
-    ###########################################################################
+    def fit(self, trainingimages, fingerprints, log):
+        """Fit the model parameters such that the fingerprints can be used to describe
+        the energies in trainingimages. log is the logging object.
+        fingerprints is a descriptor object, as would be in calc.fp.
+        """
+        self.initialize_for_regression(log=log, images=trainingimages, fp=fingerprints)
+        if self.regressor is None:
+            self.set_regressor()
+        
+        self.reset_energy()  #FIXME/ap I shouldn't need this.
+        result = self.regressor.regress(model=self, log=log)
+        return result  # True / False
+
+    def set_regressor(self, regressor=Regressor()):
+        """Allows the user to set the regression method. Can use the regressor
+        can be an instance of amp.regression.Regressor with desired keywords,
+        or anything else behaving similarly. FIXME/ap: Define what this means.
+        """
+        self.regressor = regressor
+
+    def get_vector(self):
+        """Returns the model parameters (weights, scaling for each network)
+        as a single vector."""
+        if self.parameters['weights'] is None:
+            return None
+        return self.ravel.to_vector(weights=self.parameters['weights'],
+                                    scalings=self.parameters['scalings'])
+
+    def set_vector(self, vector):
+        """Allows the setting of the model parameters (weights, scalings for
+        each network) with a single vector."""
+        weights, scalings = self.ravel.to_dicts(vector)
+        self.parameters['weights'] = weights
+        self.parameters['scalings'] = scalings
+
+    def get_loss(self, vector):
+        """
+        Method to be called by the regression master.
+        Takes one and only one input, a vector of paramters.
+        Returns one output, the value of the loss (cost) function.
+        """
+        if self._lossfunction is None:
+            # First run; initialize.
+            self.set_loss_function(LossFunction())
+        return self._lossfunction(vector)
+
+    def set_loss_function(self, function):
+        """Allows the user to set a custom loss function. For example,
+        >>> from amp.model import CostFunction
+        >>> costfxn = CostFunction(energytol=0.0001)
+        >>> calc.model.set_loss_function(costfxn)
+        """
+        function.attach_model(self)  # Allows access to methods.
+        self._lossfunction = function
 
     def initialize(self, param, load=None, atoms=None):
         """
@@ -101,6 +161,12 @@ class NeuralNetwork:
         :param atoms: Only used for the case of no descriptor.
         :type atoms: ASE atoms object.
         """
+        return
+        #FIXME/ap I am bypassing this routine for now. Eventually it needs
+        # to be restored, to check that the input variables make sense.
+        #FIXME/ap Note that ths should be able to use the ase Parameters
+        # class tostring method, and a fromstring to restore itself.
+        # (I will need to update this in ASE, however.)
         self.param = param
 
         if self.param.descriptor is None:  # pure atomic-coordinates scheme
@@ -236,8 +302,6 @@ class NeuralNetwork:
             del string1
             del string2
 
-    ###########################################################################
-
     def ravel_variables(self):
         """
         Wrapper function for raveling weights and scalings into a list.
@@ -250,26 +314,23 @@ class NeuralNetwork:
 
         return self.param
 
-    ###########################################################################
-
     def reset_energy(self):
         """
         Resets local variables corresponding to energy.
         """
+        # FIXME/ap: I don't think we need this function. If we do, it needs to
+        # be made clear to the user what it is for. E.g., do you get a different
+        # answer from model.get_energy() before and after calling model.reset_energy()?
         self.o = {}
         self.D = {}
         self.delta = {}
         self.ohat = {}
-
-    ###########################################################################
 
     def reset_forces(self):
         """
         Resets local variables corresponding to forces.
         """
         self.der_coordinates_o = {}
-
-    ###########################################################################
 
     def update_variables(self, param):
         """
@@ -300,8 +361,6 @@ class NeuralNetwork:
                 while j < len_of_weight:
                     self.W[element][j + 1] = np.delete(weight[j + 1], -1, 0)
                     j += 1
-
-    ###########################################################################
 
     def introduce_variables(self, log, param):
         """
@@ -415,12 +474,29 @@ class NeuralNetwork:
 
         return param
 
-    ###########################################################################
+    def get_energy(self, fingerprint):
+        """Returns the model-predicted energy for an image, based on its
+        fingerprint.
+        """
+        self.reset_energy()  #FIXME/ap Not sure why/if we need this.
+        energy = 0.0
+        p = self.parameters
+        if p['mode'] == 'image-centered':
+            #FIXME/ap: This hasn't been updated for image-centered mode.
+            raise NotImplementedError()
+        elif p['mode'] == 'atom-centered':
+            for index, (element, atomicfingerprint) in enumerate(fingerprint):
+                atom_energy = self.get_atomic_energy(input=atomicfingerprint,
+                                                     index=index,
+                                                     symbol=element)
+                energy += atom_energy
+        return energy
 
-    def get_energy(self, input, index=None, symbol=None,):
+    def get_atomic_energy(self, input, index=None, symbol=None,):
         """
         Given input to the neural network, output (which corresponds to energy)
-        is calculated.
+        is calculated about the specified atom. The sum of these for all
+        atoms is the total energy (in atom-centered mode).
 
         :param index: Index of the atom for which atomic energy is calculated
                       (only used in the fingerprinting scheme)
@@ -431,14 +507,23 @@ class NeuralNetwork:
 
         :returns: float -- energy
         """
-        if self.param.descriptor is None:  # pure atomic-coordinates scheme
+        #FIXME/ap: There is a lot to think through in this part.
+        # It doesn't seem like we should need to save self.o,
+        # which are the node values, unless this has something
+        # to do with making force calls cheaper. We also shouldn't
+        # need to pass it the atomic index.
+        #FIXME/ap: Should change input, a protected python word,
+        # to something else like atomicfingerprint. Or ridge.
+        p = self.parameters
+        if p.mode == 'image-centered':
+            #FIXME/ap Needs updating.
             self.o = {}
             hiddenlayers = self.hiddenlayers
             weight = self._weights
-        else:  # fingerprinting scheme
+        elif p.mode == 'atom-centered':
             self.o[index] = {}
-            hiddenlayers = self.hiddenlayers[symbol]
-            weight = self._weights[symbol]
+            hiddenlayers = p.hiddenlayers[symbol]
+            weight = p.weights[symbol]
 
         o = {}  # node values
         layer = 1  # input layer
@@ -453,11 +538,11 @@ class NeuralNetwork:
         temp[0, len(input)] = 1.0
         ohat[0] = temp
         net[1] = np.dot(ohat[0], weight[1])
-        if self.activation == 'linear':
+        if p.activation == 'linear':
             o[1] = net[1]  # linear activation
-        elif self.activation == 'tanh':
+        elif p.activation == 'tanh':
             o[1] = np.tanh(net[1])  # tanh activation
-        elif self.activation == 'sigmoid':  # sigmoid activation
+        elif p.activation == 'sigmoid':  # sigmoid activation
             o[1] = 1. / (1. + np.exp(-net[1]))
         temp = np.zeros((1, np.shape(o[1])[1] + 1))
         bound = np.shape(o[1])[1]
@@ -470,11 +555,11 @@ class NeuralNetwork:
         for hiddenlayer in hiddenlayers[1:]:
             layer += 1
             net[layer] = np.dot(ohat[layer - 1], weight[layer])
-            if self.activation == 'linear':
+            if p.activation == 'linear':
                 o[layer] = net[layer]  # linear activation
-            elif self.activation == 'tanh':
+            elif p.activation == 'tanh':
                 o[layer] = np.tanh(net[layer])  # tanh activation
-            elif self.activation == 'sigmoid':
+            elif p.activation == 'sigmoid':
                 # sigmoid activation
                 o[layer] = 1. / (1. + np.exp(-net[layer]))
             temp = np.zeros((1, np.size(o[layer]) + 1))
@@ -487,11 +572,11 @@ class NeuralNetwork:
             ohat[layer] = temp
         layer += 1  # output layer
         net[layer] = np.dot(ohat[layer - 1], weight[layer])
-        if self.activation == 'linear':
+        if p.activation == 'linear':
             o[layer] = net[layer]  # linear activation
-        elif self.activation == 'tanh':
+        elif p.activation == 'tanh':
             o[layer] = np.tanh(net[layer])  # tanh activation
-        elif self.activation == 'sigmoid':
+        elif p.activation == 'sigmoid':
             # sigmoid activation
             o[layer] = 1. / (1. + np.exp(-net[layer]))
 
@@ -504,7 +589,8 @@ class NeuralNetwork:
             temp[0, _] = input[_]
             _ += 1
 
-        if self.param.descriptor is None:  # pure atomic-coordinates scheme
+        if p.mode == 'image-centered':
+            #FIXME/ap Needs updating.
 
             amp_energy = self._scalings['slope'] * \
                 float(o[layer]) + self._scalings['intercept']
@@ -512,14 +598,12 @@ class NeuralNetwork:
             self.o[0] = temp
             return amp_energy
 
-        else:  # fingerprinting scheme
-            atomic_amp_energy = self._scalings[symbol]['slope'] * \
-                float(o[layer]) + self._scalings[symbol]['intercept']
+        elif p.mode == 'atom-centered':
+            atomic_amp_energy = p.scalings[symbol]['slope'] * \
+                float(o[layer]) + p.scalings[symbol]['intercept']
             self.o[index] = o
             self.o[index][0] = temp
             return atomic_amp_energy
-
-    ###########################################################################
 
     def get_force(self, i, der_indexfp, n_index=None, n_symbol=None,):
         """
@@ -591,8 +675,6 @@ class NeuralNetwork:
                             der_o[layer][0]))
 
         return force
-
-    ###########################################################################
 
     def get_variable_der_of_energy(self, index=None, symbol=None):
         """
@@ -690,8 +772,6 @@ class NeuralNetwork:
             self.ohat[index] = ohat
 
         return partial_der_variables_square_error
-
-    ###########################################################################
 
     def get_variable_der_of_forces(self, self_index, i,
                                    n_index=None, n_symbol=None,):
@@ -809,12 +889,10 @@ class NeuralNetwork:
 
         return partial_der_variables_square_error
 
-    ###########################################################################
-
-    def log(self, log, param, elements, images, fingerprints_range=None):
+    def initialize_for_regression(self, log, images, fp):
         """
-        Prints out in the log file and generates variables if do not already
-        exist.
+        Prints out in the log file and generates variables if do not already 
+        exist. This is essentially storing data for the regression.
 
         :param log: Write function at which to log data. Note this must be a
                     callable function.
@@ -825,21 +903,30 @@ class NeuralNetwork:
         :type elements: list of str
         :param images: ASE atoms objects (the training set).
         :type images: dict
-        :param fingerprints_range: Range of fingerprints of each chemical
-                                    species. Should be fed as a dictionary of
-                                    chemical species and a list of minimum and
-                                    maximun, e.g:
-
-                                   >>> fingerprints_range={"Pd": [0.31, 0.59], "O":[0.56, 0.72]}
-
-        :type fingerprints_range: dict
 
         :returns: Object containing regression's properties.
         """
-        self.elements = elements
+        #FIXME/ap: Fold into 'fit'?
+        if not hasattr(self, '_lossfunction'):
+            self._lossfunction = None  # Will hold a method.
 
-        if param.descriptor is None:  # pure atomic-coordinates scheme
+        p = self.parameters
+        tp = self.trainingparameters = Parameters()
+        tp['trainingimages'] = images
+        tp['fingerprint'] = fp
 
+        p['mode'] = fp.description['mode']
+        if p['mode'] == 'atom-centered':
+            p['elements'] = fp.elements
+        elif p['mode'] == 'image-centered':
+            p['elements'] = None
+        
+
+        p['fprange'] = calculate_fingerprints_range(fp, images)
+        if p['mode'] == 'image-centered':  # pure atomic-coordinates scheme
+
+            #FIXME/ap This part needs updating.
+            raise NotImplementedError()
             self.no_of_atoms = param.no_of_atoms
             self.hiddenlayers = param.regression.hiddenlayers
 
@@ -858,79 +945,67 @@ class NeuralNetwork:
                 elements=self.elements,
                 no_of_atoms=self.no_of_atoms)
 
-        else:  # fingerprinting scheme
+        elif p['mode'] == 'atom-centered':  # fingerprinting scheme
 
             # If hiddenlayers is fed by the user in the tuple format,
             # it will now be converted to a dictionary.
-            if isinstance(param.regression.hiddenlayers, tuple):
+            if isinstance(p.hiddenlayers, tuple):
                 hiddenlayers = {}
-                for element in self.elements:
-                    hiddenlayers[element] = param.regression.hiddenlayers
-                param.regression.hiddenlayers = hiddenlayers
+                for element in p.elements:
+                    hiddenlayers[element] = p.hiddenlayers
+                p.hiddenlayers = hiddenlayers
 
-            self.hiddenlayers = param.regression.hiddenlayers
 
-            for element in self.elements:
-                structure = self.hiddenlayers[element]
-                if isinstance(structure, str):
-                    structure = structure.split('-')
-                elif isinstance(structure, int):
-                    structure = [structure]
-                else:
-                    structure = list(structure)
-                hiddenlayers = [int(part) for part in structure]
-                self.hiddenlayers[element] = hiddenlayers
+            # FIXME/ap I deleted some lines that converted the interior
+            # tuple to a list. Can't figure out why this would be needed.
+            # Maybe when growing the NN?
 
-            self.ravel = _RavelVariables(hiddenlayers=self.hiddenlayers,
-                                         elements=self.elements,
-                                         Gs=param.descriptor.Gs)
+            self.ravel = _RavelVariables(hiddenlayers=p.hiddenlayers,
+                                         elements=p.elements,
+                                         Gs=fp.Gs)
+            # FIXME/ap: delete Gs... those aren't fit variables here.
 
         log('Hidden-layer structure:')
-        if param.descriptor is None:  # pure atomic-coordinates scheme
-            log(' %s' % str(self.hiddenlayers))
-        else:  # fingerprinting scheme
-            for item in self.hiddenlayers.items():
+        if p.mode == 'image-centered':
+            log(' %s' % str(p.hiddenlayers))
+        elif p.mode == 'atom-centered':
+            for item in p.hiddenlayers.items():
                 log(' %2s: %s' % item)
 
-        # If weights are not given, generates random weights
-        if not (self._weights or self._variables):
-            self.global_search = True
+        if p.weights is None:
             log('Initializing with random weights.')
-            if param.descriptor is None:  # pure atomic-coordinates scheme
+            if p.mode == 'image-centered':
+                #FIXME/ap need to update this block.
+                raise NotImplementedError()
                 self._weights = make_weight_matrices(self.hiddenlayers,
                                                      self.activation,
                                                      self.no_of_atoms)
-            else:  # fingerprinting scheme
-                self._weights = make_weight_matrices(self.hiddenlayers,
-                                                     self.activation,
-                                                     None,
-                                                     param.descriptor.Gs,
-                                                     self.elements,
-                                                     fingerprints_range,)
-
+            elif p.mode == 'atom-centered':
+                p.weights = make_weight_matrices(p.hiddenlayers,
+                                                 p.activation,
+                                                 None,
+                                                 fp.Gs,
+                                                 p.elements,
+                                                 p.fprange,)
+ 
         else:
             log('Initial weights already present.')
         # If scalings are not given, generates random scalings
-        if not (self._scalings or self._variables):
+        if not p.scalings:
             log('Initializing with random scalings.')
 
-            if param.descriptor is None:  # pure atomic-coordinates scheme
+            if p.mode == 'image-centered':
+                #FIXME/ap need to update this block.
+                raise NotImplementedError()
                 self._scalings = make_scalings_matrices(images,
                                                         self.activation,)
-            else:  # fingerprinting scheme
-                self._scalings = make_scalings_matrices(images,
-                                                        self.activation,
-                                                        self.elements,)
+            elif p.mode == 'atom-centered':
+                p.scalings = make_scalings_matrices(images,
+                                                    p.activation,
+                                                    p.elements,)
         else:
             log('Initial scalings already present.')
 
-        if self._variables is None:
-            param.regression._variables = \
-                self.ravel.to_vector(self._weights, self._scalings)
-
-        return param
-
-    ###########################################################################
 
     def send_data_to_fortran(self, param):
         """
@@ -1170,8 +1245,6 @@ def make_weight_matrices(hiddenlayers, activation, no_of_atoms=None, Gs=None,
 
     return weight
 
-###############################################################################
-
 
 def make_scalings_matrices(images, activation, elements=None):
     """
@@ -1301,12 +1374,12 @@ class _RavelVariables:
 
     def __init__(self, hiddenlayers, elements=None, Gs=None, no_of_atoms=None):
 
-        self.no_of_atoms = no_of_atoms
-        self.count = 0
+        self._no_of_atoms = no_of_atoms
+        self._vectorlength= 0
         self._weightskeys = []
         self._scalingskeys = []
 
-        if self.no_of_atoms is None:  # fingerprinting scheme
+        if self._no_of_atoms is None:  # fingerprinting scheme
 
             for element in elements:
                 len_of_hiddenlayers = len(hiddenlayers[element])
@@ -1326,7 +1399,7 @@ class _RavelVariables:
                                               'key2': layer,
                                               'shape': shape,
                                               'size': size})
-                    self.count += size
+                    self._vectorlength += size
                     layer += 1
 
             for element in elements:
@@ -1334,7 +1407,7 @@ class _RavelVariables:
                                            'key2': 'intercept'})
                 self._scalingskeys.append({'key1': element,
                                            'key2': 'slope'})
-                self.count += 2
+                self._vectorlength += 2
 
         else:  # pure atomic-coordinates scheme
 
@@ -1352,12 +1425,12 @@ class _RavelVariables:
                 self._weightskeys.append({'key': layer,
                                           'shape': shape,
                                           'size': size})
-                self.count += size
+                self._vectorlength += size
                 layer += 1
 
             self._scalingskeys.append({'key': 'intercept'})
             self._scalingskeys.append({'key': 'slope'})
-            self.count += 2
+            self._vectorlength += 2
 
     ###########################################################################
 
@@ -1388,17 +1461,17 @@ class _RavelVariables:
 
         :returns: List of variables
         """
-        vector = np.zeros(self.count)
+        vector = np.zeros(self._vectorlength)
         count = 0
         for k in sorted(self._weightskeys):
-            if self.no_of_atoms is None:  # fingerprinting scheme
+            if self._no_of_atoms is None:  # fingerprinting scheme
                 lweights = np.array(weights[k['key1']][k['key2']]).ravel()
             else:  # pure atomic-coordinates scheme
                 lweights = (np.array(weights[k['key']])).ravel()
             vector[count:(count + lweights.size)] = lweights
             count += lweights.size
         for k in sorted(self._scalingskeys):
-            if self.no_of_atoms is None:  # fingerprinting scheme
+            if self._no_of_atoms is None:  # fingerprinting scheme
                 vector[count] = scalings[k['key1']][k['key2']]
             else:  # pure atomic-coordinates scheme
                 vector[count] = scalings[k['key']]
@@ -1418,24 +1491,24 @@ class _RavelVariables:
 
         :returns: weights and scalings
         """
-        assert len(vector) == self.count
+        assert len(vector) == self._vectorlength
         count = 0
         weights = OrderedDict()
         scalings = OrderedDict()
         for k in sorted(self._weightskeys):
-            if self.no_of_atoms is None:  # fingerprinting scheme
+            if self._no_of_atoms is None:  # fingerprinting scheme
                 if k['key1'] not in weights.keys():
                     weights[k['key1']] = OrderedDict()
             matrix = vector[count:count + k['size']]
             matrix = np.array(matrix).flatten()
             matrix = np.matrix(matrix.reshape(k['shape']))
-            if self.no_of_atoms is None:  # fingerprinting scheme
+            if self._no_of_atoms is None:  # fingerprinting scheme
                 weights[k['key1']][k['key2']] = matrix
             else:  # pure atomic-coordinates scheme
                 weights[k['key']] = matrix
             count += k['size']
         for k in sorted(self._scalingskeys):
-            if self.no_of_atoms is None:  # fingerprinting scheme
+            if self._no_of_atoms is None:  # fingerprinting scheme
                 if k['key1'] not in scalings.keys():
                     scalings[k['key1']] = OrderedDict()
                 scalings[k['key1']][k['key2']] = vector[count]
@@ -1444,51 +1517,3 @@ class _RavelVariables:
             count += 1
         return weights, scalings
 
-    ###########################################################################
-
-    def calculate_weights_norm_and_der(self, weights):
-        """
-        Calculates norm of weights as well as the vector of its derivative
-        for the use of constratinting overfitting.
-
-        :param weights: In the case of no descriptor, keys correspond to
-                        layers and values are two dimensional arrays of network
-                        weight. In the fingerprinting scheme, keys correspond
-                        to chemical elements and values are dictionaries with
-                        layer keys and network weight two dimensional arrays as
-                        values. Arrays are set up to connect node i in the
-                        previous layer with node j in the current layer with
-                        indices w[i,j]. The last value for index i corresponds
-                        to bias. If weights is not given, arrays will be
-                        randomly generated.
-        :type weights: dict
-
-        :returns: norm of weights (float) and variable derivative of norm of
-                  of weights (list of float).
-        """
-        count = 0
-        weights_norm = 0.
-        der_of_weights_norm = np.zeros(self.count)
-        for k in sorted(self._weightskeys):
-            if self.no_of_atoms is None:  # fingerprinting scheme
-                weight = weights[k['key1']][k['key2']]
-            else:  # pure atomic-coordinates scheme
-                weight = weights[k['key']]
-            lweights = np.array(weight).ravel()
-            # there is no overfitting constraint on the values of biases
-            for i in range(np.shape(weight)[1]):
-                lweights[- (i + 1)] = 0.
-            for i in range(len(lweights)):
-                weights_norm += lweights[i] ** 2.
-            der_of_weights_norm[count:(count + lweights.size)] = \
-                2. * lweights
-            count += lweights.size
-        for k in sorted(self._scalingskeys):
-            # there is no overfitting constraint on the values of scalings
-            der_of_weights_norm[count] = 0.
-            count += 1
-        return weights_norm, der_of_weights_norm
-
-###############################################################################
-###############################################################################
-###############################################################################

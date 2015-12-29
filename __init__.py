@@ -6,7 +6,7 @@ import gc
 import sqlite3
 from datetime import datetime
 from collections import OrderedDict
-from scipy.optimize import fmin_bfgs as optimizer
+from scipy.optimize import fmin_bfgs
 
 from ase.calculators.calculator import Calculator, Parameters
 from ase.data import atomic_numbers
@@ -18,9 +18,9 @@ from .utilities import make_filename, load_parameters, ConvergenceOccurred, IO
 from .utilities import TrainingConvergenceError, ExtrapolateError, hash_image
 from .utilities import Logger, save_parameters
 from .descriptor import Behler
-from .regression import NeuralNetwork
+from .model.neuralnetwork import NeuralNetwork
 try:
-    from amp import fmodules  # version 4 of fmodules
+    from . import fmodules  # version 4 of fmodules
     fmodules_version = 4
 except ImportError:
     fmodules = None
@@ -80,6 +80,9 @@ class Amp(Calculator):
     def __init__(self, load=None, label=None, dblabel=None, extrapolate=True,
                  fortran=True, cores=None, **kwargs):
 
+        #FIXME: The result of this is that we have both the model and descriptor
+        # saved with two names, e.g., self.model and self.parameters.regression.
+        # Clean this up to avoid confusion.
         self.extrapolate = extrapolate
         self.fortran = fortran
         self.dblabel = label if dblabel is None else dblabel
@@ -154,9 +157,9 @@ class Amp(Calculator):
                 if self.fp.dblabel is None:
                     self.fp.dblabel = self.dblabel
 
-        self.reg = param.regression
+        self.model = param.regression
 
-        self.reg.initialize(param, load)
+        self.model.initialize(param, load)
 
     ###########################################################################
 
@@ -422,9 +425,9 @@ class Amp(Calculator):
 
     def train(self,
               images,
-              energy_goal=0.001,
-              overwrite=False,
-              data_format='json'):
+              overwrite=False, #FIXME/ap Need this?
+              data_format='json', #FIXME/ap Need this?
+              ):
         """
         Fits a variable set to the data, by default using the "fmin_bfgs"
         optimizer. The optimizer takes as input a cost function to reduce and
@@ -459,24 +462,58 @@ class Amp(Calculator):
                 self.parameters.descriptor.__class__.__name__)
         log('Regression: ' + self.parameters.regression.__class__.__name__ + '\n')
 
-
-        #FIXME/ap My new scheme may start training over all the saved-to-
-        #-disk images, not just the specified ones! This is a problem.
-        # Need to think it through. Actually I think it is fine, it goes
-        # by the list of hashes in the images dictionary.
+        # FIXME/ap: For parallelism, should this just be
+        # self.descriptor.fingerprint()? (Like self.model.regress?)
         self.fingerprint()
-        self.regress_model()
+
+        #FIXME/ap I think this makes sense to be calling the regress method
+        # on the model directly. This way, the model can choose to not use
+        # all our regression stuff. That is, tensorflow could do its own
+        # thing here.
+        result = self.model.fit(trainingimages=self.trainingparameters['images'],
+                                fingerprints=self.fp,
+                                log=log)
+        if result is True:
+            log('Amp successfully trained. Saving current parameters.')
+            self.parameters['descriptor'] = self.descriptor.parameters.todict()
+            #FIXME/ap: Save in 
+        else:
+            log('Amp not trained successfully. Saving current parameters.')
+        aaabelowisgarbage
+        #FIXME/ap The lines below are just copied out of my old
+        # regress_model method, and can be deleted once I know it is
+        # replicated.
+
+        self.regress_model(regression=regression)
+
+        fp = self.fp if fingerprints is None else fingerprints
+        images = self.trainingparameters.images if images is None else images
+        #FIXME/ap check to see hashes are the same? Do I need to feed both?
+
+        self._set_training_parameters(log=log)
+        log = self.trainingparameters.log
 
 
-        #FIXME/ap: below can be deleted? Was probably related to last
-        # line of regress_model.
-        filename = make_filename(self.label, 'trained-parameters.json')
+        #FIXME/ap This sets some variables. May or may not need.
+        self.model.initialize_for_regression(log, images, fp)
+
+        regression.regress(images, fp.fingerprints, self.model)
+
+        #FIXME/ap should there actually be 3 methods called? That is,
+        # self.fingerprint()
+        # self.model()
+        # self.regress_variables()
+        # This could then give us the option to regress some variables
+        # in the fingerprinting scheme, such as the parameters of the
+        # Behler gaussian.
+        # However, the model is set up by the keyword NeuralNetwork
+        # we should have an optimizer keyword in the train and 
+        # regress routine?
 
 
     def _set_training_parameters(self, images=None, log=None):
         """Interprets and saves any updates to training parameters."""
 
-        print('in set trainging parameters')
         if not hasattr(self, 'trainingparameters'):
             self.trainingparameters = Parameters()
         tp = self.trainingparameters
@@ -488,7 +525,6 @@ class Amp(Calculator):
         log = tp.log
 
         if images is None:
-            print('images is none')
             pass  # No update.
         elif hasattr(images, 'keys'):
             tp['images'] = images  # Apparently already hashed.
@@ -517,7 +553,6 @@ class Amp(Calculator):
             log(' %i unique images after hashing.' % len(tp['images']))
             log(' ...hashing completed.', toc=True)
 
-
     def fingerprint(self, images=None):
         """Fingerprints according to the specified scheme."""
         print(images)
@@ -542,25 +577,42 @@ class Amp(Calculator):
         # Switch to the fp module.
         self.fp.calculate_fingerprints(images=images, cores=self.cores,
                                        fortran=self.fortran, log=log)
+        #FIXME/ap Behler needs to do fingerprints range?
+        # or should this be part of regression scheme? E.g., the regression
+        # scheme decides whether or not to do any normalization. I think
+        # that is better.
 
-    def regress_model(self, images=None, fingerprints=None):
+    def xregress_model(self, images=None, fingerprints=None, log=None,
+                      regression=None):
         """Regress the model. This method is not normally called by the
         user, it is generally part of the 'train' method, but the user can
         optionally use this model to specify their own custom
         fingerprints."""
+        #FIXME/ap Instead of optimizer keyword, I could have a regress
+        # keyword that takes a Regression object that I would create. This
+        # would be in charge of changing the input parameter to the NN with
+        # BFGS or whatever, and could also have built-in a global optimizer
+        # as we like, and in the case of NN grow the model. This seems like
+        # a good strategy, I think. The Regression object would then
+        # control all aspects of the regression.
 
-        aaa
-        #FIXME/ap This needs to be done still.
+        fp = self.fp if fingerprints is None else fingerprints
+        images = self.trainingparameters.images if images is None else images
+        #FIXME/ap check to see hashes are the same? Do I need to feed both?
+
+        self._set_training_parameters(log=log)
+        log = self.trainingparameters.log
 
 
-        if param.descriptor is None:  # pure atomic-coordinates scheme
-            param = self.reg.log(log, param, self.elements, images)
-        else:  # fingerprinting scheme
-            param = self.reg.log(log, param, self.elements, images,
-                                 self.sfp.fingerprints_range)
+        #FIXME/ap This sets some variables. May or may not need.
+        self.model.initialize_for_regression(log, images, fp)
 
-        del hashs, images
+        regression.regress(images, fp.fingerprints, self.model)
 
+
+
+
+        lastedit
         if self.fortran:
             # data common between processes is sent to fortran modules
             send_data_to_fortran(self.sfp,
@@ -2344,7 +2396,7 @@ def _calculate_cost_function_python(hashs, images, reg, param, sfp,
 ###############################################################################
 
 
-def calculate_fingerprints_range(fp, elements, atoms, nl):
+def xcalculate_fingerprints_range(fp, elements, atoms, nl):
     """
     Function to calculate fingerprints range.
 
@@ -2359,6 +2411,9 @@ def calculate_fingerprints_range(fp, elements, atoms, nl):
 
     :returns: Range of fingerprints of elements.
     """
+    #FIXME/ap This seems like it is re-calculating all the fingerprints
+    # in order to get the range. Why not just cycle over the existing
+    # fingerprint range?
     fingerprint_values = {}
     for element in elements:
         fingerprint_values[element] = {}

@@ -14,6 +14,119 @@ except ImportError:
 
 ###############################################################################
 
+class Behler:
+
+    """
+    Class that calculates Behler fingerprints.
+
+    :param cutoff: Radius above which neighbor interactions are ignored.
+                   Default is 6.5 Angstroms.
+    :type cutoff: float
+
+    :param Gs: Dictionary of symbols and lists of dictionaries for making
+               symmetry functions. Either auto-genetrated, or given in the
+               following form, for example:
+
+               >>> Gs = {"O": [{"type":"G2", "element":"O", "eta":10.},
+               ...             {"type":"G4", "elements":["O", "Au"],
+               ...              "eta":5., "gamma":1., "zeta":1.0}],
+               ...       "Au": [{"type":"G2", "element":"O", "eta":2.},
+               ...              {"type":"G4", "elements":["O", "Au"],
+               ...               "eta":2., "gamma":1., "zeta":5.0}]}
+
+    :type Gs: dict
+
+    :param fingerprints_tag: An internal tag for identifying the functional
+                             form of fingerprints used in the code.
+    :type fingerprints_tag: int
+
+    :param fortran: If True, will use the fortran subroutines, else will not.
+    :type fortran: bool
+
+    :param elements: List of allowed elements present in the system. If not
+                     provided, will be found automatically.
+    :type elements: list
+
+
+    :raises: FingerprintsError, NotImplementedError
+    """
+    ###########################################################################
+
+    #FIXME/ap: There should be a todict method called at the end of this to
+    # allow it to reconstruct itself from a dictionary.
+
+    def __init__(self, cutoff=6.5, Gs=None, fingerprints_tag=1, fortran=True,
+                 dblabel=None, elements=None,
+                ):
+
+
+        self.description = {'mode': 'atom-centered',
+                            'name': 'Behler fingerprinting scheme',
+                            'version': 1,
+                            'hashed-version': None}
+        # FIXME/ap The hashed-version above could allow us to put
+        # in a check that the fingerprint was created and is being
+        # used with the same settings. That is, if the Behler descriptors
+        # change, we can capture this by a hash.
+        self.cutoff = cutoff
+        self.Gs = Gs
+        self.fingerprints_tag = fingerprints_tag
+        self.fortran = fortran
+        self.dblabel = dblabel
+        self.elements = elements
+
+        # Checking if the functional forms of fingerprints in the train set
+        # is the same as those of the current version of the code.
+        # FIXME/ap: This could be a hash of dictionary parameters instead?
+        if self.fingerprints_tag != 1:
+            raise FingerprintsError('Functional form of fingerprints has been '
+                                    'changed. Re-train you train images set, '
+                                    'and use the new variables.')
+
+    ###########################################################################
+
+    def calculate_fingerprints(self, images, cores=1, fortran=False,
+                               log=None):
+        """Calculates the fingerpints of the images, for the ones not
+        already done.
+        """
+        log = Logger(filename=None) if log is None else log
+
+        if self.elements is None:
+            log('Finding unique set of elements in training data.')
+            self.elements = set([atom.symbol for atoms in images.values()
+                                 for atom in atoms])
+        self.elements = sorted(self.elements)
+        log('%i unique elements included: ' % len(self.elements)
+            + ', '.join(self.elements))
+
+
+        if not self.Gs:
+            log('No symmetry functions suppplied; creating defaults.')
+            self.Gs = make_symmetry_functions(self.elements)
+        log('Symmetry functions for each element:')
+        for _ in self.Gs.keys():
+            log(' %2s: %i' % (_, len(self.Gs[_])))
+
+        log('Calculating neighborlists...', tic='nl')
+        nl = Data(filename='%s-neighborlists' % self.dblabel,
+                  calculator=CalculateNeighborlist(cutoff=self.cutoff))
+        nl.calculate_items(images, cores=cores, log=log)
+        log('...neighborlists calculated.', toc='nl')
+
+        log('Fingerprinting images...', tic='fp')
+        calc = CalculateFingerprint(neighborlist=nl,
+                                    Gs=self.Gs,
+                                    cutoff=self.cutoff,
+                                    fortran=fortran)
+        fingerprints = Data(filename='%s-fingerprints' % self.dblabel,
+                            calculator=calc)
+        fingerprints.calculate_items(images, cores=cores, log=log)
+        self.fingerprints = fingerprints
+
+    ###########################################################################
+
+
 class CalculateNeighborlist:
     """For integration with .utilities.Data
     For each image fed to calculate, a list of neihbors with offset
@@ -100,189 +213,8 @@ class CalculateFingerprint:
             fingerprint[count] = ridge
             count += 1
 
-        return fingerprint
+        return symbol, fingerprint
 
-
-class Behler:
-
-    """
-    Class that calculates Behler fingerprints.
-
-    :param cutoff: Radius above which neighbor interactions are ignored.
-                   Default is 6.5 Angstroms.
-    :type cutoff: float
-
-    :param Gs: Dictionary of symbols and lists of dictionaries for making
-               symmetry functions. Either auto-genetrated, or given in the
-               following form, for example:
-
-               >>> Gs = {"O": [{"type":"G2", "element":"O", "eta":10.},
-               ...             {"type":"G4", "elements":["O", "Au"],
-               ...              "eta":5., "gamma":1., "zeta":1.0}],
-               ...       "Au": [{"type":"G2", "element":"O", "eta":2.},
-               ...              {"type":"G4", "elements":["O", "Au"],
-               ...               "eta":2., "gamma":1., "zeta":5.0}]}
-
-    :type Gs: dict
-
-    :param fingerprints_tag: An internal tag for identifying the functional
-                             form of fingerprints used in the code.
-    :type fingerprints_tag: int
-
-    :param fortran: If True, will use the fortran subroutines, else will not.
-    :type fortran: bool
-
-    :param elements: List of allowed elements present in the system. If not
-                     provided, will be found automatically.
-    :type elements: list
-
-
-    :raises: FingerprintsError, NotImplementedError
-    """
-    ###########################################################################
-
-    #FIXME/ap: There should be a todict method called at the end of this to
-    # allow it to reconstruct itself from a dictionary.
-
-    def __init__(self, cutoff=6.5, Gs=None, fingerprints_tag=1, fortran=True,
-                 dblabel=None, elements=None,
-                ):
-
-
-        self.cutoff = cutoff
-        self.Gs = Gs
-        self.fingerprints_tag = fingerprints_tag
-        self.fortran = fortran
-        self.dblabel = dblabel
-        self.elements = elements
-
-        # Checking if the functional forms of fingerprints in the train set
-        # is the same as those of the current version of the code.
-        # FIXME/ap: This could be a hash of dictionary parameters instead?
-        if self.fingerprints_tag != 1:
-            raise FingerprintsError('Functional form of fingerprints has been '
-                                    'changed. Re-train you train images set, '
-                                    'and use the new variables.')
-
-    ###########################################################################
-
-    def calculate_fingerprints(self, images, cores=1, fortran=False,
-                               log=None):
-        """Calculates the fingerpints of the images, for the ones not
-        already done.
-        """
-        log = Logger(filename=None) if log is None else log
-
-        if self.elements is None:
-            log('Finding unique set of elements in training data.')
-            self.elements = set([atom.symbol for atoms in images.values()
-                                 for atom in atoms])
-        self.elements = sorted(self.elements)
-        log('%i unique elements included: ' % len(self.elements)
-            + ', '.join(self.elements))
-
-
-        if not self.Gs:
-            log('No symmetry functions suppplied; creating defaults.')
-            self.Gs = make_symmetry_functions(self.elements)
-        log('Symmetry functions for each element:')
-        for _ in self.Gs.keys():
-            log(' %2s: %i' % (_, len(self.Gs[_])))
-
-        log('Calculating neighborlists...', tic='nl')
-        nl = Data(filename='%s-neighborlists' % self.dblabel,
-                  calculator=CalculateNeighborlist(cutoff=self.cutoff))
-        nl.calculate_items(images, cores=cores, log=log)
-        log('...neighborlists calculated.', toc='nl')
-
-        key = images.keys()[3]
-
-        log('Fingerprinting images...', tic='fp')
-        print('selfGs')
-        print(self.Gs)
-        calc = CalculateFingerprint(neighborlist=nl,
-                                    Gs=self.Gs,
-                                    cutoff=self.cutoff,
-                                    fortran=fortran)
-        fp = Data(filename='%s-fingerprints' % self.dblabel,
-                  calculator=calc)
-        fp.calculate_items(images, cores=cores, log=log)
-        self.fingerprints = fp
-
-    ###########################################################################
-
-    def get_der_fingerprint(self, index, symbol, n_indices, n_symbols, Rs,
-                            m, i):
-        """
-        Returns the value of the derivative of G for atom with index and
-        symbol with respect to coordinate x_{i} of atom index m. n_indices,
-        n_symbols and Rs are lists of neighbors' indices, symbols and Cartesian
-        positions, respectively.
-
-        :param index: Index of the center atom.
-        :type index: int
-        :param symbol: Symbol of the center atom.
-        :type symbol: str
-        :param n_indices: List of neighbors' indices.
-        :type n_indices: list of int
-        :param n_symbols: List of neighbors' symbols.
-        :type n_symbols: list of str
-        :param Rs: List of Cartesian atomic positions.
-        :type Rs: list of list of float
-        :param m: Index of the pair atom.
-        :type m: int
-        :param i: Direction of the derivative; is an integer from 0 to 2.
-        :type i: int
-
-        :returns: list of float -- the value of the derivative of the
-                                   fingerprints for atom with index and symbol
-                                   with respect to coordinate x_{i} of atom
-                                   index m.
-        """
-
-        len_of_symmetries = len(self.Gs[symbol])
-        Rindex = self.atoms.positions[index]
-        der_fingerprint = [None] * len_of_symmetries
-        count = 0
-        while count < len_of_symmetries:
-            G = self.Gs[symbol][count]
-            if G['type'] == 'G2':
-                ridge = calculate_der_G2(
-                    n_indices,
-                    n_symbols,
-                    Rs,
-                    G['element'],
-                    G['eta'],
-                    self.cutoff,
-                    index,
-                    Rindex,
-                    m,
-                    i,
-                    self.fortran)
-            elif G['type'] == 'G4':
-                ridge = calculate_der_G4(
-                    n_indices,
-                    n_symbols,
-                    Rs,
-                    G['elements'],
-                    G['gamma'],
-                    G['zeta'],
-                    G['eta'],
-                    self.cutoff,
-                    index,
-                    Rindex,
-                    m,
-                    i,
-                    self.fortran)
-            else:
-                raise NotImplementedError('Unknown G type: %s' % G['type'])
-
-            der_fingerprint[count] = ridge
-            count += 1
-
-        return der_fingerprint
-
-    ###########################################################################
 
 
 ###############################################################################
