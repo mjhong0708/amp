@@ -2,6 +2,7 @@ import numpy as np
 
 from ase.data import atomic_numbers
 from ase.calculators.neighborlist import NeighborList
+from ase.calculators.calculator import Parameters
 
 from ..utilities import FingerprintsError
 from ..utilities import Data
@@ -55,33 +56,43 @@ class Behler:
     #FIXME/ap: There should be a todict method called at the end of this to
     # allow it to reconstruct itself from a dictionary.
 
-    def __init__(self, cutoff=6.5, Gs=None, fingerprints_tag=1, fortran=True,
-                 dblabel=None, elements=None,
+    def __init__(self, cutoff=6.5, Gs=None, fortran=True,
+                 dblabel=None, elements=None, version=None
                 ):
 
 
-        self.description = {'mode': 'atom-centered',
-                            'name': 'Behler fingerprinting scheme',
-                            'version': 1,
-                            'hashed-version': None}
-        # FIXME/ap The hashed-version above could allow us to put
-        # in a check that the fingerprint was created and is being
-        # used with the same settings. That is, if the Behler descriptors
-        # change, we can capture this by a hash.
-        self.cutoff = cutoff
-        self.Gs = Gs
-        self.fingerprints_tag = fingerprints_tag
+        # Version check, particularly if restarting.
+        compatibleversion = '2015.12'
+        if (version is not None) and version != compatibleversion:
+            raise RuntimeError('Error: Trying to use Behler fingerprints'
+                               ' version %s, but this module only supports'
+                               ' version %s. You may need an older or '
+                               ' newer version of Amp.' %
+                               (version, compatibleversion))
+        else:
+            version = compatibleversion
+
+        # The parameters dictionary contains the minimum information
+        # to produce a compatible descriptor; that is, one that gives
+        # the same fingerprint when fed an ASE image.
+        p = self.parameters = Parameters(
+                {'name': 'amp.descriptor.behler.Behler',
+                 'description': 'Behler fingerprinting scheme',
+                 'mode': 'atom-centered'})
+        p.version = version
+        p.cutoff = cutoff
+        p.Gs = Gs
+        p.elements = elements
+
         self.fortran = fortran
         self.dblabel = dblabel
-        self.elements = elements
 
-        # Checking if the functional forms of fingerprints in the train set
-        # is the same as those of the current version of the code.
-        # FIXME/ap: This could be a hash of dictionary parameters instead?
-        if self.fingerprints_tag != 1:
-            raise FingerprintsError('Functional form of fingerprints has been '
-                                    'changed. Re-train you train images set, '
-                                    'and use the new variables.')
+    ###########################################################################
+
+    def tostring(self):
+        """Returns an evaluatable representation of the calculator that can
+        be used to restart the calculator."""
+        return self.parameters.tostring()
 
     ###########################################################################
 
@@ -91,33 +102,34 @@ class Behler:
         already done.
         """
         log = Logger(filename=None) if log is None else log
+        p = self.parameters
 
-        if self.elements is None:
+        if p.elements is None:
             log('Finding unique set of elements in training data.')
-            self.elements = set([atom.symbol for atoms in images.values()
-                                 for atom in atoms])
-        self.elements = sorted(self.elements)
-        log('%i unique elements included: ' % len(self.elements)
-            + ', '.join(self.elements))
+            p.elements = set([atom.symbol for atoms in images.values()
+                              for atom in atoms])
+        p.elements = sorted(p.elements)
+        log('%i unique elements included: ' % len(p.elements)
+            + ', '.join(p.elements))
 
 
-        if not self.Gs:
+        if not p.Gs:
             log('No symmetry functions suppplied; creating defaults.')
-            self.Gs = make_symmetry_functions(self.elements)
+            p.Gs = make_symmetry_functions(p.elements)
         log('Symmetry functions for each element:')
-        for _ in self.Gs.keys():
-            log(' %2s: %i' % (_, len(self.Gs[_])))
+        for _ in p.Gs.keys():
+            log(' %2s: %i' % (_, len(p.Gs[_])))
 
         log('Calculating neighborlists...', tic='nl')
         nl = Data(filename='%s-neighborlists' % self.dblabel,
-                  calculator=CalculateNeighborlist(cutoff=self.cutoff))
+                  calculator=CalculateNeighborlist(cutoff=p.cutoff))
         nl.calculate_items(images, cores=cores, log=log)
         log('...neighborlists calculated.', toc='nl')
 
         log('Fingerprinting images...', tic='fp')
         calc = CalculateFingerprint(neighborlist=nl,
-                                    Gs=self.Gs,
-                                    cutoff=self.cutoff,
+                                    Gs=p.Gs,
+                                    cutoff=p.cutoff,
                                     fortran=fortran)
         fingerprints = Data(filename='%s-fingerprints' % self.dblabel,
                             calculator=calc)

@@ -70,6 +70,7 @@ class Amp(Calculator):
     """
     implemented_properties = ['energy', 'forces']
 
+    #FIXME/ap This needs to be made compatible with the save function.
     default_parameters = {
         'descriptor': Behler(),
         'regression': NeuralNetwork(),
@@ -152,10 +153,10 @@ class Amp(Calculator):
         param = self.parameters
 
         if param.descriptor is not None:
-            self.fp = param.descriptor
-            if hasattr(self.fp, 'dblabel'):
-                if self.fp.dblabel is None:
-                    self.fp.dblabel = self.dblabel
+            self.descriptor = param.descriptor
+            if hasattr(self.descriptor, 'dblabel'):
+                if self.descriptor.dblabel is None:
+                    self.descriptor.dblabel = self.dblabel
 
         self.model = param.regression
 
@@ -248,19 +249,19 @@ class Amp(Calculator):
                                skin=0.)
             _nl.update(atoms)
 
-            self.fp.atoms = atoms
-            self.fp._nl = _nl
+            self.descriptor.atoms = atoms
+            self.descriptor._nl = _nl
 
             # Deciding on whether it is exptrapoling or interpolating.
             if self.extrapolate is False:
                 fingerprints_range = \
-                    calculate_fingerprints_range(self.fp,
+                    calculate_fingerprints_range(self.descriptor,
                                                  self.reg.elements,
-                                                 self.fp.atoms,
-                                                 self.fp._nl)
+                                                 self.descriptor.atoms,
+                                                 self.descriptor._nl)
                 if compare_train_test_fingerprints(
-                        self.fp,
-                        self.fp.atoms,
+                        self.descriptor,
+                        self.descriptor.atoms,
                         fingerprints_range,
                         _nl) == 1:
                     raise ExtrapolateError('Trying to extrapolate, which'
@@ -294,7 +295,7 @@ class Amp(Calculator):
                     Rs = [atoms.positions[n_index] +
                           np.dot(n_offset, atoms.get_cell())
                           for n_index, n_offset in zip(n_indices, n_offsets)]
-                    indexfp = self.fp.get_fingerprint(index, symbol,
+                    indexfp = self.descriptor.get_fingerprint(index, symbol,
                                                       n_symbols, Rs)
 
                     atomic_amp_energy = self.reg.get_energy(indexfp,
@@ -360,7 +361,7 @@ class Amp(Calculator):
                     Rs = [atoms.positions[n_index] +
                           np.dot(n_offset, atoms.get_cell())
                           for n_index, n_offset in zip(n_indices, n_offsets)]
-                    indexfp = self.fp.get_fingerprint(index, symbol,
+                    indexfp = self.descriptor.get_fingerprint(index, symbol,
                                                       n_symbols, Rs)
 
                     __ = self.reg.get_energy(indexfp, index, symbol)
@@ -402,7 +403,7 @@ class Amp(Calculator):
                                 # for calculating derivatives of fingerprints,
                                 # summation runs over neighboring atoms of type
                                 # I (either inside or outside the main cell)
-                                der_indexfp = self.fp.get_der_fingerprint(
+                                der_indexfp = self.descriptor.get_der_fingerprint(
                                     n_index, n_symbol,
                                     neighbor_indices,
                                     neighbor_symbols,
@@ -455,7 +456,7 @@ class Amp(Calculator):
         self._set_training_parameters(images=images, log=log)
 
         if self.parameters.descriptor is None:  # pure atomic-coordinates scheme
-            #FIXME/ap Again, this should be a module?
+            #FIXME/apAgain, this should be a module?
             log('Local environment descriptor: None')
         else:  # fingerprinting scheme
             log('Local environment descriptor: ' +
@@ -471,45 +472,42 @@ class Amp(Calculator):
         # all our regression stuff. That is, tensorflow could do its own
         # thing here.
         result = self.model.fit(trainingimages=self.trainingparameters['images'],
-                                fingerprints=self.fp,
+                                fingerprints=self.descriptor,
                                 log=log)
         if result is True:
             log('Amp successfully trained. Saving current parameters.')
-            self.parameters['descriptor'] = self.descriptor.parameters.todict()
-            #FIXME/ap: Save in 
+            self.save(self.label + '.amp')
+            log('Parameters saved.')
         else:
             log('Amp not trained successfully. Saving current parameters.')
-        aaabelowisgarbage
-        #FIXME/ap The lines below are just copied out of my old
-        # regress_model method, and can be deleted once I know it is
-        # replicated.
-
-        self.regress_model(regression=regression)
-
-        fp = self.fp if fingerprints is None else fingerprints
-        images = self.trainingparameters.images if images is None else images
-        #FIXME/ap check to see hashes are the same? Do I need to feed both?
-
-        self._set_training_parameters(log=log)
-        log = self.trainingparameters.log
+            self.save(make_filename(self.label, '-untrained-parameters.amp'))
+            log('Parameters saved.')
 
 
-        #FIXME/ap This sets some variables. May or may not need.
-        self.model.initialize_for_regression(log, images, fp)
+    def save(self, filename, overwrite=False):
+        """Saves the calculator in way that it can be re-opened with
+        load."""
+        if os.path.exists(filename):
+            if overwrite is False:
+                raise RuntimeError('File exists')
+            print('Overwriting file: %s. Saving original as %s.backup'
+                  % filename)
+            #FIXME. May be better to assure a unique filename with
+            # tempfile.NamedTemporaryFile(delete=False, ...), 
+            # but need to figure out absolute/relative path.
+            # Or do this in the make_filename routine, possibly
+            # with uuid instead of tempfile.
+            shutil.move(filename, '%s.backup' % filename)
+        descriptor = self.descriptor.tostring()
+        model = self.model.tostring()
+        p = Parameters({'descriptor': descriptor,
+                        'model': model})
+        p.write(filename)
 
-        regression.regress(images, fp.fingerprints, self.model)
-
-        #FIXME/ap should there actually be 3 methods called? That is,
-        # self.fingerprint()
-        # self.model()
-        # self.regress_variables()
-        # This could then give us the option to regress some variables
-        # in the fingerprinting scheme, such as the parameters of the
-        # Behler gaussian.
-        # However, the model is set up by the keyword NeuralNetwork
-        # we should have an optimizer keyword in the train and 
-        # regress routine?
-
+    #FIXME: I think it is better to load an amp calculator from a saved
+    # instance with an @classmethod def load(cls, filename). However,
+    # does this allow us to easily set keywords like fortran that are
+    # not saved in the .amp file?
 
     def _set_training_parameters(self, images=None, log=None):
         """Interprets and saves any updates to training parameters."""
@@ -555,6 +553,8 @@ class Amp(Calculator):
 
     def fingerprint(self, images=None):
         """Fingerprints according to the specified scheme."""
+        # FIXME/ap This method should be removed in favor of 
+        # calc.descriptor.fingerprint().
         print(images)
         self._set_training_parameters(images=images)
 
@@ -575,279 +575,9 @@ class Amp(Calculator):
                                        'descriptor. ')
         
         # Switch to the fp module.
-        self.fp.calculate_fingerprints(images=images, cores=self.cores,
-                                       fortran=self.fortran, log=log)
-        #FIXME/ap Behler needs to do fingerprints range?
-        # or should this be part of regression scheme? E.g., the regression
-        # scheme decides whether or not to do any normalization. I think
-        # that is better.
+        self.descriptor.calculate_fingerprints(images=images, cores=self.cores,
+                                               fortran=self.fortran, log=log)
 
-    def xregress_model(self, images=None, fingerprints=None, log=None,
-                      regression=None):
-        """Regress the model. This method is not normally called by the
-        user, it is generally part of the 'train' method, but the user can
-        optionally use this model to specify their own custom
-        fingerprints."""
-        #FIXME/ap Instead of optimizer keyword, I could have a regress
-        # keyword that takes a Regression object that I would create. This
-        # would be in charge of changing the input parameter to the NN with
-        # BFGS or whatever, and could also have built-in a global optimizer
-        # as we like, and in the case of NN grow the model. This seems like
-        # a good strategy, I think. The Regression object would then
-        # control all aspects of the regression.
-
-        fp = self.fp if fingerprints is None else fingerprints
-        images = self.trainingparameters.images if images is None else images
-        #FIXME/ap check to see hashes are the same? Do I need to feed both?
-
-        self._set_training_parameters(log=log)
-        log = self.trainingparameters.log
-
-
-        #FIXME/ap This sets some variables. May or may not need.
-        self.model.initialize_for_regression(log, images, fp)
-
-        regression.regress(images, fp.fingerprints, self.model)
-
-
-
-
-        lastedit
-        if self.fortran:
-            # data common between processes is sent to fortran modules
-            send_data_to_fortran(self.sfp,
-                                 self.reg.elements,
-                                 train_forces,
-                                 energy_coefficient,
-                                 force_coefficient,
-                                 param,)
-            _mp.ravel_images_data(param,
-                                  self.sfp,
-                                  snl,
-                                  self.reg.elements,
-                                  train_forces,
-                                  log,
-                                  save_memory,)
-#            del _mp.list_sub_images, _mp.list_sub_hashs
-
-        costfxn = CostFxnandDer(
-            self.reg,
-            param,
-            no_of_images,
-            self.label,
-            log,
-            energy_goal,
-            force_goal,
-            train_forces,
-            _mp,
-            self.overfitting_constraint,
-            force_coefficient,
-            self.fortran,
-            save_memory,
-            self.sfp,
-            snl,)
-
-        gc.collect()
-
-        if (variables_exist is False) and (global_search is not None):
-            log('\n' + 'Starting global search...')
-            gs = global_search
-            gs.initialize(param.regression._variables, log, costfxn)
-            param.regression._variables = gs.get_variables()
-
-        # saving initial parameters
-        filename = make_filename(self.label, 'initial-parameters.json')
-        save_parameters(filename, param)
-        log('Initial parameters saved in file %s.' % filename)
-
-        log.tic('optimize')
-        log('\n' + 'Starting optimization of cost function...')
-        log(' Energy goal: %.3e' % energy_goal)
-        if train_forces:
-            log(' Force goal: %.3e' % force_goal)
-            log(' Cost function force coefficient: %f' % force_coefficient)
-        else:
-            log(' No force training.')
-        log.tic()
-
-        converged = False
-        step = 0
-        while not converged:
-            if step > 0:
-                param = self.reg.introduce_variables(log, param)
-                costfxn = CostFxnandDer(
-                    self.reg,
-                    param,
-                    no_of_images,
-                    self.label,
-                    log,
-                    energy_goal,
-                    force_goal,
-                    train_forces,
-                    _mp,
-                    self.overfitting_constraint,
-                    force_coefficient,
-                    self.fortran,
-                    save_memory,
-                    self.sfp,
-                    snl,)
-
-            variables = param.regression._variables
-
-            try:
-                optimizer(f=costfxn.f, x0=variables,
-                          fprime=costfxn.fprime,
-                          gtol=10. ** -500.)
-
-            except ConvergenceOccurred:
-                converged = True
-
-            param = costfxn.param
-
-            if extend_variables is False:
-                break
-            else:
-                step += 1
-
-        if not converged:
-            log('Saving checkpoint data.')
-            filename = make_filename(self.label, 'parameters-checkpoint.json')
-            save_parameters(filename, costfxn.param)
-            log(' ...could not find parameters for the desired goal\n'
-                'error. Least error parameters saved as checkpoint.\n'
-                'Try it again or assign a larger value for "goal".',
-                toc='optimize')
-        else:
-            param.regression._variables = costfxn.param.regression._variables
-            self.reg.update_variables(param)
-            log(' ...optimization completed successfully. Optimal '
-                'parameters saved.', toc='optimize')
-            filename = make_filename(self.label, 'trained-parameters.json')
-            save_parameters(filename, param)
-
-            self.cost_function = costfxn.cost_function
-            self.energy_per_atom_rmse = costfxn.energy_per_atom_rmse
-            self.force_rmse = costfxn.force_rmse
-            self.der_variables_cost_function = \
-                costfxn.der_variables_square_error
-
-        # perturb variables and plot cost function
-        if perturb_variables is not None:
-
-            log.tic('perturb')
-            log('\n' + 'Perturbing variables...')
-
-            calculate_gradient = False
-            optimizedvariables = costfxn.param.regression._variables.copy()
-            no_of_variables = len(optimizedvariables)
-            optimizedcost = costfxn.cost_function
-            zeros = np.zeros(no_of_variables)
-
-            all_variables = []
-            all_costs = []
-
-            count = 0
-            while count < no_of_variables:
-                log('variable %s out of %s' % (count, no_of_variables - 1))
-                costs = []
-                perturbance = zeros.copy()
-                perturbance[count] -= perturb_variables
-                perturbedvariables = optimizedvariables + perturbance
-
-                param.regression._variables = perturbedvariables
-
-                if self.fortran:
-                    task_args = (param, calculate_gradient)
-                    (energy_square_error,
-                     force_square_error,
-                     ___) = \
-                        costfxn._mp.share_cost_function_task_between_cores(
-                        task=_calculate_cost_function_fortran,
-                        _args=task_args, len_of_variables=no_of_variables)
-                else:
-                    task_args = (self.reg, param, self.sfp, snl,
-                                 energy_coefficient, force_coefficient,
-                                 train_forces, no_of_variables,
-                                 calculate_gradient, save_memory,)
-                    (energy_square_error,
-                     force_square_error,
-                     ___) = \
-                        costfxn._mp.share_cost_function_task_between_cores(
-                        task=_calculate_cost_function_python,
-                        _args=task_args, len_of_variables=no_of_variables)
-
-                newcost = energy_coefficient * energy_square_error + \
-                    force_coefficient * force_square_error
-                costs.append(newcost)
-
-                costs.append(optimizedcost)
-
-                perturbance = zeros.copy()
-                perturbance[count] += perturb_variables
-                perturbedvariables = optimizedvariables + perturbance
-
-                param.regression._variables = perturbedvariables
-
-                if self.fortran:
-                    task_args = (param, calculate_gradient)
-                    (energy_square_error,
-                     force_square_error,
-                     ___) = \
-                        costfxn._mp.share_cost_function_task_between_cores(
-                        task=_calculate_cost_function_fortran,
-                        _args=task_args, len_of_variables=no_of_variables)
-                else:
-                    task_args = (self.reg, param, self.sfp, snl,
-                                 energy_coefficient, force_coefficient,
-                                 train_forces, no_of_variables,
-                                 calculate_gradient, save_memory,)
-                    (energy_square_error,
-                     force_square_error,
-                     ___) = \
-                        costfxn._mp.share_cost_function_task_between_cores(
-                        task=_calculate_cost_function_python,
-                        _args=task_args, len_of_variables=no_of_variables)
-
-                newcost = energy_coefficient * energy_square_error + \
-                    force_coefficient * force_square_error
-                costs.append(newcost)
-
-                all_variables.append([optimizedvariables[count] -
-                                      perturb_variables,
-                                      optimizedvariables[count],
-                                      optimizedvariables[count] +
-                                      perturb_variables])
-                all_costs.append(costs)
-                count += 1
-
-            log('Plotting cost function vs perturbed variables...')
-
-            import matplotlib
-            matplotlib.use('Agg')
-            from matplotlib import rcParams
-            from matplotlib import pyplot
-            from matplotlib.backends.backend_pdf import PdfPages
-            rcParams.update({'figure.autolayout': True})
-
-            filename = make_filename(self.label, 'perturbed-parameters.pdf')
-            with PdfPages(filename) as pdf:
-                count = 0
-                while count < no_of_variables:
-                    fig = pyplot.figure()
-                    ax = fig.add_subplot(111)
-                    ax.plot(all_variables[count],
-                            all_costs[count],
-                            marker='o', linestyle='--', color='b',)
-                    ax.set_xlabel('variable %s' % count)
-                    ax.set_ylabel('cost function')
-                    pdf.savefig(fig)
-                    pyplot.close(fig)
-                    count += 1
-
-            log(' ...perturbing variables completed.', toc='perturb')
-
-        if not converged:
-            raise TrainingConvergenceError()
 
 ###############################################################################
 ###############################################################################

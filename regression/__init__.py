@@ -20,9 +20,9 @@ def calculate_fingerprints_range(fp, images):
     fingerprint. In atom-centered mode, returns a dictionary of such
     arrays, one per element.
     """
-    if fp.description['mode'] == 'image-centered':
+    if fp.parameters.mode == 'image-centered':
         raise NotImplementedError()
-    elif fp.description['mode'] == 'atom-centered':
+    elif fp.parameters.mode == 'atom-centered':
         fprange = {}
         for hash, image in images.iteritems():
             imagefingerprints = fp.fingerprints[hash]

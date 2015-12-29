@@ -91,7 +91,13 @@ class NeuralNetwork:
                                       '"linear", "tanh", or "sigmoid".')
 
         # Items to be used for training.
-        self.regressor = regressor
+        if regressor is not None:
+            self.set_regressor(regressor)
+
+    def tostring(self):
+        """Returns an evaluatable representation of the calculator that can
+        be used to restart the calculator."""
+        return self.parameters.tostring()
 
     def fit(self, trainingimages, fingerprints, log):
         """Fit the model parameters such that the fingerprints can be used to describe
@@ -106,11 +112,14 @@ class NeuralNetwork:
         result = self.regressor.regress(model=self, log=log)
         return result  # True / False
 
-    def set_regressor(self, regressor=Regressor()):
+    def set_regressor(self, regressor=None):
         """Allows the user to set the regression method. Can use the regressor
         can be an instance of amp.regression.Regressor with desired keywords,
         or anything else behaving similarly. FIXME/ap: Define what this means.
+        Defaults to using amp.regression.Regressor
         """
+        if regressor is None:
+            regressor = Regressor()
         self.regressor = regressor
 
     def get_vector(self):
@@ -915,9 +924,9 @@ class NeuralNetwork:
         tp['trainingimages'] = images
         tp['fingerprint'] = fp
 
-        p['mode'] = fp.description['mode']
+        p['mode'] = fp.parameters['mode']
         if p['mode'] == 'atom-centered':
-            p['elements'] = fp.elements
+            p['elements'] = fp.parameters.elements
         elif p['mode'] == 'image-centered':
             p['elements'] = None
         
@@ -962,8 +971,12 @@ class NeuralNetwork:
 
             self.ravel = _RavelVariables(hiddenlayers=p.hiddenlayers,
                                          elements=p.elements,
-                                         Gs=fp.Gs)
+                                         Gs=fp.parameters.Gs)
             # FIXME/ap: delete Gs... those aren't fit variables here.
+
+            # FIXME/ap: Especially important as Gs are not a required
+            # attribute of descriptors. This will make it so that this
+            # method is incompatible with anything but Behler.
 
         log('Hidden-layer structure:')
         if p.mode == 'image-centered':
@@ -984,9 +997,11 @@ class NeuralNetwork:
                 p.weights = make_weight_matrices(p.hiddenlayers,
                                                  p.activation,
                                                  None,
-                                                 fp.Gs,
+                                                 fp.parameters.Gs,
                                                  p.elements,
                                                  p.fprange,)
+
+            # FIXME/ap: Again, delete Gs in above.
  
         else:
             log('Initial weights already present.')

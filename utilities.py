@@ -1000,3 +1000,13 @@ class SimulatedAnnealing:
 ###############################################################################
 ###############################################################################
 
+def string2dict(text):
+    """Converts a string into a dictionary. Basically just calls `eval` on
+    it, but supplies words like OrderedDict and matrix."""
+    try:
+        dictionary = eval(text)
+    except NameError:
+        from collections import OrderedDict
+        from numpy import *
+        dictionary = eval(text)
+    return dictionary
