@@ -71,18 +71,32 @@ class NeuralNetwork:
     ###########################################################################
 
     def __init__(self, hiddenlayers=(1, 1), activation='tanh', weights=None,
-                 scalings=None, fprange=None, regressor=None):
+                 scalings=None, fprange=None, regressor=None, mode=None,
+                 version=None):
 
-        #FIXME/ap Document that the self.parameters should contain exactly
-        # the information needed to re-create the calculator in its current
-        # state. E.g., nothing about training, optimization tehcniques,
-        # or databanks of calculated fingerprints.
-        self.parameters = Parameters()  
+        # Version check, particularly if restarting.
+        compatibleversions = ['2015.12',]
+        if (version is not None) and version not in compatibleversions:
+            raise RuntimeError('Error: Trying to use NeuralNetwork'
+                               ' version %s, but this module only supports'
+                               ' versions %s. You may need an older or '
+                               'newer version of Amp.' %
+                               (version, compatibleversions))
+        else:
+            version = compatibleversions[-1]
+
+        # The parameters dictionary contains the minimum information
+        # to produce a compatible descriptor; that is, one that gives
+        # the same fingerprint when fed an ASE image.
+        p = self.parameters = Parameters(
+                {'importname': '.model.neuralnetwork.NeuralNetwork',})
+        p.version = version
         self.parameters['hiddenlayers'] = hiddenlayers
         self.parameters['weights'] = weights
         self.parameters['scalings'] = scalings
         self.parameters['fprange'] = fprange
         self.parameters['activation'] = activation
+        self.parameters['mode'] = mode
 
         # Checking that the activation function is given correctly:
         if activation not in ['linear', 'tanh', 'sigmoid']:
@@ -156,160 +170,6 @@ class NeuralNetwork:
         """
         function.attach_model(self)  # Allows access to methods.
         self._lossfunction = function
-
-    def initialize(self, param, load=None, atoms=None):
-        """
-        Loads parameters if fed by a json file. Also checks compatibility
-        between dimensions of first layer and hidden layers with weights.
-
-        :param param: Object containing symmetry function's (if any) and
-                      regression's properties.
-        :type param: ASE calculator's Parameters class
-        :param load: Path for loading an existing Amp calculator.
-        :type load: str
-        :param atoms: Only used for the case of no descriptor.
-        :type atoms: ASE atoms object.
-        """
-        return
-        #FIXME/ap I am bypassing this routine for now. Eventually it needs
-        # to be restored, to check that the input variables make sense.
-        #FIXME/ap Note that ths should be able to use the ase Parameters
-        # class tostring method, and a fromstring to restore itself.
-        # (I will need to update this in ASE, however.)
-        self.param = param
-
-        if self.param.descriptor is None:  # pure atomic-coordinates scheme
-
-            if load is not None:
-                self.no_of_atoms = param.no_of_atoms
-
-            if (self.no_of_atoms is not None) and (atoms is not None):
-                assert (self.no_of_atoms == len(atoms)), \
-                    'Number of atoms in the system should be %i.' \
-                    % self.no_of_atoms
-
-            if self.switch is False:
-
-                if atoms is not None:
-                    self.no_of_atoms = len(atoms)
-
-                if self.no_of_atoms is not None:
-
-                    structure = self.hiddenlayers
-                    if isinstance(structure, str):
-                        structure = structure.split('-')
-                    elif isinstance(structure, int):
-                        structure = [structure]
-                    else:
-                        structure = list(structure)
-                    self.hiddenlayers = [int(part) for part in structure]
-
-                    self.ravel = \
-                        _RavelVariables(hiddenlayers=self.hiddenlayers,
-                                        no_of_atoms=self.no_of_atoms)
-
-                    if load is not None:
-                        self._weights, self._scalings = \
-                            self.ravel.to_dicts(self._variables)
-
-                    # Checking the compatibility of the forms of coordinates,
-                    #  hiddenlayers and weights:
-                    string1 = 'number of atoms and weights are not compatible.'
-                    string2 = 'hiddenlayers and weights are not compatible.'
-
-                    if self._weights is not None:
-                        if np.shape(self._weights[1])[0] != \
-                                3 * self.no_of_atoms + 1:
-                            raise RuntimeError(string1)
-                        if np.shape(self._weights[1])[1] != \
-                                self.hiddenlayers[0]:
-                            raise RuntimeError(string2)
-                        _ = 2
-                        len_of_hiddenlayers = len(self.hiddenlayers)
-                        while _ < len_of_hiddenlayers + 1:
-                            if np.shape(self._weights[_])[0] != \
-                                    self.hiddenlayers[_ - 2] + 1 or \
-                                    np.shape(self._weights[_])[1] != \
-                                    self.hiddenlayers[_ - 1]:
-                                raise RuntimeError(string2)
-                            _ += 1
-                    del string1
-                    del string2
-
-                    self.switch = True
-
-        else:  # fingerprinting scheme
-
-            Gs = self.param.descriptor.Gs
-
-            if Gs is not None:
-
-                self.elements = sorted(Gs.keys())
-
-                # If hiddenlayers is fed by the user in the tuple format,
-                # it will now be converted to a dictionary.
-                if isinstance(self.hiddenlayers, tuple):
-                    hiddenlayers = {}
-                    for element in self.elements:
-                        hiddenlayers[element] = self.hiddenlayers
-                    self.hiddenlayers = hiddenlayers
-
-                for element in self.elements:
-                    structure = self.hiddenlayers[element]
-                    if isinstance(structure, str):
-                        structure = structure.split('-')
-                    elif isinstance(structure, int):
-                        structure = [structure]
-                    else:
-                        structure = list(structure)
-                    hiddenlayers = [int(part) for part in structure]
-                    self.hiddenlayers[element] = hiddenlayers
-
-                self.ravel = _RavelVariables(hiddenlayers=self.hiddenlayers,
-                                             elements=self.elements,
-                                             Gs=Gs)
-
-                if load is not None:
-                    self._weights, self._scalings = \
-                        self.ravel.to_dicts(self._variables)
-
-            # Checking the compatibility of the forms of Gs, hiddenlayers and
-            # weights.
-            string1 = 'Gs and weights are not compatible.'
-            string2 = 'hiddenlayers and weights are not compatible.'
-            if isinstance(self.hiddenlayers, dict):
-                self.elements = sorted(self.hiddenlayers.keys())
-                for element in self.elements:
-                    if self._weights is not None:
-                        if Gs is not None:
-                            if np.shape(self._weights[element][1])[0] \
-                                    != len(Gs[element]) + 1:
-                                raise RuntimeError(string1)
-                        if isinstance(self.hiddenlayers[element], int):
-                            if np.shape(self._weights[element][1])[1] \
-                                    != self.hiddenlayers[element]:
-                                raise RuntimeError(string2)
-                        else:
-                            if np.shape(self._weights[element][1])[1] \
-                                    != self.hiddenlayers[element][0]:
-                                raise RuntimeError(string2)
-
-                            _ = 2
-                            len_of_hiddenlayers = \
-                                len(self.hiddenlayers[element])
-                            while _ < len_of_hiddenlayers + 1:
-                                if (np.shape(self._weights
-                                             [element][_])[0] !=
-                                        self.hiddenlayers[
-                                        element][_ - 2] + 1 or
-                                        np.shape(self._weights
-                                                 [element][_])[1] !=
-                                        self.hiddenlayers
-                                        [element][_ - 1]):
-                                    raise RuntimeError(string2)
-                                _ += 1
-            del string1
-            del string2
 
     def ravel_variables(self):
         """
@@ -926,9 +786,9 @@ class NeuralNetwork:
 
         p['mode'] = fp.parameters['mode']
         if p['mode'] == 'atom-centered':
-            p['elements'] = fp.parameters.elements
+            self.elements = fp.parameters.elements
         elif p['mode'] == 'image-centered':
-            p['elements'] = None
+            self.elements = None
         
 
         p['fprange'] = calculate_fingerprints_range(fp, images)
@@ -960,7 +820,7 @@ class NeuralNetwork:
             # it will now be converted to a dictionary.
             if isinstance(p.hiddenlayers, tuple):
                 hiddenlayers = {}
-                for element in p.elements:
+                for element in self.elements:
                     hiddenlayers[element] = p.hiddenlayers
                 p.hiddenlayers = hiddenlayers
 
@@ -970,7 +830,7 @@ class NeuralNetwork:
             # Maybe when growing the NN?
 
             self.ravel = _RavelVariables(hiddenlayers=p.hiddenlayers,
-                                         elements=p.elements,
+                                         elements=self.elements,
                                          Gs=fp.parameters.Gs)
             # FIXME/ap: delete Gs... those aren't fit variables here.
 
@@ -998,7 +858,7 @@ class NeuralNetwork:
                                                  p.activation,
                                                  None,
                                                  fp.parameters.Gs,
-                                                 p.elements,
+                                                 self.elements,
                                                  p.fprange,)
 
             # FIXME/ap: Again, delete Gs in above.
@@ -1017,7 +877,7 @@ class NeuralNetwork:
             elif p.mode == 'atom-centered':
                 p.scalings = make_scalings_matrices(images,
                                                     p.activation,
-                                                    p.elements,)
+                                                    self.elements,)
         else:
             log('Initial scalings already present.')
 

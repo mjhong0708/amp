@@ -1,4 +1,5 @@
 import os
+import shutil
 import numpy as np
 import tempfile
 import multiprocessing as mp
@@ -16,13 +17,14 @@ from ase.calculators.neighborlist import NeighborList
 
 from .utilities import make_filename, load_parameters, ConvergenceOccurred, IO
 from .utilities import TrainingConvergenceError, ExtrapolateError, hash_image
-from .utilities import Logger, save_parameters
+from .utilities import Logger, save_parameters, string2dict
 from .descriptor import Behler
 from .model.neuralnetwork import NeuralNetwork
 try:
     from . import fmodules  # version 4 of fmodules
     fmodules_version = 4
 except ImportError:
+    print('importerror')
     fmodules = None
 
 ###############################################################################
@@ -72,14 +74,17 @@ class Amp(Calculator):
 
     #FIXME/ap This needs to be made compatible with the save function.
     default_parameters = {
-        'descriptor': Behler(),
-        'regression': NeuralNetwork(),
+        'descriptor': None,
+        'model': None,
+        'extrapolate': True,
     }
 
     ###########################################################################
 
     def __init__(self, load=None, label=None, dblabel=None, extrapolate=True,
                  fortran=True, cores=None, **kwargs):
+        
+        #FIXME: Need to clean this up.
 
         #FIXME: The result of this is that we have both the model and descriptor
         # saved with two names, e.g., self.model and self.parameters.regression.
@@ -88,7 +93,7 @@ class Amp(Calculator):
         self.fortran = fortran
         self.dblabel = label if dblabel is None else dblabel
 
-        if self.fortran and not fmodules:
+        if (self.fortran is True) and (fmodules is None):
             raise RuntimeError('Not using fortran modules. '
                                'Either compile fmodules as described in the '
                                'README for improved performance, or '
@@ -107,47 +112,6 @@ class Amp(Calculator):
             cores = count_allocated_cpus()
         self.cores = cores
 
-        # Reading parameters from existing file if any:
-        if load:
-            try:
-                json_file = paropen(load, 'rb')
-            except IOError:
-                json_file = paropen(make_filename(load,
-                                                  'trained-parameters.json'),
-                                    'rb')
-
-            parameters = load_parameters(json_file)
-
-            kwargs = {}
-            if parameters['descriptor'] == 'Behler':
-                kwargs['descriptor'] = \
-                    Behler(cutoff=parameters['cutoff'],
-                           Gs=parameters['Gs'],
-                           fingerprints_tag=parameters['fingerprints_tag'],
-                           fortran=fortran,
-                           dblabel=dblabel)
-            elif parameters['descriptor'] == 'None':
-                kwargs['descriptor'] = None
-                if parameters['no_of_atoms'] == 'None':
-                    parameters['no_of_atoms'] = None
-            else:
-                raise RuntimeError('Descriptor is not recognized to Amp. '
-                                   'User should add the descriptor under '
-                                   'consideration.')
-
-            if parameters['regression'] == 'NeuralNetwork':
-                kwargs['regression'] = \
-                    NeuralNetwork(hiddenlayers=parameters['hiddenlayers'],
-                                  activation=parameters['activation'],)
-                kwargs['regression']._variables = parameters['variables']
-                if kwargs['descriptor'] is None:
-                    kwargs['no_of_atoms'] = parameters['no_of_atoms']
-            else:
-                raise RuntimeError('Regression method is not recognized to '
-                                   'Amp for loading parameters. User should '
-                                   'add the regression method under '
-                                   'consideration.')
-
         Calculator.__init__(self, label=label, **kwargs)
 
         param = self.parameters
@@ -158,11 +122,53 @@ class Amp(Calculator):
                 if self.descriptor.dblabel is None:
                     self.descriptor.dblabel = self.dblabel
 
-        self.model = param.regression
-
-        self.model.initialize(param, load)
+        self.model = param.model
 
     ###########################################################################
+
+    @classmethod
+    def load(Cls, filename, Descriptor=None, Model=None, **kwargs):
+        """Attempts to load calculators and return a new instance of Amp.
+        Only a filename is required, in typical cases.
+
+        If using a home-rolled descriptor or model, also supply
+        uninstantiated classes to those models, as in model=MyModel.
+
+        Any additional keyword arguments (such as fortran=True) can be
+        fed through to Amp.
+        """
+        with open(filename) as f:
+            text = f.read()
+
+        # Unpack parameter dictionaries.
+        p = string2dict(text)
+        for key in ['descriptor', 'model']:
+            p[key] = string2dict(p[key])
+
+        # If modules are not specified, find them.
+        if Descriptor is None:
+            Descriptor = importhelper(p['descriptor']['importname'])
+        if Model is None:
+            Model = importhelper(p['model']['importname'])
+        # Clean out the importname keyword.
+        for key in ['descriptor', 'model']:
+            if 'importname' in p[key]:
+                p[key].pop('importname')
+
+        # Instantiate the descriptor and model.
+        descriptor = Descriptor(**p['descriptor'])
+        model = Model(**p['model'])
+        print(descriptor)
+        print(type(descriptor))
+        print(model)
+        print(type(model))
+
+        # Instantiate Amp.
+        calc = Cls(descriptor=descriptor, model=model, **kwargs)
+        print(calc)
+        print(type(calc))
+        return calc
+
 
     def set(self, **kwargs):
         """
@@ -426,7 +432,7 @@ class Amp(Calculator):
 
     def train(self,
               images,
-              overwrite=False, #FIXME/ap Need this?
+              overwrite=False,
               data_format='json', #FIXME/ap Need this?
               ):
         """
@@ -461,7 +467,7 @@ class Amp(Calculator):
         else:  # fingerprinting scheme
             log('Local environment descriptor: ' +
                 self.parameters.descriptor.__class__.__name__)
-        log('Regression: ' + self.parameters.regression.__class__.__name__ + '\n')
+        log('Model: ' + self.parameters.model.__class__.__name__ + '\n')
 
         # FIXME/ap: For parallelism, should this just be
         # self.descriptor.fingerprint()? (Like self.model.regress?)
@@ -476,11 +482,12 @@ class Amp(Calculator):
                                 log=log)
         if result is True:
             log('Amp successfully trained. Saving current parameters.')
-            self.save(self.label + '.amp')
+            self.save(self.label + '.amp', overwrite)
             log('Parameters saved.')
         else:
             log('Amp not trained successfully. Saving current parameters.')
-            self.save(make_filename(self.label, '-untrained-parameters.amp'))
+            self.save(make_filename(self.label, '-untrained-parameters.amp'),
+                      overwrite)
             log('Parameters saved.')
 
 
@@ -491,7 +498,7 @@ class Amp(Calculator):
             if overwrite is False:
                 raise RuntimeError('File exists')
             print('Overwriting file: %s. Saving original as %s.backup'
-                  % filename)
+                  % (filename, filename))
             #FIXME. May be better to assure a unique filename with
             # tempfile.NamedTemporaryFile(delete=False, ...), 
             # but need to figure out absolute/relative path.
@@ -2515,3 +2522,21 @@ def now():
     return datetime.now().isoformat().split('.')[0]
 
 ###############################################################################
+
+def importhelper(importname):
+    """Manually compiled list of available modules. This is to prevent the
+    execution of arbitrary (potentially malicious) code.
+    """
+    if importname == '.descriptor.behler.Behler':
+        from .descriptor.behler import Behler as Module
+    elif importname == '.model.neuralnetwork.NeuralNetwork':
+        from .model.neuralnetwork import NeuralNetwork as Module
+    else:
+        raise NotImplementedError(
+            'Attempt to import the module %s. Was this intended? '
+            'If so, trying manually importing this module and '
+            'feeding it to Amp.load. To avoid this error, this '
+            'module can be added to amp.importhelper.' %
+            importname)
+
+    return Module

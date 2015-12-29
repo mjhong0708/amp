@@ -57,27 +57,37 @@ class Behler:
     # allow it to reconstruct itself from a dictionary.
 
     def __init__(self, cutoff=6.5, Gs=None, fortran=True,
-                 dblabel=None, elements=None, version=None
-                ):
+                 dblabel=None, elements=None, version=None,
+                 **kwargs):
 
 
         # Version check, particularly if restarting.
-        compatibleversion = '2015.12'
-        if (version is not None) and version != compatibleversion:
+        compatibleversions = ['2015.12',]
+        if (version is not None) and version not in compatibleversions:
             raise RuntimeError('Error: Trying to use Behler fingerprints'
                                ' version %s, but this module only supports'
-                               ' version %s. You may need an older or '
+                               ' versions %s. You may need an older or '
                                ' newer version of Amp.' %
-                               (version, compatibleversion))
+                               (version, compatibleversions))
         else:
-            version = compatibleversion
+            version = compatibleversions[-1]
+
+        # Check any extra kwargs fed.
+        if 'mode' in kwargs:
+            mode = kwargs.pop('mode')
+            if mode != 'atom-centered':
+                raise RuntimeError('Behler scheme only works '
+                                   'in atom-centered mode. %s '
+                                   'specified.' % mode)
+        if len(kwargs) > 0:
+            raise TypeError('Unexpected keyword arguments: %s' %
+                            repr(kwargs))
 
         # The parameters dictionary contains the minimum information
         # to produce a compatible descriptor; that is, one that gives
         # the same fingerprint when fed an ASE image.
         p = self.parameters = Parameters(
-                {'name': 'amp.descriptor.behler.Behler',
-                 'description': 'Behler fingerprinting scheme',
+                {'importname': '.descriptor.behler.Behler',
                  'mode': 'atom-centered'})
         p.version = version
         p.cutoff = cutoff
