@@ -16,7 +16,8 @@ from ase import io as aseio
 from ase.calculators.neighborlist import NeighborList
 
 from .utilities import make_filename, load_parameters, ConvergenceOccurred, IO
-from .utilities import TrainingConvergenceError, ExtrapolateError, hash_image
+from .utilities import (TrainingConvergenceError, ExtrapolateError,
+                        hash_images)
 from .utilities import Logger, save_parameters, string2dict
 from .descriptor import Behler
 from .model.neuralnetwork import NeuralNetwork
@@ -158,17 +159,9 @@ class Amp(Calculator):
         # Instantiate the descriptor and model.
         descriptor = Descriptor(**p['descriptor'])
         model = Model(**p['model'])
-        print(descriptor)
-        print(type(descriptor))
-        print(model)
-        print(type(model))
 
         # Instantiate Amp.
         calc = Cls(descriptor=descriptor, model=model, **kwargs)
-        print(calc)
-        print(type(calc))
-        return calc
-
 
     def set(self, **kwargs):
         """
@@ -209,7 +202,8 @@ class Amp(Calculator):
         # __init__ method. If it is required by the ASE Calculator
         # format, we should state that.
         self.par = {}
-        self.rc = 0.0
+        self.rc = 0.0 # FIXME/ap What is this? It is set and never used,
+                      # except just below.
         self.numbers = atoms.get_atomic_numbers()
         self.forces = np.empty((len(atoms), 3))
         self.nl = NeighborList([0.5 * self.rc + 0.25] * len(atoms),
@@ -221,219 +215,35 @@ class Amp(Calculator):
         """
         Calculation of the energy of system and forces of all atoms.
         """
+        # The below method just sets the atoms object, if specified,
+        # to self.atoms.
         Calculator.calculate(self, atoms, properties, system_changes)
+        # FIXME/ap: The ASE Calculator has atoms=None as the default; that
+        # is, not changing the atoms that may be saved. We don't. Why?
+        # I think it is becuase this is always called from Calculator.
+        # get_property, which could have atoms=None already.
 
-        no_of_atoms = len(atoms)
-        param = self.parameters
-        if param.descriptor is None:  # pure atomic-coordinates scheme
-            self.reg.initialize(param=param,
-                                atoms=atoms)
-        param = self.reg.ravel_variables()
+        if self.label is not None:
+            log = Logger(make_filename(self.label, 'call-log.txt'))
+        else:
+            log = Logger(None)
 
-        if param.regression._variables is None:
-            raise RuntimeError("Calculator not trained; can't return "
-                               'properties.')
-
-        if 'numbers' in system_changes:
-            self.initialize(atoms)
-
-        self.nl.update(atoms)
-
-        if param.descriptor is not None:  # fingerprinting scheme
-            self.cutoff = param.descriptor.cutoff
-
-            # FIXME: What is the difference between the two updates on the top
-            # and bottom? Is the one on the top necessary? Where is self.nl
-            #  coming from?
-
-            # Update the neighborlist for making fingerprints. Used if atoms
-            # position has changed.
-            _nl = NeighborList(cutoffs=([self.cutoff / 2.] *
-                                        no_of_atoms),
-                               self_interaction=False,
-                               bothways=True,
-                               skin=0.)
-            _nl.update(atoms)
-
-            self.descriptor.atoms = atoms
-            self.descriptor._nl = _nl
-
-            # Deciding on whether it is exptrapoling or interpolating.
-            if self.extrapolate is False:
-                fingerprints_range = \
-                    calculate_fingerprints_range(self.descriptor,
-                                                 self.reg.elements,
-                                                 self.descriptor.atoms,
-                                                 self.descriptor._nl)
-                if compare_train_test_fingerprints(
-                        self.descriptor,
-                        self.descriptor.atoms,
-                        fingerprints_range,
-                        _nl) == 1:
-                    raise ExtrapolateError('Trying to extrapolate, which'
-                                           ' is not allowed. Change to '
-                                           'extrapolate=True if this is'
-                                           ' desired.')
-
-    ##################################################################
+        log('Amp force call started.')
+        images = hash_images([self.atoms])
+        key = images.keys()[0]
+        self.descriptor.calculate_fingerprints(images=images, log=log)
 
         if properties == ['energy']:
-
-            self.reg.reset_energy()
-            self.energy = 0.0
-
-            if param.descriptor is None:  # pure atomic-coordinates scheme
-
-                input = (atoms.positions).ravel()
-                self.energy = self.reg.get_energy(input,)
-
-            else:  # fingerprinting scheme
-
-                index = 0
-                while index < no_of_atoms:
-                    symbol = atoms[index].symbol
-                    n_indices, n_offsets = _nl.get_neighbors(index)
-                    # for calculating fingerprints, summation runs over
-                    # neighboring atoms of type I (either inside or outside
-                    # the main cell)
-                    n_symbols = [atoms[n_index].symbol
-                                 for n_index in n_indices]
-                    Rs = [atoms.positions[n_index] +
-                          np.dot(n_offset, atoms.get_cell())
-                          for n_index, n_offset in zip(n_indices, n_offsets)]
-                    indexfp = self.descriptor.get_fingerprint(index, symbol,
-                                                      n_symbols, Rs)
-
-                    atomic_amp_energy = self.reg.get_energy(indexfp,
-                                                            index, symbol,)
-                    self.energy += atomic_amp_energy
-                    index += 1
-
-            self.results['energy'] = float(self.energy)
-
-    ##################################################################
+            energy = self.model.get_energy(self.descriptor.fingerprints[key])
+            self.results['energy'] = energy
 
         if properties == ['forces']:
-
-            self.reg.reset_energy()
-            outputs = {}
-            self.forces[:] = 0.0
-
-            if param.descriptor is None:  # pure atomic-coordinates scheme
-
-                input = (atoms.positions).ravel()
-                _ = self.reg.get_energy(input,)
-                del _
-                self_index = 0
-                while self_index < no_of_atoms:
-                    self.reg.reset_forces()
-                    i = 0
-                    while i < 3:
-                        _input = [0.] * (3 * no_of_atoms)
-                        _input[3 * self_index + i] = 1.
-                        force = self.reg.get_force(i, _input,)
-                        self.forces[self_index][i] = force
-                        i += 1
-                    self_index += 1
-
-            else:  # fingerprinting scheme
-
-                # Neighborlists for all atoms are calculated.
-                dict_nl = {}
-                n_self_offsets = {}
-                self_index = 0
-                while self_index < no_of_atoms:
-                    neighbor_indices, neighbor_offsets = \
-                        _nl.get_neighbors(self_index)
-                    n_self_indices = np.append(self_index, neighbor_indices)
-                    if len(neighbor_offsets) == 0:
-                        _n_self_offsets = [[0, 0, 0]]
-                    else:
-                        _n_self_offsets = np.vstack(([[0, 0, 0]],
-                                                     neighbor_offsets))
-                    dict_nl[self_index] = n_self_indices
-                    n_self_offsets[self_index] = _n_self_offsets
-                    self_index += 1
-
-                index = 0
-                while index < no_of_atoms:
-                    symbol = atoms[index].symbol
-                    n_indices, n_offsets = _nl.get_neighbors(index)
-                    # for calculating fingerprints, summation runs over
-                    # neighboring atoms of type I (either inside or outside
-                    # the main cell)
-                    n_symbols = [atoms[n_index].symbol
-                                 for n_index in n_indices]
-                    Rs = [atoms.positions[n_index] +
-                          np.dot(n_offset, atoms.get_cell())
-                          for n_index, n_offset in zip(n_indices, n_offsets)]
-                    indexfp = self.descriptor.get_fingerprint(index, symbol,
-                                                      n_symbols, Rs)
-
-                    __ = self.reg.get_energy(indexfp, index, symbol)
-                    del __
-                    index += 1
-
-                self_index = 0
-                while self_index < no_of_atoms:
-                    n_self_indices = dict_nl[self_index]
-                    _n_self_offsets = n_self_offsets[self_index]
-                    n_self_symbols = [atoms[n_index].symbol
-                                      for n_index in n_self_indices]
-                    self.reg.reset_forces()
-                    len_of_n_self_indices = len(n_self_indices)
-                    i = 0
-                    while i < 3:
-                        force = 0.
-                        n_count = 0
-                        while n_count < len_of_n_self_indices:
-                            n_symbol = n_self_symbols[n_count]
-                            n_index = n_self_indices[n_count]
-                            n_offset = _n_self_offsets[n_count]
-                            # for calculating forces, summation runs over
-                            # neighbor atoms of type II (within the main cell
-                            # only)
-                            if n_offset[0] == 0 and n_offset[1] == 0 and \
-                                    n_offset[2] == 0:
-
-                                neighbor_indices, neighbor_offsets = \
-                                    _nl.get_neighbors(n_index)
-                                neighbor_symbols = \
-                                    [atoms[_index].symbol
-                                     for _index in neighbor_indices]
-                                Rs = [atoms.positions[_index] +
-                                      np.dot(_offset, atoms.get_cell())
-                                      for _index, _offset
-                                      in zip(neighbor_indices,
-                                             neighbor_offsets)]
-                                # for calculating derivatives of fingerprints,
-                                # summation runs over neighboring atoms of type
-                                # I (either inside or outside the main cell)
-                                der_indexfp = self.descriptor.get_der_fingerprint(
-                                    n_index, n_symbol,
-                                    neighbor_indices,
-                                    neighbor_symbols,
-                                    Rs, self_index, i)
-
-                                force += self.reg.get_force(i,
-                                                            der_indexfp,
-                                                            n_index, n_symbol,)
-                            n_count += 1
-                        self.forces[self_index][i] = force
-                        i += 1
-                    self_index += 1
-
-                del dict_nl, outputs, n_self_offsets, n_self_indices,
-                n_self_symbols, _n_self_offsets, indexfp, der_indexfp
-
-            self.results['forces'] = self.forces
-
-    ###########################################################################
+            #FIXME/ap needs updating.
+            raise NotImplementedError('Needs updating.')
 
     def train(self,
               images,
               overwrite=False,
-              data_format='json', #FIXME/ap Need this?
               ):
         """
         Fits a variable set to the data, by default using the "fmin_bfgs"
@@ -446,40 +256,30 @@ class Amp(Calculator):
                        trajectory (.traj) or database (.db) file. Energies can
                        be obtained from any reference, e.g. DFT calculations.
         :type images: list or str
-        :param energy_goal: Threshold energy per atom rmse at which simulation
-                            is converged.
-        :type energy_goal: float
         :param overwrite: If a trained output file with the same name exists,
                           overwrite it.
         :type overwrite: bool
-        :param data_format: Format of saved data. Can be either "json" or "db".
-        :type data_format: str
         """
         log = Logger(make_filename(self.label, 'train-log.txt'))
         log('Amp training started. ' + now() + '\n')
         
         log('Checking input parameters.')
-        self._set_training_parameters(images=images, log=log)
+        images = hash_images(images)
 
-        if self.parameters.descriptor is None:  # pure atomic-coordinates scheme
-            #FIXME/apAgain, this should be a module?
-            log('Local environment descriptor: None')
-        else:  # fingerprinting scheme
-            log('Local environment descriptor: ' +
+        log('Local environment descriptor: %s' %
                 self.parameters.descriptor.__class__.__name__)
-        log('Model: ' + self.parameters.model.__class__.__name__ + '\n')
+        log('Model: %s\n' % self.parameters.model.__class__.__name__)
 
-        # FIXME/ap: For parallelism, should this just be
-        # self.descriptor.fingerprint()? (Like self.model.regress?)
-        self.fingerprint()
+        self.descriptor.calculate_fingerprints(images=images,
+                                               cores=self.cores,
+                                               fortran=self.fortran,
+                                               log=log)
 
-        #FIXME/ap I think this makes sense to be calling the regress method
-        # on the model directly. This way, the model can choose to not use
-        # all our regression stuff. That is, tensorflow could do its own
-        # thing here.
-        result = self.model.fit(trainingimages=self.trainingparameters['images'],
+        result = self.model.fit(trainingimages=images,
                                 fingerprints=self.descriptor,
+                                fortran=self.fortran,
                                 log=log)
+
         if result is True:
             log('Amp successfully trained. Saving current parameters.')
             self.save(self.label + '.amp', overwrite)
@@ -489,7 +289,6 @@ class Amp(Calculator):
             self.save(make_filename(self.label, '-untrained-parameters.amp'),
                       overwrite)
             log('Parameters saved.')
-
 
     def save(self, filename, overwrite=False):
         """Saves the calculator in way that it can be re-opened with
@@ -510,80 +309,6 @@ class Amp(Calculator):
         p = Parameters({'descriptor': descriptor,
                         'model': model})
         p.write(filename)
-
-    #FIXME: I think it is better to load an amp calculator from a saved
-    # instance with an @classmethod def load(cls, filename). However,
-    # does this allow us to easily set keywords like fortran that are
-    # not saved in the .amp file?
-
-    def _set_training_parameters(self, images=None, log=None):
-        """Interprets and saves any updates to training parameters."""
-
-        if not hasattr(self, 'trainingparameters'):
-            self.trainingparameters = Parameters()
-        tp = self.trainingparameters
-
-        if log is not None:
-            tp.log = log
-        elif not hasattr(tp, 'log'):
-            tp.log = Logger(make_filename(self.label, 'train-log.txt'))
-        log = tp.log
-
-        if images is None:
-            pass  # No update.
-        elif hasattr(images, 'keys'):
-            tp['images'] = images  # Apparently already hashed.
-        else:
-            # Need to be hashed, and possibly read.
-            if isinstance(images, str):
-                log('Attempting to read training images from file %s.' %
-                    images)
-                extension = os.path.splitext(images)[1]
-                if extension == '.traj':
-                    images = aseio.Trajectory(images, 'r')
-                elif extension == '.db':
-                    images = aseio.read(images)
-
-            # images converted to dictionary form; key is hash of image.
-            log('Hashing images...', tic=True)
-            dict_images = {}
-            for _ in xrange(len(images)):
-                image = images.pop(0)  # Remove from memory as transfered.
-                hash = hash_image(image)
-                if hash in dict_images.keys():
-                    log('Warning: Duplicate image (based on identical hash).'
-                        ' Was this expected? Hash: %s' % hash)
-                dict_images[hash] = image
-            tp['images'] = dict_images
-            log(' %i unique images after hashing.' % len(tp['images']))
-            log(' ...hashing completed.', toc=True)
-
-    def fingerprint(self, images=None):
-        """Fingerprints according to the specified scheme."""
-        # FIXME/ap This method should be removed in favor of 
-        # calc.descriptor.fingerprint().
-        print(images)
-        self._set_training_parameters(images=images)
-
-        log = self.trainingparameters.log
-        images = self.trainingparameters.images
-
-        log('Fingerprinting %i images.' % len(images))
-
-        if self.parameters.descriptor is None:  # pure atomic-coordinates scheme
-            #FIXME/ap: we should consider putting this as a class, like
-            # Behler, which will illustrate the bare methods needed?
-            log(' Using pure atomic coordinates without transformation.')
-            self.parameters.no_of_atoms = len(images[0])
-            for image in images:
-                if len(image) != param.no_of_atoms:
-                    raise RuntimeError('Number of atoms in different images '
-                                       'is not the same. Try different '
-                                       'descriptor. ')
-        
-        # Switch to the fp module.
-        self.descriptor.calculate_fingerprints(images=images, cores=self.cores,
-                                               fortran=self.fortran, log=log)
 
 
 ###############################################################################

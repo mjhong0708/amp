@@ -113,7 +113,7 @@ class NeuralNetwork:
         be used to restart the calculator."""
         return self.parameters.tostring()
 
-    def fit(self, trainingimages, fingerprints, log):
+    def fit(self, trainingimages, fingerprints, log, fortran):
         """Fit the model parameters such that the fingerprints can be used to describe
         the energies in trainingimages. log is the logging object.
         fingerprints is a descriptor object, as would be in calc.fp.

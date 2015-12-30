@@ -208,6 +208,43 @@ def hash_image(atoms):
 
 ###############################################################################
 
+def hash_images(images, log=None):
+    """
+    Converts input images -- which may be a list, a trajectory file, or a
+    database -- into a dictionary indexed by their hashes. Returns this
+    dictionary.
+    """
+    if log is None:
+        log = Logger(None)
+    if images is None:
+        return
+    elif hasattr(images, 'keys'):
+        return images  # Apparently already hashed.
+    else:
+        # Need to be hashed, and possibly read from file.
+        if isinstance(images, str):
+            log('Attempting to read training images from file %s.' %
+                images)
+            extension = os.path.splitext(images)[1]
+            from ase import io
+            if extension == '.traj':
+                images = io.Trajectory(images, 'r')
+            elif extension == '.db':
+                images = io.read(images)
+
+        # images converted to dictionary form; key is hash of image.
+        log('Hashing images...', tic='hash')
+        dict_images = {}
+        for image in images:
+            hash = hash_image(image)
+            if hash in dict_images.keys():
+                log('Warning: Duplicate image (based on identical hash).'
+                    ' Was this expected? Hash: %s' % hash)
+            dict_images[hash] = image
+        log(' %i unique images after hashing.' % len(dict_images))
+        log(' ...hashing completed.', toc='hash')
+        return dict_images
+
 
 class Logger:
 

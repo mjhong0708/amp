@@ -141,10 +141,10 @@ class Behler:
                                     Gs=p.Gs,
                                     cutoff=p.cutoff,
                                     fortran=fortran)
-        fingerprints = Data(filename='%s-fingerprints' % self.dblabel,
-                            calculator=calc)
-        fingerprints.calculate_items(images, cores=cores, log=log)
-        self.fingerprints = fingerprints
+        self.fingerprints = Data(filename='%s-fingerprints'
+                                 % self.dblabel,
+                                 calculator=calc)
+        self.fingerprints.calculate_items(images, cores=cores, log=log)
 
     ###########################################################################
 
