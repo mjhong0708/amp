@@ -105,6 +105,7 @@ class NeuralNetwork:
                                       '"linear", "tanh", or "sigmoid".')
 
         # Items to be used for training.
+        self.regressor = None
         if regressor is not None:
             self.set_regressor(regressor)
 

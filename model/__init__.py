@@ -33,7 +33,8 @@ class LossFunction:
         for hash, image in tp.trainingimages.iteritems():
             predicted = self._model.get_energy(tp.fingerprint.fingerprints[hash])
             actual = image.get_potential_energy(apply_constraint=False)
-            residual_per_atom = (predicted - actual) / len(image)
+            #print(len(image), predicted, actual)
+            residual_per_atom = abs(predicted - actual) / len(image)
             if residual_per_atom > max_residual:
                 max_residual = residual_per_atom
             costfxn += residual_per_atom**2
