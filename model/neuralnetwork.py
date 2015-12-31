@@ -3,8 +3,8 @@ from collections import OrderedDict
 
 from ase.calculators.calculator import Parameters
 
-from ..regression import Regressor, calculate_fingerprints_range
-from . import LossFunction
+from ..regression import Regressor
+from . import LossFunction, calculate_fingerprints_range
 
 try:
     from amp import fmodules
@@ -394,11 +394,18 @@ class NeuralNetwork:
             self.o[index] = {}
             hiddenlayers = p.hiddenlayers[symbol]
             weight = p.weights[symbol]
+            fprange = self.parameters.fprange[symbol]
 
+        # Scale the fingerprints to be in [-1, 1] range.
+        input = -1.0 + 2.0 * ((np.array(input) - fprange[:,0]) / 
+                               (fprange[:,1] - fprange[:,0]))
+
+        # Calculate node values.
         o = {}  # node values
         layer = 1  # input layer
-        net = {}  # excitation
-        ohat = {}
+        net = {}  # excitation FIXME/ap What?
+        ohat = {}  # FIXME/ap What?
+
         len_of_input = len(input)
         temp = np.zeros((1, len_of_input + 1))
         _ = 0
@@ -859,8 +866,7 @@ class NeuralNetwork:
                                                  p.activation,
                                                  None,
                                                  fp.parameters.Gs,
-                                                 self.elements,
-                                                 p.fprange,)
+                                                 self.elements)
 
             # FIXME/ap: Again, delete Gs in above.
  
@@ -950,7 +956,7 @@ class NeuralNetwork:
 
 
 def make_weight_matrices(hiddenlayers, activation, no_of_atoms=None, Gs=None,
-                         elements=None, fingerprints_range=None):
+                         elements=None):
     """
     Generates random weight arrays from variables.
 
@@ -1000,13 +1006,6 @@ def make_weight_matrices(hiddenlayers, activation, no_of_atoms=None, Gs=None,
     :param elements: List of atom symbols; used in the fingerprinting scheme
                      only.
     :type elements: list of str
-    :param fingerprints_range: Range of fingerprints of each chemical species.
-                               Should be fed as a dictionary of chemical
-                               species and a list of minimum and maximun, e.g:
-
-                               >>> fingerprints_range={"Pd": [0.31, 0.59], "O":[0.56, 0.72]}
-
-    :type fingerprints_range: dict
 
     :returns: weights
     """
@@ -1068,32 +1067,12 @@ def make_weight_matrices(hiddenlayers, activation, no_of_atoms=None, Gs=None,
                     [len_of_fps] +
                     [layer for layer in hiddenlayers[element]] + [1])
             weight[element] = {}
-
-            weight[element][1] = np.random.random((len_of_fps + 1,
-                                                   nn_structure[element][1]))
-
-            # modifying weights according to the range of fingerprints
-            i = 0
-            while i < len_of_fps:
-                fp_range = fingerprints_range[element][i][1] - \
-                    fingerprints_range[element][i][0]
-                if fp_range > (10.**(-8.)):
-                    j = 0
-                    while j < nn_structure[element][1]:
-                        weight[element][1][len_of_fps, j] += \
-                            weight[element][1][i, j] * \
-                            (- 1. - 2. * fingerprints_range[element][i][0] /
-                             fp_range)
-                        weight[element][1][i, j] = \
-                            weight[element][1][i, j] * (2. / fp_range)
-                        j += 1
-                i += 1
-
-            # dividing weights by the number of inputs
-            normalized_arg_range = arg_range / len_of_fps
-            weight[element][1] = weight[element][1] * normalized_arg_range - \
+            normalized_arg_range = arg_range / len(Gs[element])
+            weight[element][1] = np.random.random((len(Gs[element]) + 1,
+                                                   nn_structure[
+                                                   element][1])) * \
+                normalized_arg_range - \
                 normalized_arg_range / 2.
-
             len_of_hiddenlayers = len(list(nn_structure[element])) - 3
             layer = 0
             while layer < len_of_hiddenlayers:

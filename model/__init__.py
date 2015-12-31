@@ -1,4 +1,6 @@
 
+import numpy as np
+
 from ..utilities import ConvergenceOccurred
 
 
@@ -61,3 +63,35 @@ class LossFunction:
                 converged = False
         return converged
 
+
+def calculate_fingerprints_range(fp, images):
+    """Calculates the range for the fingerprints corresponding to images,
+    stored in fp. fp is a fingerprints object with the fingerprints data
+    stored in a dictionary-like object at fp.fingerprints. (Typically this
+    is a .utilties.Data structure.) images is a hashed dictionary of atoms
+    for which to consider the range.
+
+    In image-centered mode, returns an array of (min, max) values for each
+    fingerprint. In atom-centered mode, returns a dictionary of such
+    arrays, one per element.
+    """
+    if fp.parameters.mode == 'image-centered':
+        raise NotImplementedError()
+    elif fp.parameters.mode == 'atom-centered':
+        fprange = {}
+        for hash, image in images.iteritems():
+            imagefingerprints = fp.fingerprints[hash]
+            for element, fingerprint in imagefingerprints:
+                if element not in fprange:
+                    fprange[element] = [[val, val] for val in
+                                            fingerprint]
+                else:
+                    assert len(fprange[element]) == len(fingerprint)
+                    for i, ridge in enumerate(fingerprint):
+                        if ridge < fprange[element][i][0]:
+                            fprange[element][i][0] = ridge
+                        elif ridge > fprange[element][i][1]:
+                            fprange[element][i][1] = ridge
+    for key, value in fprange.items():
+        fprange[key] = np.array(value)
+    return fprange
