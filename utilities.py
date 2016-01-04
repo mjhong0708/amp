@@ -208,11 +208,11 @@ def hash_image(atoms):
 
 ###############################################################################
 
-def hash_images(images, log=None):
+def hash_images(images, log=None, ordered=False):
     """
     Converts input images -- which may be a list, a trajectory file, or a
     database -- into a dictionary indexed by their hashes. Returns this
-    dictionary.
+    dictionary. If ordered is True, returns an OrderedDict.
     """
     if log is None:
         log = Logger(None)
@@ -235,6 +235,9 @@ def hash_images(images, log=None):
         # images converted to dictionary form; key is hash of image.
         log('Hashing images...', tic='hash')
         dict_images = {}
+        if ordered is True:
+            from collections import OrderedDict
+            dict_images = OrderedDict()
         for image in images:
             hash = hash_image(image)
             if hash in dict_images.keys():
@@ -1044,6 +1047,6 @@ def string2dict(text):
         dictionary = eval(text)
     except NameError:
         from collections import OrderedDict
-        from numpy import *
+        from numpy import Matrix
         dictionary = eval(text)
     return dictionary

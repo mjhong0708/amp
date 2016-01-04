@@ -5,7 +5,7 @@ from ase.calculators.neighborlist import NeighborList
 from ase.calculators.calculator import Parameters
 
 from ..utilities import FingerprintsError
-from ..utilities import Data
+from ..utilities import Data, Logger
 
 #FIXME/ap: below needs to disappear?
 try:
