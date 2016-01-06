@@ -327,35 +327,32 @@ def calculate_G4(symbols, Rs, G_elements, gamma, zeta, eta, cutoff, home,
         G_numbers = sorted([atomic_numbers[el] for el in G_elements])
         numbers = [atomic_numbers[symbol] for symbol in symbols]
         if len(Rs) == 0:
-            ridge = 0.
+            return 0.
         else:
-            ridge = fmodules.calculate_g4(numbers=numbers, rs=Rs,
+            return fmodules.calculate_g4(numbers=numbers, rs=Rs,
                                           g_numbers=G_numbers, g_gamma=gamma,
                                           g_zeta=zeta, g_eta=eta,
                                           cutoff=cutoff, home=home)
-    else:
-        ridge = 0.
-        counts = range(len(symbols))
-        for j in counts:
-            for k in counts[(j + 1):]:
-                els = sorted([symbols[j], symbols[k]])
-                if els != G_elements:
-                    continue
-                Rij_ = Rs[j] - home
-                Rij = np.linalg.norm(Rij_)
-                Rik_ = Rs[k] - home
-                Rik = np.linalg.norm(Rik_)
-                Rjk = np.linalg.norm(Rs[j] - Rs[k])
-                cos_theta_ijk = np.dot(Rij_, Rik_) / Rij / Rik
-                term = (1. + gamma * cos_theta_ijk) ** zeta
-                term *= np.exp(-eta * (Rij ** 2. + Rik ** 2. + Rjk ** 2.) /
-                               (cutoff ** 2.))
-                term *= (1. / 3.) * (cutoff_fxn(Rij, cutoff) +
-                                     cutoff_fxn(Rik, cutoff) +
-                                     cutoff_fxn(Rjk, cutoff))
-                ridge += term
-        ridge *= 2. ** (1. - zeta)
-
+    ridge = 0.
+    counts = range(len(symbols))
+    for j in counts:
+        for k in counts[(j + 1):]:
+            els = sorted([symbols[j], symbols[k]])
+            if els != G_elements:
+                continue
+            Rij_ = Rs[j] - home
+            Rij = np.linalg.norm(Rij_)
+            Rik_ = Rs[k] - home
+            Rik = np.linalg.norm(Rik_)
+            Rjk = np.linalg.norm(Rs[j] - Rs[k])
+            cos_theta_ijk = np.dot(Rij_, Rik_) / Rij / Rik
+            term = (1. + gamma * cos_theta_ijk) ** zeta
+            term *= np.exp(-eta * (Rij ** 2. + Rik ** 2. + Rjk ** 2.))
+            term *= cutoff_fxn(Rij, cutoff)
+            term *= cutoff_fxn(Rik, cutoff)
+            term *= cutoff_fxn(Rjk, cutoff)
+            ridge += term
+    ridge *= 2. ** (1. - zeta)
     return ridge
 
 ###############################################################################
