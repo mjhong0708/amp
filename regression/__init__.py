@@ -47,6 +47,8 @@ class Regressor:
         # to be implemented. Especially important not to
         # call model functions twice to make this happen.
         log('Starting parameter optimization.', tic='opt')
+        log(' Optimizer: %s' % self.optimizer)
+        log(' Optiimizer kwargs: %s' % self.optimizer_kwargs)
         x0 = model.get_vector()
         try:
             answer = self.optimizer(model.get_loss, x0,

@@ -124,26 +124,29 @@ class Behler:
 
 
         if not p.Gs:
-            log('No symmetry functions suppplied; creating defaults.')
+            log('No symmetry functions supplied; creating defaults.')
             p.Gs = make_symmetry_functions(p.elements)
         log('Symmetry functions for each element:')
         for _ in p.Gs.keys():
             log(' %2s: %i' % (_, len(p.Gs[_])))
 
         log('Calculating neighborlists...', tic='nl')
-        nl = Data(filename='%s-neighborlists' % self.dblabel,
-                  calculator=CalculateNeighborlist(cutoff=p.cutoff))
-        nl.calculate_items(images, cores=cores, log=log)
+        if not hasattr(self, 'neighborlist'):
+            nl = Data(filename='%s-neighborlists' % self.dblabel,
+                      calculator=CalculateNeighborlist(cutoff=p.cutoff))
+            self.neighborlist = nl
+        self.neighborlist.calculate_items(images, cores=cores, log=log)
         log('...neighborlists calculated.', toc='nl')
 
         log('Fingerprinting images...', tic='fp')
-        calc = CalculateFingerprint(neighborlist=nl,
-                                    Gs=p.Gs,
-                                    cutoff=p.cutoff,
-                                    fortran=fortran)
-        self.fingerprints = Data(filename='%s-fingerprints'
-                                 % self.dblabel,
-                                 calculator=calc)
+        if not hasattr(self, 'fingerprints'):
+            calc = CalculateFingerprint(neighborlist=self.neighborlist,
+                                        Gs=p.Gs,
+                                        cutoff=p.cutoff,
+                                        fortran=fortran)
+            self.fingerprints = Data(filename='%s-fingerprints'
+                                     % self.dblabel,
+                                     calculator=calc)
         self.fingerprints.calculate_items(images, cores=cores, log=log)
 
     ###########################################################################

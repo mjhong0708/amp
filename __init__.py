@@ -21,12 +21,6 @@ from .utilities import (TrainingConvergenceError, ExtrapolateError,
 from .utilities import Logger, save_parameters, string2dict
 from .descriptor import Behler
 from .model.neuralnetwork import NeuralNetwork
-try:
-    from . import fmodules  # version 4 of fmodules
-    fmodules_version = 4
-except ImportError:
-    print('importerror')
-    fmodules = None
 
 ###############################################################################
 
@@ -59,11 +53,6 @@ class Amp(Calculator):
                     information. If not supplied, just uses the value from
                     label.
     :type dblabel: str
-    :param extrapolate: If True, allows for extrapolation, if False, does not
-                        allow.
-    :type extrapolate: bool
-    :param fortran: If True, will use fortran modules, if False, will not.
-    :type fortran: bool
 
     :param cores: Can specify cores to use for parallel training;
                   if None, will determine from environment
@@ -74,39 +63,28 @@ class Amp(Calculator):
     implemented_properties = ['energy', 'forces']
 
     #FIXME/ap This needs to be made compatible with the save function.
-    default_parameters = {
-        'descriptor': None,
-        'model': None,
-        'extrapolate': True,
-    }
+    # It should be do-able.
+    #default_parameters = {
+    #    'descriptor': None,
+    #    'model': None,
+    #    'extrapolate': True,
+    #}
 
     ###########################################################################
 
-    def __init__(self, load=None, label=None, dblabel=None, extrapolate=True,
-                 fortran=True, cores=None, **kwargs):
+    def __init__(self, load=None, label=None, dblabel=None, fortran=None,
+                 cores=None, **kwargs):
         
+        #FIXME/ap: Make sure this plays well with Amp.load.
+        self.fortran = fortran
+
         #FIXME: Need to clean this up.
 
         #FIXME: The result of this is that we have both the model and descriptor
         # saved with two names, e.g., self.model and self.parameters.regression.
         # Clean this up to avoid confusion.
-        self.extrapolate = extrapolate
-        self.fortran = fortran
         self.dblabel = label if dblabel is None else dblabel
 
-        if (self.fortran is True) and (fmodules is None):
-            raise RuntimeError('Not using fortran modules. '
-                               'Either compile fmodules as described in the '
-                               'README for improved performance, or '
-                               'initialize calculator with fortran=False.')
-
-        if self.fortran and fmodules:
-            wrong_version = fmodules.check_version(version=fmodules_version)
-            if wrong_version:
-                raise RuntimeError('Fortran part is not updated. Recompile'
-                                   'with f2py as described in the README. '
-                                   'Correct version is %i.'
-                                   % fmodules_version)
 
         if cores is None:
             from .utilities import count_allocated_cpus
@@ -162,6 +140,7 @@ class Amp(Calculator):
 
         # Instantiate Amp.
         calc = Cls(descriptor=descriptor, model=model, **kwargs)
+        return calc
 
     def set(self, **kwargs):
         """
@@ -228,7 +207,7 @@ class Amp(Calculator):
         else:
             log = Logger(None)
 
-        log('Amp force call started.')
+        log('Amp calculate started.')
         images = hash_images([self.atoms])
         key = images.keys()[0]
         self.descriptor.calculate_fingerprints(images=images, log=log)
@@ -309,6 +288,8 @@ class Amp(Calculator):
         p = Parameters({'descriptor': descriptor,
                         'model': model})
         p.write(filename)
+        #FIXME/ap. I should get this to work with the todict method
+        # of standard ASE calculators.
 
 
 ###############################################################################

@@ -1,7 +1,7 @@
 
 import numpy as np
 
-from ..utilities import ConvergenceOccurred
+from ..utilities import ConvergenceOccurred, Logger
 
 
 class LossFunction:
@@ -17,6 +17,16 @@ class LossFunction:
 
     def attach_model(self, model):
         self._model = model
+
+        self.log = Logger(None)
+        if hasattr(model, 'trainingparameters'):
+            if 'log' in model.trainingparameters:
+                self.log = model.trainingparameters['log']
+        self.log(' Loss function attached to model. Convergence criteria:')
+        self.log('  energy_tol: ' + str(self._energy_tol))
+        self.log('  max_resid: ' + str(self._max_resid))
+        self.log('  %12s  %12s' % ('EnergyLoss', 'MaxResid'))
+        self.log('  %12s  %12s' % ('==========', '========'))
 
     def __call__(self, parametervector):
         """Returns the current value of teh cost function for a given set of parameters,
@@ -52,16 +62,18 @@ class LossFunction:
     def check_convergence(self, costfxn, max_residual):
         """Checks to see whether convergence is met; if it is, raises
         ConvergenceException to stop the optimizer."""
-        print('%10.4e %10.4e %10.4e %10.4e' %
-              (costfxn, self._energy_tol, max_residual, self._max_resid))
-        converged = True
+        energyconverged = True
+        maxresidconverged = True
         if self._energy_tol is not None:
             if costfxn > self._energy_tol:
-                converged = False
+                energyconverged = False
         if self._max_resid is not None:
             if max_residual > self._max_resid:
-                converged = False
-        return converged
+                maxresidconverged = False
+        self.log('  %12.4e %1s %12.4e %1s' %
+                 (costfxn, 'C' if energyconverged else '',
+                  max_residual, 'C' if maxresidconverged else ''))
+        return energyconverged and maxresidconverged
 
 
 def calculate_fingerprints_range(fp, images):

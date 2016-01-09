@@ -29,8 +29,11 @@ class Data:
     >>> values = data.d.values()
     """
 
-    # FIXME/ap sqlitedict probably behaves teh same, but supports
+    # FIXME/ap sqlitedict probably behaves the same, but supports
     # multi-thread access.
+
+    # FIXME/ap even better may be mongodb, which is designed to hold
+    # json-like objects and looks like it is gaining popularity
 
     # FIXME/ap Do I need a method to get the keys? Actually, those are
     # the hashes stored in images, so probably not. The sophisticated
@@ -1047,6 +1050,6 @@ def string2dict(text):
         dictionary = eval(text)
     except NameError:
         from collections import OrderedDict
-        from numpy import Matrix
+        from numpy import array, matrix
         dictionary = eval(text)
     return dictionary

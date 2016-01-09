@@ -791,6 +791,7 @@ class NeuralNetwork:
         tp = self.trainingparameters = Parameters()
         tp['trainingimages'] = images
         tp['fingerprint'] = fp
+        tp['log'] = log
 
         p['mode'] = fp.parameters['mode']
         if p['mode'] == 'atom-centered':
