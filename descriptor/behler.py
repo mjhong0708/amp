@@ -152,7 +152,7 @@ class Behler:
     ###########################################################################
 
 
-class CalculateNeighborlist:
+class NeighborlistCalculator:
     """For integration with .utilities.Data
     For each image fed to calculate, a list of neihbors with offset
     distances is returned.
@@ -170,7 +170,7 @@ class CalculateNeighborlist:
         return [n.get_neighbors(index) for index in range(len(image))]
 
 
-class CalculateFingerprint:
+class FingerprintCalculator:
     """For integration with .utilities.Data"""
     def __init__(self, neighborlist, Gs, cutoff,
                  fortran=False):
@@ -741,5 +741,73 @@ def calculate_der_G4(n_indices, symbols, Rs, G_elements, gamma, zeta, eta,
         ridge *= 2. ** (1. - zeta)
 
     return ridge
+
+
+if __name__ == "__main__":
+    """Directly calling this module; apparently from another node."""
+    import sys
+    import pickle
+    import hashlib
+    import tempfile
+    from ampmoremodular.utilities import Worker
+    if sys.argv[-1] == 'calculate_neighborlists':
+        w = sys.stdout.write
+        worker = Worker(writecommand=w)
+        w('<amp-connect>') # Signal that connection successful.
+        # stderr's will not go anywhere useful; so write to a tempfile.
+        sys.stderr = tempfile.NamedTemporaryFile(mode='w', delete=False,
+                                                 suffix='.stderr')
+        w('stderr written to %s <stderr>' % sys.stderr.name)
+        
+        # Request variables.
+        cutoff = worker.request('cutoff')
+        images = worker.request('images')
+        worker.request(None)  # Terminates variable request.
+
+        # Perform the calculations.
+        calc = NeighborlistCalculator(cutoff=cutoff)
+        neighborlist = {}
+        for key in images.iterkeys():
+            neighborlist[key] = calc.calculate(images[key], key)
+
+
+        # Send the results.
+        text = pickle.dumps(neighborlist)
+        hash = hashlib.md5(text).hexdigest()
+        text = text.encode('string-escape')
+        w('%s <result-hash>' % hash)
+        w('%s <result>' % text)
+
+
+        bbb
+        print('cutoff <request>')
+        cutoff = receive()
+
+        kk
+        jjj
+        remotehash = raw_input()
+        cutoff = raw_input()
+        cutoff = cutoff.decode('string-escape')
+        localhash = hashlib.md5(cutoff).hexdigest()
+        assert localhash == remotehash
+        cutoff = pickle.loads(cutoff)
+        print('<success>')
+
+
+        print("cutoff <request>")
+        cutoff = raw_input()
+        cutoff = cutoff.decode('string-escape')
+        cutoff = pickle.loads(cutoff)
+        print('<success>')
+
+        print('images <request>')
+        images = raw_input()
+        images = images.decode('string-escape')
+        images = pickle.loads(images)
+        print('<success>')
+
+        calc = CalculateNeighborlist(cutoff=cutoff)
+        print('<done> <request>')
+
 
 

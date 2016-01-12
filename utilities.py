@@ -9,6 +9,9 @@ import sqlite3
 from ase import io as aseio
 from ase.parallel import paropen
 import shelve
+import pxssh
+import getpass
+import pickle
 
 
 class Data:
@@ -68,7 +71,71 @@ class Data:
                 d[key] = self.calc.calculate(images[key], key)
             d.close()  # Necessary to get out of write mode and unlock?
         else:
-            raise NotImplementedError('Need to write this!')
+            #FIXME/ap First attempt. cores should be dictionary of hostnames,
+            # cpus.
+            # Modeling after podcasts.py
+            from Queue import Queue
+            from threading import Thread
+
+            threaddata = {} # Will hold the output data.
+            queue = Queue() # Will hold the images to work on.
+
+            def process(id, hostname, queue):
+                """The function to be run by each individual process."""
+                #FIXME/ap This should probably start by opening an SSH
+                # connection. After the queue empties, perhaps I could fill it
+                # with <exit> messages, which would trigger this process to
+                # terminiate the SSH process then exit gracefully. Then I should
+                # turn off the daemon approach.
+                session = pxssh.pxssh()  # SSH session.
+                session.login(hostname, getpass.getuser())
+                session.timeout = 20  # FIXME/ap set to None?
+                session.sendline(self.startcommand)
+                session.expect('<amp-connect>')
+
+                # The session will request its needed variables.
+                while True:
+                    session.expect('<request>')
+                    variable = session.before.strip()
+                while True:
+                    #print('Proc %i: Looking for next item (image).' % id)
+                    item = queue.get()
+                    #print('Proc %i: Item is:' % id, item)
+                    if item == '<exit>':
+                        break
+                    key, image = item
+                    result = self.calc.calculate(image, key)
+                    for _ in xrange(int(1e8)):
+                        2.0 + 3.0 * 5.0
+                    threaddata[key] = result
+                    queue.task_done()  # Counting.
+                #FIXME/ap Close ssh connection then exit gracefully.
+
+            # Start worker threads.
+            workers = []
+            id = 0
+            for hostname, no_tasks in cores.iteritems():
+                for _ in range(no_tasks):
+                    worker = Thread(target=process,
+                                    args=(id, hostname, queue))
+                    #worker.set_daemon(True)  I won't need this with my exit scheme.
+                    worker.start()
+
+            # Load the queue.
+            for key in calcs_needed:
+                queue.put((key, images[key]))
+
+            # Wait for all jobs to exit, then send exit message.
+            queue.join()
+            for _ in range(cores):
+                queue.put('<exit>')
+
+            # Fill the database.
+            d = self.db.open(self.filename, 'c')
+            for key, value in threaddata.iteritems():
+                d[key] = value
+            d.close()  # Necessary to get out of write mode and unlock?
+
         log(' Calculated %i new images.' % len(calcs_needed))
         self.d = None
 
@@ -210,6 +277,7 @@ def hash_image(atoms):
     return hash
 
 ###############################################################################
+
 
 def hash_images(images, log=None, ordered=False):
     """
@@ -1053,3 +1121,137 @@ def string2dict(text):
         from numpy import array, matrix
         dictionary = eval(text)
     return dictionary
+
+###############################################################################
+###############################################################################
+###############################################################################
+
+class MasterControls:
+    """Send and receive commands for use by the master (e.g., main python)
+    to transmit objects to a worker session (e.g., via SSH).
+    Note there needs to be a separate instance of this class for each worker
+    connection."""
+
+    def __init__(self, log):
+        self.log = log
+
+    def connect_to_worker(self, hostname, command, username=None):
+        """Starts a session with a worker.
+        hostname: address to ssh to
+        command: initial command to run once connection opens.
+        username: will use logged-in username unless otherwise specified
+        """
+        if hasattr(self, 'session'):
+            raise RuntimeError('worker session already open')
+        username = getpass.getuser() if username is None else username
+        self.session = session = pxssh.pxssh()
+        session.login(hostname, username)
+        session.timeout = 100
+
+        #command += ' 2>> /tmp/Amp-procX-stderr' #FIXME/ap I think
+        # I replaced this with the sys.stderr in descriptor/behler
+        session.sendline(command)
+        session.expect('<amp-connect>')
+        session.expect('<stderr>')
+        self.log('Session 0: %s\n' % session.before.strip())
+        # FIXME/ap: I might want to keep all the above, then switch to a
+        # zmq protocol for honor_requests. This would be a REQ (worker)
+        # REP (master) protocol. If each worker runs one image it can
+        # be in infinite-loop mode. It could be more efficient to
+        # just send the big data at the beginnnig, however.
+        # I could probably keep this model at the end??
+
+    def honor_requests(self, args):
+        """Interaction with worker, in which worker requests data
+        and this method supplies it. All data should be in the dictionary
+        'args', and the worker requests them by key."""
+        session = self.session
+        while True:
+            session.expect('<request>')
+            name = session.before.strip()
+            if name == '<done>':
+                break  # Signal ends variable requests.
+            print('name:', name)
+            self._send(object=args[name])
+            print(' expecting success')
+            session.expect('<success>')
+
+    def _send(self, object):
+        """Send the object to the worker, preceded by a verification hash."""
+        print('  to string')
+        text = pickle.dumps(object)
+        print('  to hash')
+        hash = hashlib.md5(text).hexdigest()  # Signature.
+        print('  to string-escape')
+        text = text.encode('string-escape')
+        print('  send hash')
+        self.session.sendline(hash)
+        print('  send text')
+        with open('/tmp/original.text', 'w') as f:
+            f.write(text)
+        self.session.sendline(text)
+        print('  text sent')
+
+    def get_result(self):
+        """Captures the result from the worker."""
+        session = self.session
+        session.timeout = None
+        session.expect('<result-hash>')
+        remotehash = session.before.strip()
+        session.expect('<result>')
+        result = session.before.strip()
+        result = result.decode('string-escape')
+        localhash = hashlib.md5(result).hexdigest()
+        assert localhash == remotehash
+        return pickle.loads(result)
+
+
+class Worker:
+    """Send and receive commands for use by the worker (e.g., SSH session)
+    to tranmit objects from the master (e.g., the main python loop)."""
+
+    def __init__(self, writecommand):
+        """writecommand is the command used to write output; typically
+        sys.stdout.write (equivalent to 'print')."""
+        self._w = writecommand
+
+    def request(self, name=None):
+        """Requests an object and checks its md5. If name is None, sends the signal
+        to terminate the request portion of the code."""
+        w = self._w
+        if name is None:
+            self._w('<done> <request>')
+            return
+        self._w('%s <request>' % name)
+        remotehash = raw_input()
+        object = raw_input()
+        with open('/tmp/received.text', 'w') as f:
+            f.write(object)
+        object = object.decode('string-escape')
+        localhash = hashlib.md5(object).hexdigest()
+        if localhash == remotehash:
+            object = pickle.loads(object)
+            self._w('<success>')
+            return object
+        else:
+            self._w('<nomatch>')
+
+    
+def request_from_master(name=None):
+    """Requests an object and checks its md5. If name is None, sends the signal
+    to terminate the request portion of the code."""
+    if name is None:
+        print('<done> <request>')
+        return
+    print('%s <request>' % name)
+    remotehash = raw_input()
+    object = raw_input()
+    object = object.decode('string-escape')
+    localhash = hashlib.md5(object).hexdigest()
+    if localhash == remotehash:
+        object = pickle.loads(object)
+        print('<success>')
+        return object
+    else:
+        print('<nomatch>')
+
