@@ -14,6 +14,38 @@ import getpass
 import pickle
 
 
+class MessageDictionary:
+    """Standard container for all messages (typically requests, via
+    zmq.context.socket.send_pyobj) sent from the workers to the master.
+    This returns a simple dictionary. This is roughly email format.
+    Initialize with process id (e.g., 'from'). Call with subject and data
+    (body).
+    """
+
+    def __init__(self, process_id):
+        self._process_id = process_id
+
+    def __call__(self, subject, data=None):
+        d = {'id': self._process_id,
+             'subject': subject,
+             'data': data}
+        return d
+
+
+def make_sublists(masterlist, n):
+    """Randomly divides the masterlist into n sublists of roughly
+    equal size. The intended use is to divide a keylist and assign
+    keys to each task in parallel processing. This also destroys
+    the masterlist (to save some memory)."""
+    np.random.shuffle(masterlist)
+    N = len(masterlist)
+    sublist_lengths = [N//n if _ >= (N % n) else N//n + 1 for _ in range(n)]
+    sublists = []
+    for sublist_length in sublist_lengths:
+       sublists.append([masterlist.pop() for _ in xrange(sublist_length)])
+    return sublists    
+
+
 class Data:
     """
     Serves as a container (dictionary-like) for (key, value) pairs that
@@ -294,7 +326,7 @@ def hash_images(images, log=None, ordered=False):
     else:
         # Need to be hashed, and possibly read from file.
         if isinstance(images, str):
-            log('Attempting to read training images from file %s.' %
+            log('Attempting to read images from file %s.' %
                 images)
             extension = os.path.splitext(images)[1]
             from ase import io
@@ -1121,137 +1153,4 @@ def string2dict(text):
         from numpy import array, matrix
         dictionary = eval(text)
     return dictionary
-
-###############################################################################
-###############################################################################
-###############################################################################
-
-class MasterControls:
-    """Send and receive commands for use by the master (e.g., main python)
-    to transmit objects to a worker session (e.g., via SSH).
-    Note there needs to be a separate instance of this class for each worker
-    connection."""
-
-    def __init__(self, log):
-        self.log = log
-
-    def connect_to_worker(self, hostname, command, username=None):
-        """Starts a session with a worker.
-        hostname: address to ssh to
-        command: initial command to run once connection opens.
-        username: will use logged-in username unless otherwise specified
-        """
-        if hasattr(self, 'session'):
-            raise RuntimeError('worker session already open')
-        username = getpass.getuser() if username is None else username
-        self.session = session = pxssh.pxssh()
-        session.login(hostname, username)
-        session.timeout = 100
-
-        #command += ' 2>> /tmp/Amp-procX-stderr' #FIXME/ap I think
-        # I replaced this with the sys.stderr in descriptor/behler
-        session.sendline(command)
-        session.expect('<amp-connect>')
-        session.expect('<stderr>')
-        self.log('Session 0: %s\n' % session.before.strip())
-        # FIXME/ap: I might want to keep all the above, then switch to a
-        # zmq protocol for honor_requests. This would be a REQ (worker)
-        # REP (master) protocol. If each worker runs one image it can
-        # be in infinite-loop mode. It could be more efficient to
-        # just send the big data at the beginnnig, however.
-        # I could probably keep this model at the end??
-
-    def honor_requests(self, args):
-        """Interaction with worker, in which worker requests data
-        and this method supplies it. All data should be in the dictionary
-        'args', and the worker requests them by key."""
-        session = self.session
-        while True:
-            session.expect('<request>')
-            name = session.before.strip()
-            if name == '<done>':
-                break  # Signal ends variable requests.
-            print('name:', name)
-            self._send(object=args[name])
-            print(' expecting success')
-            session.expect('<success>')
-
-    def _send(self, object):
-        """Send the object to the worker, preceded by a verification hash."""
-        print('  to string')
-        text = pickle.dumps(object)
-        print('  to hash')
-        hash = hashlib.md5(text).hexdigest()  # Signature.
-        print('  to string-escape')
-        text = text.encode('string-escape')
-        print('  send hash')
-        self.session.sendline(hash)
-        print('  send text')
-        with open('/tmp/original.text', 'w') as f:
-            f.write(text)
-        self.session.sendline(text)
-        print('  text sent')
-
-    def get_result(self):
-        """Captures the result from the worker."""
-        session = self.session
-        session.timeout = None
-        session.expect('<result-hash>')
-        remotehash = session.before.strip()
-        session.expect('<result>')
-        result = session.before.strip()
-        result = result.decode('string-escape')
-        localhash = hashlib.md5(result).hexdigest()
-        assert localhash == remotehash
-        return pickle.loads(result)
-
-
-class Worker:
-    """Send and receive commands for use by the worker (e.g., SSH session)
-    to tranmit objects from the master (e.g., the main python loop)."""
-
-    def __init__(self, writecommand):
-        """writecommand is the command used to write output; typically
-        sys.stdout.write (equivalent to 'print')."""
-        self._w = writecommand
-
-    def request(self, name=None):
-        """Requests an object and checks its md5. If name is None, sends the signal
-        to terminate the request portion of the code."""
-        w = self._w
-        if name is None:
-            self._w('<done> <request>')
-            return
-        self._w('%s <request>' % name)
-        remotehash = raw_input()
-        object = raw_input()
-        with open('/tmp/received.text', 'w') as f:
-            f.write(object)
-        object = object.decode('string-escape')
-        localhash = hashlib.md5(object).hexdigest()
-        if localhash == remotehash:
-            object = pickle.loads(object)
-            self._w('<success>')
-            return object
-        else:
-            self._w('<nomatch>')
-
-    
-def request_from_master(name=None):
-    """Requests an object and checks its md5. If name is None, sends the signal
-    to terminate the request portion of the code."""
-    if name is None:
-        print('<done> <request>')
-        return
-    print('%s <request>' % name)
-    remotehash = raw_input()
-    object = raw_input()
-    object = object.decode('string-escape')
-    localhash = hashlib.md5(object).hexdigest()
-    if localhash == remotehash:
-        object = pickle.loads(object)
-        print('<success>')
-        return object
-    else:
-        print('<nomatch>')
 

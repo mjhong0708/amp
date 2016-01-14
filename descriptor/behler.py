@@ -123,7 +123,7 @@ class Behler:
             + ', '.join(p.elements))
 
 
-        if not p.Gs:
+        if p.Gs is None:
             log('No symmetry functions supplied; creating defaults.')
             p.Gs = make_symmetry_functions(p.elements)
         log('Symmetry functions for each element:')
@@ -744,70 +744,60 @@ def calculate_der_G4(n_indices, symbols, Rs, G_elements, gamma, zeta, eta,
 
 
 if __name__ == "__main__":
-    """Directly calling this module; apparently from another node."""
+    """Directly calling this module; apparently from another node.
+    Calls should come as
+
+    python -m amp.descriptor.behler id hostname:port
+
+    This session will then start a zmq session with that socket, labeling
+    itself with id. Instructions on what to do will come from the socket.
+    """
     import sys
-    import pickle
-    import hashlib
     import tempfile
-    from ampmoremodular.utilities import Worker
-    if sys.argv[-1] == 'calculate_neighborlists':
-        w = sys.stdout.write
-        worker = Worker(writecommand=w)
-        w('<amp-connect>') # Signal that connection successful.
-        # stderr's will not go anywhere useful; so write to a tempfile.
-        sys.stderr = tempfile.NamedTemporaryFile(mode='w', delete=False,
-                                                 suffix='.stderr')
-        w('stderr written to %s <stderr>' % sys.stderr.name)
-        
+    import zmq
+    from ..utilities import MessageDictionary
+
+    hostsocket = sys.argv[-1]
+    proc_id = sys.argv[-2]
+    msg = MessageDictionary(proc_id)
+
+    # Send standard lines to stdout signaling process started and where
+    # error is directed. This should be caught by pxssh. (This could
+    # alternatively be done by zmq, but this works.)
+    print('<amp-connect>')  # Signal that program started.
+    sys.stderr = tempfile.NamedTemporaryFile(mode='w', delete=False,
+                                             suffix='.stderr')
+    print('stderr written to %s<stderr>' % sys.stderr.name)
+
+
+    # Establish client session via zmq; find purpose.
+    context = zmq.Context()
+    socket = context.socket(zmq.REQ)
+    socket.connect('tcp://%s' % hostsocket)
+    socket.send_pyobj(msg('<purpose>'))
+    purpose = socket.recv_string()
+
+
+    if purpose == 'calculate_neighborlists':
         # Request variables.
-        cutoff = worker.request('cutoff')
-        images = worker.request('images')
-        worker.request(None)  # Terminates variable request.
+        socket.send_pyobj(msg('<request>', 'cutoff'))
+        cutoff = socket.recv_pyobj()
+        socket.send_pyobj(msg('<request>', 'images'))
+        images = socket.recv_pyobj()
+        #sys.stderr.write(str(images)) # Just to see if they are there.
 
         # Perform the calculations.
         calc = NeighborlistCalculator(cutoff=cutoff)
         neighborlist = {}
-        for key in images.iterkeys():
-            neighborlist[key] = calc.calculate(images[key], key)
-
+        #for key in images.iterkeys():
+        while len(images) > 0:
+            key, image = images.popitem()  # Reduce memory.
+            neighborlist[key] = calc.calculate(image, key)
 
         # Send the results.
-        text = pickle.dumps(neighborlist)
-        hash = hashlib.md5(text).hexdigest()
-        text = text.encode('string-escape')
-        w('%s <result-hash>' % hash)
-        w('%s <result>' % text)
+        socket.send_pyobj(msg('<result>', neighborlist))
+        socket.recv_string() # Needed to complete REQ/REP.
 
-
-        bbb
-        print('cutoff <request>')
-        cutoff = receive()
-
-        kk
-        jjj
-        remotehash = raw_input()
-        cutoff = raw_input()
-        cutoff = cutoff.decode('string-escape')
-        localhash = hashlib.md5(cutoff).hexdigest()
-        assert localhash == remotehash
-        cutoff = pickle.loads(cutoff)
-        print('<success>')
-
-
-        print("cutoff <request>")
-        cutoff = raw_input()
-        cutoff = cutoff.decode('string-escape')
-        cutoff = pickle.loads(cutoff)
-        print('<success>')
-
-        print('images <request>')
-        images = raw_input()
-        images = images.decode('string-escape')
-        images = pickle.loads(images)
-        print('<success>')
-
-        calc = CalculateNeighborlist(cutoff=cutoff)
-        print('<done> <request>')
-
-
+    else:
+        raise NotImplementedError('purpose %s unknown.' % purpose)
 
