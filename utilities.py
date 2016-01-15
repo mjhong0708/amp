@@ -9,9 +9,15 @@ import sqlite3
 from ase import io as aseio
 from ase.parallel import paropen
 import shelve
-import pxssh
 import getpass
 import pickle
+
+
+# FIXME/ap Should make an 'assign_cores' function that takes as an argument
+# the user's core specification and converts that to the right form. The
+# right form is 1 if the user specifies 1; {'localhost': 3} if the user
+# specifies 3, or {'node243': 16, 'node244': 16} if pulling from slurm
+# variables.
 
 
 class MessageDictionary:
@@ -97,78 +103,108 @@ class Data:
         d.close()
         log(' File exists with %i total images, %i of which are needed.' %
             (dblength, len(images) - len(calcs_needed)))
+        log(' %i new calculations needed.' % len(calcs_needed))
+        if len(calcs_needed) == 0:
+            return
         if cores == 1:
             d = self.db.open(self.filename, 'c')  #FIXME/ap Should have a lock?
             for key in calcs_needed:
                 d[key] = self.calc.calculate(images[key], key)
             d.close()  # Necessary to get out of write mode and unlock?
+            log(' Calculated %i new images.' % len(calcs_needed))
         else:
-            #FIXME/ap First attempt. cores should be dictionary of hostnames,
-            # cpus.
-            # Modeling after podcasts.py
-            from Queue import Queue
-            from threading import Thread
+            import zmq
+            import pxssh
+            from socket import gethostname
+            from getpass import getuser
+            log(' Parallel processing.')
+            module = self.calc.__module__
+            globals = self.calc.globals
+            keyed = self.calc.keyed
+            serverhostname = gethostname()
 
-            threaddata = {} # Will hold the output data.
-            queue = Queue() # Will hold the images to work on.
+            # Establish server session.
+            context = zmq.Context()
+            server = context.socket(zmq.REP)
+            port = server.bind_to_random_port('tcp://*')
+            serversocket = '%s:%s' % (serverhostname, port)
+            log(' Established server at %s.' % serversocket)
 
-            def process(id, hostname, queue):
-                """The function to be run by each individual process."""
-                #FIXME/ap This should probably start by opening an SSH
-                # connection. After the queue empties, perhaps I could fill it
-                # with <exit> messages, which would trigger this process to
-                # terminiate the SSH process then exit gracefully. Then I should
-                # turn off the daemon approach.
-                session = pxssh.pxssh()  # SSH session.
-                session.login(hostname, getpass.getuser())
-                session.timeout = 20  # FIXME/ap set to None?
-                session.sendline(self.startcommand)
-                session.expect('<amp-connect>')
+            workercommand = 'python -m %s %%s %s' % (module, serversocket)
+            print(workercommand)
 
-                # The session will request its needed variables.
-                while True:
-                    session.expect('<request>')
-                    variable = session.before.strip()
-                while True:
-                    #print('Proc %i: Looking for next item (image).' % id)
-                    item = queue.get()
-                    #print('Proc %i: Item is:' % id, item)
-                    if item == '<exit>':
-                        break
-                    key, image = item
-                    result = self.calc.calculate(image, key)
-                    for _ in xrange(int(1e8)):
-                        2.0 + 3.0 * 5.0
-                    threaddata[key] = result
-                    queue.task_done()  # Counting.
-                #FIXME/ap Close ssh connection then exit gracefully.
+            def establish_ssh(process_id):
+                """Uses pxssh to establish a SSH connections and get the
+                command running. process_id is an assigned unique identifier
+                for each process. When the process starts, it needs to send
+                <amp-connect>, followed by the location of its standard error,
+                followed by <stderr>. Then it should communicate via zmq.
+                """
+                ssh = pxssh.pxssh()
+                ssh.login(workerhostname, getuser())
+                ssh.sendline(workercommand % process_id)
+                ssh.expect('<amp-connect>')
+                ssh.expect('<stderr>')
+                log('  Session %i (%s): %s' % 
+                    (process_id, workerhostname, ssh.before.strip()))
+                return ssh
 
-            # Start worker threads.
-            workers = []
-            id = 0
-            for hostname, no_tasks in cores.iteritems():
-                for _ in range(no_tasks):
-                    worker = Thread(target=process,
-                                    args=(id, hostname, queue))
-                    #worker.set_daemon(True)  I won't need this with my exit scheme.
-                    worker.start()
+            # Create processes over SSH.
+            log(' Establishing worker sessions.')
+            processes = []
+            for workerhostname, nprocesses in cores.iteritems():
+                n = len(processes)
+                processes.extend([establish_ssh(_ + n) for _ in
+                                  range(nprocesses)])
 
-            # Load the queue.
-            for key in calcs_needed:
-                queue.put((key, images[key]))
+            # All incoming requests will be dictionaries with three keys.
+            # d['id']: process id number, as assigned when process created above.
+            # d['subject']: what the message is asking for / telling you
+            # d['data']: any data passed from the worker to the master in this msg.
 
-            # Wait for all jobs to exit, then send exit message.
-            queue.join()
-            for _ in range(cores):
-                queue.put('<exit>')
+            keys = make_sublists(calcs_needed, len(processes))
+            results = {}
 
-            # Fill the database.
-            d = self.db.open(self.filename, 'c')
-            for key, value in threaddata.iteritems():
-                d[key] = value
+            active = 0  # count of processes actively calculating
+            log(' Parallel calculations starting...', tic='parallel')
+            while True:
+                message = server.recv_pyobj()
+                print('%s: Received message: %s' % (message['id'], message['subject']))
+                if message['subject'] == '<purpose>':
+                    server.send_string(self.calc.parallel_command)
+                    active += 1
+                elif message['subject'] == '<request>':
+                    request = message['data']  # Variable name.
+                    print(' got a request for %s!' % request)
+                    if request == 'images':
+                        server.send_pyobj({k:images[k] for k in
+                                           keys[int(message['id'])]})
+                    elif request in keyed:
+                        server.send_pyobj({k:keyed[request][k] for k in
+                                           keys[int(message['id'])]})
+                    else:
+                        server.send_pyobj(globals[request])
+                    print('  request honored')
+                elif message['subject'] == '<result>':
+                    result = message['data']
+                    print(result.keys())
+                    server.send_string('meaningless reply')
+                    active -= 1
+                    log('  Process %s returned %i results.' %
+                        (message['id'], len(result)))
+                    results.update(result)
+                if active == 0:
+                    break
+            log('  %i new results.' % len(results))
+            log(' ...parallel calculations finished.', toc='parallel')
+            log(' Adding new results to database.')
+            d = self.db.open(self.filename, 'c')  #FIXME/ap Should have a lock?
+            d.update(results)
             d.close()  # Necessary to get out of write mode and unlock?
 
-        log(' Calculated %i new images.' % len(calcs_needed))
+
+
+
         self.d = None
 
     def __getitem__(self, key):

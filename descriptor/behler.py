@@ -133,23 +133,35 @@ class Behler:
         log('Calculating neighborlists...', tic='nl')
         if not hasattr(self, 'neighborlist'):
             nl = Data(filename='%s-neighborlists' % self.dblabel,
-                      calculator=CalculateNeighborlist(cutoff=p.cutoff))
+                      calculator=NeighborlistCalculator(cutoff=p.cutoff))
             self.neighborlist = nl
         self.neighborlist.calculate_items(images, cores=cores, log=log)
         log('...neighborlists calculated.', toc='nl')
 
         log('Fingerprinting images...', tic='fp')
         if not hasattr(self, 'fingerprints'):
-            calc = CalculateFingerprint(neighborlist=self.neighborlist,
-                                        Gs=p.Gs,
-                                        cutoff=p.cutoff,
-                                        fortran=fortran)
+            calc = FingerprintCalculator(neighborlist=self.neighborlist,
+                                         Gs=p.Gs,
+                                         cutoff=p.cutoff)
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
                                      calculator=calc)
         self.fingerprints.calculate_items(images, cores=cores, log=log)
+        log('...fingerprints calculated.', toc='fp')
 
     ###########################################################################
+
+# FIXME/ap Criteria to fit in parallel scheme. This should make it into the
+# documentation.
+#  Has two types of paramters: self.global(dict) which are the same for
+#  every calculation (e.g., a cutoff radius) and self.keyed(dict) which
+#  are unique to each image; that is, the relevant items can be reached
+#  with sellf.keyed[variable][hash].
+#  It also needs a self.parallel_command atribute, which is the name
+#  of the command passed the if __name__ == '__main__' portion of the
+#  module.
+#  Has a self.calculate method that takes image and key and returns the
+#  value.
 
 
 class NeighborlistCalculator:
@@ -159,10 +171,13 @@ class NeighborlistCalculator:
     """
 
     def __init__(self, cutoff):
-        self.cutoff = cutoff
+        self.globals = Parameters({'cutoff': cutoff})
+        self.keyed = Parameters()
+        self.parallel_command = 'calculate_neighborlists'
 
     def calculate(self, image, key):
-        n = NeighborList(cutoffs=[self.cutoff / 2.] * len(image),
+        cutoff = self.globals.cutoff
+        n = NeighborList(cutoffs=[cutoff / 2.] * len(image),
                          self_interaction=False,
                          bothways=True,
                          skin=0.)
@@ -172,18 +187,17 @@ class NeighborlistCalculator:
 
 class FingerprintCalculator:
     """For integration with .utilities.Data"""
-    def __init__(self, neighborlist, Gs, cutoff,
-                 fortran=False):
-        self.nl = neighborlist
-        self.Gs = Gs
-        self.cutoff = cutoff
-        self.fortran = fortran
+    def __init__(self, neighborlist, Gs, cutoff):
+        self.globals = Parameters({'cutoff' : cutoff,
+                                   'Gs': Gs})
+        self.keyed = Parameters({'neighborlist': neighborlist})
+        self.parallel_command = 'calculate_fingerprints'
 
     def calculate(self, image, key):
         """Makes a list of fingerprints, one per atom, for the fed image."""
         #FIXME/ap I am reproducing _calculate_fingerprints here
         # This and the functions/methods it calls can be simplified.
-        nl = self.nl[key]
+        nl = self.keyed.neighborlist[key]
         fingerprints = []
         for atom in image:
             symbol = atom.symbol
@@ -220,19 +234,19 @@ class FingerprintCalculator:
         """
         home = self.atoms[index].position
 
-        len_of_symmetries = len(self.Gs[symbol])
+        len_of_symmetries = len(self.globals.Gs[symbol])
         fingerprint = [None] * len_of_symmetries
         count = 0
         while count < len_of_symmetries:
-            G = self.Gs[symbol][count]
+            G = self.globals.Gs[symbol][count]
 
             if G['type'] == 'G2':
                 ridge = calculate_G2(n_symbols, Rs, G['element'], G['eta'],
-                                     self.cutoff, home, self.fortran)
+                                     self.globals.cutoff, home)
             elif G['type'] == 'G4':
                 ridge = calculate_G4(n_symbols, Rs, G['elements'], G['gamma'],
-                                     G['zeta'], G['eta'], self.cutoff, home,
-                                     self.fortran)
+                                     G['zeta'], G['eta'], self.globals.cutoff,
+                                     home)
             else:
                 raise NotImplementedError('Unknown G type: %s' % G['type'])
             fingerprint[count] = ridge
@@ -247,7 +261,7 @@ class FingerprintCalculator:
 ###############################################################################
 
 
-def calculate_G2(symbols, Rs, G_element, eta, cutoff, home, fortran):
+def calculate_G2(symbols, Rs, G_element, eta, cutoff, home, fortran=False):
     """
     Calculate G2 symmetry function. Ideally this will not be used but
     will be a template for how to build the fortran version (and serves as
@@ -298,7 +312,7 @@ def calculate_G2(symbols, Rs, G_element, eta, cutoff, home, fortran):
 
 
 def calculate_G4(symbols, Rs, G_elements, gamma, zeta, eta, cutoff, home,
-                 fortran):
+                 fortran=False):
     """
     Calculate G4 symmetry function. Ideally this will not be used but
     will be a template for how to build the fortran version (and serves as
@@ -797,6 +811,28 @@ if __name__ == "__main__":
         # Send the results.
         socket.send_pyobj(msg('<result>', neighborlist))
         socket.recv_string() # Needed to complete REQ/REP.
+
+    elif purpose == 'calculate_fingerprints':
+        # Request variables.
+        socket.send_pyobj(msg('<request>', 'cutoff'))
+        cutoff = socket.recv_pyobj()
+        socket.send_pyobj(msg('<request>', 'Gs'))
+        Gs = socket.recv_pyobj()
+        socket.send_pyobj(msg('<request>', 'neighborlist'))
+        neighborlist = socket.recv_pyobj()
+        socket.send_pyobj(msg('<request>', 'images'))
+        images = socket.recv_pyobj()
+
+        calc = FingerprintCalculator(neighborlist, Gs, cutoff)
+        result = {}
+        while len(images) > 0:
+            key, image = images.popitem()  # Reduce memory.
+            result[key] = calc.calculate(image, key)
+
+        # Send the results.
+        socket.send_pyobj(msg('<result>', result))
+        socket.recv_string() # Needed to complete REQ/REP.
+
 
     else:
         raise NotImplementedError('purpose %s unknown.' % purpose)
