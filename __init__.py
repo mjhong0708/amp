@@ -18,7 +18,7 @@ from ase.calculators.neighborlist import NeighborList
 from .utilities import make_filename, load_parameters, ConvergenceOccurred, IO
 from .utilities import (TrainingConvergenceError, ExtrapolateError,
                         hash_images)
-from .utilities import Logger, save_parameters, string2dict
+from .utilities import Logger, save_parameters, string2dict, logo
 from .descriptor import Behler
 from .model.neuralnetwork import NeuralNetwork
 
@@ -248,6 +248,9 @@ class Amp(Calculator):
         :type overwrite: bool
         """
         log = Logger(make_filename(self.label, 'train-log.txt'))
+        log(logo) # FIXME/ap Do like GPAW. Put ase version, etc.
+                  # make it a header function that takes log
+                  # as an argument.
         log('Amp training started. ' + now() + '\n')
         
         log('Checking input parameters.')
@@ -255,13 +258,15 @@ class Amp(Calculator):
 
         log('Local environment descriptor: %s' %
                 self.parameters.descriptor.__class__.__name__)
-        log('Model: %s\n' % self.parameters.model.__class__.__name__)
+        log('Model: %s' % self.parameters.model.__class__.__name__)
 
+        log('\nDescriptor\n==========')
         self.descriptor.calculate_fingerprints(images=images,
                                                cores=self.cores,
                                                fortran=self.fortran,
                                                log=log)
 
+        log('\nModel fitting\n=============')
         result = self.model.fit(trainingimages=images,
                                 fingerprints=self.descriptor,
                                 log=log,

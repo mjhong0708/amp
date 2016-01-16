@@ -149,6 +149,16 @@ class NeuralNetwork:
     def set_vector(self, vector):
         """Allows the setting of the model parameters (weights, scalings for
         each network) with a single vector."""
+        import hashlib
+        import sys
+        def log(msg):
+            sys.stderr.write(msg)
+            sys.stderr.flush()
+        log('-------------')
+        log(str(type(vector)))
+        log('-------------')
+        log(str(vector.shape))
+        log(str(np.linalg.norm(vector)))
         if not hasattr(self, 'ravel'):
             #FIXME/ap I put this in as a kludge for parallel since it hadn't
             # been set in initilalize_for_training in the worker processes
@@ -240,118 +250,6 @@ class NeuralNetwork:
                 while j < len_of_weight:
                     self.W[element][j + 1] = np.delete(weight[j + 1], -1, 0)
                     j += 1
-
-    def introduce_variables(self, log, param):
-        """
-        Introducing new variables.
-
-        :param log: Write function at which to log data. Note this must be a
-                    callable function.
-        :type log: Logger object
-        :param param: Object containing regression's properties.
-        :type param: ASE calculator's Parameters class
-        """
-        log('Introducing new hidden-layer nodes...')
-
-        self._weights, self._scalings = \
-            self.ravel.to_dicts(param.regression._variables)
-
-        if self.param.descriptor is None:  # pure atomic-coordinates scheme
-            len_of_weights = len(self._weights)
-            j = 1
-            while j < len_of_weights + 1:
-                shape = np.shape(self._weights[j])
-                if j == 1:
-                    self._weights[j] = \
-                        np.insert(self._weights[j],
-                                  shape[1],
-                                  shape[0] * [0],
-                                  1)
-                elif j == len(self._weights):
-                    self._weights[j] = \
-                        np.insert(self._weights[j],
-                                  -1,
-                                  shape[1] * [0],
-                                  0)
-                else:
-                    self._weights[j] = \
-                        np.insert(self._weights[j],
-                                  shape[1],
-                                  shape[0] * [0],
-                                  1)
-                    self._weights[j] = \
-                        np.insert(self._weights[j],
-                                  -1,
-                                  (shape[1] + 1) * [0],
-                                  0)
-                j += 1
-
-        else:  # fingerprinting scheme
-            for element in self.elements:
-                len_of_weights = len(self._weights[element])
-                j = 1
-                while j < len_of_weights + 1:
-                    shape = np.shape(self._weights[element][j])
-                    if j == 1:
-                        self._weights[element][j] = \
-                            np.insert(self._weights[element][j],
-                                      shape[1],
-                                      shape[0] * [0],
-                                      1)
-                    elif j == len(self._weights[element]):
-                        self._weights[element][j] = \
-                            np.insert(self._weights[element][j],
-                                      -1,
-                                      shape[1] * [0],
-                                      0)
-                    else:
-                        self._weights[element][j] = \
-                            np.insert(self._weights[element][j],
-                                      shape[1],
-                                      shape[0] * [0],
-                                      1)
-                        self._weights[element][j] = \
-                            np.insert(self._weights[element][j],
-                                      -1,
-                                      (shape[1] + 1) * [0],
-                                      0)
-                    j += 1
-
-        if self.param.descriptor is None:  # pure atomic-coordinates scheme
-            len_of_hiddenlayers = len(self.hiddenlayers)
-            _ = 0
-            while _ < len_of_hiddenlayers:
-                self.hiddenlayers[_] += 1
-                _ += 1
-            self.ravel = _RavelVariables(hiddenlayers=self.hiddenlayers,
-                                         no_of_atoms=self.no_of_atoms)
-        else:  # fingerprinting scheme
-            for element in self.elements:
-                len_of_hiddenlayers = len(self.hiddenlayers[element])
-                _ = 0
-                while _ < len_of_hiddenlayers:
-                    self.hiddenlayers[element][_] += 1
-                    _ += 1
-            self.ravel = _RavelVariables(hiddenlayers=self.hiddenlayers,
-                                         elements=self.elements,
-                                         Gs=param.descriptor.Gs)
-
-        self._variables = \
-            self.ravel.to_vector(self._weights, self._scalings)
-
-        param.regression._variables = self._variables
-
-        log('Hidden-layer structure:')
-        if param.descriptor is None:  # pure atomic-coordinates scheme
-            log(' %s' % str(self.hiddenlayers))
-        else:  # fingerprinting scheme
-            for item in self.hiddenlayers.items():
-                log(' %2s: %s' % item)
-
-        param.regression.hiddenlayers = self.hiddenlayers
-        self.hiddenlayers = self.hiddenlayers
-
-        return param
 
     def get_energy(self, fingerprint):
         """Returns the model-predicted energy for an image, based on its
@@ -796,6 +694,7 @@ class NeuralNetwork:
 
         # FIXME/ap: This could be good to keep for the parallel version,
         # but we definitely don't want it adjusting fprange then.
+
         if not hasattr(self, '_lossfunction'):
             self._lossfunction = None  # Will hold a method.
 
@@ -849,26 +748,6 @@ class NeuralNetwork:
                     hiddenlayers[element] = p.hiddenlayers
                 p.hiddenlayers = hiddenlayers
 
-
-            # FIXME/ap I deleted some lines that converted the interior
-            # tuple to a list. Can't figure out why this would be needed.
-            # Maybe when growing the NN?
-
-            if False:
-                self.ravel = _RavelVariables(hiddenlayers=p.hiddenlayers,
-                                             elements=self.elements,
-                                             Gs=fp.parameters.Gs)
-            # FIXME/ap This was moved later, and back to old version.
-
-
-            # FIXME/ap: delete Gs... those aren't fit variables here.
-            # This is especially important as not all descriptors use
-            # this nomenclature.
-
-            # FIXME/ap: Especially important as Gs are not a required
-            # attribute of descriptors. This will make it so that this
-            # method is incompatible with anything but Behler.
-
         log('Hidden-layer structure:')
         if p.mode == 'image-centered':
             log(' %s' % str(p.hiddenlayers))
@@ -891,7 +770,8 @@ class NeuralNetwork:
                                                  fp.parameters.Gs,
                                                  self.elements)
 
-            # FIXME/ap: Again, delete Gs in above.
+            # FIXME/ap: Delete Gs in above; Gs should be invisible
+            # to this module.
  
         else:
             log('Initial weights already present.')
@@ -1209,8 +1089,6 @@ def make_scalings_matrices(images, activation, elements=None):
                                             (max_act_energy_per_atom -
                                              min_act_energy_per_atom) / 2.
 
-    del images
-
     return scaling
 
 ###############################################################################
@@ -1296,185 +1174,4 @@ class RavelVariables:
         return weights, scalings
 
 
-
-class _RavelVariables:
-
-    """
-    Class to ravel and unravel weight and scaling values into a single vector.
-    This is used for feeding into the optimizer. Feed in a list of
-    dictionaries to initialize the shape of the transformation. Note that no
-    data is saved in the class; each time it is used it is passed either
-    the dictionaries or vector.
-
-    :param hiddenlayers: Dictionary of chemical element symbols and
-                        architectures of their corresponding hidden layers of
-                        the conventional neural network.
-    :type hiddenlayers: dict
-    :param elements: List of atom symbols; used in the fingerprinting scheme
-                     only.
-    :type elements: list of str
-    :param Gs: Dictionary of symbols and lists of dictionaries for making
-               symmetry functions. Either auto-genetrated, or given in the
-               following form, for example:
-
-               >>> Gs = {"O": [{"type":"G2", "element":"O", "eta":10.},
-               ...             {"type":"G4", "elements":["O", "Au"],
-               ...              "eta":5., "gamma":1., "zeta":1.0}],
-               ...       "Au": [{"type":"G2", "element":"O", "eta":2.},
-               ...              {"type":"G4", "elements":["O", "Au"],
-               ...               "eta":2., "gamma":1., "zeta":5.0}]}
-
-               Used in the fingerprinting scheme only.
-    :type Gs: dict
-    :param no_of_atoms: Number of atoms in atomic systems; used only in the
-                        case of no descriptor.
-    :type no_of_atoms: int
-    """
-    ###########################################################################
-
-    def __init__(self, hiddenlayers, elements=None, Gs=None, no_of_atoms=None):
-        raise NotImplementedError('Fixme: put this back to the old version?')
-
-        self._no_of_atoms = no_of_atoms
-        self._vectorlength= 0
-        self._weightskeys = []
-        self._scalingskeys = []
-
-        if self._no_of_atoms is None:  # fingerprinting scheme
-
-            for element in elements:
-                len_of_hiddenlayers = len(hiddenlayers[element])
-                layer = 1
-                while layer < len_of_hiddenlayers + 2:
-                    if layer == 1:
-                        shape = \
-                            (len(Gs[element]) + 1, hiddenlayers[element][0])
-                    elif layer == (len(hiddenlayers[element]) + 1):
-                        shape = (hiddenlayers[element][layer - 2] + 1, 1)
-                    else:
-                        shape = (
-                            hiddenlayers[element][layer - 2] + 1,
-                            hiddenlayers[element][layer - 1])
-                    size = shape[0] * shape[1]
-                    self._weightskeys.append({'key1': element,
-                                              'key2': layer,
-                                              'shape': shape,
-                                              'size': size})
-                    self._vectorlength += size
-                    layer += 1
-
-            for element in elements:
-                self._scalingskeys.append({'key1': element,
-                                           'key2': 'intercept'})
-                self._scalingskeys.append({'key1': element,
-                                           'key2': 'slope'})
-                self._vectorlength += 2
-
-        else:  # pure atomic-coordinates scheme
-
-            len_of_hiddenlayers = len(hiddenlayers)
-            layer = 1
-            while layer < len_of_hiddenlayers + 2:
-                if layer == 1:
-                    shape = (3 * no_of_atoms + 1, hiddenlayers[0])
-                elif layer == (len(hiddenlayers) + 1):
-                    shape = (hiddenlayers[layer - 2] + 1, 1)
-                else:
-                    shape = (
-                        hiddenlayers[layer - 2] + 1, hiddenlayers[layer - 1])
-                size = shape[0] * shape[1]
-                self._weightskeys.append({'key': layer,
-                                          'shape': shape,
-                                          'size': size})
-                self._vectorlength += size
-                layer += 1
-
-            self._scalingskeys.append({'key': 'intercept'})
-            self._scalingskeys.append({'key': 'slope'})
-            self._vectorlength += 2
-
-    ###########################################################################
-
-    def to_vector(self, weights, scalings):
-        """
-        Puts the weights and scalings embedded dictionaries into a single
-        vector and returns it. The dictionaries need to have the identical
-        structure to those it was initialized with.
-
-        :param weights: In the case of no descriptor, keys correspond to
-                        layers and values are two dimensional arrays of network
-                        weight. In the fingerprinting scheme, keys correspond
-                        to chemical elements and values are dictionaries with
-                        layer keys and network weight two dimensional arrays as
-                        values. Arrays are set up to connect node i in the
-                        previous layer with node j in the current layer with
-                        indices w[i,j]. The last value for index i corresponds
-                        to bias. If weights is not given, arrays will be
-                        randomly generated.
-        :type weights: dict
-        :param scalings: In the case of no descriptor, keys are "intercept"
-                         and "slope" and values are real numbers. In the
-                         fingerprinting scheme, keys correspond to chemical
-                         elements and values are dictionaries with "intercept"
-                         and "slope" keys and real number values. If scalings
-                         is not given, it will be randomly generated.
-        :type scalings: dict
-
-        :returns: List of variables
-        """
-        vector = np.zeros(self._vectorlength)
-        count = 0
-        for k in sorted(self._weightskeys):
-            if self._no_of_atoms is None:  # fingerprinting scheme
-                lweights = np.array(weights[k['key1']][k['key2']]).ravel()
-            else:  # pure atomic-coordinates scheme
-                lweights = (np.array(weights[k['key']])).ravel()
-            vector[count:(count + lweights.size)] = lweights
-            count += lweights.size
-        for k in sorted(self._scalingskeys):
-            if self._no_of_atoms is None:  # fingerprinting scheme
-                vector[count] = scalings[k['key1']][k['key2']]
-            else:  # pure atomic-coordinates scheme
-                vector[count] = scalings[k['key']]
-            count += 1
-        return vector
-
-    ###########################################################################
-
-    def to_dicts(self, vector):
-        """
-        Puts the vector back into weights and scalings dictionaries of the
-        form initialized. vector must have same length as the output of
-        unravel.
-
-        :param vector: List of variables.
-        :type vector: list
-
-        :returns: weights and scalings
-        """
-        assert len(vector) == self._vectorlength
-        count = 0
-        weights = OrderedDict()
-        scalings = OrderedDict()
-        for k in sorted(self._weightskeys):
-            if self._no_of_atoms is None:  # fingerprinting scheme
-                if k['key1'] not in weights.keys():
-                    weights[k['key1']] = OrderedDict()
-            matrix = vector[count:count + k['size']]
-            matrix = np.array(matrix).flatten()
-            matrix = np.matrix(matrix.reshape(k['shape']))
-            if self._no_of_atoms is None:  # fingerprinting scheme
-                weights[k['key1']][k['key2']] = matrix
-            else:  # pure atomic-coordinates scheme
-                weights[k['key']] = matrix
-            count += k['size']
-        for k in sorted(self._scalingskeys):
-            if self._no_of_atoms is None:  # fingerprinting scheme
-                if k['key1'] not in scalings.keys():
-                    scalings[k['key1']] = OrderedDict()
-                scalings[k['key1']][k['key2']] = vector[count]
-            else:  # pure atomic-coordinates scheme
-                scalings[k['key']] = vector[count]
-            count += 1
-        return weights, scalings
 

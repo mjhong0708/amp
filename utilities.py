@@ -130,7 +130,6 @@ class Data:
             log(' Established server at %s.' % serversocket)
 
             workercommand = 'python -m %s %%s %s' % (module, serversocket)
-            print(workercommand)
 
             def establish_ssh(process_id):
                 """Uses pxssh to establish a SSH connections and get the
@@ -168,13 +167,11 @@ class Data:
             log(' Parallel calculations starting...', tic='parallel')
             while True:
                 message = server.recv_pyobj()
-                print('%s: Received message: %s' % (message['id'], message['subject']))
                 if message['subject'] == '<purpose>':
                     server.send_string(self.calc.parallel_command)
                     active += 1
                 elif message['subject'] == '<request>':
                     request = message['data']  # Variable name.
-                    print(' got a request for %s!' % request)
                     if request == 'images':
                         server.send_pyobj({k:images[k] for k in
                                            keys[int(message['id'])]})
@@ -183,10 +180,8 @@ class Data:
                                            keys[int(message['id'])]})
                     else:
                         server.send_pyobj(globals[request])
-                    print('  request honored')
                 elif message['subject'] == '<result>':
                     result = message['data']
-                    print(result.keys())
                     server.send_string('meaningless reply')
                     active -= 1
                     log('  Process %s returned %i results.' %
@@ -406,7 +401,7 @@ class Logger:
             self._f = None
             return
         if isinstance(file, str):
-            file = paropen(filenanme, 'a')
+            file = paropen(file, 'a')
         self._f = file
         self._tics = {}
 
@@ -1194,3 +1189,14 @@ def string2dict(text):
         dictionary = eval(text)
     return dictionary
 
+
+logo = """
+   oo      o       o   oooooo                                 
+  o  o     oo     oo   o     o                                
+ o    o    o o   o o   o     o                                
+o      o   o  o o  o   o     o                                
+oooooooo   o   o   o   oooooo
+o      o   o       o   o                                      
+o      o   o       o   o                                      
+o      o   o       o   o 
+"""

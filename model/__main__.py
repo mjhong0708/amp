@@ -56,7 +56,6 @@ if __name__ == "__main__":
 
         socket.send_pyobj(msg('<request>', 'images'))
         images = socket.recv_pyobj()
-        sys.stderr.write('Received %i images.\n' % len(images))
 
         socket.send_pyobj(msg('<request>', 'fingerprints'))
         fingerprints = socket.recv_pyobj()
@@ -73,9 +72,15 @@ if __name__ == "__main__":
             parameters = socket.recv_pyobj()
             if parameters == '<stop>':
                 break
-            output = lossfunction(parameters, complete_output=True)
-            socket.send_pyobj(msg('<result>', output))
-            socket.recv_string()
+            elif parameters == '<continue>':
+                # Master is waiting for other workers to finish.
+                # FIXME/ap Do I need a sleep? Any more elegant way
+                # to do this without opening another comm channel?
+                pass
+            else:
+                output = lossfunction(parameters, complete_output=True)
+                socket.send_pyobj(msg('<result>', output))
+                socket.recv_string()
 
 
 
