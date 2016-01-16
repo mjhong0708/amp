@@ -111,7 +111,7 @@ class Behler:
         """Calculates the fingerpints of the images, for the ones not
         already done.
         """
-        log = Logger(filename=None) if log is None else log
+        log = Logger(file=None) if log is None else log
         p = self.parameters
 
         if p.elements is None:
@@ -828,12 +828,13 @@ if __name__ == "__main__":
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.
             result[key] = calc.calculate(image, key)
+            if len(images) % 100 == 0:
+                socket.send_pyobj(msg('<info>', len(images)))
+                socket.recv_string() # Needed to complete REQ/REP.
 
         # Send the results.
         socket.send_pyobj(msg('<result>', result))
         socket.recv_string() # Needed to complete REQ/REP.
 
-
     else:
         raise NotImplementedError('purpose %s unknown.' % purpose)
-

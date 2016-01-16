@@ -70,7 +70,7 @@ class NeuralNetwork:
     """
     ###########################################################################
 
-    def __init__(self, hiddenlayers=(1, 1), activation='tanh', weights=None,
+    def __init__(self, hiddenlayers=(5, 5), activation='tanh', weights=None,
                  scalings=None, fprange=None, regressor=None, mode=None,
                  version=None):
 
@@ -114,11 +114,12 @@ class NeuralNetwork:
         be used to restart the calculator."""
         return self.parameters.tostring()
 
-    def fit(self, trainingimages, fingerprints, log, fortran):
+    def fit(self, trainingimages, fingerprints, log, cores, fortran):
         """Fit the model parameters such that the fingerprints can be used to describe
         the energies in trainingimages. log is the logging object.
         fingerprints is a descriptor object, as would be in calc.fp.
         """
+        self.cores = cores
         self.initialize_for_regression(log=log, images=trainingimages, fp=fingerprints)
         if self.regressor is None:
             self.set_regressor()
@@ -148,6 +149,14 @@ class NeuralNetwork:
     def set_vector(self, vector):
         """Allows the setting of the model parameters (weights, scalings for
         each network) with a single vector."""
+        if not hasattr(self, 'ravel'):
+            #FIXME/ap I put this in as a kludge for parallel since it hadn't
+            # been set in initilalize_for_training in the worker processes
+            # since that would change the fprange. Make sure it makes sense here
+            # It seems like it should be safe, but maybe some length checking
+            # needs to be added to RavelParameters
+            p = self.parameters
+            self.ravel = RavelVariables(p.weights, p.scalings)
         weights, scalings = self.ravel.to_dicts(vector)
         self.parameters['weights'] = weights
         self.parameters['scalings'] = scalings
@@ -160,7 +169,7 @@ class NeuralNetwork:
         """
         if self._lossfunction is None:
             # First run; initialize.
-            self.set_loss_function(LossFunction())
+            self.set_loss_function(LossFunction(cores=self.cores))
         return self._lossfunction(vector)
 
     def set_loss_function(self, function):
@@ -784,6 +793,9 @@ class NeuralNetwork:
         :returns: Object containing regression's properties.
         """
         #FIXME/ap: Fold into 'fit'?
+
+        # FIXME/ap: This could be good to keep for the parallel version,
+        # but we definitely don't want it adjusting fprange then.
         if not hasattr(self, '_lossfunction'):
             self._lossfunction = None  # Will hold a method.
 
@@ -794,13 +806,17 @@ class NeuralNetwork:
         tp['log'] = log
 
         p['mode'] = fp.parameters['mode']
+        log(' Regression in %s mode.' % p.mode)
+
         if p['mode'] == 'atom-centered':
             self.elements = fp.parameters.elements
         elif p['mode'] == 'image-centered':
             self.elements = None
         
+        if 'fprange' not in p or p.fprange is None:
+            log('Calculating new fingerprint range.')
+            p['fprange'] = calculate_fingerprints_range(fp, images)
 
-        p['fprange'] = calculate_fingerprints_range(fp, images)
         if p['mode'] == 'image-centered':  # pure atomic-coordinates scheme
 
             #FIXME/ap This part needs updating.
@@ -838,10 +854,16 @@ class NeuralNetwork:
             # tuple to a list. Can't figure out why this would be needed.
             # Maybe when growing the NN?
 
-            self.ravel = _RavelVariables(hiddenlayers=p.hiddenlayers,
-                                         elements=self.elements,
-                                         Gs=fp.parameters.Gs)
+            if False:
+                self.ravel = _RavelVariables(hiddenlayers=p.hiddenlayers,
+                                             elements=self.elements,
+                                             Gs=fp.parameters.Gs)
+            # FIXME/ap This was moved later, and back to old version.
+
+
             # FIXME/ap: delete Gs... those aren't fit variables here.
+            # This is especially important as not all descriptors use
+            # this nomenclature.
 
             # FIXME/ap: Especially important as Gs are not a required
             # attribute of descriptors. This will make it so that this
@@ -888,6 +910,9 @@ class NeuralNetwork:
                                                     self.elements,)
         else:
             log('Initial scalings already present.')
+
+
+        self.ravel = RavelVariables(weights=p.weights, scalings=p.scalings)
 
 
     def send_data_to_fortran(self, param):
@@ -1192,6 +1217,85 @@ def make_scalings_matrices(images, activation, elements=None):
 ###############################################################################
 ###############################################################################
 
+class RavelVariables:
+
+    """Class to ravel and unravel variable values into a single vector.
+    This is used for feeding into the optimizer. Feed in a list of
+    dictionaries to initialize the shape of the transformation. Note no
+    data is saved in the class; each time it is used it is passed either
+    the dictionaries or vector. The dictionaries for initialization should
+    be two levels deep.
+        weights, scalings: variables to ravel and unravel
+    """
+
+    ##########################################################################
+
+    def __init__(self, weights, scalings):
+
+        self.count = 0
+        self.weightskeys = []
+        self.scalingskeys = []
+        for key1 in sorted(weights.keys()):  # element
+            for key2 in sorted(weights[key1].keys()):  # layer
+                value = weights[key1][key2]
+                self.weightskeys.append({'key1': key1,
+                                         'key2': key2,
+                                         'shape': np.array(value).shape,
+                                         'size': np.array(value).size})
+                self.count += np.array(weights[key1][key2]).size
+        for key1 in sorted(scalings.keys()):  # element
+            for key2 in sorted(scalings[key1].keys()):  # slope / intercept
+                self.scalingskeys.append({'key1': key1,
+                                          'key2': key2})
+                self.count += 1
+        self.vector = np.zeros(self.count)
+        self.der_of_weights_norm = np.zeros(self.count)
+
+    #########################################################################
+
+    def to_vector(self, weights, scalings):
+        """Puts the weights and scalings embedded dictionaries into a single
+        vector and returns it. The dictionaries need to have the identical
+        structure to those it was initialized with."""
+
+        vector = np.zeros(self.count)
+        count = 0
+        for k in sorted(self.weightskeys):
+            lweights = np.array(weights[k['key1']][k['key2']]).ravel()
+            vector[count:(count + lweights.size)] = lweights
+            count += lweights.size
+        for k in sorted(self.scalingskeys):
+            vector[count] = scalings[k['key1']][k['key2']]
+            count += 1
+        return vector
+
+    #########################################################################
+
+    def to_dicts(self, vector):
+        """Puts the vector back into weights and scalings dictionaries of the
+        form initialized. vector must have same length as the output of
+        unravel."""
+
+        assert len(vector) == self.count
+        count = 0
+        weights = OrderedDict()
+        scalings = OrderedDict()
+        for k in sorted(self.weightskeys):
+            if k['key1'] not in weights.keys():
+                weights[k['key1']] = OrderedDict()
+            matrix = vector[count:count + k['size']]
+            matrix = matrix.flatten()
+            matrix = np.matrix(matrix.reshape(k['shape']))
+            weights[k['key1']][k['key2']] = matrix
+            count += k['size']
+        for k in sorted(self.scalingskeys):
+            if k['key1'] not in scalings.keys():
+                scalings[k['key1']] = OrderedDict()
+            scalings[k['key1']][k['key2']] = vector[count]
+            count += 1
+        return weights, scalings
+
+
 
 class _RavelVariables:
 
@@ -1229,6 +1333,7 @@ class _RavelVariables:
     ###########################################################################
 
     def __init__(self, hiddenlayers, elements=None, Gs=None, no_of_atoms=None):
+        raise NotImplementedError('Fixme: put this back to the old version?')
 
         self._no_of_atoms = no_of_atoms
         self._vectorlength= 0

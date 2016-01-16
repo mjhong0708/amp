@@ -90,6 +90,12 @@ class Amp(Calculator):
             from .utilities import count_allocated_cpus
             cores = count_allocated_cpus()
         self.cores = cores
+        # FIXME/ap Need to make it into dictionary form.
+
+        # FIXME/ap Should I just be setting a similar cores attribute in
+        # my model and descriptor upon initialization? E.g., run
+        #  self.model.cores = self.cores here, rather than passing later?
+        # this seems like a reasonably universal requirement.
 
         Calculator.__init__(self, label=label, **kwargs)
 
@@ -130,6 +136,8 @@ class Amp(Calculator):
         if Model is None:
             Model = importhelper(p['model']['importname'])
         # Clean out the importname keyword.
+        # FIXME/ap I think I can use pop to combine the below clean
+        # out with the above call.
         for key in ['descriptor', 'model']:
             if 'importname' in p[key]:
                 p[key].pop('importname')
@@ -256,8 +264,9 @@ class Amp(Calculator):
 
         result = self.model.fit(trainingimages=images,
                                 fingerprints=self.descriptor,
-                                fortran=self.fortran,
-                                log=log)
+                                log=log,
+                                cores=self.cores,
+                                fortran=self.fortran)
 
         if result is True:
             log('Amp successfully trained. Saving current parameters.')
@@ -2233,10 +2242,14 @@ def importhelper(importname):
     """Manually compiled list of available modules. This is to prevent the
     execution of arbitrary (potentially malicious) code.
     """
+    #FIXME/ap Although there is an 'eval' statement in string2dict...
+    # ...so maybe I shouldn't worry about it.
     if importname == '.descriptor.behler.Behler':
         from .descriptor.behler import Behler as Module
     elif importname == '.model.neuralnetwork.NeuralNetwork':
         from .model.neuralnetwork import NeuralNetwork as Module
+    elif importname == '.model.LossFunction':
+        from .model import LossFunction as Module
     else:
         raise NotImplementedError(
             'Attempt to import the module %s. Was this intended? '

@@ -97,8 +97,7 @@ class Data:
             self.d = None
         log(' Data stored in file %s.' % self.filename)
         d = self.db.open(self.filename, 'c')
-        calcs_needed = [key for key in images.keys() if key not in
-                        d.keys()]
+        calcs_needed = list(set(images.keys()).difference(d.keys()))
         dblength = len(d)
         d.close()
         log(' File exists with %i total images, %i of which are needed.' %
@@ -193,6 +192,9 @@ class Data:
                     log('  Process %s returned %i results.' %
                         (message['id'], len(result)))
                     results.update(result)
+                elif message['subject'] == '<info>':
+                    print('  %s' % message['data'])
+                    server.send_string('meaningless reply')
                 if active == 0:
                     break
             log('  %i new results.' % len(results))
@@ -393,17 +395,19 @@ class Logger:
     """
     Logger that can also deliver timing information.
 
-    :param filename: File object or path to the file to write to.
+    :param file: File object or path to the file to write to.
                      Or set to None for a logger that does nothing.
-    :type filename: str
+    :type file: str
     """
     ###########################################################################
 
-    def __init__(self, filename):
-        if filename is None:
+    def __init__(self, file):
+        if file is None:
             self._f = None
             return
-        self._f = paropen(filename, 'a')
+        if isinstance(file, str):
+            file = paropen(filenanme, 'a')
+        self._f = file
         self._tics = {}
 
     ###########################################################################
