@@ -18,7 +18,7 @@ from ase.calculators.neighborlist import NeighborList
 from .utilities import make_filename, load_parameters, ConvergenceOccurred, IO
 from .utilities import (TrainingConvergenceError, ExtrapolateError,
                         hash_images)
-from .utilities import Logger, save_parameters, string2dict, logo
+from .utilities import Logger, save_parameters, string2dict, logo, now
 from .descriptor import Behler
 from .model.neuralnetwork import NeuralNetwork
 
@@ -2235,11 +2235,6 @@ def ravel_neighborlists_and_der_fingerprints_of_images(hashs, images, sfp,
 ###############################################################################
 
 
-def now():
-    """
-    :returns: String of current time.
-    """
-    return datetime.now().isoformat().split('.')[0]
 
 ###############################################################################
 

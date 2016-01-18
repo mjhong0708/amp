@@ -2,7 +2,7 @@
 import numpy as np
 from ase.calculators.calculator import Parameters
 
-from ..utilities import ConvergenceOccurred, Logger, make_sublists
+from ..utilities import ConvergenceOccurred, Logger, make_sublists, now
 
 
 class LossFunction:
@@ -20,6 +20,7 @@ class LossFunction:
         p['max_resid'] = max_resid
         self._cores = cores
         self.raise_ConvergenceOccurred = raise_ConvergenceOccurred
+        self._step = 0
 
     def attach_model(self, model, fingerprints=None, images=None,
                      initialize_sessions=True):
@@ -177,13 +178,9 @@ class LossFunction:
                         finished[int(message['id'])] = True
                 return results
 
-
             results = process_parallels(parametervector)
             costfxn = results['costfxn']
             max_residual = results['max_residual']
-
-
-
 
         if self.raise_ConvergenceOccurred:
             converged = self.check_convergence(costfxn, max_residual)
@@ -210,9 +207,10 @@ class LossFunction:
         if p.max_resid is not None:
             if max_residual > p.max_resid:
                 maxresidconverged = False
-        self.log('  %12.4e %1s %12.4e %1s' %
-                 (costfxn, 'C' if energyconverged else '',
+        self.log(' %5i  %19s %12.4e %1s %12.4e %1s' %
+                 (self._step, now(), costfxn, 'C' if energyconverged else '',
                   max_residual, 'C' if maxresidconverged else ''))
+        self._step += 1
         return energyconverged and maxresidconverged
 
 

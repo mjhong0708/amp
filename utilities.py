@@ -11,6 +11,8 @@ from ase.parallel import paropen
 import shelve
 import getpass
 import pickle
+from datetime import datetime
+
 
 
 # FIXME/ap Should make an 'assign_cores' function that takes as an argument
@@ -1200,3 +1202,9 @@ o      o   o       o   o
 o      o   o       o   o                                      
 o      o   o       o   o 
 """
+
+def now():
+    """
+    :returns: String of current time.
+    """
+    return datetime.now().isoformat().split('.')[0]

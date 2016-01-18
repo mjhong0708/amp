@@ -154,11 +154,6 @@ class NeuralNetwork:
         def log(msg):
             sys.stderr.write(msg)
             sys.stderr.flush()
-        log('-------------')
-        log(str(type(vector)))
-        log('-------------')
-        log(str(vector.shape))
-        log(str(np.linalg.norm(vector)))
         if not hasattr(self, 'ravel'):
             #FIXME/ap I put this in as a kludge for parallel since it hadn't
             # been set in initilalize_for_training in the worker processes
