@@ -9,50 +9,60 @@ class LossFunction:
     """Basic cost function, which can be used by the model.get_cost_function
     method which is required in standard model classes.
     This version is pure python and thus will be slow compared to a fortran/parallel implementation.
+
+    If cores is None, it will pull it from the model itself. Only use this keyword to override the model's specification.
     
     """
 
-    def __init__(self, energy_tol=0.001, max_resid=0.001, cores=1,
+    def __init__(self, energy_tol=0.001, max_resid=0.001, cores=None,
                  raise_ConvergenceOccurred=True):
         p = self.parameters = Parameters(
             {'importname': '.model.LossFunction'})
         p['energy_tol'] = energy_tol
         p['max_resid'] = max_resid
-        self._cores = cores
         self.raise_ConvergenceOccurred = raise_ConvergenceOccurred
         self._step = 0
+        self._initialized = False
+        self._cores = cores
 
-    def attach_model(self, model, fingerprints=None, images=None,
-                     initialize_sessions=True):
+    def attach_model(self, model, fingerprints=None, images=None):
         """Attach the model to be used to the loss function. fingerprints and
         training images need not be supplied if they are already attached to
-        the model via model.trainingparameters. Also initializes the server and sessions for
-        parallel processing if initialize_sessions is True and multiple cores are
-        specified."""
+        the model via model.trainingparameters."""
         self._model = model
         self.fingerprints = fingerprints
         self.images = images
-        if fingerprints is None:
-            self.fingerprints = model.trainingparameters.fingerprint.fingerprints
-        if images is None:
-            self.images = model.trainingparameters.trainingimages
+        model.log(' Loss function attached to model.')
 
-        self.log = Logger(None)
-        if hasattr(model, 'trainingparameters'):
-            if 'log' in model.trainingparameters:
-                self.log = model.trainingparameters['log']
+    def _initialize(self):
+        """Procedures to be run on the first call only, such as establishing
+        SSH sessions, etc."""
+        #FIXME/ap Plan to move all initilize-type routines here, rather than
+        # in attach model.
+        if self._initialized is True:
+            return
 
-        if initialize_sessions and self._cores != 1:
+        if self._cores is None:
+            self._cores = self._model.cores
+        log = self._model.log
+
+        if self.fingerprints is None:
+            self.fingerprints = \
+                self._model.trainingparameters.fingerprint.fingerprints
+        if self.images is None:
+            self.images = self._model.trainingparameters.trainingimages
+
+        if self._cores != 1:  # Initialize workers.
             import zmq
             import pxssh
             from socket import gethostname
             from getpass import getuser
-            self.log(' Parallel processing.')
+            log(' Parallel processing.')
             context = zmq.Context()
             server = context.socket(zmq.REP)
             serverport = server.bind_to_random_port('tcp://*')
             serversocket = '%s:%s' % (gethostname(), serverport)
-            self.log('  Established server at %s' % serversocket)
+            log('  Established server at %s' % serversocket)
 
             module = self.__module__
             workercommand = ('python -m %s %%s %s' %
@@ -72,12 +82,12 @@ class LossFunction:
                 ssh.sendline(workercommand % process_id)
                 ssh.expect('<amp-connect>')
                 ssh.expect('<stderr>')
-                self.log('  Session %i (%s): %s' % 
+                log('  Session %i (%s): %s' % 
                     (process_id, workerhostname, ssh.before.strip()))
                 return ssh
 
             # Create processes over SSH.
-            self.log('  Establishging workers:')
+            log('  Establishing workers:')
             processes = []
             for workerhostname, nprocesses in self._cores.iteritems():
                 n = len(processes)
@@ -87,14 +97,14 @@ class LossFunction:
             self._sessions = {'master': server,
                               'workers': processes}
 
-
-
         p = self.parameters
-        self.log(' Loss function attached to model. Convergence criteria:')
-        self.log('  energy_tol: ' + str(p['energy_tol']))
-        self.log('  max_resid: ' + str(p['max_resid']))
-        self.log('\n  %12s  %12s' % ('EnergyLoss', 'MaxResid'))
-        self.log('  %12s  %12s' % ('==========', '========'))
+        log(' Loss function convergence criteria:')
+        log('  energy_tol: ' + str(p['energy_tol']))
+        log('  max_resid: ' + str(p['max_resid']))
+        log('\n  %12s  %12s' % ('EnergyLoss', 'MaxResid'))
+        log('  %12s  %12s' % ('==========', '========'))
+
+        self._initialized = True
 
     def __call__(self, parametervector, complete_output=False):
         """Returns the current value of teh cost function for a given set of parameters,
@@ -103,12 +113,13 @@ class LossFunction:
         By default only returns the cost function (needed for optimizers). Can return
         more information like max_residual if complete_output is True.
         """
+        self._initialize()
         #FIXME/ap If parallel, or fortran, implement that here.
         # There will need to be program instances (e.g., fortran
         # executables) that have the fingerprints, etc., already
         # stored and just calculate the cost function with the new
         # parameter vector.
-        log = self.log
+        log = self._model.log
 
         if self._cores == 1:
             p = self.parameters
@@ -201,13 +212,14 @@ class LossFunction:
         p = self.parameters
         energyconverged = True
         maxresidconverged = True
+        log = self._model.log
         if p.energy_tol is not None:
             if costfxn > p.energy_tol:
                 energyconverged = False
         if p.max_resid is not None:
             if max_residual > p.max_resid:
                 maxresidconverged = False
-        self.log(' %5i  %19s %12.4e %1s %12.4e %1s' %
+        log(' %5i  %19s %12.4e %1s %12.4e %1s' %
                  (self._step, now(), costfxn, 'C' if energyconverged else '',
                   max_residual, 'C' if maxresidconverged else ''))
         self._step += 1

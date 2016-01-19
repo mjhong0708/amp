@@ -12,6 +12,11 @@ import shelve
 import getpass
 import pickle
 from datetime import datetime
+from getpass import getuser
+from socket import gethostname
+import platform
+import sys
+import ase
 
 
 
@@ -20,6 +25,64 @@ from datetime import datetime
 # right form is 1 if the user specifies 1; {'localhost': 3} if the user
 # specifies 3, or {'node243': 16, 'node244': 16} if pulling from slurm
 # variables.
+
+def assign_cores(cores, log=None):
+    """Tries to guess cores from environment. If fed a log object, will write
+    it's progress."""
+    log = Logger(None) if log is None else log
+
+    def fail(q):
+        print(environ)
+        msg = ('Auto core detection not set up for %s. You are invited to submit'
+               ' a patch to return a dictionary of the form {nodename: ncores}'
+               ' for this batching system. The environment contents were dumped.')
+        raise NotImplementedError(msg % q)
+
+    def success(q, cores, log):
+        log('Parallel configuration determined from environment for %s:' % q)
+        for key, value in cores.iteritems():
+            log('  %s: %i' % (key, value))
+
+    if cores is not None:
+        q = '<user-specified>'
+        if cores == 1:
+            log('Serial operation on one core specified.')
+            return cores
+        else:
+            try:
+                cores = int(cores)
+            except TypeError:
+                cores = cores
+                success(q, cores, log)
+                return cores
+            else:
+                cores = {'localhost': cores}
+                success(q, cores, log)
+                return cores
+
+    if 'SLURM_NODELIST' in os.environ.keys():
+        q = 'SLURM'
+        nnodes = environ['SLURM_NNODES']
+        nodes = environ['SLURM_NODELIST']
+        taskspernode = environ['SLURM_TASKS_PER_NODE']
+        if nnodes == 1:
+            cores = {nodes: taskspernode}
+        else:
+            fail(q)
+    elif 'PBS_NODEFILE' in os.environ.keys():
+        fail(q='PBS')
+    elif 'LOADL_PROCESSOR_LIST' in os.environ.keys():
+        fail(q='LOADL')
+    elif 'PE_HOSTFILE' in os.environ.keys():
+        fail(q='SGE')
+    else:
+        import multiprocessing
+        ncores = multiprocessing.cpu_count()
+        cores = {'localhost': ncores}
+        log('No queuing system detected; single machine assumed.')
+        q = '<single machine>'
+    success(q, cores, log)
+    return cores
 
 
 class MessageDictionary:
@@ -400,12 +463,12 @@ class Logger:
 
     def __init__(self, file):
         if file is None:
-            self._f = None
+            self.file = None
             return
         if isinstance(file, str):
             file = paropen(file, 'a')
-        self._f = file
-        self._tics = {}
+        self.file = file
+        self.tics = {}
 
     ###########################################################################
 
@@ -416,12 +479,12 @@ class Logger:
         :param label: Label for managing multiple timers.
         :type label: str
         """
-        if self._f is None:
+        if self.file is None:
             return
         if label:
-            self._tics[label] = time.time()
+            self.tics[label] = time.time()
         else:
-            self._tic = time.time()
+            self.tic = time.time()
 
     ###########################################################################
 
@@ -439,18 +502,18 @@ class Logger:
                     self.tic(label).
         :type tic: bool or str
         """
-        if self._f is None:
+        if self.file is None:
             return
         dt = ''
         if toc:
             if toc is True:
-                tic = self._tic
+                tic = self.tic
             else:
-                tic = self._tics[toc]
+                tic = self.tics[toc]
             dt = (time.time() - tic) / 60.
             dt = ' %.1f min.' % dt
-        self._f.write(message + dt + '\n')
-        self._f.flush()
+        self.file.write(message + dt + '\n')
+        self.file.flush()
         if tic:
             if tic is True:
                 self.tic()
@@ -597,17 +660,21 @@ def load_parameters(json_file):
 def make_filename(label, base_filename):
     """
     Creates a filename from the label and the base_filename which should be
-    a string.
+    a string. Returns None if label is None; that is, it only saves output
+    if a label is specified.
 
     :param label: Prefix.
     :type label: str
     :param base_filename: Basic name of the file.
     :type base_filename: str
     """
+
+    if label is None:
+        return None
     if not label:
         filename = base_filename
     else:
-        filename = os.path.join(label + '-' + base_filename)
+        filename = os.path.join(label + base_filename)
 
     return filename
 
@@ -1191,7 +1258,21 @@ def string2dict(text):
         dictionary = eval(text)
     return dictionary
 
+def now():
+    """
+    :returns: String of current time.'
+    """
+    return datetime.now().isoformat().split('.')[0]
 
+
+
+
+
+
+
+
+
+    
 logo = """
    oo      o       o   oooooo                                 
   o  o     oo     oo   o     o                                
@@ -1202,9 +1283,3 @@ o      o   o       o   o
 o      o   o       o   o                                      
 o      o   o       o   o 
 """
-
-def now():
-    """
-    :returns: String of current time.
-    """
-    return datetime.now().isoformat().split('.')[0]

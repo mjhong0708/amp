@@ -15,7 +15,7 @@ except ImportError:
 
 ###############################################################################
 
-class Behler:
+class Behler(object):
 
     """
     Class that calculates Behler fingerprints.
@@ -96,6 +96,7 @@ class Behler:
 
         self.fortran = fortran
         self.dblabel = dblabel
+        self.parent = None  # Can hold a reference to main Amp instance.
 
     ###########################################################################
 
@@ -112,6 +113,11 @@ class Behler:
         already done.
         """
         log = Logger(file=None) if log is None else log
+
+        if (self.dblabel is None) and hasattr(self.parent, 'dblabel'):
+            self.dblabel = self.parent.dblabel
+        self.dblabel = 'amp-data' if self.dblabel is None else self.dblabel
+
         p = self.parameters
 
         if p.elements is None:

@@ -5,6 +5,7 @@ from ase.calculators.calculator import Parameters
 
 from ..regression import Regressor
 from . import LossFunction, calculate_fingerprints_range
+from ..utilities import Logger
 
 try:
     from amp import fmodules
@@ -109,12 +110,26 @@ class NeuralNetwork:
         if regressor is not None:
             self.set_regressor(regressor)
 
+        self.parent = None  # Can hold a reference to main Amp instance.
+
+    @property
+    def log(self):
+        if hasattr(self, '_log'):
+            return self._log
+        if hasattr(self.parent, 'log'):
+            return self.parent.log
+        return Logger(None)
+
+    @log.setter
+    def log(self, log):
+        self._log = log
+
     def tostring(self):
         """Returns an evaluatable representation of the calculator that can
         be used to restart the calculator."""
         return self.parameters.tostring()
 
-    def fit(self, trainingimages, fingerprints, log, cores, fortran):
+    def fit(self, trainingimages, fingerprints, log, cores):
         """Fit the model parameters such that the fingerprints can be used to describe
         the energies in trainingimages. log is the logging object.
         fingerprints is a descriptor object, as would be in calc.fp.
