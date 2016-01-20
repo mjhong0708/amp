@@ -7,14 +7,8 @@ from ..regression import Regressor
 from . import LossFunction, calculate_fingerprints_range
 from ..utilities import Logger
 
-try:
-    from amp import fmodules
-except ImportError:
-    fmodules = None
 
-
-
-class NeuralNetwork:
+class NeuralNetwork(object):
 
     """
     Class that implements a basic feed-forward neural network.
@@ -73,10 +67,10 @@ class NeuralNetwork:
 
     def __init__(self, hiddenlayers=(5, 5), activation='tanh', weights=None,
                  scalings=None, fprange=None, regressor=None, mode=None,
-                 version=None):
+                 lossfunction=None, version=None):
 
         # Version check, particularly if restarting.
-        compatibleversions = ['2015.12',]
+        compatibleversions = ['2015.12', ]
         if (version is not None) and version not in compatibleversions:
             raise RuntimeError('Error: Trying to use NeuralNetwork'
                                ' version %s, but this module only supports'
@@ -87,33 +81,32 @@ class NeuralNetwork:
             version = compatibleversions[-1]
 
         # The parameters dictionary contains the minimum information
-        # to produce a compatible descriptor; that is, one that gives
-        # the same fingerprint when fed an ASE image.
-        p = self.parameters = Parameters(
-                {'importname': '.model.neuralnetwork.NeuralNetwork',})
+        # to produce a compatible model; e.g., one that gives
+        # the identical energy (and/or forces) when fed a fingerprint.
+        p = self.parameters = Parameters()
+        p.importname = '.model.neuralnetwork.NeuralNetwork'
         p.version = version
-        self.parameters['hiddenlayers'] = hiddenlayers
-        self.parameters['weights'] = weights
-        self.parameters['scalings'] = scalings
-        self.parameters['fprange'] = fprange
-        self.parameters['activation'] = activation
-        self.parameters['mode'] = mode
+        p.hiddenlayers = hiddenlayers
+        p.weights = weights
+        p.scalings = scalings
+        p.fprange = fprange
+        p.activation = activation
+        p.mode = mode
 
         # Checking that the activation function is given correctly:
         if activation not in ['linear', 'tanh', 'sigmoid']:
-            raise NotImplementedError('Unknown activation function; '
-                                      'activation must be one of '
-                                      '"linear", "tanh", or "sigmoid".')
+            _ = ('Unknown activation function %s; must be one of '
+                 '"linear", "tanh", or "sigmoid".' % activation)
+            raise NotImplementedError(_)
 
-        # Items to be used for training.
-        self.regressor = None
-        if regressor is not None:
-            self.set_regressor(regressor)
-
+        self.regressor = regressor
         self.parent = None  # Can hold a reference to main Amp instance.
+        self.lossfunction = lossfunction
 
     @property
     def log(self):
+        """Method to set or get a logger. Should be an instance of
+        amp.utilities.Logger."""
         if hasattr(self, '_log'):
             return self._log
         if hasattr(self.parent, 'log'):
@@ -126,57 +119,92 @@ class NeuralNetwork:
 
     def tostring(self):
         """Returns an evaluatable representation of the calculator that can
-        be used to restart the calculator."""
+        be used to re-establish the calculator."""
         return self.parameters.tostring()
 
-    def fit(self, trainingimages, fingerprints, log, cores):
+    def fit(self, trainingimages, descriptor, log, cores):
         """Fit the model parameters such that the fingerprints can be used to describe
         the energies in trainingimages. log is the logging object.
-        fingerprints is a descriptor object, as would be in calc.fp.
+        descriptor is a descriptor object, as would be in calc.descriptor.
         """
+        # Set all parameters and report to logfile.
         self.cores = cores
-        self.initialize_for_regression(log=log, images=trainingimages, fp=fingerprints)
+
+        if self.lossfunction is None:
+            self.lossfunction = LossFunction(cores=self.cores)
         if self.regressor is None:
-            self.set_regressor()
-        
-        self.reset_energy()  #FIXME/ap I shouldn't need this.
+            self.regressor = Regressor()
+
+        p = self.parameters
+        tp = self.trainingparameters = Parameters()
+        tp.trainingimages = trainingimages
+        tp.descriptor = descriptor
+
+        if p.mode is None:
+            p.mode = descriptor.parameters.mode
+        else:
+            assert p.mode == descriptor.parameters.mode
+        log(' Regression in %s mode.' % p.mode)
+
+        if 'fprange' not in p or p.fprange is None:
+            log('Calculating new fingerprint range.')
+            p.fprange = calculate_fingerprints_range(descriptor,
+                                                     trainingimages)
+
+        if p.mode == 'atom-centered':
+            # If hiddenlayers is a tuple/list, convert to a dictionary.
+            if not hasattr(p.hiddenlayers, 'keys'):
+                p.hiddenlayers = {element: p.hiddenlayers
+                                  for element in p.fprange.keys()}
+
+        log('Hidden-layer structure:')
+        if p.mode == 'image-centered':
+            log(' %s' % str(p.hiddenlayers))
+        elif p.mode == 'atom-centered':
+            for item in p.hiddenlayers.items():
+                log(' %2s: %s' % item)
+
+        if p.weights is None:
+            log('Initializing with random weights.')
+            if p.mode == 'image-centered':
+                raise NotImplementedError('Needs to be coded.')
+            elif p.mode == 'atom-centered':
+                p.weights = get_random_weights(p.hiddenlayers, p.activation,
+                                               None, p.fprange)
+        else:
+            log('Initial weights already present.')
+
+        if p.scalings is None:
+            log('Initializing with random scalings.')
+            if p.mode == 'image-centered':
+                raise NotImplementedError('Need to code.')
+            elif p.mode == 'atom-centered':
+                p.scalings = get_random_scalings(trainingimages, p.activation,
+                                                 p.fprange.keys())
+        else:
+            log('Initial scalings already present.')
+
+        # Regress the model.
         result = self.regressor.regress(model=self, log=log)
         return result  # True / False
 
-    def set_regressor(self, regressor=None):
-        """Allows the user to set the regression method. Can use the regressor
-        can be an instance of amp.regression.Regressor with desired keywords,
-        or anything else behaving similarly. FIXME/ap: Define what this means.
-        Defaults to using amp.regression.Regressor
-        """
-        if regressor is None:
-            regressor = Regressor()
-        self.regressor = regressor
-
-    def get_vector(self):
-        """Returns the model parameters (weights, scaling for each network)
-        as a single vector."""
+    @property
+    def vector(self):
+        """Access to get or set the model parameters (weights, scaling for
+        each network) as a single vector, useful in particular for
+        regression."""
         if self.parameters['weights'] is None:
             return None
-        return self.ravel.to_vector(weights=self.parameters['weights'],
-                                    scalings=self.parameters['scalings'])
-
-    def set_vector(self, vector):
-        """Allows the setting of the model parameters (weights, scalings for
-        each network) with a single vector."""
-        import hashlib
-        import sys
-        def log(msg):
-            sys.stderr.write(msg)
-            sys.stderr.flush()
         if not hasattr(self, 'ravel'):
-            #FIXME/ap I put this in as a kludge for parallel since it hadn't
-            # been set in initilalize_for_training in the worker processes
-            # since that would change the fprange. Make sure it makes sense here
-            # It seems like it should be safe, but maybe some length checking
-            # needs to be added to RavelParameters
             p = self.parameters
-            self.ravel = RavelVariables(p.weights, p.scalings)
+            self.ravel = Raveler(p.weights, p.scalings)
+        return self.ravel.to_vector(weights=p.weights, scalings=p.scalings)
+
+    @vector.setter
+    def vector(self, vector):
+        if not hasattr(self, 'ravel'):
+            p = self.parameters
+            self.ravel = Raveler(p.weights, p.scalings)
         weights, scalings = self.ravel.to_dicts(vector)
         self.parameters['weights'] = weights
         self.parameters['scalings'] = scalings
@@ -184,102 +212,48 @@ class NeuralNetwork:
     def get_loss(self, vector):
         """
         Method to be called by the regression master.
-        Takes one and only one input, a vector of paramters.
+        Takes one and only one input, a vector of parameters.
         Returns one output, the value of the loss (cost) function.
         """
-        if self._lossfunction is None:
-            # First run; initialize.
-            self.set_loss_function(LossFunction(cores=self.cores))
-        return self._lossfunction(vector)
+        return self.lossfunction(vector)
 
-    def set_loss_function(self, function):
+    @property
+    def lossfunction(self):
         """Allows the user to set a custom loss function. For example,
-        >>> from amp.model import CostFunction
-        >>> costfxn = CostFunction(energytol=0.0001)
-        >>> calc.model.set_loss_function(costfxn)
+        >>> from amp.model import LossFunction
+        >>> lossfxn = LossFunction(energytol=0.0001)
+        >>> calc.model.lossfunction = lossfxn
         """
-        function.attach_model(self)  # Allows access to methods.
-        self._lossfunction = function
+        return self._lossfunction
 
-    def ravel_variables(self):
-        """
-        Wrapper function for raveling weights and scalings into a list.
-
-        :returns: param: Object containing regression's properties.
-        """
-        if (self.param.regression._variables is None) and self._weights:
-            self.param.regression._variables = \
-                self.ravel.to_vector(self._weights, self._scalings)
-
-        return self.param
-
-    def reset_energy(self):
-        """
-        Resets local variables corresponding to energy.
-        """
-        # FIXME/ap: I don't think we need this function. If we do, it needs to
-        # be made clear to the user what it is for. E.g., do you get a different
-        # answer from model.get_energy() before and after calling model.reset_energy()?
-        self.o = {}
-        self.D = {}
-        self.delta = {}
-        self.ohat = {}
-
-    def reset_forces(self):
-        """
-        Resets local variables corresponding to forces.
-        """
-        self.der_coordinates_o = {}
-
-    def update_variables(self, param):
-        """
-        Updates variables.
-
-        :param param: Object containing regression's properties.
-        :type param: ASE calculator's Parameters class
-        """
-        self._variables = param.regression._variables
-        self._weights, self._scalings = \
-            self.ravel.to_dicts(self._variables)
-
-        self.W = {}
-
-        if self.param.descriptor is None:  # pure atomic-coordinates scheme
-            weight = self._weights
-            len_of_weight = len(weight)
-            j = 0
-            while j < len_of_weight:
-                self.W[j + 1] = np.delete(weight[j + 1], -1, 0)
-                j += 1
-        else:  # fingerprinting scheme
-            for element in self.elements:
-                self.W[element] = {}
-                weight = self._weights[element]
-                len_of_weight = len(weight)
-                j = 0
-                while j < len_of_weight:
-                    self.W[element][j + 1] = np.delete(weight[j + 1], -1, 0)
-                    j += 1
+    @lossfunction.setter
+    def lossfunction(self, lossfunction):
+        if hasattr(lossfunction, 'attach_model'):
+            lossfunction.attach_model(self)  # Allows access to methods.
+        self._lossfunction = lossfunction
 
     def get_energy(self, fingerprint):
         """Returns the model-predicted energy for an image, based on its
         fingerprint.
         """
-        self.reset_energy()  #FIXME/ap Not sure why/if we need this.
-        energy = 0.0
-        p = self.parameters
-        if p['mode'] == 'image-centered':
-            #FIXME/ap: This hasn't been updated for image-centered mode.
-            raise NotImplementedError()
-        elif p['mode'] == 'atom-centered':
+        # Reset local variables corresponding to energy.
+        self.o = {}
+        self.D = {}
+        self.delta = {}
+        self.ohat = {}
+
+        if self.parameters.mode == 'image-centered':
+            raise NotImplementedError('This needs to be coded.')
+        elif self.parameters.mode == 'atom-centered':
+            energy = 0.0
             for index, (element, atomicfingerprint) in enumerate(fingerprint):
-                atom_energy = self.get_atomic_energy(input=atomicfingerprint,
+                atom_energy = self.get_atomic_energy(afp=atomicfingerprint,
                                                      index=index,
                                                      symbol=element)
                 energy += atom_energy
         return energy
 
-    def get_atomic_energy(self, input, index=None, symbol=None,):
+    def get_atomic_energy(self, afp, index=None, symbol=None,):
         """
         Given input to the neural network, output (which corresponds to energy)
         is calculated about the specified atom. The sum of these for all
@@ -294,19 +268,11 @@ class NeuralNetwork:
 
         :returns: float -- energy
         """
-        #FIXME/ap: There is a lot to think through in this part.
-        # It doesn't seem like we should need to save self.o,
-        # which are the node values, unless this has something
-        # to do with making force calls cheaper. We also shouldn't
-        # need to pass it the atomic index.
-        #FIXME/ap: Should change input, a protected python word,
-        # to something else like atomicfingerprint. Or ridge.
         p = self.parameters
         if p.mode == 'image-centered':
-            #FIXME/ap Needs updating.
-            self.o = {}
-            hiddenlayers = self.hiddenlayers
-            weight = self._weights
+            raise NotImplementedError('This needs to be coded; '
+                                      'if it belongs here.')
+
         elif p.mode == 'atom-centered':
             self.o[index] = {}
             hiddenlayers = p.hiddenlayers[symbol]
@@ -314,22 +280,22 @@ class NeuralNetwork:
             fprange = self.parameters.fprange[symbol]
 
         # Scale the fingerprints to be in [-1, 1] range.
-        input = -1.0 + 2.0 * ((np.array(input) - fprange[:,0]) / 
-                               (fprange[:,1] - fprange[:,0]))
+        afp = -1.0 + 2.0 * ((np.array(afp) - fprange[:, 0]) /
+                            (fprange[:, 1] - fprange[:, 0]))
 
         # Calculate node values.
         o = {}  # node values
         layer = 1  # input layer
-        net = {}  # excitation FIXME/ap What?
-        ohat = {}  # FIXME/ap What?
+        net = {}  # excitation
+        ohat = {}  # FIXME/ap need description
 
-        len_of_input = len(input)
-        temp = np.zeros((1, len_of_input + 1))
+        len_of_afp = len(afp)
+        temp = np.zeros((1, len_of_afp + 1))
         _ = 0
-        while _ < len_of_input:
-            temp[0, _] = input[_]
+        while _ < len_of_afp:
+            temp[0, _] = afp[_]
             _ += 1
-        temp[0, len(input)] = 1.0
+        temp[0, len(afp)] = 1.0
         ohat[0] = temp
         net[1] = np.dot(ohat[0], weight[1])
         if p.activation == 'linear':
@@ -376,21 +342,15 @@ class NeuralNetwork:
 
         del hiddenlayers, weight, ohat, net
 
-        len_of_input = len(input)
-        temp = np.zeros((1, len_of_input))
+        len_of_afp = len(afp)
+        temp = np.zeros((1, len_of_afp))  # FIXME/ap Need descriptive name
         _ = 0
-        while _ < len_of_input:
-            temp[0, _] = input[_]
+        while _ < len_of_afp:
+            temp[0, _] = afp[_]
             _ += 1
 
         if p.mode == 'image-centered':
-            #FIXME/ap Needs updating.
-
-            amp_energy = self._scalings['slope'] * \
-                float(o[layer]) + self._scalings['intercept']
-            self.o = o
-            self.o[0] = temp
-            return amp_energy
+            raise NotImplementedError('Need to code. But why is this here?')
 
         elif p.mode == 'atom-centered':
             atomic_amp_energy = p.scalings[symbol]['slope'] * \
@@ -399,480 +359,9 @@ class NeuralNetwork:
             self.o[index][0] = temp
             return atomic_amp_energy
 
-    def get_force(self, i, der_indexfp, n_index=None, n_symbol=None,):
-        """
-        Given derivative of input to the neural network, derivative of output
-        (which corresponds to forces) is calculated.
 
-        :param i: Direction of force.
-        :type i: int
-        :param der_indexfp: List of derivatives of inputs
-        :type der_indexfp: list
-        :param n_index: Index of the neighbor atom which force is acting at.
-                        (only used in the fingerprinting scheme)
-        :type n_index: int
-        :param n_symbol: Symbol of the neighbor atom which force is acting at.
-                         (only used in the fingerprinting scheme)
-        :type n_symbol: str
-
-        :returns: float -- force
-        """
-        if self.param.descriptor is None:  # pure atomic-coordinates scheme
-            o = self.o
-            hiddenlayers = self.hiddenlayers
-            weight = self._weights
-        else:  # fingerprinting scheme
-            o = self.o[n_index]
-            hiddenlayers = self.hiddenlayers[n_symbol]
-            weight = self._weights[n_symbol]
-
-        der_o = {}  # node values
-        der_o[0] = der_indexfp
-        layer = 0  # input layer
-        for hiddenlayer in hiddenlayers[0:]:
-            layer += 1
-            temp = np.dot(np.matrix(der_o[layer - 1]),
-                          np.delete(weight[layer], -1, 0))
-            der_o[layer] = [None] * np.size(o[layer])
-            bound = np.size(o[layer])
-            j = 0
-            while j < bound:
-                if self.activation == 'linear':  # linear function
-                    der_o[layer][j] = float(temp[0, j])
-                elif self.activation == 'sigmoid':  # sigmoid function
-                    der_o[layer][j] = float(temp[0, j]) * \
-                        float(o[layer][0, j] * (1. - o[layer][0, j]))
-                elif self.activation == 'tanh':  # tanh function
-                    der_o[layer][j] = float(temp[0, j]) * \
-                        float(1. - o[layer][0, j] * o[layer][0, j])
-                j += 1
-        layer += 1  # output layer
-        temp = np.dot(np.matrix(der_o[layer - 1]),
-                      np.delete(weight[layer], -1, 0))
-        if self.activation == 'linear':  # linear function
-            der_o[layer] = float(temp)
-        elif self.activation == 'sigmoid':  # sigmoid function
-            der_o[layer] = float(o[layer] *
-                                 (1. - o[layer]) * temp)
-        elif self.activation == 'tanh':  # tanh function
-            der_o[layer] = float((1. - o[layer] *
-                                  o[layer]) * temp)
-
-        der_o[layer] = [der_o[layer]]
-
-        if self.param.descriptor is None:  # pure atomic-coordinates scheme
-            self.der_coordinates_o[i] = der_o
-            force = float(-(self._scalings['slope'] * der_o[layer][0]))
-        else:  # fingerprinting scheme
-            self.der_coordinates_o[(n_index, i)] = der_o
-            force = float(-(self._scalings[n_symbol]['slope'] *
-                            der_o[layer][0]))
-
-        return force
-
-    def get_variable_der_of_energy(self, index=None, symbol=None):
-        """
-        Returns the derivative of energy square error with respect to
-        variables.
-
-        :param index: Index of the atom for which atomic energy is calculated
-                      (only used in the fingerprinting scheme)
-        :type index: int
-        :param symbol: Index of the atom for which atomic energy is calculated
-                       (only used in the fingerprinting scheme)
-        :type symbol: str
-
-        :returns: list of float -- the value of the derivative of energy square
-                                   error with respect to variables.
-        """
-        partial_der_variables_square_error = np.zeros(self.ravel.count)
-
-        partial_der_weights_square_error, partial_der_scalings_square_error = \
-            self.ravel.to_dicts(partial_der_variables_square_error)
-
-        if self.param.descriptor is None:  # pure atomic-coordinates scheme
-            o = self.o
-            W = self.W
-        else:  # fingerprinting scheme
-            o = self.o[index]
-            W = self.W[symbol]
-
-        N = len(o) - 2  # number of hiddenlayers
-        D = {}
-        k = 1
-        while k < N + 2:
-            D[k] = np.zeros(shape=(np.size(o[k]), np.size(o[k])))
-            for j in range(np.size(o[k])):
-                if self.activation == 'linear':  # linear
-                    D[k][j, j] = 1.
-                elif self.activation == 'sigmoid':  # sigmoid
-                    D[k][j, j] = float(o[k][0, j]) * \
-                        float((1. - o[k][0, j]))
-                elif self.activation == 'tanh':  # tanh
-                    D[k][j, j] = float(1. - o[k][0, j] * o[k][0, j])
-            k += 1
-        # Calculating delta
-        delta = {}
-        # output layer
-        delta[N + 1] = D[N + 1]
-        # hidden layers
-        k = N
-        while k > 0:  # backpropagate starting from output layer
-            delta[k] = np.dot(D[k], np.dot(W[k + 1], delta[k + 1]))
-            k -= 1
-        # Calculating ohat
-        ohat = {}
-        k = 1
-        while k < N + 2:
-            ohat[k - 1] = np.zeros(shape=(1, np.size(o[k - 1]) + 1))
-            bound = np.size(o[k - 1])
-            j = 0
-            while j < bound:
-                ohat[k - 1][0, j] = o[k - 1][0, j]
-                j += 1
-            ohat[k - 1][0, np.size(o[k - 1])] = 1.0
-            k += 1
-
-        if self.param.descriptor is None:  # pure atomic-coordinates scheme
-            partial_der_scalings_square_error['intercept'] = 1.
-            partial_der_scalings_square_error['slope'] = float(o[N + 1])
-            k = 1
-            while k < N + 2:
-                partial_der_weights_square_error[k] = \
-                    float(self._scalings['slope']) * \
-                    np.dot(np.matrix(ohat[k - 1]).T, np.matrix(delta[k]).T)
-                k += 1
-        else:  # fingerprinting scheme
-            partial_der_scalings_square_error[symbol]['intercept'] = 1.
-            partial_der_scalings_square_error[symbol]['slope'] = \
-                float(o[N + 1])
-            k = 1
-            while k < N + 2:
-                partial_der_weights_square_error[symbol][k] = \
-                    float(self._scalings[symbol]['slope']) * \
-                    np.dot(np.matrix(ohat[k - 1]).T, np.matrix(delta[k]).T)
-                k += 1
-        partial_der_variables_square_error = \
-            self.ravel.to_vector(partial_der_weights_square_error,
-                                 partial_der_scalings_square_error)
-
-        if self.param.descriptor is None:  # pure atomic-coordinates scheme
-            self.D = D
-            self.delta = delta
-            self.ohat = ohat
-        else:  # fingerprinting scheme
-            self.D[index] = D
-            self.delta[index] = delta
-            self.ohat[index] = ohat
-
-        return partial_der_variables_square_error
-
-    def get_variable_der_of_forces(self, self_index, i,
-                                   n_index=None, n_symbol=None,):
-        """
-        Returns the derivative of force square error with respect to variables.
-
-        :param self_index: Index of the center atom.
-        :type self_index: int
-        :param i: Direction of force.
-        :type i: int
-        :param n_index: Index of the neighbor atom which force is acting at.
-                        (only used in the fingerprinting scheme)
-        :type n_index: int
-        :param n_symbol: Symbol of the neighbor atom which force is acting at.
-                         (only used in the fingerprinting scheme)
-        :type n_symbol: str
-
-        :returns: list of float -- the value of the derivative of force square
-                                   error with respect to variables.
-        """
-        partial_der_variables_square_error = np.zeros(self.ravel.count)
-
-        partial_der_weights_square_error, partial_der_scalings_square_error = \
-            self.ravel.to_dicts(partial_der_variables_square_error)
-
-        if self.param.descriptor is None:  # pure atomic-coordinates scheme
-            o = self.o
-            der_coordinates_o = self.der_coordinates_o[i]
-            W = self.W
-            delta = self.delta
-            ohat = self.ohat
-            D = self.D
-        else:  # fingerprinting scheme
-            o = self.o[n_index]
-            der_coordinates_o = self.der_coordinates_o[(n_index, i)]
-            W = self.W[n_symbol]
-            delta = self.delta[n_index]
-            ohat = self.ohat[n_index]
-            D = self.D[n_index]
-
-        N = len(o) - 2
-        der_coordinates_D = {}
-        k = 1
-        while k < N + 2:
-            # Calculating coordinate derivative of D matrix
-            der_coordinates_D[k] = \
-                np.zeros(shape=(np.size(o[k]), np.size(o[k])))
-            for j in range(np.size(o[k])):
-                if self.activation == 'linear':  # linear
-                    der_coordinates_D[k][j, j] = 0.
-                elif self.activation == 'tanh':  # tanh
-                    der_coordinates_D[k][j, j] = \
-                        - 2. * o[k][0, j] * der_coordinates_o[k][j]
-                elif self.activation == 'sigmoid':  # sigmoid
-                    der_coordinates_D[k][j, j] = der_coordinates_o[k][j] - \
-                        2. * o[k][0, j] * der_coordinates_o[k][j]
-            k += 1
-        # Calculating coordinate derivative of delta
-        der_coordinates_delta = {}
-        # output layer
-        der_coordinates_delta[N + 1] = der_coordinates_D[N + 1]
-        # hidden layers
-        temp1 = {}
-        temp2 = {}
-        k = N
-        while k > 0:
-            temp1[k] = np.dot(W[k + 1], delta[k + 1])
-            temp2[k] = np.dot(W[k + 1], der_coordinates_delta[k + 1])
-            der_coordinates_delta[k] = \
-                np.dot(der_coordinates_D[k], temp1[k]) + np.dot(D[k], temp2[k])
-            k -= 1
-        # Calculating coordinate derivative of ohat and
-        # coordinates weights derivative of atomic_output
-        der_coordinates_ohat = {}
-        der_coordinates_weights_atomic_output = {}
-        k = 1
-        while k < N + 2:
-            der_coordinates_ohat[k - 1] = \
-                [None] * (1 + len(der_coordinates_o[k - 1]))
-            count = 0
-            bound = len(der_coordinates_o[k - 1])
-            while count < bound:
-                der_coordinates_ohat[k - 1][count] = \
-                    der_coordinates_o[k - 1][count]
-                count += 1
-            der_coordinates_ohat[k - 1][count] = 0.
-            der_coordinates_weights_atomic_output[k] = \
-                np.dot(np.matrix(der_coordinates_ohat[k - 1]).T,
-                       np.matrix(delta[k]).T) + \
-                np.dot(np.matrix(ohat[k - 1]).T,
-                       np.matrix(der_coordinates_delta[k]).T)
-            k += 1
-
-        if self.param.descriptor is None:  # pure atomic-coordinates scheme
-            k = 1
-            while k < N + 2:
-                partial_der_weights_square_error[k] = \
-                    float(self._scalings['slope']) * \
-                    der_coordinates_weights_atomic_output[k]
-                k += 1
-            partial_der_scalings_square_error['slope'] = \
-                der_coordinates_o[N + 1][0]
-        else:  # fingerprinting scheme
-            k = 1
-            while k < N + 2:
-                partial_der_weights_square_error[n_symbol][k] = \
-                    float(self._scalings[n_symbol]['slope']) * \
-                    der_coordinates_weights_atomic_output[k]
-                k += 1
-            partial_der_scalings_square_error[n_symbol]['slope'] = \
-                der_coordinates_o[N + 1][0]
-        partial_der_variables_square_error = \
-            self.ravel.to_vector(partial_der_weights_square_error,
-                                 partial_der_scalings_square_error)
-
-        return partial_der_variables_square_error
-
-    def initialize_for_regression(self, log, images, fp):
-        """
-        Prints out in the log file and generates variables if do not already 
-        exist. This is essentially storing data for the regression.
-
-        :param log: Write function at which to log data. Note this must be a
-                    callable function.
-        :type log: Logger object
-        :param param: Object containing regression's properties.
-        :type param: ASE calculator's Parameters class
-        :param elements: List of atom symbols.
-        :type elements: list of str
-        :param images: ASE atoms objects (the training set).
-        :type images: dict
-
-        :returns: Object containing regression's properties.
-        """
-        #FIXME/ap: Fold into 'fit'?
-
-        # FIXME/ap: This could be good to keep for the parallel version,
-        # but we definitely don't want it adjusting fprange then.
-
-        if not hasattr(self, '_lossfunction'):
-            self._lossfunction = None  # Will hold a method.
-
-        p = self.parameters
-        tp = self.trainingparameters = Parameters()
-        tp['trainingimages'] = images
-        tp['fingerprint'] = fp
-        tp['log'] = log
-
-        p['mode'] = fp.parameters['mode']
-        log(' Regression in %s mode.' % p.mode)
-
-        if p['mode'] == 'atom-centered':
-            self.elements = fp.parameters.elements
-        elif p['mode'] == 'image-centered':
-            self.elements = None
-        
-        if 'fprange' not in p or p.fprange is None:
-            log('Calculating new fingerprint range.')
-            p['fprange'] = calculate_fingerprints_range(fp, images)
-
-        if p['mode'] == 'image-centered':  # pure atomic-coordinates scheme
-
-            #FIXME/ap This part needs updating.
-            raise NotImplementedError()
-            self.no_of_atoms = param.no_of_atoms
-            self.hiddenlayers = param.regression.hiddenlayers
-
-            structure = self.hiddenlayers
-            if isinstance(structure, str):
-                structure = structure.split('-')
-            elif isinstance(structure, int):
-                structure = [structure]
-            else:
-                structure = list(structure)
-            hiddenlayers = [int(part) for part in structure]
-            self.hiddenlayers = hiddenlayers
-
-            self.ravel = _RavelVariables(
-                hiddenlayers=self.hiddenlayers,
-                elements=self.elements,
-                no_of_atoms=self.no_of_atoms)
-
-        elif p['mode'] == 'atom-centered':  # fingerprinting scheme
-
-            # If hiddenlayers is fed by the user in the tuple format,
-            # it will now be converted to a dictionary.
-            if isinstance(p.hiddenlayers, tuple):
-                hiddenlayers = {}
-                for element in self.elements:
-                    hiddenlayers[element] = p.hiddenlayers
-                p.hiddenlayers = hiddenlayers
-
-        log('Hidden-layer structure:')
-        if p.mode == 'image-centered':
-            log(' %s' % str(p.hiddenlayers))
-        elif p.mode == 'atom-centered':
-            for item in p.hiddenlayers.items():
-                log(' %2s: %s' % item)
-
-        if p.weights is None:
-            log('Initializing with random weights.')
-            if p.mode == 'image-centered':
-                #FIXME/ap need to update this block.
-                raise NotImplementedError()
-                self._weights = make_weight_matrices(self.hiddenlayers,
-                                                     self.activation,
-                                                     self.no_of_atoms)
-            elif p.mode == 'atom-centered':
-                p.weights = make_weight_matrices(p.hiddenlayers,
-                                                 p.activation,
-                                                 None,
-                                                 fp.parameters.Gs,
-                                                 self.elements)
-
-            # FIXME/ap: Delete Gs in above; Gs should be invisible
-            # to this module.
- 
-        else:
-            log('Initial weights already present.')
-        # If scalings are not given, generates random scalings
-        if not p.scalings:
-            log('Initializing with random scalings.')
-
-            if p.mode == 'image-centered':
-                #FIXME/ap need to update this block.
-                raise NotImplementedError()
-                self._scalings = make_scalings_matrices(images,
-                                                        self.activation,)
-            elif p.mode == 'atom-centered':
-                p.scalings = make_scalings_matrices(images,
-                                                    p.activation,
-                                                    self.elements,)
-        else:
-            log('Initial scalings already present.')
-
-
-        self.ravel = RavelVariables(weights=p.weights, scalings=p.scalings)
-
-
-    def send_data_to_fortran(self, param):
-        """
-        Sends regression data to fortran.
-
-        :param param: Object containing symmetry function's (if any) and
-                      regression's properties.
-        :type param: ASE calculator's Parameters class
-        """
-        if param.descriptor is None:
-            fingerprinting = False
-        else:
-            fingerprinting = True
-
-        if fingerprinting:
-            no_layers_of_elements = \
-                [3 if isinstance(param.regression.hiddenlayers[elm], int)
-                 else (len(param.regression.hiddenlayers[elm]) + 2)
-                 for elm in self.elements]
-            nn_structure = OrderedDict()
-            for elm in self.elements:
-                if isinstance(param.regression.hiddenlayers[elm], int):
-                    nn_structure[elm] = ([len(param.descriptor.Gs[elm])] +
-                                         [param.regression.hiddenlayers[elm]] +
-                                         [1])
-                else:
-                    nn_structure[elm] = ([len(param.descriptor.Gs[elm])] +
-                                         [layer for layer in
-                                          param.regression.hiddenlayers[elm]] +
-                                         [1])
-
-            no_nodes_of_elements = [nn_structure[elm][_]
-                                    for elm in self.elements
-                                    for _ in range(len(nn_structure[elm]))]
-
-        else:
-            no_layers_of_elements = []
-            if isinstance(param.regression.hiddenlayers, int):
-                no_layers_of_elements = [3]
-            else:
-                no_layers_of_elements = \
-                    [len(param.regression.hiddenlayers) + 2]
-            if isinstance(param.regression.hiddenlayers, int):
-                nn_structure = ([3 * param.no_of_atoms] +
-                                [param.regression.hiddenlayers] + [1])
-            else:
-                nn_structure = ([3 * param.no_of_atoms] +
-                                [layer for layer in
-                                 param.regression.hiddenlayers] + [1])
-            no_nodes_of_elements = [nn_structure[_]
-                                    for _ in range(len(nn_structure))]
-
-        fmodules.regression.no_layers_of_elements = no_layers_of_elements
-        fmodules.regression.no_nodes_of_elements = no_nodes_of_elements
-        if param.regression.activation == 'tanh':
-            activation_signal = 1
-        elif param.regression.activation == 'sigmoid':
-            activation_signal = 2
-        elif param.regression.activation == 'linear':
-            activation_signal = 3
-        fmodules.regression.activation_signal = activation_signal
-
-###############################################################################
-###############################################################################
-###############################################################################
-
-
-def make_weight_matrices(hiddenlayers, activation, no_of_atoms=None, Gs=None,
-                         elements=None):
+def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
+                       fprange=None):
     """
     Generates random weight arrays from variables.
 
@@ -972,9 +461,10 @@ def make_weight_matrices(hiddenlayers, activation, no_of_atoms=None, Gs=None,
             _ += 1
 
     else:
+        elements = fprange.keys()
 
         for element in sorted(elements):
-            len_of_fps = len(Gs[element])
+            len_of_fps = len(fprange[element])
             if isinstance(hiddenlayers[element], int):
                 nn_structure[element] = ([len_of_fps] +
                                          [hiddenlayers[element]] + [1])
@@ -983,8 +473,8 @@ def make_weight_matrices(hiddenlayers, activation, no_of_atoms=None, Gs=None,
                     [len_of_fps] +
                     [layer for layer in hiddenlayers[element]] + [1])
             weight[element] = {}
-            normalized_arg_range = arg_range / len(Gs[element])
-            weight[element][1] = np.random.random((len(Gs[element]) + 1,
+            normalized_arg_range = arg_range / len(fprange[element])
+            weight[element][1] = np.random.random((len(fprange[element]) + 1,
                                                    nn_structure[
                                                    element][1])) * \
                 normalized_arg_range - \
@@ -1017,7 +507,7 @@ def make_weight_matrices(hiddenlayers, activation, no_of_atoms=None, Gs=None,
     return weight
 
 
-def make_scalings_matrices(images, activation, elements=None):
+def get_random_scalings(images, activation, elements=None):
     """
     Generates initial scaling matrices, such that the range of activation
     is scaled to the range of actual energies.
@@ -1101,12 +591,8 @@ def make_scalings_matrices(images, activation, elements=None):
 
     return scaling
 
-###############################################################################
-###############################################################################
-###############################################################################
 
-class RavelVariables:
-
+class Raveler:
     """Class to ravel and unravel variable values into a single vector.
     This is used for feeding into the optimizer. Feed in a list of
     dictionaries to initialize the shape of the transformation. Note no
@@ -1115,8 +601,6 @@ class RavelVariables:
     be two levels deep.
         weights, scalings: variables to ravel and unravel
     """
-
-    ##########################################################################
 
     def __init__(self, weights, scalings):
 
@@ -1137,9 +621,6 @@ class RavelVariables:
                                           'key2': key2})
                 self.count += 1
         self.vector = np.zeros(self.count)
-        self.der_of_weights_norm = np.zeros(self.count)
-
-    #########################################################################
 
     def to_vector(self, weights, scalings):
         """Puts the weights and scalings embedded dictionaries into a single
@@ -1156,8 +637,6 @@ class RavelVariables:
             vector[count] = scalings[k['key1']][k['key2']]
             count += 1
         return vector
-
-    #########################################################################
 
     def to_dicts(self, vector):
         """Puts the vector back into weights and scalings dictionaries of the
@@ -1182,6 +661,3 @@ class RavelVariables:
             scalings[k['key1']][k['key2']] = vector[count]
             count += 1
         return weights, scalings
-
-
-

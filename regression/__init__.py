@@ -49,7 +49,7 @@ class Regressor:
         log('Starting parameter optimization.', tic='opt')
         log(' Optimizer: %s' % self.optimizer)
         log(' Optimizer kwargs: %s' % self.optimizer_kwargs)
-        x0 = model.get_vector()
+        x0 = model.vector.copy()
         try:
             answer = self.optimizer(model.get_loss, x0,
                                     **self.optimizer_kwargs)

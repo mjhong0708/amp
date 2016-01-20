@@ -207,7 +207,7 @@ class Amp(Calculator, object):
 
         log('\nModel fitting\n=============')
         result = self.model.fit(trainingimages=images,
-                                fingerprints=self.descriptor,
+                                descriptor=self.descriptor,
                                 log=log,
                                 cores=self.cores)
 

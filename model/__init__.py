@@ -2,16 +2,19 @@
 import numpy as np
 from ase.calculators.calculator import Parameters
 
-from ..utilities import ConvergenceOccurred, Logger, make_sublists, now
+from ..utilities import ConvergenceOccurred, make_sublists, now
 
 
 class LossFunction:
     """Basic cost function, which can be used by the model.get_cost_function
     method which is required in standard model classes.
-    This version is pure python and thus will be slow compared to a fortran/parallel implementation.
+    This version is pure python and thus will be slow compared to a
+    fortran/parallel implementation.
 
-    If cores is None, it will pull it from the model itself. Only use this keyword to override the model's specification.
-    
+    If cores is None, it will pull it from the model itself. Only use
+    this keyword to override the model's specification.
+
+    Also has parallelization methods built in.
     """
 
     def __init__(self, energy_tol=0.001, max_resid=0.001, cores=None,
@@ -32,13 +35,10 @@ class LossFunction:
         self._model = model
         self.fingerprints = fingerprints
         self.images = images
-        model.log(' Loss function attached to model.')
 
     def _initialize(self):
         """Procedures to be run on the first call only, such as establishing
         SSH sessions, etc."""
-        #FIXME/ap Plan to move all initilize-type routines here, rather than
-        # in attach model.
         if self._initialized is True:
             return
 
@@ -48,7 +48,7 @@ class LossFunction:
 
         if self.fingerprints is None:
             self.fingerprints = \
-                self._model.trainingparameters.fingerprint.fingerprints
+                self._model.trainingparameters.descriptor.fingerprints
         if self.images is None:
             self.images = self._model.trainingparameters.trainingimages
 
@@ -67,8 +67,6 @@ class LossFunction:
             module = self.__module__
             workercommand = ('python -m %s %%s %s' %
                              (module, serversocket))
-            #FIXME/ap Lots of duplicate code here with utilities.Data
-            # Probably should make into functions.
 
             def establish_ssh(process_id):
                 """Uses pxssh to establish a SSH connections and get the
@@ -82,7 +80,7 @@ class LossFunction:
                 ssh.sendline(workercommand % process_id)
                 ssh.expect('<amp-connect>')
                 ssh.expect('<stderr>')
-                log('  Session %i (%s): %s' % 
+                log('  Session %i (%s): %s' %
                     (process_id, workerhostname, ssh.before.strip()))
                 return ssh
 
@@ -108,13 +106,16 @@ class LossFunction:
 
     def _cleanup(self):
         """Closes SSH sessions."""
+        if not hasattr(self, '_sessions'):
+            return
         server = self._sessions['master']
 
         def process_parallels():
             finished = np.array([False]*len(self._sessions['workers']))
             while not finished.all():
                 message = server.recv_pyobj()
-                if message['subject'] == '<request>' and message['data'] == 'parameters':
+                if (message['subject'] == '<request>' and
+                   message['data'] == 'parameters'):
                     server.send_pyobj('<stop>')
                     finished[int(message['id'])] = True
 
@@ -124,23 +125,18 @@ class LossFunction:
         del self._sessions['workers']
 
     def __call__(self, parametervector, complete_output=False):
-        """Returns the current value of teh cost function for a given set of parameters,
-        or, if the energy is less than the energy_tol raises a ConvergenceException.
+        """Returns the current value of teh cost function for a given set of
+        parameters, or, if the energy is less than the energy_tol raises a
+        ConvergenceException.
 
-        By default only returns the cost function (needed for optimizers). Can return
-        more information like max_residual if complete_output is True.
+        By default only returns the cost function (needed for optimizers).
+        Can return more information like max_residual if complete_output
+        is True.
         """
         self._initialize()
-        #FIXME/ap If parallel, or fortran, implement that here.
-        # There will need to be program instances (e.g., fortran
-        # executables) that have the fingerprints, etc., already
-        # stored and just calculate the cost function with the new
-        # parameter vector.
-        log = self._model.log
 
         if self._cores == 1:
-            p = self.parameters
-            self._model.set_vector(parametervector)
+            self._model.vector = parametervector
             costfxn = 0.
             max_residual = 0.
             for hash, image in self.images.iteritems():
@@ -152,9 +148,6 @@ class LossFunction:
                 costfxn += residual_per_atom**2
             costfxn = costfxn / len(self.images)
         else:
-            #FIXME/ap. There will have to be different procedures if it is the
-            # first call or a later one. The channels will need to be kept open
-            # such that it has the images, etc., passed only once.
             server = self._sessions['master']
             processes = self._sessions['workers']
 
@@ -162,14 +155,12 @@ class LossFunction:
             keys = make_sublists(self.images.keys(), len(processes))
 
             # All incoming requests will be dictionaries with three keys.
-            # d['id']: process id number, as assigned when process created above.
-            # d['subject']: what the message is asking for / telling you
-            # d['data']: any data passed from the worker to the master in this msg.
+            # d['id']: process id number, assigned when process created above.
+            # d['subject']: what the message is asking for / telling you.
+            # d['data']: optional data passed from worker.
 
             def process_parallels(vector):
-                #FIXME/ap I have a problem with processes finishing then making
-                # their next request. They need to wait for the process to cycle.
-                finished = np.array([False]*len(processes))  # Flags for each process
+                finished = np.array([False]*len(processes))  # For each process
                 results = {'costfxn': 0., 'max_residual': 0.}
                 while not finished.all():
                     message = server.recv_pyobj()
@@ -178,17 +169,15 @@ class LossFunction:
                     elif message['subject'] == '<request>':
                         request = message['data']  # Variable name.
                         if request == 'images':
-                            subimages = {k:self.images[k] for k in keys[int(message['id'])]}
+                            subimages = {k: self.images[k] for k in
+                                         keys[int(message['id'])]}
                             server.send_pyobj(subimages)
                         elif request == 'modelstring':
                             server.send_pyobj(self._model.tostring())
                         elif request == 'lossfunctionstring':
                             server.send_pyobj(self.parameters.tostring())
-                        elif request == 'images': 
-                            server.send_pyobj({k:images[k] for k in
-                                               keys[int(message['id'])]})
                         elif request == 'fingerprints':
-                            server.send_pyobj({k:self.fingerprints[k] for k in
+                            server.send_pyobj({k: self.fingerprints[k] for k in
                                                keys[int(message['id'])]})
                         elif request == 'parameters':
                             if finished[int(message['id'])]:
@@ -212,9 +201,8 @@ class LossFunction:
 
         if self.raise_ConvergenceOccurred:
             converged = self.check_convergence(costfxn, max_residual)
-            # Make sure first step is done in case of switching to fortran.
             if converged:
-                self._model.set_vector(parametervector)
+                self._model.vector = parametervector
                 self._cleanup()
                 raise ConvergenceOccurred()
 
@@ -238,8 +226,8 @@ class LossFunction:
             if max_residual > p.max_resid:
                 maxresidconverged = False
         log(' %5i  %19s %12.4e %1s %12.4e %1s' %
-                 (self._step, now(), costfxn, 'C' if energyconverged else '',
-                  max_residual, 'C' if maxresidconverged else ''))
+            (self._step, now(), costfxn, 'C' if energyconverged else '',
+             max_residual, 'C' if maxresidconverged else ''))
         self._step += 1
         return energyconverged and maxresidconverged
 
@@ -263,8 +251,7 @@ def calculate_fingerprints_range(fp, images):
             imagefingerprints = fp.fingerprints[hash]
             for element, fingerprint in imagefingerprints:
                 if element not in fprange:
-                    fprange[element] = [[val, val] for val in
-                                            fingerprint]
+                    fprange[element] = [[_, _] for _ in fingerprint]
                 else:
                     assert len(fprange[element]) == len(fingerprint)
                     for i, ridge in enumerate(fingerprint):
@@ -275,4 +262,3 @@ def calculate_fingerprints_range(fp, images):
     for key, value in fprange.items():
         fprange[key] = np.array(value)
     return fprange
-

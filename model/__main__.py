@@ -1,89 +1,83 @@
+"""Directly calling this module; apparently from another node.
+Calls should come as
 
-if __name__ == "__main__":
-    """Directly calling this module; apparently from another node.
-    Calls should come as
+python -m amp.model id hostname:port
 
-    python -m amp.model id hostname:port
-
-    This session will then start a zmq session with that socket, labeling
-    itself with id. Instructions on what to do will come from the socket.
-    """
-    import sys
-    import tempfile
-    import zmq
-    from ..utilities import MessageDictionary, string2dict, Logger
-    from .. import importhelper
+This session will then start a zmq session with that socket, labeling
+itself with id. Instructions on what to do will come from the socket.
+"""
+import sys
+import tempfile
+import zmq
+from ..utilities import MessageDictionary, string2dict, Logger
+from .. import importhelper
 
 
-    hostsocket = sys.argv[-1]
-    proc_id = sys.argv[-2]
-    msg = MessageDictionary(proc_id)
+hostsocket = sys.argv[-1]
+proc_id = sys.argv[-2]
+msg = MessageDictionary(proc_id)
 
-    # Send standard lines to stdout signaling process started and where
-    # error is directed. This should be caught by pxssh. (This could
-    # alternatively be done by zmq, but this works.)
-    print('<amp-connect>')  # Signal that program started.
-    sys.stderr = tempfile.NamedTemporaryFile(mode='w', delete=False,
-                                             suffix='.stderr')
-    print('stderr written to %s<stderr>' % sys.stderr.name)
+# Send standard lines to stdout signaling process started and where
+# error is directed.
+print('<amp-connect>')  # Signal that program started.
+sys.stderr = tempfile.NamedTemporaryFile(mode='w', delete=False,
+                                         suffix='.stderr')
+print('stderr written to %s<stderr>' % sys.stderr.name)
 
-    # Also send logger output to stderr to aid in debugging.
-    # FIXME/ap Also add log's to any methods that take them below.
-    log = Logger(file=sys.stderr)
+# Also send logger output to stderr to aid in debugging.
+log = Logger(file=sys.stderr)
 
-    # Establish client session via zmq; find purpose.
-    context = zmq.Context()
-    socket = context.socket(zmq.REQ)
-    socket.connect('tcp://%s' % hostsocket)
-    socket.send_pyobj(msg('<purpose>'))
-    purpose = socket.recv_string()
+# Establish client session via zmq; find purpose.
+context = zmq.Context()
+socket = context.socket(zmq.REQ)
+socket.connect('tcp://%s' % hostsocket)
+socket.send_pyobj(msg('<purpose>'))
+purpose = socket.recv_string()
 
-    if purpose == 'calculate_loss_function':
-        # Request variables.
-        socket.send_pyobj(msg('<request>', 'modelstring'))
-        modelstring = socket.recv_pyobj()
-        d = string2dict(modelstring)
-        Model = importhelper(d.pop('importname'))
-        log(str(d))
-        model = Model(**d)
+if purpose == 'calculate_loss_function':
+    # Request variables.
+    socket.send_pyobj(msg('<request>', 'modelstring'))
+    modelstring = socket.recv_pyobj()
+    d = string2dict(modelstring)
+    Model = importhelper(d.pop('importname'))
+    log(str(d))
+    model = Model(**d)
+    model.log = log
 
-        socket.send_pyobj(msg('<request>', 'lossfunctionstring'))
-        lossfunctionstring = socket.recv_pyobj()
-        d = string2dict(lossfunctionstring)
-        LossFunction = importhelper(d.pop('importname'))
-        lossfunction = LossFunction(cores=1,
-                                    raise_ConvergenceOccurred=False, **d)
+    socket.send_pyobj(msg('<request>', 'lossfunctionstring'))
+    lossfunctionstring = socket.recv_pyobj()
+    d = string2dict(lossfunctionstring)
+    LossFunction = importhelper(d.pop('importname'))
+    lossfunction = LossFunction(cores=1,
+                                raise_ConvergenceOccurred=False, **d)
 
-        socket.send_pyobj(msg('<request>', 'images'))
-        images = socket.recv_pyobj()
+    socket.send_pyobj(msg('<request>', 'images'))
+    images = socket.recv_pyobj()
 
-        socket.send_pyobj(msg('<request>', 'fingerprints'))
-        fingerprints = socket.recv_pyobj()
- 
-        #model.initialize_for_regression(log, images, fingerprints)
-        # Set up local loss function.
-        lossfunction.attach_model(model, fingerprints=fingerprints,
-                                  images=images)
+    socket.send_pyobj(msg('<request>', 'fingerprints'))
+    fingerprints = socket.recv_pyobj()
 
-        # Now wait for parameters, and send the component of the cost
-        # function. 
-        while True:
-            socket.send_pyobj(msg('<request>', 'parameters'))
-            parameters = socket.recv_pyobj()
-            if parameters == '<stop>':
-                break
-            elif parameters == '<continue>':
-                # Master is waiting for other workers to finish.
-                # FIXME/ap Do I need a sleep? Any more elegant way
-                # to do this without opening another comm channel?
-                pass
-            else:
-                output = lossfunction(parameters, complete_output=True)
-                socket.send_pyobj(msg('<result>', output))
-                socket.recv_string()
+    # Set up local loss function.
+    lossfunction.attach_model(model, fingerprints=fingerprints,
+                              images=images)
 
+    # Now wait for parameters, and send the component of the cost
+    # function.
+    while True:
+        socket.send_pyobj(msg('<request>', 'parameters'))
+        parameters = socket.recv_pyobj()
+        if parameters == '<stop>':
+            break
+        elif parameters == '<continue>':
+            # Master is waiting for other workers to finish.
+            # Any more elegant way
+            # to do this without opening another comm channel?
+            # or having a thread for each process?
+            pass
+        else:
+            output = lossfunction(parameters, complete_output=True)
+            socket.send_pyobj(msg('<result>', output))
+            socket.recv_string()
 
-
-    else:
-        raise NotImplementedError('purpose %s unknown.' % purpose)
-
+else:
+    raise NotImplementedError('purpose %s unknown.' % purpose)
