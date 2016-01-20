@@ -217,7 +217,7 @@ class Data:
             while True:
                 message = server.recv_pyobj()
                 if message['subject'] == '<purpose>':
-                    server.send_string(self.calc.parallel_command)
+                    server.send_pyobj(self.calc.parallel_command)
                     active += 1
                 elif message['subject'] == '<request>':
                     request = message['data']  # Variable name.
@@ -506,11 +506,16 @@ def string2dict(text):
     return dictionary
 
 
-def now():
+def now(with_utc=False):
     """
     :returns: String of current time.'
     """
-    return datetime.now().isoformat().split('.')[0]
+    local = datetime.now().isoformat().split('.')[0]
+    utc = datetime.utcnow().isoformat().split('.')[0]
+    if with_utc:
+        return '%s (%s UTC)' % (local, utc)
+    else:
+        return local
 
 
 logo = """

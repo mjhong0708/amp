@@ -7,18 +7,11 @@ from ase.calculators.calculator import Parameters
 from ..utilities import FingerprintsError
 from ..utilities import Data, Logger
 
-#FIXME/ap: below needs to disappear?
-try:
-    from amp import fmodules
-except ImportError:
-    fmodules = None
 
-###############################################################################
-
-class Behler(object):
+class Gaussians(object):
 
     """
-    Class that calculates Behler fingerprints.
+    Class that calculates Gaussian fingerprints (i.e., Behler-style).
 
     :param cutoff: Radius above which neighbor interactions are ignored.
                    Default is 6.5 Angstroms.
@@ -41,9 +34,6 @@ class Behler(object):
                              form of fingerprints used in the code.
     :type fingerprints_tag: int
 
-    :param fortran: If True, will use the fortran subroutines, else will not.
-    :type fortran: bool
-
     :param elements: List of allowed elements present in the system. If not
                      provided, will be found automatically.
     :type elements: list
@@ -51,20 +41,15 @@ class Behler(object):
 
     :raises: FingerprintsError, NotImplementedError
     """
-    ###########################################################################
 
-    #FIXME/ap: There should be a todict method called at the end of this to
-    # allow it to reconstruct itself from a dictionary.
-
-    def __init__(self, cutoff=6.5, Gs=None, fortran=True,
-                 dblabel=None, elements=None, version=None,
-                 **kwargs):
+    def __init__(self, cutoff=6.5, Gs=None, dblabel=None, elements=None,
+                 version=None, **kwargs):
 
 
         # Version check, particularly if restarting.
         compatibleversions = ['2015.12',]
         if (version is not None) and version not in compatibleversions:
-            raise RuntimeError('Error: Trying to use Behler fingerprints'
+            raise RuntimeError('Error: Trying to use Gaussian fingerprints'
                                ' version %s, but this module only supports'
                                ' versions %s. You may need an older or '
                                ' newer version of Amp.' %
@@ -76,7 +61,7 @@ class Behler(object):
         if 'mode' in kwargs:
             mode = kwargs.pop('mode')
             if mode != 'atom-centered':
-                raise RuntimeError('Behler scheme only works '
+                raise RuntimeError('Gaussian scheme only works '
                                    'in atom-centered mode. %s '
                                    'specified.' % mode)
         if len(kwargs) > 0:
@@ -85,33 +70,27 @@ class Behler(object):
 
         # The parameters dictionary contains the minimum information
         # to produce a compatible descriptor; that is, one that gives
-        # the same fingerprint when fed an ASE image.
+        # an identical fingerprint when fed an ASE image.
         p = self.parameters = Parameters(
-                {'importname': '.descriptor.behler.Behler',
+                {'importname': '.descriptor.gaussians.Gaussians',
                  'mode': 'atom-centered'})
         p.version = version
         p.cutoff = cutoff
         p.Gs = Gs
         p.elements = elements
 
-        self.fortran = fortran
         self.dblabel = dblabel
         self.parent = None  # Can hold a reference to main Amp instance.
-
-    ###########################################################################
 
     def tostring(self):
         """Returns an evaluatable representation of the calculator that can
         be used to restart the calculator."""
         return self.parameters.tostring()
 
-    ###########################################################################
-
     def calculate_fingerprints(self, images, cores=1, fortran=False,
                                log=None):
         """Calculates the fingerpints of the images, for the ones not
-        already done.
-        """
+        already done.  """
         log = Logger(file=None) if log is None else log
 
         if (self.dblabel is None) and hasattr(self.parent, 'dblabel'):
@@ -155,24 +134,12 @@ class Behler(object):
         self.fingerprints.calculate_items(images, cores=cores, log=log)
         log('...fingerprints calculated.', toc='fp')
 
-    ###########################################################################
 
-# FIXME/ap Criteria to fit in parallel scheme. This should make it into the
-# documentation.
-#  Has two types of paramters: self.global(dict) which are the same for
-#  every calculation (e.g., a cutoff radius) and self.keyed(dict) which
-#  are unique to each image; that is, the relevant items can be reached
-#  with sellf.keyed[variable][hash].
-#  It also needs a self.parallel_command atribute, which is the name
-#  of the command passed the if __name__ == '__main__' portion of the
-#  module.
-#  Has a self.calculate method that takes image and key and returns the
-#  value.
-
+# Calculators #################################################################
 
 class NeighborlistCalculator:
     """For integration with .utilities.Data
-    For each image fed to calculate, a list of neihbors with offset
+    For each image fed to calculate, a list of neighbors with offset
     distances is returned.
     """
 
@@ -201,8 +168,6 @@ class FingerprintCalculator:
 
     def calculate(self, image, key):
         """Makes a list of fingerprints, one per atom, for the fed image."""
-        #FIXME/ap I am reproducing _calculate_fingerprints here
-        # This and the functions/methods it calls can be simplified.
         nl = self.keyed.neighborlist[key]
         fingerprints = []
         for atom in image:
@@ -260,11 +225,7 @@ class FingerprintCalculator:
 
         return symbol, fingerprint
 
-
-
-###############################################################################
-###############################################################################
-###############################################################################
+# Auxiliary functions #########################################################
 
 
 def calculate_G2(symbols, Rs, G_element, eta, cutoff, home, fortran=False):
@@ -279,7 +240,7 @@ def calculate_G2(symbols, Rs, G_element, eta, cutoff, home, fortran=False):
     :type Rs: list of list of float
     :param G_element: Symmetry functions of the center atom.
     :type G_element: dict
-    :param eta: Parameter of Behler symmetry functions.
+    :param eta: Parameter of Gaussian symmetry functions.
     :type eta: float
     :param cutoff: Radius above which neighbor interactions are ignored.
     :type cutoff: float
@@ -314,8 +275,6 @@ def calculate_G2(symbols, Rs, G_element, eta, cutoff, home, fortran=False):
 
     return ridge
 
-###############################################################################
-
 
 def calculate_G4(symbols, Rs, G_elements, gamma, zeta, eta, cutoff, home,
                  fortran=False):
@@ -330,11 +289,11 @@ def calculate_G4(symbols, Rs, G_elements, gamma, zeta, eta, cutoff, home,
     :type Rs: list of list of float
     :param G_elements: Symmetry functions of the center atom.
     :type G_elements: dict
-    :param gamma: Parameter of Behler symmetry functions.
+    :param gamma: Parameter of Gaussian symmetry functions.
     :type gamma: float
-    :param zeta: Parameter of Behler symmetry functions.
+    :param zeta: Parameter of Gaussian symmetry functions.
     :type zeta: float
-    :param eta: Parameter of Behler symmetry functions.
+    :param eta: Parameter of Gaussian symmetry functions.
     :type eta: float
     :param cutoff: Radius above which neighbor interactions are ignored.
     :type cutoff: float
@@ -377,8 +336,6 @@ def calculate_G4(symbols, Rs, G_elements, gamma, zeta, eta, cutoff, home,
             ridge += term
     ridge *= 2. ** (1. - zeta)
     return ridge
-
-###############################################################################
 
 
 def make_symmetry_functions(elements):
@@ -424,8 +381,6 @@ def make_symmetry_functions(elements):
         G[element0] = _G
     return G
 
-###############################################################################
-
 
 def cutoff_fxn(Rij, Rc):
     """
@@ -443,331 +398,12 @@ def cutoff_fxn(Rij, Rc):
     else:
         return 0.5 * (np.cos(np.pi * Rij / Rc) + 1.)
 
-###############################################################################
-
-
-def der_cutoff_fxn(Rij, Rc):
-    """
-    Derivative of the Cosine cutoff function.
-
-    :param Rc: Radius above which neighbor interactions are ignored.
-    :type Rc: float
-    :param Rij: Distance between pair atoms.
-    :type Rij: float
-
-    :returns: float -- the vaule of derivative of the cutoff function.
-    """
-    if Rij > Rc:
-        return 0.
-    else:
-        return -0.5 * np.pi / Rc * np.sin(np.pi * Rij / Rc)
-
-###############################################################################
-
-
-def Kronecker_delta(i, j):
-    """
-    Kronecker delta function.
-
-    :param i: First index of Kronecker delta.
-    :type i: int
-    :param j: Second index of Kronecker delta.
-    :type j: int
-
-    :returns: int -- the value of the Kronecker delta.
-    """
-    if i == j:
-        return 1.
-    else:
-        return 0.
-
-###############################################################################
-
-
-def der_position_vector(a, b, m, i):
-    """
-    Returns the derivative of the position vector R_{ab} with respect to
-        x_{i} of atomic index m.
-
-    :param a: Index of the first atom.
-    :type a: int
-    :param b: Index of the second atom.
-    :type b: int
-    :param m: Index of the atom force is acting on.
-    :type m: int
-    :param i: Direction of force.
-    :type i: int
-
-    :returns: list of float -- the derivative of the position vector R_{ab}
-                               with respect to x_{i} of atomic index m.
-    """
-    der_position_vector = [None, None, None]
-    der_position_vector[0] = (Kronecker_delta(m, a) - Kronecker_delta(m, b)) \
-        * Kronecker_delta(0, i)
-    der_position_vector[1] = (Kronecker_delta(m, a) - Kronecker_delta(m, b)) \
-        * Kronecker_delta(1, i)
-    der_position_vector[2] = (Kronecker_delta(m, a) - Kronecker_delta(m, b)) \
-        * Kronecker_delta(2, i)
-
-    return der_position_vector
-
-###############################################################################
-
-
-def der_position(m, n, Rm, Rn, l, i):
-    """
-    Returns the derivative of the norm of position vector R_{mn} with
-        respect to x_{i} of atomic index l.
-
-    :param m: Index of the first atom.
-    :type m: int
-    :param n: Index of the second atom.
-    :type n: int
-    :param Rm: Position of the first atom.
-    :type Rm: float
-    :param Rn: Position of the second atom.
-    :type Rn: float
-    :param l: Index of the atom force is acting on.
-    :type l: int
-    :param i: Direction of force.
-    :type i: int
-
-    :returns: list of float -- the derivative of the norm of position vector
-                               R_{mn} with respect to x_{i} of atomic index l.
-    """
-    Rmn = np.linalg.norm(Rm - Rn)
-    # mm != nn is necessary for periodic systems
-    if l == m and m != n:
-        der_position = (Rm[i] - Rn[i]) / Rmn
-    elif l == n and m != n:
-        der_position = -(Rm[i] - Rn[i]) / Rmn
-    else:
-        der_position = 0.
-    return der_position
-
-###############################################################################
-
-
-def der_cos_theta(a, j, k, Ra, Rj, Rk, m, i):
-    """
-    Returns the derivative of Cos(theta_{ajk}) with respect to
-        x_{i} of atomic index m.
-
-    :param a: Index of the center atom.
-    :type a: int
-    :param j: Index of the first atom.
-    :type j: int
-    :param k: Index of the second atom.
-    :type k: int
-    :param Ra: Position of the center atom.
-    :type Ra: float
-    :param Rj: Position of the first atom.
-    :type Rj: float
-    :param Rk: Position of the second atom.
-    :type Rk: float
-    :param m: Index of the atom force is acting on.
-    :type m: int
-    :param i: Direction of force.
-    :type i: int
-
-    :returns: float -- derivative of Cos(theta_{ajk}) with respect to x_{i}
-                       of atomic index m.
-    """
-    Raj_ = Ra - Rj
-    Raj = np.linalg.norm(Raj_)
-    Rak_ = Ra - Rk
-    Rak = np.linalg.norm(Rak_)
-    der_cos_theta = 1. / \
-        (Raj * Rak) * np.dot(der_position_vector(a, j, m, i), Rak_)
-    der_cos_theta += +1. / \
-        (Raj * Rak) * np.dot(Raj_, der_position_vector(a, k, m, i))
-    der_cos_theta += -1. / \
-        ((Raj ** 2.) * Rak) * np.dot(Raj_, Rak_) * \
-        der_position(a, j, Ra, Rj, m, i)
-    der_cos_theta += -1. / \
-        (Raj * (Rak ** 2.)) * np.dot(Raj_, Rak_) * \
-        der_position(a, k, Ra, Rk, m, i)
-    return der_cos_theta
-
-###############################################################################
-
-
-def calculate_der_G2(n_indices, symbols, Rs, G_element, eta, cutoff, a, Ra,
-                     m, i, fortran):
-    """
-    Calculates coordinate derivative of G2 symmetry function for atom at
-    index a and position Ra with respect to coordinate x_{i} of atom index
-    m.
-
-    :param n_indices: List of int of neighboring atoms.
-    :type n_indices: list of int
-    :param symbols: List of symbols of neighboring atoms.
-    :type symbols: list of str
-    :param Rs: List of Cartesian atomic positions of neighboring atoms.
-    :type Rs: list of list of float
-    :param G_element: Symmetry functions of the center atom.
-    :type G_element: dict
-    :param eta: Parameter of Behler symmetry functions.
-    :type eta: float
-    :param cutoff: Radius above which neighbor interactions are ignored.
-    :type cutoff: float
-    :param a: Index of the center atom.
-    :type a: int
-    :param Ra: Position of the center atom.
-    :type Ra: float
-    :param m: Index of the atom force is acting on.
-    :type m: int
-    :param i: Direction of force.
-    :type i: int
-    :param fortran: If True, will use the fortran subroutines, else will not.
-    :type fortran: bool
-
-    :returns: float -- coordinate derivative of G2 symmetry function for atom
-                       at index a and position Ra with respect to coordinate
-                       x_{i} of atom index m.
-    """
-    if fortran:  # fortran version; faster
-        G_number = [atomic_numbers[G_element]]
-        numbers = [atomic_numbers[symbol] for symbol in symbols]
-        if len(Rs) == 0:
-            ridge = 0.
-        else:
-            ridge = fmodules.calculate_der_g2(n_indices=list(n_indices),
-                                              numbers=numbers, rs=Rs,
-                                              g_number=G_number,
-                                              g_eta=eta, cutoff=cutoff,
-                                              aa=a, home=Ra, mm=m,
-                                              ii=i)
-    else:
-        ridge = 0.  # One aspect of a fingerprint :)
-
-        len_of_symbols = len(symbols)
-        count = 0
-        while count < len_of_symbols:
-            symbol = symbols[count]
-            Rj = Rs[count]
-            n_index = n_indices[count]
-            if symbol == G_element:
-                Raj = np.linalg.norm(Ra - Rj)
-                term1 = (-2. * eta * Raj * cutoff_fxn(Raj, cutoff) /
-                         (cutoff ** 2.) +
-                         der_cutoff_fxn(Raj, cutoff))
-                term2 = der_position(a, n_index, Ra, Rj, m, i)
-                ridge += np.exp(- eta * (Raj ** 2.) / (cutoff ** 2.)) * \
-                    term1 * term2
-            count += 1
-    return ridge
-
-###############################################################################
-
-
-def calculate_der_G4(n_indices, symbols, Rs, G_elements, gamma, zeta, eta,
-                     cutoff, a, Ra, m, i, fortran):
-    """
-    Calculates coordinate derivative of G4 symmetry function for atom at
-    index a and position Ra with respect to coordinate x_{i} of atom index m.
-
-    :param n_indices: List of int of neighboring atoms.
-    :type n_indices: list of int
-    :param symbols: List of symbols of neighboring atoms.
-    :type symbols: list of str
-    :param Rs: List of Cartesian atomic positions of neighboring atoms.
-    :type Rs: list of list of float
-    :param G_elements: Symmetry functions of the center atom.
-    :type G_elements: dict
-    :param gamma: Parameter of Behler symmetry functions.
-    :type gamma: float
-    :param zeta: Parameter of Behler symmetry functions.
-    :type zeta: float
-    :param eta: Parameter of Behler symmetry functions.
-    :type eta: float
-    :param cutoff: Radius above which neighbor interactions are ignored.
-    :type cutoff: float
-    :param a: Index of the center atom.
-    :type a: int
-    :param Ra: Position of the center atom.
-    :type Ra: float
-    :param m: Index of the atom force is acting on.
-    :type m: int
-    :param i: Direction of force.
-    :type i: int
-    :param fortran: If True, will use the fortran subroutines, else will not.
-    :type fortran: bool
-
-    :returns: float -- coordinate derivative of G4 symmetry function for atom
-                       at index a and position Ra with respect to coordinate
-                       x_{i} of atom index m.
-    """
-    if fortran:  # fortran version; faster
-        G_numbers = sorted([atomic_numbers[el] for el in G_elements])
-        numbers = [atomic_numbers[symbol] for symbol in symbols]
-        if len(Rs) == 0:
-            ridge = 0.
-        else:
-            ridge = fmodules.calculate_der_g4(n_indices=list(n_indices),
-                                              numbers=numbers, rs=Rs,
-                                              g_numbers=G_numbers,
-                                              g_gamma=gamma,
-                                              g_zeta=zeta, g_eta=eta,
-                                              cutoff=cutoff, aa=a,
-                                              home=Ra, mm=m,
-                                              ii=i)
-    else:
-        ridge = 0.
-        counts = range(len(symbols))
-        for j in counts:
-            for k in counts[(j + 1):]:
-                els = sorted([symbols[j], symbols[k]])
-                if els != G_elements:
-                    continue
-                Rj = Rs[j]
-                Rk = Rs[k]
-                Raj_ = Rs[j] - Ra
-                Raj = np.linalg.norm(Raj_)
-                Rak_ = Rs[k] - Ra
-                Rak = np.linalg.norm(Rak_)
-                Rjk_ = Rs[j] - Rs[k]
-                Rjk = np.linalg.norm(Rjk_)
-                cos_theta_ajk = np.dot(Raj_, Rak_) / Raj / Rak
-                c1 = (1. + gamma * cos_theta_ajk)
-                c2 = cutoff_fxn(Raj, cutoff)
-                c3 = cutoff_fxn(Rak, cutoff)
-                c4 = cutoff_fxn(Rjk, cutoff)
-                if zeta == 1:
-                    term1 = \
-                        np.exp(- eta * (Raj ** 2. + Rak ** 2. + Rjk ** 2.) /
-                               (cutoff ** 2.))
-                else:
-                    term1 = c1 ** (zeta - 1.) * \
-                        np.exp(- eta * (Raj ** 2. + Rak ** 2. + Rjk ** 2.) /
-                               (cutoff ** 2.))
-                term2 = (1. / 3.) * (c2 + c3 + c4)
-                term3 = der_cos_theta(a, n_indices[j], n_indices[k], Ra, Rj,
-                                      Rk, m, i)
-                term4 = gamma * zeta * term3
-                term5 = der_position(a, n_indices[j], Ra, Rj, m, i)
-                term4 += -2. * c1 * eta * Raj * term5 / (cutoff ** 2.)
-                term6 = der_position(a, n_indices[k], Ra, Rk, m, i)
-                term4 += -2. * c1 * eta * Rak * term6 / (cutoff ** 2.)
-                term7 = der_position(n_indices[j], n_indices[k], Rj, Rk, m, i)
-                term4 += -2. * c1 * eta * Rjk * term7 / (cutoff ** 2.)
-                term2 = term2 * term4
-                term8 = c1 * (1. / 3.) * der_cutoff_fxn(Raj, cutoff) * term5
-                term9 = c1 * (1. / 3.) * der_cutoff_fxn(Rak, cutoff) * term6
-                term10 = c1 * (1. / 3.) * der_cutoff_fxn(Rjk, cutoff) * term7
-                term11 = term2 + term8 + term9 + term10
-                term = term1 * term11
-                ridge += term
-        ridge *= 2. ** (1. - zeta)
-
-    return ridge
-
 
 if __name__ == "__main__":
     """Directly calling this module; apparently from another node.
     Calls should come as
 
-    python -m amp.descriptor.behler id hostname:port
+    python -m amp.descriptor.gaussian id hostname:port
 
     This session will then start a zmq session with that socket, labeling
     itself with id. Instructions on what to do will come from the socket.
@@ -795,7 +431,7 @@ if __name__ == "__main__":
     socket = context.socket(zmq.REQ)
     socket.connect('tcp://%s' % hostsocket)
     socket.send_pyobj(msg('<purpose>'))
-    purpose = socket.recv_string()
+    purpose = socket.recv_pyobj()
 
 
     if purpose == 'calculate_neighborlists':

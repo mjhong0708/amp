@@ -21,10 +21,7 @@ class Amp(Calculator, object):
     """
     Atomistic Machine-Learning Potential (Amp) ASE calculator
 
-    :param descriptor: Class representing local atomic environment. Can be
-                        only None and Behler for now. Input arguments for
-                        Behler are cutoff and Gs; for more information see
-                        docstring for the class Behler.
+    :param descriptor: Class representing local atomic environment. 
     :type descriptor: object
     :param regression: Class representing the regression method. Can be only
                        NeuralNetwork for now. Input arguments for NeuralNetwork
@@ -220,7 +217,7 @@ class Amp(Calculator, object):
         else:
             log('Amp not trained successfully. Saving current parameters.')
             filename = make_filename(self.label, '-untrained-parameters.amp')
-        self.save(filename, overwrite)
+        filename = self.save(filename, overwrite)
         log('Parameters saved in file "%s".' % filename)
 
     def save(self, filename, overwrite=False):
@@ -240,12 +237,13 @@ class Amp(Calculator, object):
 
                 self.log('Overwriting file: "%s". Moving original to "%s".'
                          % (filename, oldfilename))
-            shutil.move(filename, oldfilename)
+                shutil.move(filename, oldfilename)
         descriptor = self.descriptor.tostring()
         model = self.model.tostring()
         p = Parameters({'descriptor': descriptor,
                         'model': model})
         p.write(filename)
+        return filename
 
     def _printheader(self, log):
         """Prints header to log file; inspired by that in GPAW."""
@@ -257,12 +255,13 @@ class Amp(Calculator, object):
         log(' Official repository: http://bitbucket.org/andrewpeterson/amp')
         log(' Official documentation: http://amp.readthedocs.org/')
         log('=' * 70)
-        log('Version: %s' % 'NOT NUMBERED YET.')  # FIXME/ap. Look at GPAW
         log('User: %s' % getuser())
         log('Hostname: %s' % gethostname())
+        log('Date: %s' % now(with_utc=True))
         uname = platform.uname()
         log('Architecture: %s' % uname[4])
         log('PID: %s' % os.getpid())
+        log('Version: %s' % 'NOT NUMBERED YET.')  # FIXME/ap. Look at GPAW
         log('Python: v{0}.{1}.{2}: %s'.format(*sys.version_info[:3]) %
             sys.executable)
         log('Amp: %s' % os.path.dirname(os.path.abspath(__file__)))
@@ -299,8 +298,8 @@ def importhelper(importname):
     However, since there is an `eval` statement in string2dict maybe this
     is silly.
     """
-    if importname == '.descriptor.behler.Behler':
-        from .descriptor.behler import Behler as Module
+    if importname == '.descriptor.gaussians.Gaussians':
+        from .descriptor.gaussians import Gaussians as Module
     elif importname == '.model.neuralnetwork.NeuralNetwork':
         from .model.neuralnetwork import NeuralNetwork as Module
     elif importname == '.model.LossFunction':

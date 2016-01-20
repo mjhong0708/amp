@@ -106,6 +106,23 @@ class LossFunction:
 
         self._initialized = True
 
+    def _cleanup(self):
+        """Closes SSH sessions."""
+        server = self._sessions['master']
+
+        def process_parallels():
+            finished = np.array([False]*len(self._sessions['workers']))
+            while not finished.all():
+                message = server.recv_pyobj()
+                if message['subject'] == '<request>' and message['data'] == 'parameters':
+                    server.send_pyobj('<stop>')
+                    finished[int(message['id'])] = True
+
+        process_parallels()
+        for _ in self._sessions['workers']:
+            _.logout()
+        del self._sessions['workers']
+
     def __call__(self, parametervector, complete_output=False):
         """Returns the current value of teh cost function for a given set of parameters,
         or, if the energy is less than the energy_tol raises a ConvergenceException.
@@ -198,6 +215,7 @@ class LossFunction:
             # Make sure first step is done in case of switching to fortran.
             if converged:
                 self._model.set_vector(parametervector)
+                self._cleanup()
                 raise ConvergenceOccurred()
 
         if complete_output is False:
