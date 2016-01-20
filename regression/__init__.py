@@ -1,14 +1,4 @@
-#!/usr/bin/env python
-"""
-Folder that contains different regression methods.
-
-"""
-
 from ..utilities import ConvergenceOccurred
-
-from scipy.optimize import fmin_bfgs
-
-
 
 
 class Regressor:
@@ -26,8 +16,6 @@ class Regressor:
         arguments the function to be optimized and the initial guess of the
         optimal paramters. Additional keyword arguments can be fed through
         the optimizer_kwargs dictionary."""
-        #FIXME/ap optimizer could in principle be a list, if different
-        # methods are to be used?
         if optimizer is None:
             from scipy.optimize import fmin_bfgs as optimizer
             optimizer_kwargs = {'gtol': 1e-15}
@@ -35,7 +23,6 @@ class Regressor:
             optimizer_kwargs = {}
         self.optimizer = optimizer
         self.optimizer_kwargs = optimizer_kwargs
-
 
     def regress(self, model, log):
         """Performs the regression. Calls model.get_cost_function,
@@ -51,13 +38,11 @@ class Regressor:
         log(' Optimizer kwargs: %s' % self.optimizer_kwargs)
         x0 = model.vector.copy()
         try:
-            answer = self.optimizer(model.get_loss, x0,
-                                    **self.optimizer_kwargs)
+            self.optimizer(model.get_loss, x0,
+                           **self.optimizer_kwargs)
         except ConvergenceOccurred:
             log('...optimization successful.', toc='opt')
             return True
         else:
             log('...optimization unsuccessful.', toc='opt')
             return False
-
-
