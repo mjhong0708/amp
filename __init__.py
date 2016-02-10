@@ -29,13 +29,6 @@ class Amp(Calculator, object):
                        more information see docstring for the class
                        NeuralNetwork.
     :type regression: object
-    :param fingerprints_range: Range of fingerprints of each chemical species.
-                               Should be fed as a dictionary of chemical
-                               species and a list of minimum and maximun, e.g:
-
-                               >>> fingerprints_range={"Pd": [0.31, 0.59], "O":[0.56, 0.72]}
-
-    :type fingerprints_range: dict
     :param load: Path for loading an existing parameters of Amp calculator.
     :type load: str
     :param label: Default prefix/location used for all files.
