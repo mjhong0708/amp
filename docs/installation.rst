@@ -4,8 +4,18 @@
 Installation
 ==================================
 
-AMP is python-based and is designed to integrate closely with the
-`Atomic Simulation Environment <https://wiki.fysik.dtu.dk/ase/>`_ (ASE).
+AMP is python-based and is designed to integrate closely with the `Atomic Simulation Environment <https://wiki.fysik.dtu.dk/ase/>`_ (ASE).
+In its most basic form, it has few requirements:
+
+* Python, version 2.7 is recommended.
+* ASE.
+* NumPy.
+
+To get more features, such as parallelization in training, a few more packages are recommended:
+
+* SciPy.
+* Pexpect (or pxssh)
+* ZMQ (or PyZMQ, the python version of ØMQ).
 
 ----------------------------------
 Install ASE
