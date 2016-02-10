@@ -4,13 +4,27 @@
 Development
 ==================================
 
+This page contains standard practices for developing Amp, focusing on repositories and documentation.
+
+----------------------------------
+Repositories and branching
+----------------------------------
+
+The main Amp repository lives on bitbucket, andrewpeterson/amp.
+We employ a branching model where the `master` branch is the main development branch, containing day-to-day commits from the core developers and honoring merge requests from others From time to time, we create a new branch that corresponds to a release. This release branch contains only the tagged release and any bug fixes.
+
+   .. image:: _static/branches.svg
+      :scale: 100 %
+      :align: center
+
+
 ----------------------------------
 Contributing
 ----------------------------------
 
-Your bugfixes and enhancements are welcome!
-Simply create a fork of our project via bitbucket, then send us a merge request.
-Or, if it's something simple, feel free to just email us the changed code and we can manually include it.
+You are welcome to contribute new features, bug fixes, better documentation, etc. to Amp. If you would like to contribute, please create a private fork and a branch for your new commits. When it is ready, send us a merge request. We follow the same basic model as ASE; please see the ASE documentation for complete instructions.
+
+It is also a good idea to send us an email if you are planning something complicated.
 
 ----------------------------------
 Documentation
