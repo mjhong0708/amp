@@ -44,3 +44,19 @@ This uses the style "bizstyle"; if you find this is missing on your system, you 
 
    pip install --user sphinxjp.themes.bizstyle
 
+
+----------------------------------
+Releases
+----------------------------------
+
+To create a release, we go through the following steps.
+
+* Create a new branch on the bitbucket repository with the version name, as in `v0.5`. (Don't create a separate branch if this is a bugfix release, e.g., v0.5.1 --- just add those to the v0.5 branch.) All subsequent work is in the new branch.
+
+* Change `docs/conf.py`'s version information to match the new version number. 
+
+* Change the version that prints out in the Amp headers. 
+
+* Add the version to readthedocs' available versions.
+
+* Change the nightly tests to test this version as the stable build.
