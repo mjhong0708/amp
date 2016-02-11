@@ -60,3 +60,7 @@ To create a release, we go through the following steps.
 * Add the version to readthedocs' available versions.
 
 * Change the nightly tests to test this version as the stable build.
+
+* Tag the release with the release number, e.g., v0.5 or v0.5.1, the latter being for bug fixes.
+
+* Create a DOI for the release and a copy on Xenodo.

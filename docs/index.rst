@@ -22,7 +22,6 @@ and is released under the GNU General Public License. This is a relatively new p
    installation.rst
    useamp.rst
    building.rst
-   parallelcomputing.rst
    develop.rst
 
 **List of All Methods**:
