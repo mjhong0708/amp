@@ -1,110 +1,158 @@
 .. _UseAmp:
 
 ==================================
-How to use Amp?
+Using Amp
 ==================================
 
-Amp can look at the atomic system in two different schemes. In the first scheme, the
-atomic system is looked at as a whole. The consequent potential energy surface approximation is valid only for systems
-with the same number of atoms and identities. In other words the learned potential is size-dependent. On the other hand,
-in the second scheme, Amp looks at local atomic environments, ending up with a learned potential which is size-independent,
-and can be simultaneously used for systems with different sizes.
-The user should first determine which scheme is of interest. 
+If you are familiar with ASE, the use of Amp should be intuitive.
+At it's most basic, Amp behaves like any other ASE calculator, except that it has a key extra method, called `train`, which allows you to fit the calculator to a set of atomic images.
+This means you can use Amp as a substitute for an expensive calculator in any atomistic routine, such as molecular dynamics, global optimization, transition-state searches, normal-mode analyses, phonon analyses, etc.
 
 ----------------------------------
-Initializing Amp
+Basic use
 ----------------------------------
 
-The calculator as well as descriptors and regressions should be first imported by::
+To use Amp, you need to specify a `descriptor` and a `model`.
+The below shows a basic example of training Amp with Gaussian descriptors and a neural network model---the Behler-Parinello scheme.
 
-   >>> from amp import Amp
-   >>> from amp.descriptor import *
-   >>> from amp.regression import *
+.. code-block:: python
 
-Then Amp is initiated with a descriptor and a regression algorithm, e.g.::
+   from amp import Amp
+   from amp.descriptor.gaussians import Gaussians
+   from amp.model.neuralnetwork import NeuralNetwork
 
-   >>> calc = Amp(descriptor=Behler()
-		       regression=NeuralNetwork())
+   calc = Amp(descriptor=Gaussians(), model=NeuralNetwork(),
+              label='calc')
+   calc.train(images='my-images.traj')
 
-The values of arguments shown above are the default values in the current release of Amp. A size-dependent scheme can be
-simply taken by ``descriptor=None``. Optional arguments for initializing Amp can be reviewed at :ref:`main` methods.
+After training is successful you can use your trained calculator just like any other ASE calculator (although you should be careful that you can only trust it within the trained regime).
+This will also result in the saving the calculator parameters to "<label>.amp", which can be used to re-load the calculator in a future session:
 
-----------------------------------
-Starting from old parameters
-----------------------------------
+.. code-block:: python
 
-The parameters of the calculator are saved after training so that the calculator can be re-established for future
-calculations. If the previously trained parameter file is named 'old.json', it can be introduced to Amp to take those
-values with something like::
+   calc = Amp.load('calc.amp')
 
-   >>> calc = Amp(load='old.json', label='new')
 
-The label ('new') is used as a prefix for any output from use of this calculator. In general, the calculator is written
-to not overwrite your old settings, but it is a good idea to have a different name for this label to avoid accidentally
-overwriting your carefully trained calculator's files!
+The modular nature of Amp is meant such that you can easily mix-and-match different descriptor and model schemes.
+See the theory section for more details.
 
 ----------------------------------
-Training Amp
+Adjusting convergence parameters
 ----------------------------------
 
-Training a new calculator instance occurs with the train method, which is given a list of train images and desired
-values of root mean square error (rmse) for forces and atomic energy as below::
+To control how tightly the energy is converged, you can adjust the `LossFunction`. Just insert before the `calc.train` line some code like:
 
-   >>> calc.train(images, energy_goal=0.001, force_goal=0.005)
+.. code-block:: python
 
-Calling this method will generate output files where you can watch the progress. Note that this is in general a
-computationally-intensive process! These two parameters as well as other optional parameters are described at.                  
+   from amp.model import LossFunction
 
-In general, we plan to make the ASE database the recommended data type. However, this is a `work in progress <https://wiki.fysik.dtu.dk/ase/ase/db/db.html>`_ over at ASE.
+   lossfunction = LossFunction(energy_tol=0.01, max_resid=0.05)
+   calc.model.lossfunction = lossfunction
 
-----------------------------------
-Growing your train set
-----------------------------------
+To change how the code manages the regression process, you can use the `Regressor` class. For example, to switch from the scipy's fmin_bfgs optimizer (the default) to scipy's basin hopping optimizer, try inserting the following lines before initializing training:
 
-Say you have a nicely trained calculator that you built around a train set of 10,000 images, but you decide you want
-to add another 1,000 images to the train set. Rather than starting training from scratch, it can be faster to train
-from the previous optimum. This is fairly simple and can be accomplished as::
+.. code-block:: python
 
-   >>> calc = Amp(load='old_calc', label='new_calc')
-   >>> calc.train(all_images)
+   from amp.regression import Regressor
+   from scipy.optimize import basinhopping
 
-In this case, 'all_images' contains all 11,000 images (the old set **and** the new set).
-
-If you are training on a large set of images, a building-up strategy can be effective. For example, to train on 100,000
-images, you could first train on 10,000 images, then add 10,000 images to the set and re-train from the previous
-parameters, etc. If the images are nicely randomized, this can give you some confidence that you are not training inside
-too shallow of a basin. The first images set, which you are starting from, had better be representative of the verity of
-all images you will add later.
+   regressor = Regressor(optimizer=basinhopping)
+   calc.model.regressor = regressor
 
 ----------------------------------
-Using trained Amp
+Parallel processing
 ----------------------------------
 
-The trained calculator can now be used just like any other ASE calculator, e.g.::
+Most tasks in Amp are "emarrassingly parallel" and thus you should see a performance boost by specfying more cores.
+Our standard parallel processing approach requires the modules pxssh (part of Pexpect, establish SSH connections) and ZMQ (to pass messages between processes).
+The code will try to automatically guess the parallel configuration from the environment variables that your batching system produces, using the function `amp.utilities.assign_cores`.
+(We only use SLURM on your system, so we welcome patches to get this utility working on other systems!)
+If you want to override the automatic guess, use the `cores` keyword when initializing Amp.
+To specify serial operation, use `cores=1`.
+For parallel operation, cores should be a dictionary where the keys are the hostnames and the values are the number of processors (cores) available on that node; e.g.,
 
-   >>> atoms = ...
-   >>> atoms.set_calculator(calc)
-   >>> energy = atoms.get_potential_energy()
+.. code-block:: python
 
-where 'atoms' is an atomic configuration not necessarily included in the train set.
+   cores = {'node241': 16,
+            'node242': 16}
 
 ----------------------------------
-Complete example
+Advanced use
 ----------------------------------
 
-The script below shows an example of training Amp. This script first creates some sample data using a molecular dynamics
-simulation with the cheap EMT calculator in ASE. The images are then randomly divided into "train" and "test" data,
-such that cross-validation can be performed. Then Amp is trained on the train data. After this, the predictions of the
-Amp are compared to the parent data for both the train and test set. This is shown in a parity plot, which is saved to
-disk.
+Under the hood, the train function is pretty simple; it just runs:
 
-.. literalinclude:: _static/completeexample.py
+.. code-block:: python
 
-Note that most of the script is just creating the train set or analyzing the results -- the actual Amp initialization
-and training takes place on just two lines in the middle of the script. The figure that was produced is shown below. As
-both the generated data and the initial guess of the training parameters are random, this will look different each time
-this script is run.
+   images = hash_images(images, ...)
+   self.descriptor.calculate_fingerprints(images, ...)
+   result = self.model.fit(images, self.descriptor, ...)
+   if result is True:
+       self.save(filename)
 
-   .. image:: _static/parityplot.png
-      :scale: 07 %
-      :align: center
+* In the first line, the images are read and converted to a dictionary, addressed by a hash.
+  This makes addressing the images simpler across modules and eliminates duplicate images.
+  This also facilitates keeping a database of fingerprints, such that in future scripts you do not need to re-fingerprint images you have already encountered.
+
+* In the second line, the descriptor converts the images into fingerprints, one fingerprint per image. There are two possible modes a descriptor can operate in: "image-centered" in which one vector is produced per image, and "atom-centered" in which one vector is produced per atom. The resulting fingerprint is stored in `descriptor.fingerprints`, and the mode is stored in self.parameters.mode.
+
+* In the third line, the model (e.g., a neural network) is fit to the data. As it is passed a reference to `self.descriptor`, it has access to the fingerprints as well as the mode. Many options are available to customize this in terms of the loss function, the regression method, etc.
+
+* In the final pair of lines, if the target fit was achieved, the model is saved to disk.
+
+
+----------------------------------
+Example scripts
+----------------------------------
+
+With the modular nature, it's straightforward to analyze how fingerprints change with changes in images.
+The below script makes an animated GIF that shows how a fingerprint about the O atom in water changes as one of the O-H bonds is stretched.
+Note that most of the lines of code below are either making the atoms or making the figure; very little effort is needed to produce the fingerprints themselves---this is done in three lines.
+
+.. code-block:: python
+
+ # Make a series of images.
+ import numpy as np
+ from ase.structure import molecule
+ from ase import Atoms
+ atoms = molecule('H2O')
+ atoms.rotate('y', -np.pi/2.)
+ atoms.set_pbc(False)
+ displacements = np.linspace(0.9, 8.0, 20)
+ vec = atoms[2].position - atoms[0].position
+ images = []
+ for displacement in displacements:
+     atoms = Atoms(atoms)
+     atoms[2].position = (atoms[0].position + vec * displacement)
+     images.append(atoms)
+ 
+ # Fingerprint using Amp.
+ from ampmoremodular.utilities import hash_images
+ from ampmoremodular.descriptor.gaussians import Gaussians
+ images = hash_images(images, ordered=True)
+ descriptor = Gaussians()
+ descriptor.calculate_fingerprints(images)
+ 
+ # Plot the data.
+ from matplotlib import pyplot
+ 
+ def barplot(hash, name, title):
+     """Makes a barplot of the fingerprint about the O atom."""
+     fp = descriptor.fingerprints[hash][0]
+     fig, ax = pyplot.subplots()
+     ax.bar(range(len(fp[1])), fp[1])
+     ax.set_title(title)
+     ax.set_ylim(0., 2.)
+     fig.savefig(name)
+ 
+ for index, hash in enumerate(images.keys()):
+     barplot(hash, 'bplot-%02i.png' % index,
+             '%.2f$\\times$' % displacements[index])
+ 
+ # For fun, make an animated gif.
+ import os
+ filenames = ['bplot-%02i.png' % index for index in range(len(images))]
+ command = ('convert -delay 100 %s -loop 0 animation.gif' %
+            ' '.join(filenames))
+ os.system(command)
+

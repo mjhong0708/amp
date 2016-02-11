@@ -4,8 +4,8 @@
 Introduction
 ==================================
 
-`Amp <https://bitbucket.org/andrewpeterson/amp>`_ is an open-source package designed to easily bring machine-learning to
-atomistic calculations. This allows one to predict (or really, interpolate) calculations on the potential energy surface,
+`Amp <https://bitbucket.org/andrewpeterson/amp>`_ is an open-source package designed to easily bring machine-learning to atomistic calculations.
+This allows one to predict (or really, interpolate) calculations on the potential energy surface,
 by first building up a regression representation of a "train set" of atomic images. Amp calculator works by first
 learning from any other calculator (usually quantum mechanical calculations) that can provide energy and forces as a
 function of atomic coordinates. In theory, these predictions can take place with arbitrary accuracy approaching that of

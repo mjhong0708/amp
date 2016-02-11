@@ -1,0 +1,166 @@
+.. _Building:
+
+==================================
+Building modules
+==================================
+
+Amp is designed to be modular, so if you think you have a great descriptor scheme or machine-learning model, you can try it out.
+This page describes how to add your own modules; starting with the bare-bones requirements to make it work, and building up with how to construct it so it integrates with respect to parallelization, etc.
+
+----------------------------------
+Descriptor: minimal requirements
+----------------------------------
+
+To build your own descriptor, it needs to have certain minimum requirements met, in order to play with *Amp*. The below code illustrates these minimum requirements::
+
+    from ase.calculators.calculator import Parameters
+
+    class MyDescriptor(object):
+
+        def __init__(self, parameter1, parameter2):
+            self.parameters = Parameters({'mode': 'atom-centered',})
+            self.parameters.parameter1 = parameter1
+            self.parameters.parameter2 = parameter2
+    
+        def tostring(self):
+            return self.parameters.tostring()
+
+        def calculate_fingerprints(self, images, cores, log):
+            # Do the calculations...
+            self.fingerprints = fingerprints  # A dictionary.
+
+
+The specific requirements, illustrated above, are:
+
+* Has a parameters attribute (of type `ase.calculators.calculator.Parameters`), which holds the minimum information needed to re-build your module. 
+  That is, if your descriptor has user-settable parameters such as a cutoff radius, etc., they should be stored in this dictionary.
+  Additionally, it must have the keyword "mode"; which must be set to either "atom-centered" or "image-centered".
+  (This keyword will be used by the model class.)
+
+* Has a "tostring" method, which converts the minimum parameters into a dictionary that can be re-constructed using `eval`.
+  If you used the ASE `Parameters` class above, this class is simple::
+
+    def tostring():
+        return self.parameters.tostring()
+
+* Has a "calculate_fingerprints" method.
+  The images argument is a dictionary of training images, with keys that are unique hashes of each image in the set produced with `amp.utilities.hash_images`.
+  The log is a `amp.utilities.Logger` instance, that the method can optionally use as `log('Message.')`.
+  The cores keyword describes parallelization, and can safely be ignored if serial operation is desired.
+  This method must save a sub-attribute `self.fingerprints` (which will be accessible in the main *Amp* instance as `calc.descriptor.fingerprints`) that contains a dictionary-like object of the fingerprints, indexed by the same keys that were in the images dictionary. 
+  Ideally, `descriptor.fingerprints` is an instance of `amp.utilities.Data`, but probably any mapping (dictionary-like) object will do.
+
+  A fingerprint is a vector.
+  In **image-centered** mode, there is one fingerprint for each image. 
+  This will generally be just the Cartesian positions of all the atoms in the system, but transformations are possible.
+  For example this could be accessed by the images key
+
+  >>> calc.descriptor.fingerprints[key]
+  >>> [3.223, 8.234, 0.0322, 8.33]
+
+  In **atom-centered** mode, there is a fingerprint for each atom in the image.
+  Therefore, calling `calc.descriptor.fingerprints[key]` returns a list of fingerprints, in the same order as the atom ordering in the original ASE atoms object.
+  So to access an individual atom's fingerprints one could do
+
+  >>> calc.descriptor.fingerprints[key][index]
+  >>> ('Cu', [8.832, 9.22, 7.118, 0.312])
+
+  That is, the first item is the element of the atom, and the second is a 1-dimensional array which is that atom's fingerprint.
+   Thus, `calc.descriptor.fingerprints[hash]` gives a list of fingerprints, in the same order the atoms appear in the image they were fingerprinted from.
+
+----------------------------------
+Descriptor: standard practices
+----------------------------------
+
+The below describes standard practices we use in building modules. It is not necessary to use these, but it should make your life easeier to follow standard practices. And, if your code is ultimately destined to be part of an Amp release, you should plan to make it follow these practices unless there is a compelling reason not to.
+
+We have an example of a minimal descriptor in `amp.descriptor.example`; it's probably easiest to copy this file and modify it to become your new desscriptor. For a complete example of a working descriptor, see `amp.descriptor.gaussians`.
+
+The Data class
+^^^^^^^^^^^^^^^^^^^
+
+The key element we use to make our lives easier is the `Data` class. It should be noted that, in the development version, this is still a work in progress. The `Data` class acts like a dictionary in that items can be accessed by key, but also saves the data to disk (it is persistent), enables calculation of missing items, and can even parallelize these calculations across cores and nodes.
+
+It is recommended to first construct a pure python version that fits with the `Data` scheme for 1 core, then expanding it to work with multiple cores via the following procedure. See the Gaussian descriptor for an example of implementation.
+
+
+
+Basic data addition
+"""""""""""""""""""
+To make the descriptor work with the `Data` class, the `Data` class needs a keyword `calculator`. The simplest example of this is our `NeighborlistCalculator`, which is basically a wrapper around ASE's Neighborlist class::
+
+    class NeighborlistCalculator:
+        """For integration with .utilities.Data
+        For each image fed to calculate, a list of neighbors with offset
+        distances is returned.
+        """
+    
+        def __init__(self, cutoff):
+            self.globals = Parameters({'cutoff': cutoff})
+            self.keyed = Parameters()
+            self.parallel_command = 'calculate_neighborlists'
+    
+        def calculate(self, image, key):
+            cutoff = self.globals.cutoff
+            n = NeighborList(cutoffs=[cutoff / 2.] * len(image),
+                             self_interaction=False,
+                             bothways=True,
+                             skin=0.)
+            n.update(image)
+            return [n.get_neighbors(index) for index in range(len(image))]
+
+Notice there are two categories of parameters saved in the init statement: `globals` and `keyed`. The first are parameters that apply to every image; here the cutoff radius is the same regardless of the image. The second category contains data that is specific to each image, in a dictionary format keyed by the image hash. In this example, there are no keyed parameters, but in the case of the fingerprint calculator, the dictionary of neighborlists is an example of a `keyed` parameter. The class must have a function called `calculate`, which when fed an image and its key, returns the desired value: in this case a neighborlist. Structuring your code as above is enough to make it play well with the `Data` container in serial mode. (Actually, you don't even need to worry about dividing the parameters into globals and keyed in serial mode.) Finally, there is a `parallel_command` attribute which can be any string which describes what this function does, which will be used later.
+
+Parallelization
+"""""""""""""""
+The parallelization should work provided the scheme is `embarassingly parallel <https://en.wikipedia.org/wiki/Embarrassingly_parallel>`_; that is, each image's fingerprint is independent of all other images' fingerprints. We implement this in building the `amp.utilities.Data` dictionaries, using a scheme of establishing SSH sessions (with pxssh) for each worker and passing messages with ZMQ.
+
+The `Data` class itself serves as the master, and the workers are instances of the specific module; that is, for the Gaussian scheme the workers are started with `python -m amp.descriptor.gaussian id hostname:port` where id is a unique identifier number assigned to each worker, and hostname:port is the socket at which the workers should open the connection to the mater (e.g., "node243:51247"). The master expects the worker to print two messages to the screen: "<amp-connect>" which confirms the connection is established, and "<stderr>"; the text that is between them alerts the master (and the user's log file) where the worker will write its standard error to. All messages after this are passed via ZMQ. I.e., the bottom of the module should contain something like::
+
+    if __name__ == "__main__":
+        import sys
+        import tempfile
+    
+        hostsocket = sys.argv[-1]
+        proc_id = sys.argv[-2]
+    
+        print('<amp-connect>')
+        sys.stderr = tempfile.NamedTemporaryFile(mode='w', delete=False,
+                                                 suffix='.stderr')
+        print('stderr written to %s<stderr>' % sys.stderr.name)
+
+
+After this, the worker communicates with the master in request (from the worker) / reply (from the master) mode, via ZMQ. (It's worth checking out the `ZMQ Guide <http://zguide.zeromq.org/>`_; [ZMQ Guide examples.) Each request from the worker needs to take the form of a dictionary with three entries: "id", "subject", and (optionally) "data". These are easily created with the `amp.utilities.MessageDictionary` class. The first thing the worker needs to do is establish the connection to the master and ask its purpose::
+
+    import zmq
+    from ..utilities import MessageDictionary
+    msg = MessageDictionary(proc_id)
+
+    # Establish client session via zmq; find purpose.
+    context = zmq.Context()
+    socket = context.socket(zmq.REQ)
+    socket.connect('tcp://%s' % hostsocket)
+    socket.send_pyobj(msg('<purpose>'))
+    purpose = socket.recv_pyobj()
+
+In the final line above, the master has sent a string with the `parallel_command` attribute mentioned above. You can have some if/elif statements to choose what to do next, but for the calculate_neighborlist example, the worker routine is as simple as requesting the variables, performing the calculations, and sending back the results, which happens in these few lines. This is all that is needed for parallelization (in pure python)::
+
+    # Request variables.
+    socket.send_pyobj(msg('<request>', 'cutoff'))
+    cutoff = socket.recv_pyobj()
+    socket.send_pyobj(msg('<request>', 'images'))
+    images = socket.recv_pyobj()
+
+    # Perform the calculations.
+    calc = NeighborlistCalculator(cutoff=cutoff)
+    neighborlist = {}
+    while len(images) > 0:
+        key, image = images.popitem()  # Reduce memory.
+        neighborlist[key] = calc.calculate(image, key)
+
+    # Send the results.
+    socket.send_pyobj(msg('<result>', neighborlist))
+    socket.recv_string() # Needed to complete REQ/REP.
+
+
+

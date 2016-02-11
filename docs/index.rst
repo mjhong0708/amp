@@ -3,10 +3,11 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Amp: Atomistic Machine-learning Potentials
-==========================================
+Amp: Atomistic Machine-learning Package
+=======================================
 
-Welcome to Amp documentation! This project is being developed at Brown University in the School of Engineering, primarily by **Andrew Peterson** and **Alireza Khorshidi**,
+`Amp <https://bitbucket.org/andrewpeterson/amp>`_ is an open-source package designed to easily bring machine-learning to atomistic calculations.
+This project is being developed at Brown University in the School of Engineering, primarily by **Andrew Peterson** and **Alireza Khorshidi**,
 and is released under the GNU General Public License. This is a relatively new project, so things are constantly changing!
 
 (Note that Amp is built off of our previous project, Neural. You may still find Neural at our `bitbucket page <https://bitbucket.org/andrewpeterson/neural>`_.)
@@ -17,10 +18,11 @@ and is released under the GNU General Public License. This is a relatively new p
    :maxdepth: 2
 
    introduction.rst
+   theory.rst
    installation.rst
    useamp.rst
-   theory.rst
-   parallelcomputing.rst
+   building.rst
+   develop.rst
 
 **List of All Methods**:
 
