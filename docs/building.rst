@@ -74,6 +74,8 @@ Descriptor: standard practices
 
 The below describes standard practices we use in building modules. It is not necessary to use these, but it should make your life easeier to follow standard practices. And, if your code is ultimately destined to be part of an Amp release, you should plan to make it follow these practices unless there is a compelling reason not to.
 
+We have an example of a minimal descriptor in `amp.descriptor.example`; it's probably easiest to copy this file and modify it to become your new desscriptor. For a complete example of a working descriptor, see `amp.descriptor.gaussians`.
+
 The Data class
 ^^^^^^^^^^^^^^^^^^^
 
