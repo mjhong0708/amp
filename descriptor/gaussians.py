@@ -187,9 +187,7 @@ class FingerprintCalculator:
         """
         Returns the fingerprint of symmetry function values for atom
         specified by its index and symbol. n_symbols and Rs are lists of
-        neighbors' symbols and Cartesian positions, respectively. Will
-        automaticallyupdate if atom positions has changed; you don't need to
-        call update() unless you are specifying a new atoms object.
+        neighbors' symbols and Cartesian positions, respectively.
 
         :param index: Index of the center atom.
         :type index: int
