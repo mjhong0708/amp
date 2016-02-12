@@ -21,7 +21,7 @@ class Amp(Calculator, object):
     """
     Atomistic Machine-Learning Potential (Amp) ASE calculator
 
-    :param descriptor: Class representing local atomic environment. 
+    :param descriptor: Class representing local atomic environment.
     :type descriptor: object
 
     :param regression: Class representing the regression method. Can be only
@@ -83,7 +83,9 @@ class Amp(Calculator, object):
 
     @descriptor.setter
     def descriptor(self, descriptor):
-        descriptor.parent = self
+        descriptor.parent = self  # gives the descriptor object a reference to
+        # the main Amp instance. Then descriptor can pull parameters directly
+        # from Amp without needing them to be passed in each method call.
         self._descriptor = descriptor
         self.reset()  # Clears any old calculations.
 
@@ -93,7 +95,9 @@ class Amp(Calculator, object):
 
     @model.setter
     def model(self, model):
-        model.parent = self
+        model.parent = self  # gives the model object a reference to the main
+        # Amp instance. Then model can pull parameters directly from Amp
+        # without needing them to be passed in each method call.
         self._model = model
         self.reset()  # Clears any old calculations.
 
@@ -121,9 +125,12 @@ class Amp(Calculator, object):
             Descriptor = importhelper(p['descriptor'].pop('importname'))
         if Model is None:
             Model = importhelper(p['model'].pop('importname'))
+        # Key 'importname' and the value removed so that it is not splatted
+        # into the keyword arguments used to instantiate in the next line.
 
         # Instantiate the descriptor and model.
         descriptor = Descriptor(**p['descriptor'])
+        # ** sends all the key-value pairs at once.
         model = Model(**p['model'])
 
         # Instantiate Amp.

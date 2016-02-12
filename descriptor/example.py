@@ -43,11 +43,10 @@ class AtomCenteredExample(object):
 
     def __init__(self, cutoff=6.5, anotherparameter=12.2, dblabel=None,
                  elements=None, version=None, **kwargs):
-        #FIXME/ap add some example keywords, get rid of these.
+        # FIXME/ap add some example keywords, get rid of these.
 
-
-        # Version check, particularly if restarting.
-        compatibleversions = ['2016.02',]
+        # Check of the version of descriptor, particularly if restarting.
+        compatibleversions = ['2016.02', ]
         if (version is not None) and version not in compatibleversions:
             raise RuntimeError('Error: Trying to use Example fingerprints'
                                ' version %s, but this module only supports'
@@ -72,8 +71,8 @@ class AtomCenteredExample(object):
         # to produce a compatible descriptor; that is, one that gives
         # an identical fingerprint when fed an ASE image.
         p = self.parameters = Parameters(
-                {'importname': '.descriptor.gaussians.Gaussians',
-                 'mode': 'atom-centered'})
+            {'importname': '.descriptor.gaussians.Gaussians',
+             'mode': 'atom-centered'})
         p.version = version
         p.cutoff = cutoff
         p.anotherparameter = anotherparameter
@@ -104,15 +103,15 @@ class AtomCenteredExample(object):
             p.elements = set([atom.symbol for atoms in images.values()
                               for atom in atoms])
         p.elements = sorted(p.elements)
-        log('%i unique elements included: ' % len(p.elements)
-            + ', '.join(p.elements))
+        log('%i unique elements included: ' % len(p.elements) +
+            ', '.join(p.elements))
 
         log('anotherparameter: %.3f' % p.anotherparameter)
 
         log('Calculating neighborlists...', tic='nl')
         if not hasattr(self, 'neighborlist'):
             calc = NeighborlistCalculator(cutoff=p.cutoff)
-            self.neighborlist = Data(filename='%s-neighborlists' 
+            self.neighborlist = Data(filename='%s-neighborlists'
                                      % self.dblabel,
                                      calculator=calc)
         self.neighborlist.calculate_items(images, cores=cores, log=log)
@@ -133,6 +132,7 @@ class AtomCenteredExample(object):
 # Calculators #################################################################
 
 class NeighborlistCalculator:
+
     """For integration with .utilities.Data
     For each image fed to calculate, a list of neighbors with offset
     distances is returned.
@@ -154,10 +154,12 @@ class NeighborlistCalculator:
 
 
 class FingerprintCalculator:
+
     """For integration with .utilities.Data"""
+
     def __init__(self, neighborlist, anotherparamter, cutoff):
-        self.globals = Parameters({'cutoff' : cutoff,
-                                   'anotherparameter': Gs})
+        self.globals = Parameters({'cutoff': cutoff,
+                                   'anotherparameter': anotherparamter})
         self.keyed = Parameters({'neighborlist': neighborlist})
         self.parallel_command = 'calculate_fingerprints'
 
@@ -185,7 +187,7 @@ class FingerprintCalculator:
         specified by its index and symbol. n_symbols and Rs are lists of
         neighbors' symbols and Cartesian positions, respectively.
 
-        This function doesn't actually do anthing but sleep and return
+        This function doesn't actually do anything but sleep and return
         a vector of ones.
 
         :param index: Index of the center atom.
@@ -231,7 +233,6 @@ if __name__ == "__main__":
                                              suffix='.stderr')
     print('stderr written to %s<stderr>' % sys.stderr.name)
 
-
     # Establish client session via zmq; find purpose.
     context = zmq.Context()
     socket = context.socket(zmq.REQ)
@@ -239,26 +240,25 @@ if __name__ == "__main__":
     socket.send_pyobj(msg('<purpose>'))
     purpose = socket.recv_pyobj()
 
-
     if purpose == 'calculate_neighborlists':
         # Request variables.
         socket.send_pyobj(msg('<request>', 'cutoff'))
         cutoff = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'images'))
         images = socket.recv_pyobj()
-        #sys.stderr.write(str(images)) # Just to see if they are there.
+        # sys.stderr.write(str(images)) # Just to see if they are there.
 
         # Perform the calculations.
         calc = NeighborlistCalculator(cutoff=cutoff)
         neighborlist = {}
-        #for key in images.iterkeys():
+        # for key in images.iterkeys():
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.
             neighborlist[key] = calc.calculate(image, key)
 
         # Send the results.
         socket.send_pyobj(msg('<result>', neighborlist))
-        socket.recv_string() # Needed to complete REQ/REP.
+        socket.recv_string()  # Needed to complete REQ/REP.
 
     elif purpose == 'calculate_fingerprints':
         # Request variables.
@@ -278,11 +278,11 @@ if __name__ == "__main__":
             result[key] = calc.calculate(image, key)
             if len(images) % 100 == 0:
                 socket.send_pyobj(msg('<info>', len(images)))
-                socket.recv_string() # Needed to complete REQ/REP.
+                socket.recv_string()  # Needed to complete REQ/REP.
 
         # Send the results.
         socket.send_pyobj(msg('<result>', result))
-        socket.recv_string() # Needed to complete REQ/REP.
+        socket.recv_string()  # Needed to complete REQ/REP.
 
     else:
         raise NotImplementedError('purpose %s unknown.' % purpose)

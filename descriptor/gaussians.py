@@ -51,9 +51,8 @@ class Gaussians(object):
     def __init__(self, cutoff=6.5, Gs=None, dblabel=None, elements=None,
                  version=None, **kwargs):
 
-
-        # Version check, particularly if restarting.
-        compatibleversions = ['2015.12',]
+        # Check of the version of descriptor, particularly if restarting.
+        compatibleversions = ['2015.12', ]
         if (version is not None) and version not in compatibleversions:
             raise RuntimeError('Error: Trying to use Gaussian fingerprints'
                                ' version %s, but this module only supports'
@@ -78,8 +77,8 @@ class Gaussians(object):
         # to produce a compatible descriptor; that is, one that gives
         # an identical fingerprint when fed an ASE image.
         p = self.parameters = Parameters(
-                {'importname': '.descriptor.gaussians.Gaussians',
-                 'mode': 'atom-centered'})
+            {'importname': '.descriptor.gaussians.Gaussians',
+             'mode': 'atom-centered'})
         p.version = version
         p.cutoff = cutoff
         p.Gs = Gs
@@ -110,9 +109,8 @@ class Gaussians(object):
             p.elements = set([atom.symbol for atoms in images.values()
                               for atom in atoms])
         p.elements = sorted(p.elements)
-        log('%i unique elements included: ' % len(p.elements)
-            + ', '.join(p.elements))
-
+        log('%i unique elements included: ' % len(p.elements) +
+            ', '.join(p.elements))
 
         if p.Gs is None:
             log('No symmetry functions supplied; creating defaults.')
@@ -144,6 +142,7 @@ class Gaussians(object):
 # Calculators #################################################################
 
 class NeighborlistCalculator:
+
     """For integration with .utilities.Data
     For each image fed to calculate, a list of neighbors with offset
     distances is returned.
@@ -165,9 +164,11 @@ class NeighborlistCalculator:
 
 
 class FingerprintCalculator:
+
     """For integration with .utilities.Data"""
+
     def __init__(self, neighborlist, Gs, cutoff):
-        self.globals = Parameters({'cutoff' : cutoff,
+        self.globals = Parameters({'cutoff': cutoff,
                                    'Gs': Gs})
         self.keyed = Parameters({'neighborlist': neighborlist})
         self.parallel_command = 'calculate_fingerprints'
@@ -319,9 +320,9 @@ def calculate_G4(symbols, Rs, G_elements, gamma, zeta, eta, cutoff, home,
             return 0.
         else:
             return fmodules.calculate_g4(numbers=numbers, rs=Rs,
-                                          g_numbers=G_numbers, g_gamma=gamma,
-                                          g_zeta=zeta, g_eta=eta,
-                                          cutoff=cutoff, home=home)
+                                         g_numbers=G_numbers, g_gamma=gamma,
+                                         g_zeta=zeta, g_eta=eta,
+                                         cutoff=cutoff, home=home)
     ridge = 0.
     counts = range(len(symbols))
     for j in counts:
@@ -432,7 +433,6 @@ if __name__ == "__main__":
                                              suffix='.stderr')
     print('stderr written to %s<stderr>' % sys.stderr.name)
 
-
     # Establish client session via zmq; find purpose.
     context = zmq.Context()
     socket = context.socket(zmq.REQ)
@@ -440,26 +440,25 @@ if __name__ == "__main__":
     socket.send_pyobj(msg('<purpose>'))
     purpose = socket.recv_pyobj()
 
-
     if purpose == 'calculate_neighborlists':
         # Request variables.
         socket.send_pyobj(msg('<request>', 'cutoff'))
         cutoff = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'images'))
         images = socket.recv_pyobj()
-        #sys.stderr.write(str(images)) # Just to see if they are there.
+        # sys.stderr.write(str(images)) # Just to see if they are there.
 
         # Perform the calculations.
         calc = NeighborlistCalculator(cutoff=cutoff)
         neighborlist = {}
-        #for key in images.iterkeys():
+        # for key in images.iterkeys():
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.
             neighborlist[key] = calc.calculate(image, key)
 
         # Send the results.
         socket.send_pyobj(msg('<result>', neighborlist))
-        socket.recv_string() # Needed to complete REQ/REP.
+        socket.recv_string()  # Needed to complete REQ/REP.
 
     elif purpose == 'calculate_fingerprints':
         # Request variables.
@@ -479,11 +478,11 @@ if __name__ == "__main__":
             result[key] = calc.calculate(image, key)
             if len(images) % 100 == 0:
                 socket.send_pyobj(msg('<info>', len(images)))
-                socket.recv_string() # Needed to complete REQ/REP.
+                socket.recv_string()  # Needed to complete REQ/REP.
 
         # Send the results.
         socket.send_pyobj(msg('<result>', result))
-        socket.recv_string() # Needed to complete REQ/REP.
+        socket.recv_string()  # Needed to complete REQ/REP.
 
     else:
         raise NotImplementedError('purpose %s unknown.' % purpose)
