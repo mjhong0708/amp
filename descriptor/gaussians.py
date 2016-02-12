@@ -179,13 +179,13 @@ class FingerprintCalculator:
         fingerprints = []
         for atom in image:
             symbol = atom.symbol
-            neighbors, offsets = nl[atom.index]
+            index = atom.index
+            neighbors, offsets = nl[index]
             neighborsymbols = [image[_].symbol for _ in neighbors]
             Rs = [image.positions[neighbor] + np.dot(offset, image.cell)
                   for (neighbor, offset) in zip(neighbors, offsets)]
             self.atoms = image
-            indexfp = self.get_fingerprint(atom.index, symbol,
-                                           neighborsymbols, Rs)
+            indexfp = self.get_fingerprint(index, symbol, neighborsymbols, Rs)
             fingerprints.append(indexfp)
 
         return fingerprints
