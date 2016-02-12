@@ -21,12 +21,22 @@ class AtomCenteredExample(object):
     :type cutoff: float
 
     :param anotherparameter: Just an example.
-
     :type anotherparameter: float
+
+    :param dblabel: Optional separate prefix/location for database files,
+                    including fingerprints, fingerprint derivatives, and
+                    neighborlists. This file location can be shared between
+                    calculator instances to avoid re-calculating redundant
+                    information. If not supplied, just uses the value from
+                    label.
+    :type dblabel: str
 
     :param elements: List of allowed elements present in the system. If not
                      provided, will be found automatically.
     :type elements: list
+
+    :param version: Version of fingerprints.
+    :type version: str
 
     :raises: FingerprintsError, NotImplementedError
     """

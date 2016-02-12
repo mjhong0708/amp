@@ -36,10 +36,12 @@ class NeuralNetwork(object):
 
                          for example.
     :type hiddenlayers: dict
+
     :param activation: Assigns the type of activation funtion. "linear" refers
                        to linear function, "tanh" refers to tanh function, and
                        "sigmoid" refers to sigmoid function.
     :type activation: str
+
     :param weights: In the case of no descriptor, keys correspond to layers
                     and values are two dimensional arrays of network weight.
                     In the fingerprinting scheme, keys correspond to chemical
@@ -50,6 +52,7 @@ class NeuralNetwork(object):
                     for index i corresponds to bias. If weights is not given,
                     arrays will be randomly generated.
     :type weights: dict
+
     :param scalings: In the case of no descriptor, keys are "intercept" and
                      "slope" and values are real numbers. In the fingerprinting
                      scheme, keys correspond to chemical elements and values
@@ -262,6 +265,7 @@ class NeuralNetwork(object):
         :param index: Index of the atom for which atomic energy is calculated
                       (only used in the fingerprinting scheme)
         :type index: int
+
         :param symbol: Index of the atom for which atomic energy is calculated
                        (only used in the fingerprinting scheme)
         :type symbol: str
@@ -388,13 +392,16 @@ def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
 
                          for example.
     :type hiddenlayers: dict
+
     :param activation: Assigns the type of activation funtion. "linear" refers
                        to linear function, "tanh" refers to tanh function, and
                        "sigmoid" refers to sigmoid function.
     :type activation: str
+
     :param no_of_atoms: Number of atoms in atomic systems; used only in the
                         case of no descriptor.
     :type no_of_atoms: int
+
     :param Gs: Dictionary of symbols and lists of dictionaries for making
                symmetry functions. Either auto-genetrated, or given in the
                following form, for example:
@@ -408,6 +415,7 @@ def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
 
                Used in the fingerprinting scheme only.
     :type Gs: dict
+
     :param elements: List of atom symbols; used in the fingerprinting scheme
                      only.
     :type elements: list of str
@@ -514,10 +522,12 @@ def get_random_scalings(images, activation, elements=None):
 
     :param images: ASE atoms objects (the training set).
     :type images: dict
+
     :param activation: Assigns the type of activation funtion. "linear" refers
                        to linear function, "tanh" refers to tanh function, and
                        "sigmoid" refers to sigmoid function.
     :type activation: str
+
     :param elements: List of atom symbols; used in the fingerprinting scheme
                      only.
     :type elements: list of str

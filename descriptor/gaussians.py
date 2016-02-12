@@ -30,14 +30,20 @@ class Gaussians(object):
 
     :type Gs: dict
 
-    :param fingerprints_tag: An internal tag for identifying the functional
-                             form of fingerprints used in the code.
-    :type fingerprints_tag: int
+    :param dblabel: Optional separate prefix/location for database files,
+                    including fingerprints, fingerprint derivatives, and
+                    neighborlists. This file location can be shared between
+                    calculator instances to avoid re-calculating redundant
+                    information. If not supplied, just uses the value from
+                    label.
+    :type dblabel: str
 
     :param elements: List of allowed elements present in the system. If not
                      provided, will be found automatically.
     :type elements: list
 
+    :param version: Version of fingerprints.
+    :type version: str
 
     :raises: FingerprintsError, NotImplementedError
     """
@@ -191,10 +197,13 @@ class FingerprintCalculator:
 
         :param index: Index of the center atom.
         :type index: int
+
         :param symbol: Symbol of the center atom.
         :type symbol: str
+
         :param n_symbols: List of neighbors' symbols.
         :type n_symbols: list of str
+
         :param Rs: List of Cartesian atomic positions.
         :type Rs: list of list of float
 

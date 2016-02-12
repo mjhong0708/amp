@@ -23,16 +23,20 @@ class Amp(Calculator, object):
 
     :param descriptor: Class representing local atomic environment. 
     :type descriptor: object
+
     :param regression: Class representing the regression method. Can be only
                        NeuralNetwork for now. Input arguments for NeuralNetwork
                        are hiddenlayers, activation, weights, and scalings; for
                        more information see docstring for the class
                        NeuralNetwork.
     :type regression: object
+
     :param load: Path for loading an existing parameters of Amp calculator.
     :type load: str
+
     :param label: Default prefix/location used for all files.
     :type label: str
+
     :param dblabel: Optional separate prefix/location for database files,
                     including fingerprints, fingerprint derivatives, and
                     neighborlists. This file location can be shared between
@@ -45,7 +49,7 @@ class Amp(Calculator, object):
                   if None, will determine from environment
     :type cores: int
 
-    :raises: ountimeError
+    :raises: RuntimeError
     """
     implemented_properties = ['energy', 'forces']
 
@@ -186,6 +190,7 @@ class Amp(Calculator, object):
                        trajectory (.traj) or database (.db) file. Energies can
                        be obtained from any reference, e.g. DFT calculations.
         :type images: list or str
+
         :param overwrite: If a trained output file with the same name exists,
                           overwrite it.
         :type overwrite: bool
