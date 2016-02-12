@@ -99,7 +99,7 @@ class Amp(Calculator, object):
         Only a filename is required, in typical cases.
 
         If using a home-rolled descriptor or model, also supply
-        uninstantiated classes to those models, as in model=MyModel.
+        uninstantiated classes to those models, as in Model=MyModel.
 
         Any additional keyword arguments (such as fortran=True) can be
         fed through to Amp.
