@@ -4,7 +4,6 @@ from ase.data import atomic_numbers
 from ase.calculators.neighborlist import NeighborList
 from ase.calculators.calculator import Parameters
 
-from ..utilities import FingerprintsError
 from ..utilities import Data, Logger
 
 
@@ -45,7 +44,7 @@ class Gaussians(object):
     :param version: Version of fingerprints.
     :type version: str
 
-    :raises: FingerprintsError, NotImplementedError
+    :raises: RuntimeError, TypeError
     """
 
     def __init__(self, cutoff=6.5, Gs=None, dblabel=None, elements=None,
@@ -160,7 +159,7 @@ class NeighborlistCalculator:
                          bothways=True,
                          skin=0.)
         n.update(image)
-        return [n.get_neighbors(index) for index in range(len(image))]
+        return [n.get_neighbors(index) for index in xrange(len(image))]
 
 
 class FingerprintCalculator:
