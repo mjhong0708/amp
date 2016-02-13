@@ -1,34 +1,33 @@
 import numpy as np
-
+from numpy import cos, sqrt, exp
 from ase.data import atomic_numbers
 from ase.calculators.neighborlist import NeighborList
 from ase.calculators.calculator import Parameters
-from scipy.special import sph_harm
 
 from ..utilities import Data, Logger
 
 
-class Zernike(object):
+class Bispectrum(object):
 
     """
-    Class that calculates Zernike fingerprints.
+    Class that calculates spherical harmonic bispectrum fingerprints.
 
     :param cutoff: Radius above which neighbor interactions are ignored.
                    Default is 6.5 Angstroms.
     :type cutoff: float
 
-    :param Gs: Dictionary of symbols and dictionaries for making symmetry
-                functions. Either auto-genetrated, or given in the following
-                form, for example:
+    :param Gs: Dictionary of symbols and dictionaries for making fingerprints.
+                Either auto-genetrated, or given in the following form,
+                for example:
 
                >>> Gs = {"Au": {"Au": 3., "O": 2.}, "O": {"Au": 5., "O": 10.}}
 
     :type Gs: dict
 
-    :param nmax: Maximum degree of Zernike polynomials that will be included in
-                 the fingerprint vector. Can be different values for different
-                 species fed as a dictionary with chemical elements as keys.
-    :type nmax: integer or dict
+    :param jmax: Maximum degree of spherical harmonics that will be included in
+                  the fingerprint vector. Can be also fed as a dictionary with
+                  chemical species as keys.
+    :type jmax: integer or half-integer or dict
 
     :param dblabel: Optional separate prefix/location for database files,
                     including fingerprints, fingerprint derivatives, and
@@ -48,13 +47,13 @@ class Zernike(object):
     :raises: RuntimeError, TypeError
     """
 
-    def __init__(self, cutoff=6.5, Gs=None, nmax=5, dblabel=None,
+    def __init__(self, cutoff=6.5, Gs=None, jmax=5, dblabel=None,
                  elements=None, version='2016.02', **kwargs):
 
         # Check of the version of descriptor, particularly if restarting.
         compatibleversions = ['2016.02', ]
         if (version is not None) and version not in compatibleversions:
-            raise RuntimeError('Error: Trying to use Zernike fingerprints'
+            raise RuntimeError('Error: Trying to use bispectrum fingerprints'
                                ' version %s, but this module only supports'
                                ' versions %s. You may need an older or '
                                ' newer version of Amp.' %
@@ -77,12 +76,12 @@ class Zernike(object):
         # to produce a compatible descriptor; that is, one that gives
         # an identical fingerprint when fed an ASE image.
         p = self.parameters = Parameters(
-            {'importname': '.descriptor.zernike.Zernike',
+            {'importname': '.descriptor.bispectrum.Bispectrum',
              'mode': 'atom-centered'})
         p.version = version
         p.cutoff = cutoff
         p.Gs = Gs
-        p.nmax = nmax
+        p.jmax = jmax
         p.elements = elements
 
         self.dblabel = dblabel
@@ -115,12 +114,12 @@ class Zernike(object):
         log('%i unique elements included: ' % len(p.elements) +
             ', '.join(p.elements))
 
-        log('Maximum degree of Zernike polynomials:')
-        if isinstance(p.nmax, dict):
-            for _ in p.nmax.keys():
-                log(' %2s: %d' % (_, p.nmax[_]))
+        log('Maximum degree of spherical harmonic bispectrum:')
+        if isinstance(p.jmax, dict):
+            for _ in p.jmax.keys():
+                log(' %2s: %d' % (_, p.jmax[_]))
         else:
-            log('nmax: %d' % p.nmax)
+            log('jmax: %d' % p.jmax)
 
         if p.Gs is None:
             log('No coefficient for atomic density function supplied; '
@@ -134,16 +133,14 @@ class Zernike(object):
         no_of_descriptors = {}
         for element in p.elements:
             count = 0
-            if isinstance(p.nmax, dict):
-                for n in xrange(p.nmax[element] + 1):
-                    for l in xrange(n + 1):
-                        if (n - l) % 2 == 0:
-                            count += 1
+            if isinstance(p.jmax, dict):
+                for _2j1 in xrange(int(2 * p.jmax[element]) + 1):
+                    for j in xrange(int(min(_2j1, p.jmax[element])) + 1):
+                        count += 1
             else:
-                for n in xrange(p.nmax + 1):
-                    for l in xrange(n + 1):
-                        if (n - l) % 2 == 0:
-                            count += 1
+                for _2j1 in xrange(int(2 * p.jmax) + 1):
+                    for j in xrange(int(min(_2j1, p.jmax)) + 1):
+                        count += 1
             no_of_descriptors[element] = count
 
         log('Number of descriptors for each element:')
@@ -163,7 +160,7 @@ class Zernike(object):
         if not hasattr(self, 'fingerprints'):
             calc = FingerprintCalculator(neighborlist=self.neighborlist,
                                          Gs=p.Gs,
-                                         nmax=p.nmax,
+                                         jmax=p.jmax,
                                          cutoff=p.cutoff)
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
@@ -200,15 +197,17 @@ class FingerprintCalculator:
 
     """For integration with .utilities.Data"""
 
-    def __init__(self, neighborlist, Gs, nmax, cutoff):
+    def __init__(self, neighborlist, Gs, jmax, cutoff):
         self.globals = Parameters({'cutoff': cutoff,
                                    'Gs': Gs,
-                                   'nmax': nmax})
+                                   'jmax': jmax})
         self.keyed = Parameters({'neighborlist': neighborlist})
         self.parallel_command = 'calculate_fingerprints'
 
-        from scipy.special import factorial as fac
-        self.factorial = [fac(0.5 * _) for _ in xrange(2 * nmax + 2)]
+        self.factorial = [1]
+        for _ in xrange(int(3. * jmax) + 2):
+            if _ > 0:
+                self.factorial += [_ * self.factorial[_ - 1]]
 
     def calculate(self, image, key):
         """Makes a list of fingerprints, one per atom, for the fed image.
@@ -252,89 +251,115 @@ class FingerprintCalculator:
 
         home = self.atoms[index].position
         cutoff = self.globals.cutoff
+        jmax = self.globals.jmax
+
+        rs = []
+        psis = []
+        thetas = []
+        phis = []
+        for neighbor in Rs:
+            x = neighbor[0] - home[0]
+            y = neighbor[1] - home[1]
+            z = neighbor[2] - home[2]
+            r = np.linalg.norm(neighbor - home)
+            if r > 10.**(-10.):
+
+                psi = np.arcsin(r / cutoff)
+
+                theta = np.arccos(z / r)
+                if abs((z / r) - 1.0) < 10.**(-8.):
+                    theta = 0.0
+                elif abs((z / r) + 1.0) < 10.**(-8.):
+                    theta = np.pi
+
+                if x < 0.:
+                    phi = np.pi + np.arctan(y / x)
+                elif 0. < x and y < 0.:
+                    phi = 2 * np.pi + np.arctan(y / x)
+                elif 0. < x and 0. <= y:
+                    phi = np.arctan(y / x)
+                elif x == 0. and 0. < y:
+                    phi = 0.5 * np.pi
+                elif x == 0. and y < 0.:
+                    phi = 1.5 * np.pi
+                else:
+                    phi = 0.
+
+                rs += [r]
+                psis += [psi]
+                thetas += [theta]
+                phis += [phi]
 
         fingerprint = []
-        for n in xrange(self.globals.nmax + 1):
-            for l in xrange(n + 1):
-                if (n - l) % 2 == 0:
-                    norm = 0.
-                    for m in xrange(l + 1):
-                        omega = 0.
-                        for n_symbol, neighbor in zip(n_symbols, Rs):
-                            x = (neighbor[0] - home[0]) / cutoff
-                            y = (neighbor[1] - home[1]) / cutoff
-                            z = (neighbor[2] - home[2]) / cutoff
-
-                            rho = np.linalg.norm([x, y, z])
-
-                            if rho > 0.:
-                                theta = np.arccos(z / rho)
-                            else:
-                                theta = 0.
-
-                            if x < 0.:
-                                phi = np.pi + np.arctan(y / x)
-                            elif 0. < x and y < 0.:
-                                phi = 2 * np.pi + np.arctan(y / x)
-                            elif 0. < x and 0. <= y:
-                                phi = np.arctan(y / x)
-                            elif x == 0. and 0. < y:
-                                phi = 0.5 * np.pi
-                            elif x == 0. and y < 0.:
-                                phi = 1.5 * np.pi
-                            else:
-                                phi = 0.
-
-                            ZZ = self.globals.Gs[symbol][n_symbol] * \
-                                calculate_R(n, l, rho, self.factorial) * \
-                                sph_harm(m, l, phi, theta) * \
-                                cutoff_fxn(rho * cutoff, cutoff)
-
-                            # sum over neighbors
-                            omega += np.conjugate(ZZ)
-                        # sum over m values
-                        if m == 0:
-                            norm += omega * np.conjugate(omega)
-                        else:
-                            norm += 2. * omega * np.conjugate(omega)
-
-                    fingerprint.append(norm.real)
+        for _2j1 in xrange(int(2 * jmax) + 1):
+            j1 = 0.5 * _2j1
+            j2 = 0.5 * _2j1
+            for j in xrange(int(min(_2j1, jmax)) + 1):
+                value = calculate_B(j1, j2, 1.0 * j, self.globals.Gs[symbol],
+                                    cutoff, self.factorial, n_symbols,
+                                    rs, psis, thetas, phis)
+                value = value.real
+                fingerprint.append(value)
 
         return symbol, fingerprint
 
 # Auxiliary functions #########################################################
 
 
-def binomial(n, k, factorial):
-    """Returns C(n,k) = n!/(k!(n-k)!)."""
-
-    assert n >= 0 and k >= 0 and n >= k, \
-        'n and k should be non-negative integers with n >= k.'
-
-    c = factorial[int(2 * n)] / \
-        (factorial[int(2 * k)] * factorial[int(2 * (n - k))])
-    return c
-
-
-def calculate_R(n, l, rho, factorial):
+def calculate_B(j1, j2, j, G_element, cutoff, factorial, n_symbols, rs, psis,
+                thetas, phis):
     """
-    Calculates R_{n}^{l}(rho) according to the last equation of wikipedia.
+    Calculates bi-spectrum B_{j1, j2, j} according to Eq. (5) of "Gaussian
+    Approximation Potentials: The Accuracy of Quantum Mechanics, without the
+    Electrons", Phys. Rev. Lett. 104, 136403.
     """
 
-    if (n - l) % 2 != 0:
-        return 0
-    else:
-        value = 0.
-        k = (n - l) / 2
-        term1 = np.sqrt(2. * n + 3.)
+    mvals = m_values(j)
+    B = 0.
+    for m in mvals:
+        for mp in mvals:
+            c = calculate_c(j, mp, m, G_element, cutoff, factorial, n_symbols,
+                            rs, psis, thetas, phis)
+            m1bound = min(j1, m + j2)
+            mp1bound = min(j1, mp + j2)
+            m1 = max(-j1, m - j2)
+            while m1 < (m1bound + 0.5):
+                mp1 = max(-j1, mp - j2)
+                while mp1 < (mp1bound + 0.5):
+                    c1 = calculate_c(j1, mp1, m1, G_element, cutoff, factorial,
+                                     n_symbols, rs, psis, thetas, phis)
+                    c2 = calculate_c(j2, mp - mp1, m - m1, G_element, cutoff,
+                                     factorial, n_symbols, rs, psis, thetas,
+                                     phis)
+                    B += CG(j1, m1, j2, m - m1, j, m, factorial) * \
+                        CG(j1, mp1, j2, mp - mp1, j, mp, factorial) * \
+                        np.conjugate(c) * c1 * c2
+                    mp1 += 1.
+                m1 += 1.
 
-        for s in xrange(k + 1):
-            b1 = binomial(k, s, factorial)
-            b2 = binomial(n - s - 1 + 1.5, k, factorial)
-            value += ((-1) ** s) * b1 * b2 * (rho ** (n - 2. * s))
+    return B
 
-        value *= term1
-        return value
+###############################################################################
+
+
+def calculate_c(j, mp, m, G_element, cutoff, factorial, n_symbols, rs, psis,
+                thetas, phis):
+    """
+    Calculates c^{j}_{m'm} according to Eq. (4) of "Gaussian Approximation
+    Potentials: The Accuracy of Quantum Mechanics, without the Electrons",
+    Phys. Rev. Lett. 104, 136403
+    """
+
+    value = 0.
+    for n_symbol, r, psi, theta, phi in zip(n_symbols, rs, psis, thetas, phis):
+
+        value += G_element[n_symbol] * \
+            np.conjugate(U(j, m, mp, psi, theta, phi, factorial)) * \
+            cutoff_fxn(r, cutoff)
+
+    return value
+
+###############################################################################
 
 
 def cutoff_fxn(Rij, Rc):
@@ -351,7 +376,174 @@ def cutoff_fxn(Rij, Rc):
     if Rij > Rc:
         return 0.
     else:
-        return 0.5 * (np.cos(np.pi * Rij / Rc) + 1.)
+        return 0.5 * (cos(np.pi * Rij / Rc) + 1.)
+
+###############################################################################
+
+
+def m_values(j):
+    """Returns a list of m values for a given j."""
+
+    assert j >= 0, '2*j should be a non-negative integer.'
+
+    return [j - i for i in xrange(int(2 * j + 1))]
+
+###############################################################################
+
+
+def binomial(n, k, factorial):
+    """Returns C(n,k) = n!/(k!(n-k)!)."""
+
+    assert n >= 0 and k >= 0 and n >= k, \
+        'n and k should be non-negative integers with n >= k.'
+    c = factorial[int(n)] / (factorial[int(k)] * factorial[int(n - k)])
+    return c
+
+###############################################################################
+
+
+def WignerD(j, m, mp, alpha, beta, gamma, factorial):
+    """Returns the Wigner-D matrix. alpha, beta, and gamma are the Euler
+    angles."""
+
+    result = 0
+    if abs(beta - np.pi / 2.) < 10.**(-10.):
+        # Varshalovich Eq. (5), Section 4.16, Page 113.
+        # j, m, and mp here are J, M, and M', respectively, in Eq. (5).
+        for k in xrange(int(2 * j + 1)):
+            if k > j + mp or k > j - m:
+                break
+            elif k < mp - m:
+                continue
+            result += (-1)**k * binomial(j + mp, k, factorial) * \
+                binomial(j - mp, k + m - mp, factorial)
+
+        result *= (-1)**(m - mp) * \
+            sqrt(float(factorial[int(j + m)] * factorial[int(j - m)]) /
+                 float((factorial[int(j + mp)] * factorial[int(j - mp)]))) / \
+            2.**j
+        result *= exp(-1j * m * alpha) * exp(-1j * mp * gamma)
+
+    else:
+        # Varshalovich Eq. (10), Section 4.16, Page 113.
+        # m, mpp, and mp here are M, m, and M', respectively, in Eq. (10).
+        mvals = m_values(j)
+        for mpp in mvals:
+            # temp1 = WignerD(j, m, mpp, 0, np.pi/2, 0) = d(j, m, mpp, np.pi/2)
+            temp1 = 0.
+            for k in xrange(int(2 * j + 1)):
+                if k > j + mpp or k > j - m:
+                    break
+                elif k < mpp - m:
+                    continue
+                temp1 += (-1)**k * binomial(j + mpp, k, factorial) * \
+                    binomial(j - mpp, k + m - mpp, factorial)
+            temp1 *= (-1)**(m - mpp) * \
+                sqrt(float(factorial[int(j + m)] * factorial[int(j - m)]) /
+                     float((factorial[int(j + mpp)] *
+                            factorial[int(j - mpp)]))) / 2.**j
+
+            # temp2 = WignerD(j, mpp, mp, 0, np.pi/2, 0) = d(j, mpp, mp,
+            # np.pi/2)
+            temp2 = 0.
+            for k in xrange(int(2 * j + 1)):
+                if k > j - mp or k > j - mpp:
+                    break
+                elif k < - mp - mpp:
+                    continue
+                temp2 += (-1)**k * binomial(j - mp, k, factorial) * \
+                    binomial(j + mp, k + mpp + mp, factorial)
+            temp2 *= (-1)**(mpp + mp) * \
+                sqrt(float(factorial[int(j + mpp)] * factorial[int(j - mpp)]) /
+                     float((factorial[int(j - mp)] *
+                            factorial[int(j + mp)]))) / 2.**j
+
+            result += temp1 * exp(-1j * mpp * beta) * temp2
+
+        # Empirical normalization factor so results match Varshalovich
+        # Tables 4.3-4.12
+        # Note that this exact normalization does not follow from the
+        # above equations
+        result *= (1j**(2 * j - m - mp)) * ((-1)**(2 * m))
+        result *= exp(-1j * m * alpha) * exp(-1j * mp * gamma)
+
+    return result
+
+###############################################################################
+
+
+def U(j, m, mp, omega, theta, phi, factorial):
+    """
+    Calculates rotation matrix U_{MM'}^{J} in terms of rotation angle omega as
+    well as rotation axis angles theta and phi, according to Varshalovich,
+    Eq. (3), Section 4.5, Page 81. j, m, mp, and mpp here are J, M, M', and M''
+    in Eq. (3).
+    """
+
+    result = 0.
+    mvals = m_values(j)
+    for mpp in mvals:
+        result += WignerD(j, m, mpp, phi, theta, -phi, factorial) * \
+            exp(- 1j * mpp * omega) * \
+            WignerD(j, mpp, mp, phi, -theta, -phi, factorial)
+    return result
+
+
+###############################################################################
+
+
+def CG(a, alpha, b, beta, c, gamma, factorial):
+    """Clebsch-Gordan coefficient C_{a alpha b beta}^{c gamma} is calculated
+    acoording to the expression given in Varshalovich Eq. (3), Section 8.2,
+    Page 238."""
+
+    if int(2. * a) != 2. * a or int(2. * b) != 2. * b or int(2. * c) != 2. * c:
+        raise ValueError("j values must be integer or half integer")
+    if int(2. * alpha) != 2. * alpha or int(2. * beta) != 2. * beta or \
+            int(2. * gamma) != 2. * gamma:
+        raise ValueError("m values must be integer or half integer")
+
+    if alpha + beta - gamma != 0.:
+        return 0.
+    else:
+        minimum = min(a + b - c, a - b + c, -a + b + c, a + b + c + 1.,
+                      a - abs(alpha), b - abs(beta), c - abs(gamma))
+        if minimum < 0.:
+            return 0.
+        else:
+            sqrtarg = \
+                factorial[int(a + alpha)] * \
+                factorial[int(a - alpha)] * \
+                factorial[int(b + beta)] * \
+                factorial[int(b - beta)] * \
+                factorial[int(c + gamma)] * \
+                factorial[int(c - gamma)] * \
+                (2. * c + 1.) * \
+                factorial[int(a + b - c)] * \
+                factorial[int(a - b + c)] * \
+                factorial[int(-a + b + c)] / \
+                factorial[int(a + b + c + 1.)]
+
+            sqrtres = sqrt(sqrtarg)
+
+            zmin = max(a + beta - c, b - alpha - c, 0.)
+            zmax = min(b + beta, a - alpha, a + b - c)
+            sumres = 0.
+            for z in xrange(int(zmin), int(zmax) + 1):
+                value = \
+                    factorial[int(z)] * \
+                    factorial[int(a + b - c - z)] * \
+                    factorial[int(a - alpha - z)] * \
+                    factorial[int(b + beta - z)] * \
+                    factorial[int(c - b + alpha + z)] * \
+                    factorial[int(c - a - beta + z)]
+                sumres += (-1.)**z / value
+
+            result = sqrtres * sumres
+
+            return result
+
+###############################################################################
 
 
 def generate_coefficients(elements):
@@ -370,6 +562,8 @@ def generate_coefficients(elements):
     for element in elements:
         G[element] = _G
     return G
+
+###############################################################################
 
 
 if __name__ == "__main__":
@@ -431,14 +625,14 @@ if __name__ == "__main__":
         cutoff = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'Gs'))
         Gs = socket.recv_pyobj()
-        socket.send_pyobj(msg('<request>', 'nmax'))
-        nmax = socket.recv_pyobj()
+        socket.send_pyobj(msg('<request>', 'jmax'))
+        jmax = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'neighborlist'))
         neighborlist = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'images'))
         images = socket.recv_pyobj()
 
-        calc = FingerprintCalculator(neighborlist, Gs, nmax, cutoff)
+        calc = FingerprintCalculator(neighborlist, Gs, jmax, cutoff)
         result = {}
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.

@@ -103,7 +103,7 @@ class Gaussians(object):
 
         p = self.parameters
 
-        log('Cutoff radius: %.3f' % p.cutoff)
+        log('Cutoff radius: %.2f' % p.cutoff)
 
         if p.elements is None:
             log('Finding unique set of elements in training data.')
