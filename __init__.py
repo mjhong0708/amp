@@ -9,7 +9,11 @@ from socket import gethostname
 
 import ase
 from ase.calculators.calculator import Calculator, Parameters
-from ase import __version__ as aseversion
+try:
+    from ase import __version__ as aseversion
+except ImportError:
+    # We're on ASE 3.10 or older
+    from ase.version import version as aseversion
 
 from .utilities import make_filename
 from .utilities import hash_images
