@@ -93,8 +93,8 @@ class Gaussians(object):
 
     def calculate_fingerprints(self, images, cores=1, fortran=False,
                                log=None):
-        """Calculates the fingerpints of the images, for the ones not
-        already done.  """
+        """Calculates the fingerpints of the images, for the ones not already
+        done.  """
         log = Logger(file=None) if log is None else log
 
         if (self.dblabel is None) and hasattr(self.parent, 'dblabel'):
@@ -102,6 +102,8 @@ class Gaussians(object):
         self.dblabel = 'amp-data' if self.dblabel is None else self.dblabel
 
         p = self.parameters
+
+        log('Cutoff radius: %.3f' % p.cutoff)
 
         if p.elements is None:
             log('Finding unique set of elements in training data.')
@@ -207,8 +209,8 @@ class FingerprintCalculator:
         :param Rs: List of Cartesian atomic positions.
         :type Rs: list of list of float
 
-        :returns: list of float -- the symmetry function values for atom
-                                   specified by its index and symbol.
+        :returns: list of float -- fingerprints for atom specified by its index
+                                    and symbol.
         """
         home = self.atoms[index].position
 

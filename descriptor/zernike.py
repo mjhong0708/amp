@@ -1,26 +1,35 @@
-import time
 import numpy as np
 
 from ase.data import atomic_numbers
 from ase.calculators.neighborlist import NeighborList
 from ase.calculators.calculator import Parameters
+from scipy.special import sph_harm
 
 from ..utilities import Data, Logger
 
 
-class AtomCenteredExample(object):
+class Zernike(object):
 
     """
-    Class that calculates fingerprints. This is an example class that
-    doesn't do much; it just shows the code structure. If making your own
-    module, you can copy and modify this one.
+    Class that calculates Zernike fingerprints.
 
     :param cutoff: Radius above which neighbor interactions are ignored.
                    Default is 6.5 Angstroms.
     :type cutoff: float
 
-    :param anotherparameter: Just an example.
-    :type anotherparameter: float
+    :param Gs: Dictionary of symbols and dictionaries for making symmetry
+                functions. Either auto-genetrated, or given in the following
+                form, for example:
+
+               >>> Gs = {"Au": {"Au": 3., "O": 2.}, "O": {"Au": 5., "O": 10.}}
+
+    :type Gs: dict
+
+    :param nmax: Maximum degree of Zernike polynomials that will be included in
+                 the fingerprint vector. Can be different values for different
+                 species fed as a dictionary with chemical elements as keys.
+
+    :type nmax: integer or dict
 
     :param dblabel: Optional separate prefix/location for database files,
                     including fingerprints, fingerprint derivatives, and
@@ -40,14 +49,13 @@ class AtomCenteredExample(object):
     :raises: RuntimeError, TypeError
     """
 
-    def __init__(self, cutoff=6.5, anotherparameter=12.2, dblabel=None,
-                 elements=None, version=None, **kwargs):
-        # FIXME/ap add some example keywords, get rid of these.
+    def __init__(self, cutoff=6.5, Gs=None, nmax=5, dblabel=None,
+                 elements=None, version='2016.02', **kwargs):
 
         # Check of the version of descriptor, particularly if restarting.
         compatibleversions = ['2016.02', ]
         if (version is not None) and version not in compatibleversions:
-            raise RuntimeError('Error: Trying to use Example fingerprints'
+            raise RuntimeError('Error: Trying to use Zernike fingerprints'
                                ' version %s, but this module only supports'
                                ' versions %s. You may need an older or '
                                ' newer version of Amp.' %
@@ -70,11 +78,12 @@ class AtomCenteredExample(object):
         # to produce a compatible descriptor; that is, one that gives
         # an identical fingerprint when fed an ASE image.
         p = self.parameters = Parameters(
-            {'importname': '.descriptor.gaussians.Gaussians',
+            {'importname': '.descriptor.zernike.Zernike',
              'mode': 'atom-centered'})
         p.version = version
         p.cutoff = cutoff
-        p.anotherparameter = anotherparameter
+        p.Gs = Gs
+        p.nmax = nmax
         p.elements = elements
 
         self.dblabel = dblabel
@@ -107,7 +116,40 @@ class AtomCenteredExample(object):
         log('%i unique elements included: ' % len(p.elements) +
             ', '.join(p.elements))
 
-        log('anotherparameter: %.3f' % p.anotherparameter)
+        log('Maximum degree of Zernike polynomials:')
+        if isinstance(p.nmax, dict):
+            for _ in p.nmax.keys():
+                log(' %2s: %d' % (_, p.nmax[_]))
+        else:
+            log('nmax: %d' % p.nmax)
+
+        if p.Gs is None:
+            log('No coefficient for atomic density function supplied; '
+                'creating defaults.')
+            p.Gs = generate_coefficients(p.elements)
+        log('Coefficients of atomic density function for each element:')
+        for _ in p.Gs.keys():
+            log(' %2s: %s' % (_, str(p.Gs[_])))
+
+        # Counts the number of descriptors for each element.
+        no_of_descriptors = {}
+        for element in p.elements:
+            count = 0
+            if isinstance(p.nmax, dict):
+                for n in xrange(p.nmax[element] + 1):
+                    for l in xrange(n + 1):
+                        if (n - l) % 2 == 0:
+                            count += 1
+            else:
+                for n in xrange(p.nmax + 1):
+                    for l in xrange(n + 1):
+                        if (n - l) % 2 == 0:
+                            count += 1
+            no_of_descriptors[element] = count
+
+        log('Number of descriptors for each element:')
+        for element in p.elements:
+            log(' %2s: %d' % (element, no_of_descriptors.pop(element)))
 
         log('Calculating neighborlists...', tic='nl')
         if not hasattr(self, 'neighborlist'):
@@ -121,7 +163,8 @@ class AtomCenteredExample(object):
         log('Fingerprinting images...', tic='fp')
         if not hasattr(self, 'fingerprints'):
             calc = FingerprintCalculator(neighborlist=self.neighborlist,
-                                         anotherparamter=p.anotherparameter,
+                                         Gs=p.Gs,
+                                         nmax=p.nmax,
                                          cutoff=p.cutoff)
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
@@ -158,11 +201,15 @@ class FingerprintCalculator:
 
     """For integration with .utilities.Data"""
 
-    def __init__(self, neighborlist, anotherparamter, cutoff):
+    def __init__(self, neighborlist, Gs, nmax, cutoff):
         self.globals = Parameters({'cutoff': cutoff,
-                                   'anotherparameter': anotherparamter})
+                                   'Gs': Gs,
+                                   'nmax': nmax})
         self.keyed = Parameters({'neighborlist': neighborlist})
         self.parallel_command = 'calculate_fingerprints'
+
+        from scipy.special import factorial as fac
+        self.factorial = [fac(0.5 * _) for _ in xrange(2 * nmax + 2)]
 
     def calculate(self, image, key):
         """Makes a list of fingerprints, one per atom, for the fed image.
@@ -188,24 +235,142 @@ class FingerprintCalculator:
         specified by its index and symbol. n_symbols and Rs are lists of
         neighbors' symbols and Cartesian positions, respectively.
 
-        This function doesn't actually do anything but sleep and return
-        a vector of ones.
-
         :param index: Index of the center atom.
         :type index: int
+
         :param symbol: Symbol of the center atom.
         :type symbol: str
+
         :param n_symbols: List of neighbors' symbols.
         :type n_symbols: list of str
-        :param Rs: List of Cartesian atomic positions.
+
+        :param Rs: List of Cartesian atomic positions of neighbors.
         :type Rs: list of list of float
 
         :returns: list of float -- fingerprints for atom specified by its index
                                     and symbol.
         """
-        time.sleep(1.0)  # Pretend to do some work.
-        fingerprint = [1., 1., 1., 1.]
+
+        home = self.atoms[index].position
+        cutoff = self.globals.cutoff
+
+        fingerprint = []
+        for n in xrange(self.globals.nmax + 1):
+            for l in xrange(n + 1):
+                if (n - l) % 2 == 0:
+                    norm = 0.
+                    for m in xrange(l + 1):
+                        omega = 0.
+                        for n_symbol, neighbor in zip(n_symbols, Rs):
+                            x = (neighbor[0] - home[0]) / cutoff
+                            y = (neighbor[1] - home[1]) / cutoff
+                            z = (neighbor[2] - home[2]) / cutoff
+
+                            rho = np.linalg.norm([x, y, z])
+
+                            if rho > 0.:
+                                theta = np.arccos(z / rho)
+                            else:
+                                theta = 0.
+
+                            if x < 0.:
+                                phi = np.pi + np.arctan(y / x)
+                            elif 0. < x and y < 0.:
+                                phi = 2 * np.pi + np.arctan(y / x)
+                            elif 0. < x and 0. <= y:
+                                phi = np.arctan(y / x)
+                            elif x == 0. and 0. < y:
+                                phi = 0.5 * np.pi
+                            elif x == 0. and y < 0.:
+                                phi = 1.5 * np.pi
+                            else:
+                                phi = 0.
+
+                            ZZ = self.globals.Gs[symbol][n_symbol] * \
+                                calculate_R(n, l, rho, self.factorial) * \
+                                sph_harm(m, l, phi, theta) * \
+                                cutoff_fxn(rho * cutoff, cutoff)
+
+                            # sum over neighbors
+                            omega += np.conjugate(ZZ)
+                        # sum over m values
+                        if m == 0:
+                            norm += omega * np.conjugate(omega)
+                        else:
+                            norm += 2. * omega * np.conjugate(omega)
+
+                    fingerprint.append(norm.real)
+
         return symbol, fingerprint
+
+# Auxiliary functions #########################################################
+
+
+def binomial(n, k, factorial):
+    """Returns C(n,k) = n!/(k!(n-k)!)."""
+
+    assert n >= 0 and k >= 0 and n >= k, \
+        'n and k should be non-negative integers with n >= k.'
+
+    c = factorial[int(2 * n)] / \
+        (factorial[int(2 * k)] * factorial[int(2 * (n - k))])
+    return c
+
+
+def calculate_R(n, l, rho, factorial):
+    """
+    Calculates R_{n}^{l}(rho) according to the last equation of wikipedia.
+    """
+
+    if (n - l) % 2 != 0:
+        return 0
+    else:
+        value = 0.
+        k = (n - l) / 2
+        term1 = np.sqrt(2. * n + 3.)
+
+        for s in xrange(k + 1):
+            b1 = binomial(k, s, factorial)
+            b2 = binomial(n - s - 1 + 1.5, k, factorial)
+            value += ((-1) ** s) * b1 * b2 * (rho ** (n - 2. * s))
+
+        value *= term1
+        return value
+
+
+def cutoff_fxn(Rij, Rc):
+    """
+    Cosine cutoff function in Parinello-Behler method.
+
+    :param Rc: Radius above which neighbor interactions are ignored.
+    :type Rc: float
+    :param Rij: Distance between pair atoms.
+    :type Rij: float
+
+    :returns: float -- the vaule of the cutoff function.
+    """
+    if Rij > Rc:
+        return 0.
+    else:
+        return 0.5 * (np.cos(np.pi * Rij / Rc) + 1.)
+
+
+def generate_coefficients(elements):
+    """
+    Automatically generates coefficients if not given by the user.
+
+    :param elements: List of symbols of all atoms.
+    :type elements: list of str
+
+    :returns: dict of dicts
+    """
+    _G = {}
+    for element in elements:
+        _G[element] = atomic_numbers[element]
+    G = {}
+    for element in elements:
+        G[element] = _G
+    return G
 
 
 if __name__ == "__main__":
@@ -265,14 +430,16 @@ if __name__ == "__main__":
         # Request variables.
         socket.send_pyobj(msg('<request>', 'cutoff'))
         cutoff = socket.recv_pyobj()
-        socket.send_pyobj(msg('<request>', 'anotherparameter'))
-        anotherparameter = socket.recv_pyobj()
+        socket.send_pyobj(msg('<request>', 'Gs'))
+        Gs = socket.recv_pyobj()
+        socket.send_pyobj(msg('<request>', 'nmax'))
+        nmax = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'neighborlist'))
         neighborlist = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'images'))
         images = socket.recv_pyobj()
 
-        calc = FingerprintCalculator(neighborlist, anotherparameter, cutoff)
+        calc = FingerprintCalculator(neighborlist, Gs, nmax, cutoff)
         result = {}
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.
