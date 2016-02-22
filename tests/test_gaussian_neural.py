@@ -1,10 +1,7 @@
 #!/usr/bin/env python
-"""Test of the BP neural network calculator. Randomly generates data
-with the EMT potential in MD simulations. Both trains and tests getting
-energy out of the calculator. Shows results for both interpolation and
-extrapolation."""
-
-import os
+"""Simple test of the Amp calculator, using Gaussian descriptors and neural
+network model. Randomly generates data with the EMT potential in MD
+simulations."""
 
 from ase.calculators.emt import EMT
 from ase.lattice.surface import fcc110
@@ -14,10 +11,9 @@ from ase import units
 from ase.md import VelocityVerlet
 from ase.constraints import FixAtoms
 
-from ampmoremodular import Amp
-from ampmoremodular.descriptor import Behler
-from ampmoremodular.regression import NeuralNetwork
-from ampmoremodular.utilities import randomize_images, Data
+from amp import Amp
+from amp.descriptor.gaussians import Gaussians
+from amp.model.neuralnetwork import NeuralNetwork
 
 
 def generate_data(count):
@@ -43,25 +39,17 @@ def generate_data(count):
     return images
 
 
-label = 'amp/calc'
-if not os.path.exists('amp'):
-    os.mkdir('amp')
+def train_test():
+    label = 'train_test/calc'
+    train_images = generate_data(10)
 
-print('Generating data.')
-all_images = generate_data(10)
-train_images, test_images = randomize_images(all_images)
+    calc = Amp(descriptor=Gaussians(),
+               model=NeuralNetwork(),
+               label=label,
+               cores=1)
 
-print('Training network.')
-calc = Amp(label=label,
-           descriptor=Behler(),
-           regression=NeuralNetwork(hiddenlayers=(5, 5)),
-           fortran=False,
-           cores=1)
+    calc.train(images=train_images)
 
-calc.fingerprint(images=train_images)
 
-print('Interact with fingerprints.')
-fp = Data(filename=label + '-fingerprints')
-# Try in interactive shell.
-# >>> keys = fp.d.keys()
-# >>> print(fp[keys[3]])
+if __name__ == '__main__':
+    train_test()
