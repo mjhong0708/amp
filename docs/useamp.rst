@@ -18,10 +18,10 @@ The below shows a basic example of training Amp with Gaussian descriptors and a 
 .. code-block:: python
 
    from amp import Amp
-   from amp.descriptor.gaussians import Gaussians
+   from amp.descriptor.gaussian import Gaussian
    from amp.model.neuralnetwork import NeuralNetwork
 
-   calc = Amp(descriptor=Gaussians(), model=NeuralNetwork(),
+   calc = Amp(descriptor=Gaussian(), model=NeuralNetwork(),
               label='calc')
    calc.train(images='my-images.traj')
 
@@ -128,9 +128,9 @@ Note that most of the lines of code below are either making the atoms or making 
  
  # Fingerprint using Amp.
  from ampmoremodular.utilities import hash_images
- from ampmoremodular.descriptor.gaussians import Gaussians
+ from ampmoremodular.descriptor.gaussian import Gaussian
  images = hash_images(images, ordered=True)
- descriptor = Gaussians()
+ descriptor = Gaussian()
  descriptor.calculate_fingerprints(images)
  
  # Plot the data.

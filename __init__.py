@@ -314,8 +314,8 @@ def importhelper(importname):
     However, since there is an `eval` statement in string2dict maybe this
     is silly.
     """
-    if importname == '.descriptor.gaussians.Gaussians':
-        from .descriptor.gaussians import Gaussians as Module
+    if importname == '.descriptor.gaussian.Gaussian':
+        from .descriptor.gaussian import Gaussian as Module
     elif importname == '.model.neuralnetwork.NeuralNetwork':
         from .model.neuralnetwork import NeuralNetwork as Module
     elif importname == '.model.LossFunction':

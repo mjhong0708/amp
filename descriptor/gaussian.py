@@ -7,7 +7,7 @@ from ase.calculators.calculator import Parameters
 from ..utilities import Data, Logger
 
 
-class Gaussians(object):
+class Gaussian(object):
 
     """
     Class that calculates Gaussian fingerprints (i.e., Behler-style).
@@ -76,7 +76,7 @@ class Gaussians(object):
         # to produce a compatible descriptor; that is, one that gives
         # an identical fingerprint when fed an ASE image.
         p = self.parameters = Parameters(
-            {'importname': '.descriptor.gaussians.Gaussians',
+            {'importname': '.descriptor.gaussian.Gaussian',
              'mode': 'atom-centered'})
         p.version = version
         p.cutoff = cutoff

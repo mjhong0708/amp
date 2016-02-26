@@ -70,7 +70,8 @@ class AtomCenteredExample(object):
         # to produce a compatible descriptor; that is, one that gives
         # an identical fingerprint when fed an ASE image.
         p = self.parameters = Parameters(
-            {'importname': '.descriptor.gaussians.Gaussians',
+            {'importname': '.descriptor.gaussian.Gaussian',
+                #FIXME/ap: Above should not be gaussian
              'mode': 'atom-centered'})
         p.version = version
         p.cutoff = cutoff

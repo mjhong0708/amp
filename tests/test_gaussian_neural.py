@@ -12,7 +12,7 @@ from ase.md import VelocityVerlet
 from ase.constraints import FixAtoms
 
 from amp import Amp
-from amp.descriptor.gaussians import Gaussians
+from amp.descriptor.gaussian import Gaussian
 from amp.model.neuralnetwork import NeuralNetwork
 
 
@@ -43,7 +43,7 @@ def train_test():
     label = 'train_test/calc'
     train_images = generate_data(10)
 
-    calc = Amp(descriptor=Gaussians(),
+    calc = Amp(descriptor=Gaussian(),
                model=NeuralNetwork(),
                label=label,
                cores=1)
