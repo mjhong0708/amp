@@ -64,6 +64,6 @@ To create a release, we go through the following steps.
 
 * Change the nightly tests to test this version as the stable build.
 
-* Tag the release with the release number, e.g., v0.5 or v0.5.1, the latter being for bug fixes.
+* Tag the release with the release number, e.g., v0.5 or v0.5.1, the latter being for bug fixes. Do this on a local machine (on the correct branch) with `git tag -a v0.4`, followed by `git push origin --tags`.
 
 * Create a DOI for the release and a copy on Xenodo.
