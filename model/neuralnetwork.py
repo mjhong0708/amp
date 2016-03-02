@@ -290,10 +290,8 @@ class NeuralNetwork(object):
 
         len_of_afp = len(afp)
         temp = np.zeros((1, len_of_afp + 1))
-        _ = 0
-        while _ < len_of_afp:
+        for _ in xrange(len_of_afp):
             temp[0, _] = afp[_]
-            _ += 1
         temp[0, len(afp)] = 1.0
         ohat[0] = temp
         net[1] = np.dot(ohat[0], weight[1])
@@ -305,10 +303,8 @@ class NeuralNetwork(object):
             o[1] = 1. / (1. + np.exp(-net[1]))
         temp = np.zeros((1, np.shape(o[1])[1] + 1))
         bound = np.shape(o[1])[1]
-        _ = 0
-        while _ < bound:
+        for _ in xrange(bound):
             temp[0, _] = o[1][0, _]
-            _ += 1
         temp[0, np.shape(o[1])[1]] = 1.0
         ohat[1] = temp
         for hiddenlayer in hiddenlayers[1:]:
@@ -323,10 +319,8 @@ class NeuralNetwork(object):
                 o[layer] = 1. / (1. + np.exp(-net[layer]))
             temp = np.zeros((1, np.size(o[layer]) + 1))
             bound = np.size(o[layer])
-            _ = 0
-            while _ < bound:
+            for _ in xrange(bound):
                 temp[0, _] = o[layer][0, _]
-                _ += 1
             temp[0, np.size(o[layer])] = 1.0
             ohat[layer] = temp
         layer += 1  # output layer
@@ -343,10 +337,8 @@ class NeuralNetwork(object):
 
         len_of_afp = len(afp)
         temp = np.zeros((1, len_of_afp))  # FIXME/ap Need descriptive name
-        _ = 0
-        while _ < len_of_afp:
+        for _ in xrange(len_of_afp):
             temp[0, _] = afp[_]
-            _ += 1
 
         atomic_amp_energy = p.scalings[symbol]['slope'] * \
             float(o[layer]) + p.scalings[symbol]['intercept']
@@ -436,28 +428,22 @@ def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
             normalized_arg_range - \
             normalized_arg_range / 2.
         len_of_hiddenlayers = len(list(nn_structure)) - 3
-        layer = 0
-        while layer < len_of_hiddenlayers:
+        for layer in xrange(len_of_hiddenlayers):
             normalized_arg_range = arg_range / \
                 nn_structure[layer + 1]
             weight[layer + 2] = np.random.random(
                 (nn_structure[layer + 1] + 1,
                  nn_structure[layer + 2])) * \
                 normalized_arg_range - normalized_arg_range / 2.
-            layer += 1
         normalized_arg_range = arg_range / nn_structure[-2]
         weight[len(list(nn_structure)) - 1] = \
             np.random.random((nn_structure[-2] + 1, 1)) \
             * normalized_arg_range - normalized_arg_range / 2.
         len_of_weight = len(weight)
-        _ = 0
-        while _ < len_of_weight:  # biases
+        for _ in xrange(len_of_weight):  # biases
             size = weight[_ + 1][-1].size
-            __ = 0
-            while __ < size:
+            for __ in xrange(size):
                 weight[_ + 1][-1][__] = 0.
-                __ += 1
-            _ += 1
 
     else:
         elements = fprange.keys()
@@ -479,29 +465,23 @@ def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
                 normalized_arg_range - \
                 normalized_arg_range / 2.
             len_of_hiddenlayers = len(list(nn_structure[element])) - 3
-            layer = 0
-            while layer < len_of_hiddenlayers:
+            for layer in xrange(len_of_hiddenlayers):
                 normalized_arg_range = arg_range / \
                     nn_structure[element][layer + 1]
                 weight[element][layer + 2] = np.random.random(
                     (nn_structure[element][layer + 1] + 1,
                      nn_structure[element][layer + 2])) * \
                     normalized_arg_range - normalized_arg_range / 2.
-                layer += 1
             normalized_arg_range = arg_range / nn_structure[element][-2]
             weight[element][len(list(nn_structure[element])) - 1] = \
                 np.random.random((nn_structure[element][-2] + 1, 1)) \
                 * normalized_arg_range - normalized_arg_range / 2.
 
             len_of_weight = len(weight[element])
-            _ = 0
-            while _ < len_of_weight:  # biases
+            for _ in xrange(len_of_weight):  # biases
                 size = weight[element][_ + 1][-1].size
-                __ = 0
-                while __ < size:
+                for __ in xrange(size):
                     weight[element][_ + 1][-1][__] = 0.
-                    __ += 1
-                _ += 1
 
     return weight
 
@@ -533,8 +513,7 @@ def get_random_scalings(images, activation, elements=None):
     min_act_energy = min(image.get_potential_energy(apply_constraint=False)
                          for hash, image in images.items())
 
-    count = 0
-    while count < no_of_images:
+    for count in xrange(no_of_images):
         hash = hashs[count]
         image = images[hash]
         no_of_atoms = len(image)
@@ -544,7 +523,6 @@ def get_random_scalings(images, activation, elements=None):
         if image.get_potential_energy(apply_constraint=False) == \
                 min_act_energy:
             no_atoms_of_min_act_energy = no_of_atoms
-        count += 1
 
     max_act_energy_per_atom = max_act_energy / no_atoms_of_max_act_energy
     min_act_energy_per_atom = min_act_energy / no_atoms_of_min_act_energy
