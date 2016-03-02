@@ -273,15 +273,10 @@ class NeuralNetwork(object):
         :returns: float -- energy
         """
         p = self.parameters
-        if p.mode == 'image-centered':
-            raise NotImplementedError('This needs to be coded; '
-                                      'if it belongs here.')
-
-        elif p.mode == 'atom-centered':
-            self.o[index] = {}
-            hiddenlayers = p.hiddenlayers[symbol]
-            weight = p.weights[symbol]
-            fprange = self.parameters.fprange[symbol]
+        self.o[index] = {}
+        hiddenlayers = p.hiddenlayers[symbol]
+        weight = p.weights[symbol]
+        fprange = self.parameters.fprange[symbol]
 
         # Scale the fingerprints to be in [-1, 1] range.
         afp = -1.0 + 2.0 * ((np.array(afp) - fprange[:, 0]) /
@@ -353,15 +348,11 @@ class NeuralNetwork(object):
             temp[0, _] = afp[_]
             _ += 1
 
-        if p.mode == 'image-centered':
-            raise NotImplementedError('Need to code. But why is this here?')
-
-        elif p.mode == 'atom-centered':
-            atomic_amp_energy = p.scalings[symbol]['slope'] * \
-                float(o[layer]) + p.scalings[symbol]['intercept']
-            self.o[index] = o
-            self.o[index][0] = temp
-            return atomic_amp_energy
+        atomic_amp_energy = p.scalings[symbol]['slope'] * \
+            float(o[layer]) + p.scalings[symbol]['intercept']
+        self.o[index] = o
+        self.o[index][0] = temp
+        return atomic_amp_energy
 
 
 def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
