@@ -6,9 +6,10 @@ from ase.calculators.calculator import Parameters
 from ..regression import Regressor
 from . import LossFunction, calculate_fingerprints_range
 from ..utilities import Logger
+from . import Model
 
 
-class NeuralNetwork(object):
+class NeuralNetwork(Model):
 
     """
     Class that implements a basic feed-forward neural network.
@@ -105,6 +106,12 @@ class NeuralNetwork(object):
         self.regressor = regressor
         self.parent = None  # Can hold a reference to main Amp instance.
         self.lossfunction = lossfunction
+
+        # Reset local variables corresponding to energy.
+        self.o = {}
+        self.D = {}
+        self.delta = {}
+        self.ohat = {}
 
     @property
     def log(self):
@@ -234,27 +241,6 @@ class NeuralNetwork(object):
         if hasattr(lossfunction, 'attach_model'):
             lossfunction.attach_model(self)  # Allows access to methods.
         self._lossfunction = lossfunction
-
-    def get_energy(self, fingerprint):
-        """Returns the model-predicted energy for an image, based on its
-        fingerprint.
-        """
-        # Reset local variables corresponding to energy.
-        self.o = {}
-        self.D = {}
-        self.delta = {}
-        self.ohat = {}
-
-        if self.parameters.mode == 'image-centered':
-            raise NotImplementedError('This needs to be coded.')
-        elif self.parameters.mode == 'atom-centered':
-            energy = 0.0
-            for index, (element, atomicfingerprint) in enumerate(fingerprint):
-                atom_energy = self.get_atomic_energy(afp=atomicfingerprint,
-                                                     index=index,
-                                                     symbol=element)
-                energy += atom_energy
-        return energy
 
     def get_atomic_energy(self, afp, index=None, symbol=None,):
         """
@@ -572,6 +558,7 @@ def get_random_scalings(images, activation, elements=None):
 
 
 class Raveler:
+
     """Class to ravel and unravel variable values into a single vector.
     This is used for feeding into the optimizer. Feed in a list of
     dictionaries to initialize the shape of the transformation. Note no

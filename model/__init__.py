@@ -5,7 +5,31 @@ from ase.calculators.calculator import Parameters
 from ..utilities import ConvergenceOccurred, make_sublists, now
 
 
+class Model(object):
+
+    """
+    Class that includes common methods between different models.
+    """
+
+    def get_energy(self, fingerprint):
+        """Returns the model-predicted energy for an image, based on its
+        fingerprint.
+        """
+
+        if self.parameters.mode == 'image-centered':
+            raise NotImplementedError('This needs to be coded.')
+        elif self.parameters.mode == 'atom-centered':
+            energy = 0.0
+            for index, (element, atomicfingerprint) in enumerate(fingerprint):
+                atom_energy = self.get_atomic_energy(afp=atomicfingerprint,
+                                                     index=index,
+                                                     symbol=element)
+                energy += atom_energy
+        return energy
+
+
 class LossFunction:
+
     """Basic cost function, which can be used by the model.get_cost_function
     method which is required in standard model classes.
     This version is pure python and thus will be slow compared to a
@@ -111,11 +135,11 @@ class LossFunction:
         server = self._sessions['master']
 
         def process_parallels():
-            finished = np.array([False]*len(self._sessions['workers']))
+            finished = np.array([False] * len(self._sessions['workers']))
             while not finished.all():
                 message = server.recv_pyobj()
                 if (message['subject'] == '<request>' and
-                   message['data'] == 'parameters'):
+                        message['data'] == 'parameters'):
                     server.send_pyobj('<stop>')
                     finished[int(message['id'])] = True
 
@@ -160,7 +184,8 @@ class LossFunction:
             # d['data']: optional data passed from worker.
 
             def process_parallels(vector):
-                finished = np.array([False]*len(processes))  # For each process
+                # For each process
+                finished = np.array([False] * len(processes))
                 results = {'costfxn': 0., 'max_residual': 0.}
                 while not finished.all():
                     message = server.recv_pyobj()
