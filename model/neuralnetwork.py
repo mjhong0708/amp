@@ -5,7 +5,6 @@ from ase.calculators.calculator import Parameters
 
 from ..regression import Regressor
 from . import LossFunction, calculate_fingerprints_range
-from ..utilities import Logger
 from . import Model
 
 
@@ -112,25 +111,6 @@ class NeuralNetwork(Model):
         self.D = {}
         self.delta = {}
         self.ohat = {}
-
-    @property
-    def log(self):
-        """Method to set or get a logger. Should be an instance of
-        amp.utilities.Logger."""
-        if hasattr(self, '_log'):
-            return self._log
-        if hasattr(self.parent, 'log'):
-            return self.parent.log
-        return Logger(None)
-
-    @log.setter
-    def log(self, log):
-        self._log = log
-
-    def tostring(self):
-        """Returns an evaluatable representation of the calculator that can
-        be used to re-establish the calculator."""
-        return self.parameters.tostring()
 
     def fit(self, trainingimages, descriptor, log, cores):
         """Fit the model parameters such that the fingerprints can be used to describe

@@ -1,8 +1,7 @@
 
 import numpy as np
 from ase.calculators.calculator import Parameters
-
-from ..utilities import ConvergenceOccurred, make_sublists, now
+from ..utilities import Logger, ConvergenceOccurred, make_sublists, now
 
 
 class Model(object):
@@ -10,6 +9,25 @@ class Model(object):
     """
     Class that includes common methods between different models.
     """
+
+    @property
+    def log(self):
+        """Method to set or get a logger. Should be an instance of
+        amp.utilities.Logger."""
+        if hasattr(self, '_log'):
+            return self._log
+        if hasattr(self.parent, 'log'):
+            return self.parent.log
+        return Logger(None)
+
+    @log.setter
+    def log(self, log):
+        self._log = log
+
+    def tostring(self):
+        """Returns an evaluatable representation of the calculator that can
+        be used to re-establish the calculator."""
+        return self.parameters.tostring()
 
     def get_energy(self, fingerprint):
         """Returns the model-predicted energy for an image, based on its
