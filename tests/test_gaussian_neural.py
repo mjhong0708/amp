@@ -41,14 +41,17 @@ def generate_data(count):
 
 def train_test():
     label = 'train_test/calc'
-    train_images = generate_data(10)
+    train_images = generate_data(2)
 
     calc = Amp(descriptor=Gaussian(),
                model=NeuralNetwork(),
                label=label,
                cores=1)
 
-    calc.train(images=train_images)
+    calc.train(images=train_images, force_coefficient=0.04)
+    for image in train_images[0:2]:
+        print "energy =", calc.get_potential_energy(image)
+        print "forces =", calc.get_forces(image)
 
 
 if __name__ == '__main__':

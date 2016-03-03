@@ -27,6 +27,25 @@ class Model(object):
                 energy += atom_energy
         return energy
 
+    def get_forces(self, derfingerprints):
+        """Returns the model-predicted forces for an image, based on
+        derivatives of fingerprints.
+        """
+
+        if self.parameters.mode == 'image-centered':
+            raise NotImplementedError('This needs to be coded.')
+        elif self.parameters.mode == 'atom-centered':
+            selfindices = set([key[0] for key in derfingerprints.keys()])
+            forces = np.zeros((len(selfindices), 3))
+            while len(derfingerprints) > 0:
+                (selfindex, selfsymbol, nindex, nsymbol, i), derafp = \
+                    derfingerprints.popitem()  # Reduce memory.
+                forces[selfindex][i] += self.get_atomic_force(direction=i,
+                                                              derafp=derafp,
+                                                              index=nindex,
+                                                              symbol=nsymbol,)
+            return forces
+
 
 class LossFunction:
 

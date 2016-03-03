@@ -186,11 +186,14 @@ class Amp(Calculator, object):
             self.results['energy'] = energy
 
         if properties == ['forces']:
-            raise NotImplementedError('Needs updating.')
+            forces = \
+            self.model.get_forces(self.descriptor.derfingerprints[key])
+            self.results['forces'] = forces
 
     def train(self,
               images,
               overwrite=False,
+              force_coefficient=None,
               ):
         """
         Fits the model to the training images.
@@ -205,6 +208,10 @@ class Amp(Calculator, object):
         :param overwrite: If a trained output file with the same name exists,
                           overwrite it.
         :type overwrite: bool
+
+        :param force_coefficient: Coefficient of the force contribution in the
+                                  cost function.
+        :type force_coefficient: float
         """
 
         log = self.log
@@ -217,9 +224,11 @@ class Amp(Calculator, object):
         log('Model: %s' % self.model.__class__.__name__)
 
         log('\nDescriptor\n==========')
+        calculate_derivatives = True if force_coefficient is not None else False
         self.descriptor.calculate_fingerprints(images=images,
                                                cores=self.cores,
-                                               log=log)
+                                               log=log,
+                                               calculate_derivatives=calculate_derivatives)
 
         log('\nModel fitting\n=============')
         result = self.model.fit(trainingimages=images,

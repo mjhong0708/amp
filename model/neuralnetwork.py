@@ -262,6 +262,7 @@ class NeuralNetwork(Model):
         self.o[index] = {}
         hiddenlayers = p.hiddenlayers[symbol]
         weight = p.weights[symbol]
+        activation = p.activation
         fprange = self.parameters.fprange[symbol]
 
         # Scale the fingerprints to be in [-1, 1] range.
@@ -281,11 +282,11 @@ class NeuralNetwork(Model):
         temp[0, len(afp)] = 1.0
         ohat[0] = temp
         net[1] = np.dot(ohat[0], weight[1])
-        if p.activation == 'linear':
+        if activation == 'linear':
             o[1] = net[1]  # linear activation
-        elif p.activation == 'tanh':
+        elif activation == 'tanh':
             o[1] = np.tanh(net[1])  # tanh activation
-        elif p.activation == 'sigmoid':  # sigmoid activation
+        elif activation == 'sigmoid':  # sigmoid activation
             o[1] = 1. / (1. + np.exp(-net[1]))
         temp = np.zeros((1, np.shape(o[1])[1] + 1))
         bound = np.shape(o[1])[1]
@@ -296,11 +297,11 @@ class NeuralNetwork(Model):
         for hiddenlayer in hiddenlayers[1:]:
             layer += 1
             net[layer] = np.dot(ohat[layer - 1], weight[layer])
-            if p.activation == 'linear':
+            if activation == 'linear':
                 o[layer] = net[layer]  # linear activation
-            elif p.activation == 'tanh':
+            elif activation == 'tanh':
                 o[layer] = np.tanh(net[layer])  # tanh activation
-            elif p.activation == 'sigmoid':
+            elif activation == 'sigmoid':
                 # sigmoid activation
                 o[layer] = 1. / (1. + np.exp(-net[layer]))
             temp = np.zeros((1, np.size(o[layer]) + 1))
@@ -311,11 +312,11 @@ class NeuralNetwork(Model):
             ohat[layer] = temp
         layer += 1  # output layer
         net[layer] = np.dot(ohat[layer - 1], weight[layer])
-        if p.activation == 'linear':
+        if activation == 'linear':
             o[layer] = net[layer]  # linear activation
-        elif p.activation == 'tanh':
+        elif activation == 'tanh':
             o[layer] = np.tanh(net[layer])  # tanh activation
-        elif p.activation == 'sigmoid':
+        elif activation == 'sigmoid':
             # sigmoid activation
             o[layer] = 1. / (1. + np.exp(-net[layer]))
 
@@ -331,6 +332,75 @@ class NeuralNetwork(Model):
         self.o[index] = o
         self.o[index][0] = temp
         return atomic_amp_energy
+
+    def get_atomic_force(self, direction, derafp, index=None, symbol=None,):
+        """
+        Given derivative of input to the neural network, derivative of output
+        (which corresponds to forces) is calculated.
+
+        :param direction: Direction of force.
+        :type direction: int
+        :param derafp: List of derivatives of inputs
+        :type derafp: list
+        :param index: Index of the neighbor atom which force is acting at.
+                        (only used in the fingerprinting scheme)
+        :type index: int
+        :param symbol: Symbol of the neighbor atom which force is acting at.
+                         (only used in the fingerprinting scheme)
+        :type symbol: str
+
+        :returns: float -- force
+        """
+
+        p = self.parameters
+        o = self.o[index]
+        hiddenlayers = p.hiddenlayers[symbol]
+        weight = p.weights[symbol]
+        scaling = p.scalings[symbol]
+        activation = p.activation
+        fprange = self.parameters.fprange[symbol]
+
+        # Scaling derivative of fingerprints.
+        derafp = -1.0 + 2.0 * ((np.array(derafp) - fprange[:, 0]) /
+                               (fprange[:, 1] - fprange[:, 0]))
+
+        der_o = {}  # node values
+        der_o[0] = derafp
+        layer = 0  # input layer
+        for hiddenlayer in hiddenlayers[0:]:
+            layer += 1
+            temp = np.dot(np.matrix(der_o[layer - 1]),
+                          np.delete(weight[layer], -1, 0))
+            der_o[layer] = [None] * np.size(o[layer])
+            bound = np.size(o[layer])
+            for j in xrange(bound):
+                if activation == 'linear':  # linear function
+                    der_o[layer][j] = float(temp[0, j])
+                elif activation == 'sigmoid':  # sigmoid function
+                    der_o[layer][j] = float(temp[0, j]) * \
+                        float(o[layer][0, j] * (1. - o[layer][0, j]))
+                elif activation == 'tanh':  # tanh function
+                    der_o[layer][j] = float(temp[0, j]) * \
+                        float(1. - o[layer][0, j] * o[layer][0, j])
+        layer += 1  # output layer
+        temp = np.dot(np.matrix(der_o[layer - 1]),
+                      np.delete(weight[layer], -1, 0))
+        if activation == 'linear':  # linear function
+            der_o[layer] = float(temp)
+        elif activation == 'sigmoid':  # sigmoid function
+            der_o[layer] = float(o[layer] *
+                                 (1. - o[layer]) * temp)
+        elif activation == 'tanh':  # tanh function
+            der_o[layer] = float((1. - o[layer] *
+                                  o[layer]) * temp)
+
+        der_o[layer] = [der_o[layer]]
+
+        force = float(-(scaling['slope'] * der_o[layer][0]))
+
+        return force
+
+# Auxiliary functions #########################################################
 
 
 def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
