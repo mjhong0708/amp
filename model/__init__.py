@@ -180,7 +180,7 @@ class LossFunction:
 
         if self._cores == 1:
             self._model.vector = parametervector
-            costfxn = 0.
+            loss = 0.
             max_residual = 0.
             for hash, image in self.images.iteritems():
                 predicted = self._model.get_energy(self.fingerprints[hash])
@@ -188,8 +188,8 @@ class LossFunction:
                 residual_per_atom = abs(predicted - actual) / len(image)
                 if residual_per_atom > max_residual:
                     max_residual = residual_per_atom
-                costfxn += residual_per_atom**2
-            costfxn = costfxn / len(self.images)
+                loss += residual_per_atom**2
+            loss = loss / len(self.images)
         else:
             server = self._sessions['master']
             processes = self._sessions['workers']
@@ -205,7 +205,7 @@ class LossFunction:
             def process_parallels(vector):
                 # For each process
                 finished = np.array([False] * len(processes))
-                results = {'costfxn': 0., 'max_residual': 0.}
+                results = {'loss': 0., 'max_residual': 0.}
                 while not finished.all():
                     message = server.recv_pyobj()
                     if message['subject'] == '<purpose>':
@@ -233,30 +233,30 @@ class LossFunction:
                     elif message['subject'] == '<result>':
                         result = message['data']
                         server.send_string('meaningless reply')
-                        results['costfxn'] += result['costfxn']
+                        results['loss'] += result['loss']
                         if result['max_residual'] > results['max_residual']:
                             results['max_residual'] = result['max_residual']
                         finished[int(message['id'])] = True
                 return results
 
             results = process_parallels(parametervector)
-            costfxn = results['costfxn']
+            loss = results['loss']
             max_residual = results['max_residual']
 
         if self.raise_ConvergenceOccurred:
-            converged = self.check_convergence(costfxn, max_residual)
+            converged = self.check_convergence(loss, max_residual)
             if converged:
                 self._model.vector = parametervector
                 self._cleanup()
                 raise ConvergenceOccurred()
 
         if complete_output is False:
-            return costfxn
+            return loss
         else:
-            return {'costfxn': costfxn,
+            return {'loss': loss,
                     'max_residual': max_residual, }
 
-    def check_convergence(self, costfxn, max_residual):
+    def check_convergence(self, loss, max_residual):
         """Checks to see whether convergence is met; if it is, raises
         ConvergenceException to stop the optimizer."""
         p = self.parameters
@@ -264,13 +264,13 @@ class LossFunction:
         maxresidconverged = True
         log = self._model.log
         if p.energy_tol is not None:
-            if costfxn > p.energy_tol:
+            if loss > p.energy_tol:
                 energyconverged = False
         if p.max_resid is not None:
             if max_residual > p.max_resid:
                 maxresidconverged = False
         log(' %5i  %19s %12.4e %1s %12.4e %1s' %
-            (self._step, now(), costfxn, 'C' if energyconverged else '',
+            (self._step, now(), loss, 'C' if energyconverged else '',
              max_residual, 'C' if maxresidconverged else ''))
         self._step += 1
         return energyconverged and maxresidconverged
