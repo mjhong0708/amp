@@ -25,8 +25,8 @@ class Regressor:
         self.optimizer_kwargs = optimizer_kwargs
 
     def regress(self, model, log):
-        """Performs the regression. Calls model.get_cost_function,
-        which should return the current value of the cost function
+        """Performs the regression. Calls model.get_loss,
+        which should return the current value of the loss function
         until convergence has been reached, at which point it should
         raise a amp.utilities.ConvergenceException.
         """

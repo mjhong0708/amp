@@ -244,11 +244,11 @@ class NeuralNetwork(Model):
         weight = p.weights[symbol]
         activation = p.activation
         fprange = self.parameters.fprange[symbol]
-
         # Scale the fingerprints to be in [-1, 1] range.
-        afp = -1.0 + 2.0 * ((np.array(afp) - fprange[:, 0]) /
-                            (fprange[:, 1] - fprange[:, 0]))
-
+        for _ in xrange(np.shape(afp)[0]):
+            if (fprange[_, 1] - fprange[_, 0]) > (10.**(-8.)):
+                afp[_] = -1.0 + 2.0 * ((afp[_] - fprange[_, 0]) /
+                                       (fprange[_, 1] - fprange[_, 0]))
         # Calculate node values.
         o = {}  # node values
         layer = 1  # input layer
@@ -341,8 +341,9 @@ class NeuralNetwork(Model):
         fprange = self.parameters.fprange[symbol]
 
         # Scaling derivative of fingerprints.
-        derafp = -1.0 + 2.0 * ((np.array(derafp) - fprange[:, 0]) /
-                               (fprange[:, 1] - fprange[:, 0]))
+        for _ in xrange(len(derafp)):
+            if (fprange[_, 1] - fprange[_, 0]) > (10.**(-8.)):
+                derafp[_] = 2.0 * (derafp[_] / (fprange[_, 1] - fprange[_, 0]))
 
         der_o = {}  # node values
         der_o[0] = derafp

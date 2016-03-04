@@ -500,7 +500,8 @@ def calculate_G4(symbols, Rs, G_elements, gamma, zeta, eta, cutoff, home,
             Rjk = np.linalg.norm(Rs[j] - Rs[k])
             cos_theta_ijk = np.dot(Rij_, Rik_) / Rij / Rik
             term = (1. + gamma * cos_theta_ijk) ** zeta
-            term *= np.exp(-eta * (Rij ** 2. + Rik ** 2. + Rjk ** 2.))
+            term *= np.exp(-eta * (Rij ** 2. + Rik ** 2. + Rjk ** 2.) /
+                           (cutoff ** 2.))
             term *= cutoff_fxn(Rij, cutoff)
             term *= cutoff_fxn(Rik, cutoff)
             term *= cutoff_fxn(Rjk, cutoff)

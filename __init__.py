@@ -179,15 +179,24 @@ class Amp(Calculator, object):
 
         images = hash_images([self.atoms])
         key = images.keys()[0]
-        self.descriptor.calculate_fingerprints(images=images, log=log)
 
         if properties == ['energy']:
+            self.descriptor.calculate_fingerprints(images=images,
+                                                   log=log,
+                                                   calculate_derivatives=False)
             energy = self.model.get_energy(self.descriptor.fingerprints[key])
             self.results['energy'] = energy
 
         if properties == ['forces']:
+            self.descriptor.calculate_fingerprints(images=images,
+                                                   log=log,
+                                                   calculate_derivatives=True)
+            # for calculating forces, energies should be calculated first,
+            # at least for neural networks
+            energy = self.model.get_energy(self.descriptor.fingerprints[key])
+            self.results['energy'] = energy
             forces = \
-            self.model.get_forces(self.descriptor.derfingerprints[key])
+                self.model.get_forces(self.descriptor.derfingerprints[key])
             self.results['forces'] = forces
 
     def train(self,
