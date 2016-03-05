@@ -231,8 +231,8 @@ class FingerprintCalculator:
 
         len_of_symmetries = len(self.globals.Gs[symbol])
         fingerprint = [None] * len_of_symmetries
-        count = 0
-        while count < len_of_symmetries:
+
+        for count in xrange(len_of_symmetries):
             G = self.globals.Gs[symbol][count]
 
             if G['type'] == 'G2':
@@ -245,7 +245,6 @@ class FingerprintCalculator:
             else:
                 raise NotImplementedError('Unknown G type: %s' % G['type'])
             fingerprint[count] = ridge
-            count += 1
 
         return symbol, fingerprint
 
@@ -359,8 +358,8 @@ class FingerprintDerivativeCalculator:
         len_of_symmetries = len(self.globals.Gs[symbol])
         Rindex = self.atoms.positions[index]
         der_fingerprint = [None] * len_of_symmetries
-        count = 0
-        while count < len_of_symmetries:
+
+        for count in xrange(len_of_symmetries):
             G = self.globals.Gs[symbol][count]
             if G['type'] == 'G2':
                 ridge = calculate_der_G2(
@@ -392,7 +391,6 @@ class FingerprintDerivativeCalculator:
                 raise NotImplementedError('Unknown G type: %s' % G['type'])
 
             der_fingerprint[count] = ridge
-            count += 1
 
         return der_fingerprint
 
@@ -434,15 +432,13 @@ def calculate_G2(symbols, Rs, G_element, eta, cutoff, home, fortran=False):
     else:
         ridge = 0.  # One aspect of a fingerprint :)
         len_of_symbols = len(symbols)
-        count = 0
-        while count < len_of_symbols:
+        for count in xrange(len_of_symbols):
             symbol = symbols[count]
             R = Rs[count]
             if symbol == G_element:
                 Rij = np.linalg.norm(R - home)
                 ridge += (np.exp(-eta * (Rij ** 2.) / (cutoff ** 2.)) *
                           cutoff_fxn(Rij, cutoff))
-            count += 1
 
     return ridge
 
@@ -757,8 +753,7 @@ def calculate_der_G2(n_indices, symbols, Rs, G_element, eta, cutoff, a, Ra,
         ridge = 0.  # One aspect of a fingerprint :)
 
         len_of_symbols = len(symbols)
-        count = 0
-        while count < len_of_symbols:
+        for count in xrange(len_of_symbols):
             symbol = symbols[count]
             Rj = Rs[count]
             n_index = n_indices[count]
@@ -770,7 +765,6 @@ def calculate_der_G2(n_indices, symbols, Rs, G_element, eta, cutoff, a, Ra,
                 term2 = der_position(a, n_index, Ra, Rj, m, i)
                 ridge += np.exp(- eta * (Raj ** 2.) / (cutoff ** 2.)) * \
                     term1 * term2
-            count += 1
     return ridge
 
 
