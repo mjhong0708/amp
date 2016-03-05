@@ -112,16 +112,19 @@ class NeuralNetwork(Model):
         self.delta = {}
         self.ohat = {}
 
-    def fit(self, trainingimages, descriptor, log, cores):
-        """Fit the model parameters such that the fingerprints can be used to describe
-        the energies in trainingimages. log is the logging object.
+    def fit(self, trainingimages, descriptor, energy_coefficient,
+            force_coefficient, log, cores):
+        """Fit the model parameters such that the fingerprints can be used to
+        describe the energies in trainingimages. log is the logging object.
         descriptor is a descriptor object, as would be in calc.descriptor.
         """
         # Set all parameters and report to logfile.
         self.cores = cores
 
         if self.lossfunction is None:
-            self.lossfunction = LossFunction(cores=self.cores)
+            self.lossfunction = LossFunction(energy_coefficient,
+                                             force_coefficient,
+                                             cores=self.cores,)
         if self.regressor is None:
             self.regressor = Regressor()
 
@@ -205,13 +208,22 @@ class NeuralNetwork(Model):
         Takes one and only one input, a vector of parameters.
         Returns one output, the value of the loss (cost) function.
         """
-        return self.lossfunction(vector)
+        return self.lossfunction.f(vector)
+
+    def get_lossprime(self, vector):
+        """
+        Method to be called by the regression master.
+        Takes one and only one input, a vector of parameters.
+        Returns one output, the value of the derivative of the loss function
+        with respect to model parameters.
+        """
+        return self.lossfunction.fprime(vector)
 
     @property
     def lossfunction(self):
         """Allows the user to set a custom loss function. For example,
         >>> from amp.model import LossFunction
-        >>> lossfxn = LossFunction(energytol=0.0001)
+        >>> lossfxn = LossFunction(energy_tol=0.0001)
         >>> calc.model.lossfunction = lossfxn
         """
         return self._lossfunction
@@ -380,6 +392,87 @@ class NeuralNetwork(Model):
         force = float(-(scaling['slope'] * der_o[layer][0]))
 
         return force
+
+    def get_dEnergy_dParameters(self, index=None, symbol=None):
+        """
+        Returns the derivative of energy square error with respect to
+        variables.
+
+        :param index: Index of the atom for which atomic energy is calculated
+                      (only used in the fingerprinting scheme)
+        :type index: int
+        :param symbol: Index of the atom for which atomic energy is calculated
+                       (only used in the fingerprinting scheme)
+        :type symbol: str
+
+        :returns: list of float -- the value of the derivative of energy square
+                                   error with respect to variables.
+        """
+        p = self.parameters
+        weights = p.weights
+        scalings = p.scalings
+        activation = p.activation
+
+        dEnergy_dParameters = np.zeros(self.ravel.count)
+
+        dEnergy_dWeights, dEnergy_dScalings = \
+            self.ravel.to_dicts(dEnergy_dParameters)
+
+        self.W = {}
+        for elm in weights.keys():
+            self.W[elm] = {}
+            weight = weights[elm]
+            for _ in xrange(len(weight)):
+                self.W[elm][_ + 1] = np.delete(weight[_ + 1], -1, 0)
+
+        o = self.o[index]
+        W = self.W[symbol]
+
+        N = len(o) - 2  # number of hiddenlayers
+        D = {}
+        for k in xrange(N + 2):
+            D[k] = np.zeros(shape=(np.size(o[k]), np.size(o[k])))
+            for j in xrange(np.size(o[k])):
+                if activation == 'linear':  # linear
+                    D[k][j, j] = 1.
+                elif activation == 'sigmoid':  # sigmoid
+                    D[k][j, j] = float(o[k][0, j]) * \
+                        float((1. - o[k][0, j]))
+                elif activation == 'tanh':  # tanh
+                    D[k][j, j] = float(1. - o[k][0, j] * o[k][0, j])
+        # Calculating delta
+        delta = {}
+        # output layer
+        delta[N + 1] = D[N + 1]
+        # hidden layers
+
+        for k in xrange(N, 0, -1):  # backpropagate starting from output layer
+            delta[k] = np.dot(D[k], np.dot(W[k + 1], delta[k + 1]))
+        # Calculating ohat
+        ohat = {}
+        for k in xrange(1, N + 2):
+            bound = np.size(o[k - 1])
+            ohat[k - 1] = np.zeros(shape=(1, bound + 1))
+            for j in xrange(bound):
+                ohat[k - 1][0, j] = o[k - 1][0, j]
+            ohat[k - 1][0, bound] = 1.0
+
+        dEnergy_dScalings[symbol]['intercept'] = 1.
+        dEnergy_dScalings[symbol]['slope'] = float(o[N + 1])
+
+        for k in xrange(1, N + 2):
+            dEnergy_dWeights[symbol][k] = float(scalings[symbol]['slope']) * \
+                np.dot(np.matrix(ohat[k - 1]).T, np.matrix(delta[k]).T)
+
+        dEnergy_dParameters = \
+            self.ravel.to_vector(dEnergy_dWeights, dEnergy_dScalings)
+
+        self.D[index] = D
+        self.delta[index] = delta
+        self.ohat[index] = ohat
+
+        return dEnergy_dParameters
+
 
 # Auxiliary functions #########################################################
 

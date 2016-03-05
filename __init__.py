@@ -202,6 +202,8 @@ class Amp(Calculator, object):
     def train(self,
               images,
               overwrite=False,
+              energy_tol=0.001,
+              force_tol=0.005,
               force_coefficient=None,
               ):
         """
@@ -217,6 +219,15 @@ class Amp(Calculator, object):
         :param overwrite: If a trained output file with the same name exists,
                           overwrite it.
         :type overwrite: bool
+
+        :param energy_goal: Threshold energy per atom rmse at which simulation
+                            is converged.
+        :type energy_goal: float
+
+        :param force_tol: Threshold force rmse at which simulation is
+                           converged. The default value is in unit of eV/Ang.
+                           If 'force_goal = None', forces will not be trained.
+        :type force_tol: float
 
         :param force_coefficient: Coefficient of the force contribution in the
                                   cost function.
@@ -239,11 +250,21 @@ class Amp(Calculator, object):
                                                log=log,
                                                calculate_derivatives=calculate_derivatives)
 
+        if force_tol is None:
+            if not force_coefficient:
+                force_coefficient = 0.
+        elif not force_coefficient:
+            force_coefficient = (energy_tol / force_tol)**2.
+
+        energy_coefficient = 1.
+
         log('\nModel fitting\n=============')
         result = self.model.fit(trainingimages=images,
                                 descriptor=self.descriptor,
+                                energy_coefficient=energy_coefficient,
+                                force_coefficient=force_coefficient,
                                 log=log,
-                                cores=self.cores)
+                                cores=self.cores,)
 
         if result is True:
             log('Amp successfully trained. Saving current parameters.')

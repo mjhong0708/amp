@@ -2,6 +2,7 @@ from ..utilities import ConvergenceOccurred
 
 
 class Regressor:
+
     """Class to manage the regression of a generic model. That is, for a
     given parameter set, calculates the cost function (the difference in
     predicted energies and actual energies across training images), then
@@ -38,7 +39,7 @@ class Regressor:
         log(' Optimizer kwargs: %s' % self.optimizer_kwargs)
         x0 = model.vector.copy()
         try:
-            self.optimizer(model.get_loss, x0,
+            self.optimizer(model.get_loss, x0, model.get_lossprime,
                            **self.optimizer_kwargs)
         except ConvergenceOccurred:
             log('...optimization successful.', toc='opt')

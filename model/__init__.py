@@ -78,8 +78,9 @@ class LossFunction:
     Also has parallelization methods built in.
     """
 
-    def __init__(self, energy_tol=0.001, max_resid=0.001, cores=None,
-                 raise_ConvergenceOccurred=True):
+    def __init__(self, energy_coefficient, force_coefficient,
+                 energy_tol=0.001, max_resid=0.001, cores=None,
+                 raise_ConvergenceOccurred=True,):
         p = self.parameters = Parameters(
             {'importname': '.model.LossFunction'})
         p['energy_tol'] = energy_tol
@@ -88,6 +89,8 @@ class LossFunction:
         self._step = 0
         self._initialized = False
         self._cores = cores
+        self.energy_coefficient = energy_coefficient
+        self.force_coefficient = force_coefficient
 
     def attach_model(self, model, fingerprints=None, images=None):
         """Attach the model to be used to the loss function. fingerprints and
@@ -185,12 +188,12 @@ class LossFunction:
             _.logout()
         del self._sessions['workers']
 
-    def __call__(self, parametervector, complete_output=False):
+    def f(self, parametervector, prime=True, complete_output=False):
         """Returns the current value of teh cost function for a given set of
         parameters, or, if the energy is less than the energy_tol raises a
         ConvergenceException.
 
-        By default only returns the cost function (needed for optimizers).
+        By default only returns the loss function (needed for optimizers).
         Can return more information like max_residual if complete_output
         is True.
         """
@@ -198,16 +201,8 @@ class LossFunction:
 
         if self._cores == 1:
             self._model.vector = parametervector
-            loss = 0.
-            max_residual = 0.
-            for hash, image in self.images.iteritems():
-                predicted = self._model.get_energy(self.fingerprints[hash])
-                actual = image.get_potential_energy(apply_constraint=False)
-                residual_per_atom = abs(predicted - actual) / len(image)
-                if residual_per_atom > max_residual:
-                    max_residual = residual_per_atom
-                loss += residual_per_atom**2
-            loss = loss / len(self.images)
+            loss, dloss_dparameters, max_residual = \
+                self.calculate_loss(prime, self.energy_coefficient)
         else:
             server = self._sessions['master']
             processes = self._sessions['workers']
@@ -215,50 +210,10 @@ class LossFunction:
             # Subdivide tasks.
             keys = make_sublists(self.images.keys(), len(processes))
 
-            # All incoming requests will be dictionaries with three keys.
-            # d['id']: process id number, assigned when process created above.
-            # d['subject']: what the message is asking for / telling you.
-            # d['data']: optional data passed from worker.
-
-            def process_parallels(vector):
-                # For each process
-                finished = np.array([False] * len(processes))
-                results = {'loss': 0., 'max_residual': 0.}
-                while not finished.all():
-                    message = server.recv_pyobj()
-                    if message['subject'] == '<purpose>':
-                        server.send_string('calculate_loss_function')
-                    elif message['subject'] == '<request>':
-                        request = message['data']  # Variable name.
-                        if request == 'images':
-                            subimages = {k: self.images[k] for k in
-                                         keys[int(message['id'])]}
-                            server.send_pyobj(subimages)
-                        elif request == 'modelstring':
-                            server.send_pyobj(self._model.tostring())
-                        elif request == 'lossfunctionstring':
-                            server.send_pyobj(self.parameters.tostring())
-                        elif request == 'fingerprints':
-                            server.send_pyobj({k: self.fingerprints[k] for k in
-                                               keys[int(message['id'])]})
-                        elif request == 'parameters':
-                            if finished[int(message['id'])]:
-                                server.send_pyobj('<continue>')
-                            else:
-                                server.send_pyobj(vector)
-                        else:
-                            raise NotImplementedError()
-                    elif message['subject'] == '<result>':
-                        result = message['data']
-                        server.send_string('meaningless reply')
-                        results['loss'] += result['loss']
-                        if result['max_residual'] > results['max_residual']:
-                            results['max_residual'] = result['max_residual']
-                        finished[int(message['id'])] = True
-                return results
-
-            results = process_parallels(parametervector)
+            results = self.process_parallels(parametervector, server,
+                                             processes, keys)
             loss = results['loss']
+            dloss_dparameters = results['dloss_dparameters']
             max_residual = results['max_residual']
 
         if self.raise_ConvergenceOccurred:
@@ -268,11 +223,143 @@ class LossFunction:
                 self._cleanup()
                 raise ConvergenceOccurred()
 
+        self.loss, self.dloss_dparameters, self.max_residual = \
+            loss, dloss_dparameters, max_residual
+
         if complete_output is False:
-            return loss
+            return self.loss
         else:
-            return {'loss': loss,
-                    'max_residual': max_residual, }
+            return {'loss': self.loss,
+                    'dloss_dparameters': self.dloss_dparameters,
+                    'max_residual': self.max_residual, }
+
+    def fprime(self, parametervector, complete_output=False):
+        """Returns the current value of teh cost function for a given set of
+        parameters, or, if the energy is less than the energy_tol raises a
+        ConvergenceException.
+
+        By default only returns the loss function (needed for optimizers).
+        Can return more information like max_residual if complete_output
+        is True.
+        """
+        if self._step == 0:
+
+            self._initialize()
+
+            if self._cores == 1:
+                self._model.vector = parametervector
+                loss, dloss_dparameters, max_residual = \
+                    self.calculate_loss(prime=True,
+                                        energy_coefficient=self.energy_coefficient)
+            else:
+                server = self._sessions['master']
+                processes = self._sessions['workers']
+
+                # Subdivide tasks.
+                keys = make_sublists(self.images.keys(), len(processes))
+
+                results = self.process_parallels(parametervector, server,
+                                                 processes, keys)
+                loss = results['loss']
+                dloss_dparameters = results['dloss_dparameters']
+                max_residual = results['max_residual']
+
+            self.loss, self.dloss_dparameters, self.max_residual = \
+                loss, dloss_dparameters, max_residual
+
+        return self.dloss_dparameters
+
+    def calculate_loss(self, prime, energy_coefficient):
+        """Method that calculates the loss, derivative of the loss with respect
+        to parameters (if requested), and max_residual.
+        """
+        loss = 0.
+        max_residual = 0.
+        for hash, image in self.images.iteritems():
+            predicted = self._model.get_energy(self.fingerprints[hash])
+            actual = image.get_potential_energy(apply_constraint=False)
+            residual_per_atom = abs(predicted - actual) / len(image)
+            if residual_per_atom > max_residual:
+                max_residual = residual_per_atom
+            loss += residual_per_atom**2
+
+            # Calculates derivative of the loss function with respect to
+            # parameters if prime is true
+            if prime:
+                if self._model.parameters.mode == 'image-centered':
+                    raise NotImplementedError('This needs to be coded.')
+                elif self._model.parameters.mode == 'atom-centered':
+                    count = 0
+                    no_of_atoms = len(image)
+                    for atom in image:
+                        symbol = atom.symbol
+                        index = atom.index
+                        if count == 0:
+                            dloss_dparameters = \
+                                energy_coefficient * 2. * \
+                                (predicted - actual) * \
+                                self._model.get_dEnergy_dParameters(index,
+                                                                    symbol) / \
+                                (no_of_atoms ** 2.)
+                        else:
+                            dloss_dparameters += \
+                                energy_coefficient * 2. * \
+                                (predicted - actual) * \
+                                self._model.get_dEnergy_dParameters(index,
+                                                                    symbol) / \
+                                (no_of_atoms ** 2.)
+                        count += 1
+                dloss_dparameters = np.array(dloss_dparameters)
+
+            loss = loss / len(self.images)
+            dloss_dparameters = dloss_dparameters / len(self.images)
+
+        return loss, dloss_dparameters, max_residual
+
+    # All incoming requests will be dictionaries with three keys.
+    # d['id']: process id number, assigned when process created above.
+    # d['subject']: what the message is asking for / telling you.
+    # d['data']: optional data passed from worker.
+
+    def process_parallels(self, vector, server, processes, keys):
+        # For each process
+        finished = np.array([False] * len(processes))
+        results = {'loss': 0.,
+                   'lossprime': [0.] * len(vector),
+                   'max_residual': 0.}
+        while not finished.all():
+            message = server.recv_pyobj()
+            if message['subject'] == '<purpose>':
+                server.send_string('calculate_loss_function')
+            elif message['subject'] == '<request>':
+                request = message['data']  # Variable name.
+                if request == 'images':
+                    subimages = {k: self.images[k] for k in
+                                 keys[int(message['id'])]}
+                    server.send_pyobj(subimages)
+                elif request == 'modelstring':
+                    server.send_pyobj(self._model.tostring())
+                elif request == 'lossfunctionstring':
+                    server.send_pyobj(self.parameters.tostring())
+                elif request == 'fingerprints':
+                    server.send_pyobj({k: self.fingerprints[k] for k in
+                                       keys[int(message['id'])]})
+                elif request == 'parameters':
+                    if finished[int(message['id'])]:
+                        server.send_pyobj('<continue>')
+                    else:
+                        server.send_pyobj(vector)
+                else:
+                    raise NotImplementedError()
+            elif message['subject'] == '<result>':
+                result = message['data']
+                server.send_string('meaningless reply')
+                results['loss'] += result['loss']
+                results['dloss_dparameters'] += result['dloss_dparameters']
+                if result['max_residual'] > results['max_residual']:
+                    results['max_residual'] = result['max_residual']
+                finished[int(message['id'])] = True
+        return results
 
     def check_convergence(self, loss, max_residual):
         """Checks to see whether convergence is met; if it is, raises
