@@ -220,13 +220,13 @@ class Amp(Calculator, object):
                           overwrite it.
         :type overwrite: bool
 
-        :param energy_goal: Threshold energy per atom rmse at which simulation
+        :param energy_tol: Threshold energy per atom rmse at which simulation
                             is converged.
-        :type energy_goal: float
+        :type energy_tol: float
 
         :param force_tol: Threshold force rmse at which simulation is
                            converged. The default value is in unit of eV/Ang.
-                           If 'force_goal = None', forces will not be trained.
+                           If 'force_tol = None', forces will not be trained.
         :type force_tol: float
 
         :param force_coefficient: Coefficient of the force contribution in the

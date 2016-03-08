@@ -173,7 +173,8 @@ def non_periodic_test():
                                        activation='sigmoid',
                                        fprange=fingerprints_range,
                                        mode='atom-centered'),
-                   fortran=fortran)
+                   fortran=fortran,
+                   cores=1)
 
         predicted_energies = [calc.get_potential_energy(image) for image in
                               images]
@@ -318,7 +319,8 @@ def periodic_test():
                                        activation='tanh',
                                        fprange=fingerprints_range,
                                        mode='atom-centered'),
-                   fortran=fortran)
+                   fortran=fortran,
+                   cores=1)
 
         predicted_energies = [calc.get_potential_energy(image) for image in
                               images]
