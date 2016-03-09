@@ -57,9 +57,12 @@ if purpose == 'calculate_loss_function':
     socket.send_pyobj(msg('<request>', 'fingerprints'))
     fingerprints = socket.recv_pyobj()
 
+    socket.send_pyobj(msg('<request>', 'derfingerprints'))
+    derfingerprints = socket.recv_pyobj()
+
     # Set up local loss function.
     lossfunction.attach_model(model, fingerprints=fingerprints,
-                              images=images)
+                              derfingerprints=derfingerprints, images=images)
 
     # Now wait for parameters, and send the component of the cost
     # function.

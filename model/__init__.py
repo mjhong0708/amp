@@ -92,12 +92,14 @@ class LossFunction:
         self.energy_coefficient = energy_coefficient
         self.force_coefficient = force_coefficient
 
-    def attach_model(self, model, fingerprints=None, images=None):
+    def attach_model(self, model, fingerprints=None,
+                     derfingerprints=None, images=None):
         """Attach the model to be used to the loss function. fingerprints and
         training images need not be supplied if they are already attached to
         the model via model.trainingparameters."""
         self._model = model
         self.fingerprints = fingerprints
+        self.derfingerprints = derfingerprints
         self.images = images
 
     def _initialize(self):
@@ -113,6 +115,9 @@ class LossFunction:
         if self.fingerprints is None:
             self.fingerprints = \
                 self._model.trainingparameters.descriptor.fingerprints
+        if self.force_coefficient != 0.:  # ap: Is this a good place?
+            self.derfingerprints = \
+                self._model.trainingparameters.descriptor.derfingerprints
         if self.images is None:
             self.images = self._model.trainingparameters.trainingimages
 
@@ -202,7 +207,7 @@ class LossFunction:
         if self._cores == 1:
             self._model.vector = parametervector
             loss, dloss_dparameters, max_residual = \
-                self.calculate_loss(prime, self.energy_coefficient)
+                self.calculate_loss(prime)
         else:
             server = self._sessions['master']
             processes = self._sessions['workers']
@@ -249,8 +254,7 @@ class LossFunction:
             if self._cores == 1:
                 self._model.vector = parametervector
                 loss, dloss_dparameters, max_residual = \
-                    self.calculate_loss(prime=True,
-                                        energy_coefficient=self.energy_coefficient)
+                    self.calculate_loss(prime=True)
             else:
                 server = self._sessions['master']
                 processes = self._sessions['workers']
@@ -269,19 +273,21 @@ class LossFunction:
 
         return self.dloss_dparameters
 
-    def calculate_loss(self, prime, energy_coefficient):
+    def calculate_loss(self, prime):
         """Method that calculates the loss, derivative of the loss with respect
         to parameters (if requested), and max_residual.
         """
         loss = 0.
-        max_residual = 0.
+        max_residual = 0.  # FIXME: Should be extended to forces
         for hash, image in self.images.iteritems():
-            predicted = self._model.get_energy(self.fingerprints[hash])
-            actual = image.get_potential_energy(apply_constraint=False)
-            residual_per_atom = abs(predicted - actual) / len(image)
+            no_of_atoms = len(image)
+            predicted_energy = self._model.get_energy(self.fingerprints[hash])
+            actual_energy = image.get_potential_energy(apply_constraint=False)
+            residual_per_atom = abs(predicted_energy - actual_energy) / \
+                len(image)
             if residual_per_atom > max_residual:
                 max_residual = residual_per_atom
-            loss += residual_per_atom**2
+            loss += self.energy_coefficient * residual_per_atom**2
 
             # Calculates derivative of the loss function with respect to
             # parameters if prime is true
@@ -290,29 +296,57 @@ class LossFunction:
                     raise NotImplementedError('This needs to be coded.')
                 elif self._model.parameters.mode == 'atom-centered':
                     count = 0
-                    no_of_atoms = len(image)
                     for atom in image:
                         symbol = atom.symbol
                         index = atom.index
                         if count == 0:
                             dloss_dparameters = \
-                                energy_coefficient * 2. * \
-                                (predicted - actual) * \
+                                self.energy_coefficient * 2. * \
+                                (predicted_energy - actual_energy) * \
                                 self._model.get_dEnergy_dParameters(index,
                                                                     symbol) / \
                                 (no_of_atoms ** 2.)
                         else:
                             dloss_dparameters += \
-                                energy_coefficient * 2. * \
-                                (predicted - actual) * \
+                                self.energy_coefficient * 2. * \
+                                (predicted_energy - actual_energy) * \
                                 self._model.get_dEnergy_dParameters(index,
                                                                     symbol) / \
                                 (no_of_atoms ** 2.)
                         count += 1
                 dloss_dparameters = np.array(dloss_dparameters)
 
-            loss = loss / len(self.images)
-            dloss_dparameters = dloss_dparameters / len(self.images)
+            if self.force_coefficient != 0.:
+                predicted_forces = \
+                    self._model.get_forces(self.derfingerprints[hash])
+                actual_forces = image.get_forces(apply_constraint=False)
+                for i in xrange(3):
+                    for index in xrange(no_of_atoms):
+                        loss += self.force_coefficient * (1. / 3.) * \
+                            (predicted_forces[index][i] -
+                             actual_forces[index][i]) ** 2. / no_of_atoms
+                # Calculates derivative of the loss function with respect to
+                # parameters if prime is true
+                if prime:
+                    if self._model.parameters.mode == 'image-centered':
+                        raise NotImplementedError('This needs to be coded.')
+                    elif self._model.parameters.mode == 'atom-centered':
+                        for key in self.derfingerprints[hash]:
+                            (selfindex, selfsymbol, nindex, nsymbol, i) = key
+                            # Reduce memory
+                            self.derfingerprints[hash].pop(key)
+                            temp = \
+                                self._model.get_dForce_dParameters(i,
+                                                                   nindex,
+                                                                   nsymbol,)
+                            dloss_dparameters += self.force_coefficient * \
+                                (2.0 / 3.0) * \
+                                (- predicted_forces[selfindex][i] +
+                                 actual_forces[selfindex][i]) * \
+                                temp \
+                                / no_of_atoms
+        loss = loss / len(self.images)
+        dloss_dparameters = dloss_dparameters / len(self.images)
 
         return loss, dloss_dparameters, max_residual
 
@@ -343,6 +377,9 @@ class LossFunction:
                     server.send_pyobj(self.parameters.tostring())
                 elif request == 'fingerprints':
                     server.send_pyobj({k: self.fingerprints[k] for k in
+                                       keys[int(message['id'])]})
+                elif request == 'derfingerprints':
+                    server.send_pyobj({k: self.derfingerprints[k] for k in
                                        keys[int(message['id'])]})
                 elif request == 'parameters':
                     if finished[int(message['id'])]:

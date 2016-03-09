@@ -111,6 +111,7 @@ class NeuralNetwork(Model):
         self.D = {}
         self.delta = {}
         self.ohat = {}
+        self.dOutputs_dInputs = {}
 
     def fit(self, trainingimages, descriptor, energy_coefficient,
             force_coefficient, log, cores):
@@ -388,6 +389,7 @@ class NeuralNetwork(Model):
                                   o[layer]) * temp)
 
         der_o[layer] = [der_o[layer]]
+        self.dOutputs_dInputs[(index, direction)] = der_o
 
         force = float(-(scaling['slope'] * der_o[layer][0]))
 
@@ -473,6 +475,87 @@ class NeuralNetwork(Model):
 
         return dEnergy_dParameters
 
+    def get_dForce_dParameters(self, direction, index=None, symbol=None,):
+        """
+        Returns the derivative of force square error with respect to variables.
+
+        :param direction: Direction of force.
+        :type direction: int
+        :param index: Index of the neighbor atom which force is acting at.
+                        (only used in the fingerprinting scheme)
+        :type index: int
+        :param symbol: Symbol of the neighbor atom which force is acting at.
+                         (only used in the fingerprinting scheme)
+        :type symbol: str
+
+        :returns: list of float -- the value of the derivative of force square
+                                   error with respect to variables.
+        """
+        p = self.parameters
+        scalings = p.scalings
+        activation = p.activation
+
+        dForce_dParameters = np.zeros(self.ravel.count)
+
+        dForce_dWeights, dForce_dScalings = \
+            self.ravel.to_dicts(dForce_dParameters)
+
+        o = self.o[index]
+        dOutputs_dInputs = self.dOutputs_dInputs[(index, direction)]
+        W = self.W[symbol]
+        delta = self.delta[index]
+        ohat = self.ohat[index]
+        D = self.D[index]
+
+        N = len(o) - 2
+        dD_dInputs = {}
+        for k in xrange(1, N + 2):
+            # Calculating coordinate derivative of D matrix
+            dD_dInputs[k] = np.zeros(shape=(np.size(o[k]), np.size(o[k])))
+            for j in xrange(np.size(o[k])):
+                if activation == 'linear':  # linear
+                    dD_dInputs[k][j, j] = 0.
+                elif activation == 'tanh':  # tanh
+                    dD_dInputs[k][j, j] = \
+                        - 2. * o[k][0, j] * dOutputs_dInputs[k][j]
+                elif activation == 'sigmoid':  # sigmoid
+                    dD_dInputs[k][j, j] = dOutputs_dInputs[k][j] - \
+                        2. * o[k][0, j] * dOutputs_dInputs[k][j]
+        # Calculating coordinate derivative of delta
+        dDelta_dInputs = {}
+        # output layer
+        dDelta_dInputs[N + 1] = dD_dInputs[N + 1]
+        # hidden layers
+        temp1 = {}
+        temp2 = {}
+        for k in xrange(N, 0, -1):
+            temp1[k] = np.dot(W[k + 1], delta[k + 1])
+            temp2[k] = np.dot(W[k + 1], dDelta_dInputs[k + 1])
+            dDelta_dInputs[k] = \
+                np.dot(dD_dInputs[k], temp1[k]) + np.dot(D[k], temp2[k])
+        # Calculating coordinate derivative of ohat and
+        # coordinates weights derivative of atomic_output
+        dOhat_dInputs = {}
+        dOutput_dInputsWeights = {}
+        for k in xrange(1, N + 2):
+            dOhat_dInputs[k - 1] = [None] * (1 + len(dOutputs_dInputs[k - 1]))
+            bound = len(dOutputs_dInputs[k - 1])
+            for count in xrange(bound):
+                dOhat_dInputs[k - 1][count] = dOutputs_dInputs[k - 1][count]
+            dOhat_dInputs[k - 1][count + 1] = 0.
+            dOutput_dInputsWeights[k] = \
+                np.dot(np.matrix(dOhat_dInputs[k - 1]).T,
+                       np.matrix(delta[k]).T) + \
+                np.dot(np.matrix(ohat[k - 1]).T,
+                       np.matrix(dDelta_dInputs[k]).T)
+
+        for k in xrange(1, N + 2):
+            dForce_dWeights[symbol][k] = float(scalings[symbol]['slope']) * \
+                dOutput_dInputsWeights[k]
+        dForce_dScalings[symbol]['slope'] = dOutputs_dInputs[N + 1][0]
+        dForce_dParameters = self.ravel.to_vector(dForce_dWeights,
+                                                  dForce_dScalings)
+        return dForce_dParameters
 
 # Auxiliary functions #########################################################
 

@@ -142,7 +142,7 @@ class Gaussian(object):
         if calculate_derivatives:
             log('Calculating fingerprint derivatives of images...',
                 tic='derfp')
-            if not hasattr(self, 'fingerprint-derivatives'):
+            if not hasattr(self, 'derfingerprints'):
                 calc = \
                     FingerprintDerivativeCalculator(neighborlist=self.neighborlist,
                                                     Gs=p.Gs,
