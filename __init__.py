@@ -9,7 +9,11 @@ from socket import gethostname
 
 import ase
 from ase.calculators.calculator import Calculator, Parameters
-from ase import __version__ as aseversion
+try:
+    from ase import __version__ as aseversion
+except ImportError:
+    # We're on ASE 3.10 or older
+    from ase.version import version as aseversion
 
 from .utilities import make_filename
 from .utilities import hash_images
@@ -21,18 +25,22 @@ class Amp(Calculator, object):
     """
     Atomistic Machine-Learning Potential (Amp) ASE calculator
 
-    :param descriptor: Class representing local atomic environment. 
+    :param descriptor: Class representing local atomic environment.
     :type descriptor: object
+
     :param regression: Class representing the regression method. Can be only
                        NeuralNetwork for now. Input arguments for NeuralNetwork
                        are hiddenlayers, activation, weights, and scalings; for
                        more information see docstring for the class
                        NeuralNetwork.
     :type regression: object
+
     :param load: Path for loading an existing parameters of Amp calculator.
     :type load: str
+
     :param label: Default prefix/location used for all files.
     :type label: str
+
     :param dblabel: Optional separate prefix/location for database files,
                     including fingerprints, fingerprint derivatives, and
                     neighborlists. This file location can be shared between
@@ -45,7 +53,7 @@ class Amp(Calculator, object):
                   if None, will determine from environment
     :type cores: int
 
-    :raises: ountimeError
+    :raises: RuntimeError
     """
     implemented_properties = ['energy', 'forces']
 
@@ -79,7 +87,9 @@ class Amp(Calculator, object):
 
     @descriptor.setter
     def descriptor(self, descriptor):
-        descriptor.parent = self
+        descriptor.parent = self  # gives the descriptor object a reference to
+        # the main Amp instance. Then descriptor can pull parameters directly
+        # from Amp without needing them to be passed in each method call.
         self._descriptor = descriptor
         self.reset()  # Clears any old calculations.
 
@@ -89,7 +99,9 @@ class Amp(Calculator, object):
 
     @model.setter
     def model(self, model):
-        model.parent = self
+        model.parent = self  # gives the model object a reference to the main
+        # Amp instance. Then model can pull parameters directly from Amp
+        # without needing them to be passed in each method call.
         self._model = model
         self.reset()  # Clears any old calculations.
 
@@ -99,7 +111,7 @@ class Amp(Calculator, object):
         Only a filename is required, in typical cases.
 
         If using a home-rolled descriptor or model, also supply
-        uninstantiated classes to those models, as in model=MyModel.
+        uninstantiated classes to those models, as in Model=MyModel.
 
         Any additional keyword arguments (such as fortran=True) can be
         fed through to Amp.
@@ -117,9 +129,12 @@ class Amp(Calculator, object):
             Descriptor = importhelper(p['descriptor'].pop('importname'))
         if Model is None:
             Model = importhelper(p['model'].pop('importname'))
+        # Key 'importname' and the value removed so that it is not splatted
+        # into the keyword arguments used to instantiate in the next line.
 
         # Instantiate the descriptor and model.
         descriptor = Descriptor(**p['descriptor'])
+        # ** sends all the key-value pairs at once.
         model = Model(**p['model'])
 
         # Instantiate Amp.
@@ -164,18 +179,32 @@ class Amp(Calculator, object):
 
         images = hash_images([self.atoms])
         key = images.keys()[0]
-        self.descriptor.calculate_fingerprints(images=images, log=log)
 
         if properties == ['energy']:
+            self.descriptor.calculate_fingerprints(images=images,
+                                                   log=log,
+                                                   calculate_derivatives=False)
             energy = self.model.get_energy(self.descriptor.fingerprints[key])
             self.results['energy'] = energy
 
         if properties == ['forces']:
-            raise NotImplementedError('Needs updating.')
+            self.descriptor.calculate_fingerprints(images=images,
+                                                   log=log,
+                                                   calculate_derivatives=True)
+            # for calculating forces, energies should be calculated first,
+            # at least for neural networks
+            energy = self.model.get_energy(self.descriptor.fingerprints[key])
+            self.results['energy'] = energy
+            forces = \
+                self.model.get_forces(self.descriptor.derfingerprints[key])
+            self.results['forces'] = forces
 
     def train(self,
               images,
               overwrite=False,
+              energy_tol=0.001,
+              force_tol=0.005,
+              force_coefficient=None,
               ):
         """
         Fits the model to the training images.
@@ -186,9 +215,23 @@ class Amp(Calculator, object):
                        trajectory (.traj) or database (.db) file. Energies can
                        be obtained from any reference, e.g. DFT calculations.
         :type images: list or str
+
         :param overwrite: If a trained output file with the same name exists,
                           overwrite it.
         :type overwrite: bool
+
+        :param energy_tol: Threshold energy per atom rmse at which simulation
+                            is converged.
+        :type energy_tol: float
+
+        :param force_tol: Threshold force rmse at which simulation is
+                           converged. The default value is in unit of eV/Ang.
+                           If 'force_tol = None', forces will not be trained.
+        :type force_tol: float
+
+        :param force_coefficient: Coefficient of the force contribution in the
+                                  cost function.
+        :type force_coefficient: float
         """
 
         log = self.log
@@ -201,15 +244,27 @@ class Amp(Calculator, object):
         log('Model: %s' % self.model.__class__.__name__)
 
         log('\nDescriptor\n==========')
+        calculate_derivatives = True if force_coefficient is not None else False
         self.descriptor.calculate_fingerprints(images=images,
                                                cores=self.cores,
-                                               log=log)
+                                               log=log,
+                                               calculate_derivatives=calculate_derivatives)
+
+        if force_tol is None:
+            if not force_coefficient:
+                force_coefficient = 0.
+        elif not force_coefficient:
+            force_coefficient = (energy_tol / force_tol)**2.
+
+        energy_coefficient = 1.
 
         log('\nModel fitting\n=============')
         result = self.model.fit(trainingimages=images,
                                 descriptor=self.descriptor,
+                                energy_coefficient=energy_coefficient,
+                                force_coefficient=force_coefficient,
                                 log=log,
-                                cores=self.cores)
+                                cores=self.cores,)
 
         if result is True:
             log('Amp successfully trained. Saving current parameters.')
@@ -298,8 +353,8 @@ def importhelper(importname):
     However, since there is an `eval` statement in string2dict maybe this
     is silly.
     """
-    if importname == '.descriptor.gaussians.Gaussians':
-        from .descriptor.gaussians import Gaussians as Module
+    if importname == '.descriptor.gaussian.Gaussian':
+        from .descriptor.gaussian import Gaussian as Module
     elif importname == '.model.neuralnetwork.NeuralNetwork':
         from .model.neuralnetwork import NeuralNetwork as Module
     elif importname == '.model.LossFunction':

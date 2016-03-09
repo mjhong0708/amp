@@ -1,6 +1,6 @@
 # Amp: Atomistic Machine-learning Potentials#
 
-**The development code in `master` is designed to be more modular (which was the original intent of splitting Amp from Neural), and to allow easier integration with approaches like that of TensorFlow. Parallelization implementation will be implemented in modules, etc. For the latest stable version, see v0.4.**
+**The development code in `master` is designed to be more modular (which was the original intent of splitting Amp from Neural), and to allow easier integration with approaches like that of TensorFlow. Some features, like parallelization and backpropagation, are still being fully implemented in this branch. For the latest stable version, see v0.4.**
 
 
 Developed by Andrew Peterson & Alireza Khorshidi, Brown University School of Engineering. *Amp* allows for the modular representation of the potential energy surface with descriptor and regression methods of choice for the user.

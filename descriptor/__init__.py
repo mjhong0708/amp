@@ -3,4 +3,3 @@
 Folder that contains different local environment descriptors.
 
 """
-

@@ -5,10 +5,10 @@ from ase.calculators.calculator import Parameters
 
 from ..regression import Regressor
 from . import LossFunction, calculate_fingerprints_range
-from ..utilities import Logger
+from . import Model
 
 
-class NeuralNetwork(object):
+class NeuralNetwork(Model):
 
     """
     Class that implements a basic feed-forward neural network.
@@ -36,10 +36,12 @@ class NeuralNetwork(object):
 
                          for example.
     :type hiddenlayers: dict
+
     :param activation: Assigns the type of activation funtion. "linear" refers
                        to linear function, "tanh" refers to tanh function, and
                        "sigmoid" refers to sigmoid function.
     :type activation: str
+
     :param weights: In the case of no descriptor, keys correspond to layers
                     and values are two dimensional arrays of network weight.
                     In the fingerprinting scheme, keys correspond to chemical
@@ -50,6 +52,7 @@ class NeuralNetwork(object):
                     for index i corresponds to bias. If weights is not given,
                     arrays will be randomly generated.
     :type weights: dict
+
     :param scalings: In the case of no descriptor, keys are "intercept" and
                      "slope" and values are real numbers. In the fingerprinting
                      scheme, keys correspond to chemical elements and values
@@ -103,35 +106,26 @@ class NeuralNetwork(object):
         self.parent = None  # Can hold a reference to main Amp instance.
         self.lossfunction = lossfunction
 
-    @property
-    def log(self):
-        """Method to set or get a logger. Should be an instance of
-        amp.utilities.Logger."""
-        if hasattr(self, '_log'):
-            return self._log
-        if hasattr(self.parent, 'log'):
-            return self.parent.log
-        return Logger(None)
+        # Reset local variables corresponding to energy.
+        self.o = {}
+        self.D = {}
+        self.delta = {}
+        self.ohat = {}
+        self.dOutputs_dInputs = {}
 
-    @log.setter
-    def log(self, log):
-        self._log = log
-
-    def tostring(self):
-        """Returns an evaluatable representation of the calculator that can
-        be used to re-establish the calculator."""
-        return self.parameters.tostring()
-
-    def fit(self, trainingimages, descriptor, log, cores):
-        """Fit the model parameters such that the fingerprints can be used to describe
-        the energies in trainingimages. log is the logging object.
+    def fit(self, trainingimages, descriptor, energy_coefficient,
+            force_coefficient, log, cores):
+        """Fit the model parameters such that the fingerprints can be used to
+        describe the energies in trainingimages. log is the logging object.
         descriptor is a descriptor object, as would be in calc.descriptor.
         """
         # Set all parameters and report to logfile.
         self.cores = cores
 
         if self.lossfunction is None:
-            self.lossfunction = LossFunction(cores=self.cores)
+            self.lossfunction = LossFunction(energy_coefficient,
+                                             force_coefficient,
+                                             cores=self.cores,)
         if self.regressor is None:
             self.regressor = Regressor()
 
@@ -215,13 +209,22 @@ class NeuralNetwork(object):
         Takes one and only one input, a vector of parameters.
         Returns one output, the value of the loss (cost) function.
         """
-        return self.lossfunction(vector)
+        return self.lossfunction.f(vector)
+
+    def get_lossprime(self, vector):
+        """
+        Method to be called by the regression master.
+        Takes one and only one input, a vector of parameters.
+        Returns one output, the value of the derivative of the loss function
+        with respect to model parameters.
+        """
+        return self.lossfunction.fprime(vector)
 
     @property
     def lossfunction(self):
         """Allows the user to set a custom loss function. For example,
         >>> from amp.model import LossFunction
-        >>> lossfxn = LossFunction(energytol=0.0001)
+        >>> lossfxn = LossFunction(energy_tol=0.0001)
         >>> calc.model.lossfunction = lossfxn
         """
         return self._lossfunction
@@ -232,27 +235,6 @@ class NeuralNetwork(object):
             lossfunction.attach_model(self)  # Allows access to methods.
         self._lossfunction = lossfunction
 
-    def get_energy(self, fingerprint):
-        """Returns the model-predicted energy for an image, based on its
-        fingerprint.
-        """
-        # Reset local variables corresponding to energy.
-        self.o = {}
-        self.D = {}
-        self.delta = {}
-        self.ohat = {}
-
-        if self.parameters.mode == 'image-centered':
-            raise NotImplementedError('This needs to be coded.')
-        elif self.parameters.mode == 'atom-centered':
-            energy = 0.0
-            for index, (element, atomicfingerprint) in enumerate(fingerprint):
-                atom_energy = self.get_atomic_energy(afp=atomicfingerprint,
-                                                     index=index,
-                                                     symbol=element)
-                energy += atom_energy
-        return energy
-
     def get_atomic_energy(self, afp, index=None, symbol=None,):
         """
         Given input to the neural network, output (which corresponds to energy)
@@ -262,6 +244,7 @@ class NeuralNetwork(object):
         :param index: Index of the atom for which atomic energy is calculated
                       (only used in the fingerprinting scheme)
         :type index: int
+
         :param symbol: Index of the atom for which atomic energy is calculated
                        (only used in the fingerprinting scheme)
         :type symbol: str
@@ -269,20 +252,16 @@ class NeuralNetwork(object):
         :returns: float -- energy
         """
         p = self.parameters
-        if p.mode == 'image-centered':
-            raise NotImplementedError('This needs to be coded; '
-                                      'if it belongs here.')
-
-        elif p.mode == 'atom-centered':
-            self.o[index] = {}
-            hiddenlayers = p.hiddenlayers[symbol]
-            weight = p.weights[symbol]
-            fprange = self.parameters.fprange[symbol]
-
+        self.o[index] = {}
+        hiddenlayers = p.hiddenlayers[symbol]
+        weight = p.weights[symbol]
+        activation = p.activation
+        fprange = self.parameters.fprange[symbol]
         # Scale the fingerprints to be in [-1, 1] range.
-        afp = -1.0 + 2.0 * ((np.array(afp) - fprange[:, 0]) /
-                            (fprange[:, 1] - fprange[:, 0]))
-
+        for _ in xrange(np.shape(afp)[0]):
+            if (fprange[_, 1] - fprange[_, 0]) > (10.**(-8.)):
+                afp[_] = -1.0 + 2.0 * ((afp[_] - fprange[_, 0]) /
+                                       (fprange[_, 1] - fprange[_, 0]))
         # Calculate node values.
         o = {}  # node values
         layer = 1  # input layer
@@ -291,52 +270,46 @@ class NeuralNetwork(object):
 
         len_of_afp = len(afp)
         temp = np.zeros((1, len_of_afp + 1))
-        _ = 0
-        while _ < len_of_afp:
+        for _ in xrange(len_of_afp):
             temp[0, _] = afp[_]
-            _ += 1
         temp[0, len(afp)] = 1.0
         ohat[0] = temp
         net[1] = np.dot(ohat[0], weight[1])
-        if p.activation == 'linear':
+        if activation == 'linear':
             o[1] = net[1]  # linear activation
-        elif p.activation == 'tanh':
+        elif activation == 'tanh':
             o[1] = np.tanh(net[1])  # tanh activation
-        elif p.activation == 'sigmoid':  # sigmoid activation
+        elif activation == 'sigmoid':  # sigmoid activation
             o[1] = 1. / (1. + np.exp(-net[1]))
         temp = np.zeros((1, np.shape(o[1])[1] + 1))
         bound = np.shape(o[1])[1]
-        _ = 0
-        while _ < bound:
+        for _ in xrange(bound):
             temp[0, _] = o[1][0, _]
-            _ += 1
         temp[0, np.shape(o[1])[1]] = 1.0
         ohat[1] = temp
         for hiddenlayer in hiddenlayers[1:]:
             layer += 1
             net[layer] = np.dot(ohat[layer - 1], weight[layer])
-            if p.activation == 'linear':
+            if activation == 'linear':
                 o[layer] = net[layer]  # linear activation
-            elif p.activation == 'tanh':
+            elif activation == 'tanh':
                 o[layer] = np.tanh(net[layer])  # tanh activation
-            elif p.activation == 'sigmoid':
+            elif activation == 'sigmoid':
                 # sigmoid activation
                 o[layer] = 1. / (1. + np.exp(-net[layer]))
             temp = np.zeros((1, np.size(o[layer]) + 1))
             bound = np.size(o[layer])
-            _ = 0
-            while _ < bound:
+            for _ in xrange(bound):
                 temp[0, _] = o[layer][0, _]
-                _ += 1
             temp[0, np.size(o[layer])] = 1.0
             ohat[layer] = temp
         layer += 1  # output layer
         net[layer] = np.dot(ohat[layer - 1], weight[layer])
-        if p.activation == 'linear':
+        if activation == 'linear':
             o[layer] = net[layer]  # linear activation
-        elif p.activation == 'tanh':
+        elif activation == 'tanh':
             o[layer] = np.tanh(net[layer])  # tanh activation
-        elif p.activation == 'sigmoid':
+        elif activation == 'sigmoid':
             # sigmoid activation
             o[layer] = 1. / (1. + np.exp(-net[layer]))
 
@@ -344,20 +317,247 @@ class NeuralNetwork(object):
 
         len_of_afp = len(afp)
         temp = np.zeros((1, len_of_afp))  # FIXME/ap Need descriptive name
-        _ = 0
-        while _ < len_of_afp:
+        for _ in xrange(len_of_afp):
             temp[0, _] = afp[_]
-            _ += 1
 
-        if p.mode == 'image-centered':
-            raise NotImplementedError('Need to code. But why is this here?')
+        atomic_amp_energy = p.scalings[symbol]['slope'] * \
+            float(o[layer]) + p.scalings[symbol]['intercept']
+        self.o[index] = o
+        self.o[index][0] = temp
+        return atomic_amp_energy
 
-        elif p.mode == 'atom-centered':
-            atomic_amp_energy = p.scalings[symbol]['slope'] * \
-                float(o[layer]) + p.scalings[symbol]['intercept']
-            self.o[index] = o
-            self.o[index][0] = temp
-            return atomic_amp_energy
+    def get_atomic_force(self, direction, derafp, index=None, symbol=None,):
+        """
+        Given derivative of input to the neural network, derivative of output
+        (which corresponds to forces) is calculated.
+
+        :param direction: Direction of force.
+        :type direction: int
+        :param derafp: List of derivatives of inputs
+        :type derafp: list
+        :param index: Index of the neighbor atom which force is acting at.
+                        (only used in the fingerprinting scheme)
+        :type index: int
+        :param symbol: Symbol of the neighbor atom which force is acting at.
+                         (only used in the fingerprinting scheme)
+        :type symbol: str
+
+        :returns: float -- force
+        """
+
+        p = self.parameters
+        o = self.o[index]
+        hiddenlayers = p.hiddenlayers[symbol]
+        weight = p.weights[symbol]
+        scaling = p.scalings[symbol]
+        activation = p.activation
+        fprange = self.parameters.fprange[symbol]
+
+        # Scaling derivative of fingerprints.
+        for _ in xrange(len(derafp)):
+            if (fprange[_, 1] - fprange[_, 0]) > (10.**(-8.)):
+                derafp[_] = 2.0 * (derafp[_] / (fprange[_, 1] - fprange[_, 0]))
+
+        der_o = {}  # node values
+        der_o[0] = derafp
+        layer = 0  # input layer
+        for hiddenlayer in hiddenlayers[0:]:
+            layer += 1
+            temp = np.dot(np.matrix(der_o[layer - 1]),
+                          np.delete(weight[layer], -1, 0))
+            der_o[layer] = [None] * np.size(o[layer])
+            bound = np.size(o[layer])
+            for j in xrange(bound):
+                if activation == 'linear':  # linear function
+                    der_o[layer][j] = float(temp[0, j])
+                elif activation == 'sigmoid':  # sigmoid function
+                    der_o[layer][j] = float(temp[0, j]) * \
+                        float(o[layer][0, j] * (1. - o[layer][0, j]))
+                elif activation == 'tanh':  # tanh function
+                    der_o[layer][j] = float(temp[0, j]) * \
+                        float(1. - o[layer][0, j] * o[layer][0, j])
+        layer += 1  # output layer
+        temp = np.dot(np.matrix(der_o[layer - 1]),
+                      np.delete(weight[layer], -1, 0))
+        if activation == 'linear':  # linear function
+            der_o[layer] = float(temp)
+        elif activation == 'sigmoid':  # sigmoid function
+            der_o[layer] = float(o[layer] *
+                                 (1. - o[layer]) * temp)
+        elif activation == 'tanh':  # tanh function
+            der_o[layer] = float((1. - o[layer] *
+                                  o[layer]) * temp)
+
+        der_o[layer] = [der_o[layer]]
+        self.dOutputs_dInputs[(index, direction)] = der_o
+
+        force = float(-(scaling['slope'] * der_o[layer][0]))
+
+        return force
+
+    def get_dEnergy_dParameters(self, index=None, symbol=None):
+        """
+        Returns the derivative of energy square error with respect to
+        variables.
+
+        :param index: Index of the atom for which atomic energy is calculated
+                      (only used in the fingerprinting scheme)
+        :type index: int
+        :param symbol: Index of the atom for which atomic energy is calculated
+                       (only used in the fingerprinting scheme)
+        :type symbol: str
+
+        :returns: list of float -- the value of the derivative of energy square
+                                   error with respect to variables.
+        """
+        p = self.parameters
+        weights = p.weights
+        scalings = p.scalings
+        activation = p.activation
+
+        dEnergy_dParameters = np.zeros(self.ravel.count)
+
+        dEnergy_dWeights, dEnergy_dScalings = \
+            self.ravel.to_dicts(dEnergy_dParameters)
+
+        self.W = {}
+        for elm in weights.keys():
+            self.W[elm] = {}
+            weight = weights[elm]
+            for _ in xrange(len(weight)):
+                self.W[elm][_ + 1] = np.delete(weight[_ + 1], -1, 0)
+
+        o = self.o[index]
+        W = self.W[symbol]
+
+        N = len(o) - 2  # number of hiddenlayers
+        D = {}
+        for k in xrange(N + 2):
+            D[k] = np.zeros(shape=(np.size(o[k]), np.size(o[k])))
+            for j in xrange(np.size(o[k])):
+                if activation == 'linear':  # linear
+                    D[k][j, j] = 1.
+                elif activation == 'sigmoid':  # sigmoid
+                    D[k][j, j] = float(o[k][0, j]) * \
+                        float((1. - o[k][0, j]))
+                elif activation == 'tanh':  # tanh
+                    D[k][j, j] = float(1. - o[k][0, j] * o[k][0, j])
+        # Calculating delta
+        delta = {}
+        # output layer
+        delta[N + 1] = D[N + 1]
+        # hidden layers
+
+        for k in xrange(N, 0, -1):  # backpropagate starting from output layer
+            delta[k] = np.dot(D[k], np.dot(W[k + 1], delta[k + 1]))
+        # Calculating ohat
+        ohat = {}
+        for k in xrange(1, N + 2):
+            bound = np.size(o[k - 1])
+            ohat[k - 1] = np.zeros(shape=(1, bound + 1))
+            for j in xrange(bound):
+                ohat[k - 1][0, j] = o[k - 1][0, j]
+            ohat[k - 1][0, bound] = 1.0
+
+        dEnergy_dScalings[symbol]['intercept'] = 1.
+        dEnergy_dScalings[symbol]['slope'] = float(o[N + 1])
+
+        for k in xrange(1, N + 2):
+            dEnergy_dWeights[symbol][k] = float(scalings[symbol]['slope']) * \
+                np.dot(np.matrix(ohat[k - 1]).T, np.matrix(delta[k]).T)
+
+        dEnergy_dParameters = \
+            self.ravel.to_vector(dEnergy_dWeights, dEnergy_dScalings)
+
+        self.D[index] = D
+        self.delta[index] = delta
+        self.ohat[index] = ohat
+
+        return dEnergy_dParameters
+
+    def get_dForce_dParameters(self, direction, index=None, symbol=None,):
+        """
+        Returns the derivative of force square error with respect to variables.
+
+        :param direction: Direction of force.
+        :type direction: int
+        :param index: Index of the neighbor atom which force is acting at.
+                        (only used in the fingerprinting scheme)
+        :type index: int
+        :param symbol: Symbol of the neighbor atom which force is acting at.
+                         (only used in the fingerprinting scheme)
+        :type symbol: str
+
+        :returns: list of float -- the value of the derivative of force square
+                                   error with respect to variables.
+        """
+        p = self.parameters
+        scalings = p.scalings
+        activation = p.activation
+
+        dForce_dParameters = np.zeros(self.ravel.count)
+
+        dForce_dWeights, dForce_dScalings = \
+            self.ravel.to_dicts(dForce_dParameters)
+
+        o = self.o[index]
+        dOutputs_dInputs = self.dOutputs_dInputs[(index, direction)]
+        W = self.W[symbol]
+        delta = self.delta[index]
+        ohat = self.ohat[index]
+        D = self.D[index]
+
+        N = len(o) - 2
+        dD_dInputs = {}
+        for k in xrange(1, N + 2):
+            # Calculating coordinate derivative of D matrix
+            dD_dInputs[k] = np.zeros(shape=(np.size(o[k]), np.size(o[k])))
+            for j in xrange(np.size(o[k])):
+                if activation == 'linear':  # linear
+                    dD_dInputs[k][j, j] = 0.
+                elif activation == 'tanh':  # tanh
+                    dD_dInputs[k][j, j] = \
+                        - 2. * o[k][0, j] * dOutputs_dInputs[k][j]
+                elif activation == 'sigmoid':  # sigmoid
+                    dD_dInputs[k][j, j] = dOutputs_dInputs[k][j] - \
+                        2. * o[k][0, j] * dOutputs_dInputs[k][j]
+        # Calculating coordinate derivative of delta
+        dDelta_dInputs = {}
+        # output layer
+        dDelta_dInputs[N + 1] = dD_dInputs[N + 1]
+        # hidden layers
+        temp1 = {}
+        temp2 = {}
+        for k in xrange(N, 0, -1):
+            temp1[k] = np.dot(W[k + 1], delta[k + 1])
+            temp2[k] = np.dot(W[k + 1], dDelta_dInputs[k + 1])
+            dDelta_dInputs[k] = \
+                np.dot(dD_dInputs[k], temp1[k]) + np.dot(D[k], temp2[k])
+        # Calculating coordinate derivative of ohat and
+        # coordinates weights derivative of atomic_output
+        dOhat_dInputs = {}
+        dOutput_dInputsWeights = {}
+        for k in xrange(1, N + 2):
+            dOhat_dInputs[k - 1] = [None] * (1 + len(dOutputs_dInputs[k - 1]))
+            bound = len(dOutputs_dInputs[k - 1])
+            for count in xrange(bound):
+                dOhat_dInputs[k - 1][count] = dOutputs_dInputs[k - 1][count]
+            dOhat_dInputs[k - 1][count + 1] = 0.
+            dOutput_dInputsWeights[k] = \
+                np.dot(np.matrix(dOhat_dInputs[k - 1]).T,
+                       np.matrix(delta[k]).T) + \
+                np.dot(np.matrix(ohat[k - 1]).T,
+                       np.matrix(dDelta_dInputs[k]).T)
+
+        for k in xrange(1, N + 2):
+            dForce_dWeights[symbol][k] = float(scalings[symbol]['slope']) * \
+                dOutput_dInputsWeights[k]
+        dForce_dScalings[symbol]['slope'] = dOutputs_dInputs[N + 1][0]
+        dForce_dParameters = self.ravel.to_vector(dForce_dWeights,
+                                                  dForce_dScalings)
+        return dForce_dParameters
+
+# Auxiliary functions #########################################################
 
 
 def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
@@ -388,13 +588,16 @@ def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
 
                          for example.
     :type hiddenlayers: dict
+
     :param activation: Assigns the type of activation funtion. "linear" refers
                        to linear function, "tanh" refers to tanh function, and
                        "sigmoid" refers to sigmoid function.
     :type activation: str
+
     :param no_of_atoms: Number of atoms in atomic systems; used only in the
                         case of no descriptor.
     :type no_of_atoms: int
+
     :param Gs: Dictionary of symbols and lists of dictionaries for making
                symmetry functions. Either auto-genetrated, or given in the
                following form, for example:
@@ -408,6 +611,7 @@ def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
 
                Used in the fingerprinting scheme only.
     :type Gs: dict
+
     :param elements: List of atom symbols; used in the fingerprinting scheme
                      only.
     :type elements: list of str
@@ -437,28 +641,22 @@ def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
             normalized_arg_range - \
             normalized_arg_range / 2.
         len_of_hiddenlayers = len(list(nn_structure)) - 3
-        layer = 0
-        while layer < len_of_hiddenlayers:
+        for layer in xrange(len_of_hiddenlayers):
             normalized_arg_range = arg_range / \
                 nn_structure[layer + 1]
             weight[layer + 2] = np.random.random(
                 (nn_structure[layer + 1] + 1,
                  nn_structure[layer + 2])) * \
                 normalized_arg_range - normalized_arg_range / 2.
-            layer += 1
         normalized_arg_range = arg_range / nn_structure[-2]
         weight[len(list(nn_structure)) - 1] = \
             np.random.random((nn_structure[-2] + 1, 1)) \
             * normalized_arg_range - normalized_arg_range / 2.
         len_of_weight = len(weight)
-        _ = 0
-        while _ < len_of_weight:  # biases
+        for _ in xrange(len_of_weight):  # biases
             size = weight[_ + 1][-1].size
-            __ = 0
-            while __ < size:
+            for __ in xrange(size):
                 weight[_ + 1][-1][__] = 0.
-                __ += 1
-            _ += 1
 
     else:
         elements = fprange.keys()
@@ -480,29 +678,23 @@ def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
                 normalized_arg_range - \
                 normalized_arg_range / 2.
             len_of_hiddenlayers = len(list(nn_structure[element])) - 3
-            layer = 0
-            while layer < len_of_hiddenlayers:
+            for layer in xrange(len_of_hiddenlayers):
                 normalized_arg_range = arg_range / \
                     nn_structure[element][layer + 1]
                 weight[element][layer + 2] = np.random.random(
                     (nn_structure[element][layer + 1] + 1,
                      nn_structure[element][layer + 2])) * \
                     normalized_arg_range - normalized_arg_range / 2.
-                layer += 1
             normalized_arg_range = arg_range / nn_structure[element][-2]
             weight[element][len(list(nn_structure[element])) - 1] = \
                 np.random.random((nn_structure[element][-2] + 1, 1)) \
                 * normalized_arg_range - normalized_arg_range / 2.
 
             len_of_weight = len(weight[element])
-            _ = 0
-            while _ < len_of_weight:  # biases
+            for _ in xrange(len_of_weight):  # biases
                 size = weight[element][_ + 1][-1].size
-                __ = 0
-                while __ < size:
+                for __ in xrange(size):
                     weight[element][_ + 1][-1][__] = 0.
-                    __ += 1
-                _ += 1
 
     return weight
 
@@ -514,10 +706,12 @@ def get_random_scalings(images, activation, elements=None):
 
     :param images: ASE atoms objects (the training set).
     :type images: dict
+
     :param activation: Assigns the type of activation funtion. "linear" refers
                        to linear function, "tanh" refers to tanh function, and
                        "sigmoid" refers to sigmoid function.
     :type activation: str
+
     :param elements: List of atom symbols; used in the fingerprinting scheme
                      only.
     :type elements: list of str
@@ -532,8 +726,7 @@ def get_random_scalings(images, activation, elements=None):
     min_act_energy = min(image.get_potential_energy(apply_constraint=False)
                          for hash, image in images.items())
 
-    count = 0
-    while count < no_of_images:
+    for count in xrange(no_of_images):
         hash = hashs[count]
         image = images[hash]
         no_of_atoms = len(image)
@@ -543,7 +736,6 @@ def get_random_scalings(images, activation, elements=None):
         if image.get_potential_energy(apply_constraint=False) == \
                 min_act_energy:
             no_atoms_of_min_act_energy = no_of_atoms
-        count += 1
 
     max_act_energy_per_atom = max_act_energy / no_atoms_of_max_act_energy
     min_act_energy_per_atom = min_act_energy / no_atoms_of_min_act_energy
@@ -593,6 +785,7 @@ def get_random_scalings(images, activation, elements=None):
 
 
 class Raveler:
+
     """Class to ravel and unravel variable values into a single vector.
     This is used for feeding into the optimizer. Feed in a list of
     dictionaries to initialize the shape of the transformation. Note no
