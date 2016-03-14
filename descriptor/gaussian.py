@@ -6,6 +6,10 @@ from ase.calculators.calculator import Parameters
 
 from ..utilities import Data, Logger
 
+try:
+    from ampmoremodular import fmodules
+except ImportError:
+    fmodules = None
 
 class Gaussian(object):
 
@@ -91,7 +95,7 @@ class Gaussian(object):
         be used to restart the calculator."""
         return self.parameters.tostring()
 
-    def calculate_fingerprints(self, images, cores=1, fortran=False,
+    def calculate_fingerprints(self, images, cores=1, fortran=True,
                                log=None, calculate_derivatives=False):
         """Calculates the fingerpints of the images, for the ones not already
         done.  """
@@ -386,7 +390,7 @@ class FingerprintDerivativeCalculator:
                     index,
                     Rindex,
                     m,
-                    i)
+                    i,1)
             else:
                 raise NotImplementedError('Unknown G type: %s' % G['type'])
 
@@ -397,7 +401,7 @@ class FingerprintDerivativeCalculator:
 # Auxiliary functions #########################################################
 
 
-def calculate_G2(symbols, Rs, G_element, eta, cutoff, home, fortran=False):
+def calculate_G2(symbols, Rs, G_element, eta, cutoff, home, fortran=True):
     """
     Calculate G2 symmetry function. Ideally this will not be used but
     will be a template for how to build the fortran version (and serves as
@@ -444,7 +448,7 @@ def calculate_G2(symbols, Rs, G_element, eta, cutoff, home, fortran=False):
 
 
 def calculate_G4(symbols, Rs, G_elements, gamma, zeta, eta, cutoff, home,
-                 fortran=False):
+                 fortran=True):
     """
     Calculate G4 symmetry function. Ideally this will not be used but
     will be a template for how to build the fortran version (and serves as
@@ -481,7 +485,7 @@ def calculate_G4(symbols, Rs, G_elements, gamma, zeta, eta, cutoff, home,
             return fmodules.calculate_g4(numbers=numbers, rs=Rs,
                                          g_numbers=G_numbers, g_gamma=gamma,
                                          g_zeta=zeta, g_eta=eta,
-                                         cutoff=cutoff, home=home)
+                                         cutoff=cutoff, home=home,tag=1)
     ridge = 0.
     counts = range(len(symbols))
     for j in counts:
@@ -704,7 +708,7 @@ def der_cos_theta(a, j, k, Ra, Rj, Rk, m, i):
 
 
 def calculate_der_G2(n_indices, symbols, Rs, G_element, eta, cutoff, a, Ra,
-                     m, i, fortran=False):
+                     m, i, fortran=True):
     """
     Calculates coordinate derivative of G2 symmetry function for atom at
     index a and position Ra with respect to coordinate x_{i} of atom index
@@ -769,7 +773,7 @@ def calculate_der_G2(n_indices, symbols, Rs, G_element, eta, cutoff, a, Ra,
 
 
 def calculate_der_G4(n_indices, symbols, Rs, G_elements, gamma, zeta, eta,
-                     cutoff, a, Ra, m, i, fortran=False):
+                     cutoff, a, Ra, m, i, fortran=True):
     """
     Calculates coordinate derivative of G4 symmetry function for atom at
     index a and position Ra with respect to coordinate x_{i} of atom index m.
@@ -818,7 +822,7 @@ def calculate_der_G4(n_indices, symbols, Rs, G_elements, gamma, zeta, eta,
                                               g_zeta=zeta, g_eta=eta,
                                               cutoff=cutoff, aa=a,
                                               home=Ra, mm=m,
-                                              ii=i)
+                                              ii=i,tag=1)
     else:
         ridge = 0.
         counts = range(len(symbols))
