@@ -4,7 +4,7 @@ import random
 import string
 
 class tfAmpNN:
-    def __init__(self, elementFingerprintLengths, hiddenlayers=[5, 5], activation='relu', keep_prob=0.5, RMSEtarget=1e-2, maxTrainingEpochs=10000,batchsize=20,initialTrainingRate=1e-4,miniBatch=True,tfVars=None,saveVariableName=None,parameters={},sess=None):
+    def __init__(self, elementFingerprintLengths, hiddenlayers=[5, 5], activation='relu', keep_prob=0.5, RMSEtarget=1e-2, maxTrainingEpochs=10000,batchsize=20,initialTrainingRate=1e-4,miniBatch=True,tfVars=None,saveVariableName=None,parameters={},sess=None,maxAtomsForces=0):
         # We expect a diction elementFingerprintLengths, which maps elements to
         # the lengths of their corresponding fingerprints
         self.hiddenlayers = hiddenlayers
@@ -50,6 +50,9 @@ class tfAmpNN:
         for prop in ['elementFPScales','energyMeanScale','energyProdScale','energyPerElement']:
             if prop not in parameters:
                 self.parameters[prop]=None
+        
+        #This is the maxinum number of atoms in the force calculation
+        self.maxAtomsForces=maxAtomsForces
 
     def constructModel(self):
         # first, define all of the input placeholders to the tf system
@@ -73,7 +76,7 @@ class tfAmpNN:
         self.nAtoms_in = tf.placeholder("float", shape=[None, 1])
         self.batchsizeInput = tf.placeholder("int32")
         self.learningrate = tf.placeholder("float")
-        self.forces_in = tf.placeholder("float",shape=[None,None,3])
+        self.forces_in = tf.placeholder("float",shape=[None,None,3],name='forces_in')
         self.energycoefficient=tf.placeholder("float")
         self.forcecoefficient=tf.placeholder("float")
 
@@ -145,7 +148,7 @@ class tfAmpNN:
         feedinput[self.keep_prob_in] = keepprob
         feedinput[self.nAtoms_in] = natoms[curinds]
         if forcecoefficient>1.e-5:
-            feedinput[self.forces_in]=forcesExp
+            feedinput[self.forces_in]=forcesExp[curinds]
             feedinput[self.forcecoefficient]=forcecoefficient
             feedinput[self.energycoefficient]=energycoefficient
         return feedinput
@@ -162,7 +165,7 @@ class tfAmpNN:
         fingerprintDB = descriptor.fingerprints
         
         atomArraysAll, nAtomsDict, atomsIndsReverse, natoms,atomArraysAllDerivs = generateTensorFlowArrays(
-             fingerprintDB, self.elements, images.keys(),fingerprintDerDB)
+             fingerprintDB, self.elements, images.keys(),fingerprintDerDB,self.maxAtomsForces)
         energies=map(lambda x: [images[x].get_potential_energy()],images.keys())
         energies=np.array(energies)
         
@@ -195,11 +198,15 @@ class tfAmpNN:
                     np.max(atomArraysAll[element]))
                 self.parameters['elementFPScales'][element]=1.
 
-        if force_coefficient is not None:
-            forces=map(lambda x: images[x].get_forces(apply_constraint=False),images.keys())
-        else:
-            forces=0.
-
+        if self.maxAtomsForces==0:
+            if force_coefficient is not None:
+                forces=map(lambda x: images[x].get_forces(apply_constraint=False),images.keys())
+            else:
+                forces=0.
+        forces=np.zeros((len(images.keys()),self.maxAtomsForces,3))
+        for i in range(len(images.keys())):
+            atoms=images[images.keys()[i]]
+            forces[i,0:len(atoms),:]=atoms.get_forces(apply_constraint=False)
         if not(self.miniBatch):
             batchsize = len(images)
 
@@ -271,7 +278,7 @@ class tfAmpNN:
         # reformat the image and fingerprint data into something we can pass
         # into tensorflow
         atomArraysAll, nAtomsDict, atomsIndsReverse, natoms, atomArraysAllDerivs = generateTensorFlowArrays(
-             fingerprintDB, self.elements, hashs,fingerprintDerDB)
+             fingerprintDB, self.elements, hashs,fingerprintDerDB,self.maxAtomsForces)
 
         energies = np.zeros(len(hashs))
         curinds = range(len(hashs))
@@ -433,7 +440,7 @@ def generateBatch(curinds, elements, atomArraysAll, nAtomsDict, atomsIndsReverse
 
 
 #This function generates the inputs to the tensorflow graph for the selected images
-def generateTensorFlowArrays(fingerprintDB, elements, keylist,fingerprintDerDB=None):
+def generateTensorFlowArrays(fingerprintDB, elements, keylist,fingerprintDerDB=None,maxAtomsForces=0):
     nAtomsDict = {}
     for element in elements:
         nAtomsDict[element] = np.zeros(len(keylist))
@@ -496,11 +503,12 @@ def generateTensorFlowArrays(fingerprintDB, elements, keylist,fingerprintDerDB=N
             for element in elements:
                 curatoms = [atom for atom in atomdata if atom[0] == element]
                 if len(curatoms)>0:
-                    fingerprintDerivatives=np.zeros((len(curatoms),len(atomdata),3,len(fp[curatoms[0][1]][1])))
+                    if maxAtomsForces==0:
+                        maxAtomsForces=len(atomdata)
+                    fingerprintDerivatives=np.zeros((len(curatoms),maxAtomsForces,3,len(fp[curatoms[0][1]][1])))
                     for i in range(len(curatoms)):
                         for k in range(len(atomdata)):
                             for ix in range(3):
-                                #dictkey=(curatoms[i][1],curatoms[i][0],k,atomdata[k][0],ix)
                                 dictkey=(k,atomdata[k][0],curatoms[i][1],curatoms[i][0],ix)
                                 if dictkey in fpDer:
                                     fingerprintDerivatives[i,k,ix,:]=fpDer[dictkey]

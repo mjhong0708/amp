@@ -245,7 +245,6 @@ class Amp(Calculator, object):
 
         log('\nDescriptor\n==========')
         calculate_derivatives = True if force_coefficient is not None else False
-        print(calculate_derivatives)
         self.descriptor.calculate_fingerprints(images=images,
                                                cores=self.cores,
                                                log=log,
@@ -340,7 +339,7 @@ class Amp(Calculator, object):
         except ImportError:
             log('ZMQ: not available')
         try:
-            import pxssh
+            from pexpect import pxssh
             log('pxssh: %s' % os.path.dirname(pxssh.__file__))
         except ImportError:
             log('pxssh: Not available')
