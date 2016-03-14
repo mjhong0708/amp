@@ -122,13 +122,15 @@ class tfAmpNN:
         atomArraysFinal, atomArraysDerivsFinal,atomInds = generateBatch(
             curinds, self.elements, atomArraysAll, nAtomsDict, atomsIndsReverse,atomArraysAllDerivs)
         feedinput = {}
+        tilederivs=(0,0,0,0)
         for element in self.elements:
             if len(atomArraysFinal[element]) > 0:
                 feedinput[self.tensordict[element]] = atomArraysFinal[
                     element] / self.parameters['elementFPScales'][element]
                 feedinput[self.indsdict[element]] = atomInds[element]
                 feedinput[self.maskdict[element]] = np.ones((batchsize,1))
-                feedinput[self.tensorDerivDict[element]]=atomArraysDerivsFinal[element]
+                if forcecoefficient>1.e-5:
+                    feedinput[self.tensorDerivDict[element]]=atomArraysDerivsFinal[element]
                 if len(atomArraysDerivsFinal[element])>0:
                     tilederivs=np.array([1,atomArraysDerivsFinal[element].shape[1],atomArraysDerivsFinal[element].shape[2],1])
             else:
@@ -142,7 +144,7 @@ class tfAmpNN:
         feedinput[self.learningrate] = trainingrate
         feedinput[self.keep_prob_in] = keepprob
         feedinput[self.nAtoms_in] = natoms[curinds]
-        if forcecoefficient is not None:
+        if forcecoefficient>1.e-5:
             feedinput[self.forces_in]=forcesExp
             feedinput[self.forcecoefficient]=forcecoefficient
             feedinput[self.energycoefficient]=energycoefficient
@@ -150,13 +152,15 @@ class tfAmpNN:
 
     def fit(self, trainingimages, descriptor, cores=1, log=[],energy_coefficient=1.,force_coefficient=None):
         batchsize = self.batchsize
-        if force_coefficient is None:
+        if force_coefficient==0.:
             log('Training the Tensorflow network!')
+            fingerprintDerDB=None
         else:
             log('Training the Tensorflow network w/ Forces!')
+            fingerprintDerDB=descriptor.derfingerprints
         images = trainingimages
         fingerprintDB = descriptor.fingerprints
-        fingerprintDerDB=descriptor.derfingerprints
+        
         atomArraysAll, nAtomsDict, atomsIndsReverse, natoms,atomArraysAllDerivs = generateTensorFlowArrays(
              fingerprintDB, self.elements, images.keys(),fingerprintDerDB)
         energies=map(lambda x: [images[x].get_potential_energy()],images.keys())
@@ -222,7 +226,7 @@ class tfAmpNN:
                             curinds, energies, atomArraysAll, atomArraysAllDerivs,nAtomsDict, atomsIndsReverse, batchsize, trainingrate, keepprob, natoms,forcesExp=forces,energycoefficient=energy_coefficient,forcecoefficient=force_coefficient)
 
                     # run a training step with the new inputs
-                    if force_coefficient is None:
+                    if (force_coefficient<1.e-5):
                         self.sess.run(self.train_step, feed_dict=feedinput)
                     else:
                         self.sess.run(self.train_step_forces, feed_dict=feedinput)
@@ -239,7 +243,7 @@ class tfAmpNN:
                     RMSE = self.loss.eval(feed_dict=self.generateFeedInput(range(len(images)), energies, atomArraysAll,atomArraysAllDerivs,
                                                                        nAtomsDict, atomsIndsReverse, len(images), trainingrate, keepprob, natoms,forcesExp=forces,energycoefficient=energy_coefficient,forcecoefficient=force_coefficient)) * self.parameters['energyProdScale']
                     log('global RMSE=%1.3f'%(RMSE))
-                    if force_coefficient is not None:
+                    if force_coefficient>1.e-5:
                         RMSE_combined=self.loss_forces.eval(feed_dict=self.generateFeedInput(range(len(images)), energies, atomArraysAll,atomArraysAllDerivs,
                                                                        nAtomsDict, atomsIndsReverse, len(images), trainingrate, keepprob, natoms,forcesExp=forces,energycoefficient=energy_coefficient,forcecoefficient=force_coefficient))
                         log('combined loss function (energy+force)=%1.3f'%(RMSE_combined))
