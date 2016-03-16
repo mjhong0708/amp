@@ -83,7 +83,6 @@ class LossFunction:
         p = self.parameters = Parameters(
             {'importname': '.model.LossFunction'})
         p['convergence'] = convergence
-#        p['max_resid'] = max_resid
         self.raise_ConvergenceOccurred = raise_ConvergenceOccurred
         self._step = 0
         self._initialized = False
