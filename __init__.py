@@ -202,9 +202,12 @@ class Amp(Calculator, object):
     def train(self,
               images,
               overwrite=False,
-              energy_tol=0.001,
-              force_tol=0.005,
-              force_coefficient=None,
+              convergence={'energy_rmse': 0.001,
+                           'energy_maxresid': None,
+                           'force_rmse': 0.005,
+                           'force_maxresid': None, },
+              energy_coefficient=1,
+              force_coefficient=0.04,
               ):
         """
         Fits the model to the training images.
@@ -250,21 +253,38 @@ class Amp(Calculator, object):
                                                log=log,
                                                calculate_derivatives=calculate_derivatives)
 
-        if force_tol is None:
+        if convergence.has_key('energy_rmse') is False:
+            convergence['energy_rmse'] = None
+        if convergence.has_key('energy_maxresid') is False:
+            convergence['energy_maxresid'] = None
+        if convergence.has_key('force_rmse') is False:
+            convergence['force_rmse'] = None
+        if convergence.has_key('force_maxresid') is False:
+            convergence['force_maxresid'] = None
+
+        if (not convergence['force_rmse']) and \
+                (not convergence['force_maxresid']):
             if not force_coefficient:
                 force_coefficient = 0.
         elif not force_coefficient:
-            force_coefficient = (energy_tol / force_tol)**2.
-
-        energy_coefficient = 1.
+            if (not convergence['energy_rmse']) or \
+                    (not convergence['force_rmse']):
+                force_coefficient = \
+                    (convergence['energy_maxresid'] /
+                     convergence['force_maxresid'])**2.
+            else:
+                force_coefficient = \
+                    (convergence['energy_rmse'] /
+                     convergence['force_rmse'])**2.
 
         log('\nModel fitting\n=============')
         result = self.model.fit(trainingimages=images,
                                 descriptor=self.descriptor,
+                                convergence=convergence,
                                 energy_coefficient=energy_coefficient,
                                 force_coefficient=force_coefficient,
                                 log=log,
-                                cores=self.cores,)
+                                cores=self.cores)
 
         if result is True:
             log('Amp successfully trained. Saving current parameters.')

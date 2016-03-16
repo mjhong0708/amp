@@ -113,7 +113,7 @@ class NeuralNetwork(Model):
         self.ohat = {}
         self.dOutputs_dInputs = {}
 
-    def fit(self, trainingimages, descriptor, energy_coefficient,
+    def fit(self, trainingimages, descriptor, convergence, energy_coefficient,
             force_coefficient, log, cores):
         """Fit the model parameters such that the fingerprints can be used to
         describe the energies in trainingimages. log is the logging object.
@@ -125,7 +125,8 @@ class NeuralNetwork(Model):
         if self.lossfunction is None:
             self.lossfunction = LossFunction(energy_coefficient,
                                              force_coefficient,
-                                             cores=self.cores,)
+                                             cores=self.cores,
+                                             convergence=convergence)
         if self.regressor is None:
             self.regressor = Regressor()
 
