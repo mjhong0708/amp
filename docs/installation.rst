@@ -10,10 +10,10 @@ In its most basic form, it has few requirements:
 * Python, version 2.7 is recommended.
 * ASE.
 * NumPy.
+* SciPy.
 
 To get more features, such as parallelization in training, a few more packages are recommended:
 
-* SciPy.
 * Pexpect (or pxssh)
 * ZMQ (or PyZMQ, the python version of ØMQ).
 
@@ -31,8 +31,9 @@ order to generate plots.
 Check out the code
 ----------------------------------
 
-As a relatively new project, we do not yet have stable releases. However, we run daily unit tests to make sure that our
-development code works as intended. We recommend checking out the latest version of the code via `the project's bitbucket
+As a relatively new project, it may be preferable to use the development version rather than "stable" releases, as improvements are constantly being made and features added.
+We run daily unit tests to make sure that our development code works as intended.
+We recommend checking out the latest version of the code via `the project's bitbucket
 page <https://bitbucket.org/andrewpeterson/amp/>`_. If you use git, check out the code with::
 
    $ cd ~/path/to/my/codes
