@@ -55,18 +55,18 @@ $ gfortran -c neuralnetwork.f90
 2- Move the module ``regression.mod'' created in the last step, to the parent directory
 by:
 
-$ mv regression.mod ../regression.mod
+$ mv regression.mod ../
 
 3- Go back to the parent directory and compile the main Fortran subroutines in companion with the descriptor and regression subroutines
 by something like:
 
 $ cd ../
 
-$ f2py -c -m fmodules main.f90 descriptor/behler.f90 regression/neuralnetwork.f90
+$ f2py -c -m fmodules main.f90 descriptor/gaussian.f90 regression/neuralnetwork.f90
 
 or on a Windows machine by:
 
-$ f2py -c -m fmodules main.f90 descriptor/behler.f90 regression/neuralnetwork.f90 --fcompiler=gnu95 --compiler=mingw32
+$ f2py -c -m fmodules main.f90 descriptor/gaussian.f90 regression/neuralnetwork.f90 --fcompiler=gnu95 --compiler=mingw32
 
 If the version of fmodules.f90 is not updated, an exception
 will be raised which tells user which version number should be

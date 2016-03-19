@@ -77,16 +77,16 @@ following steps:
 
 * Move the module 'regression.mod' created in the last step, to the parent directory by::
 
-   $ mv regression.mod ../regression.mod
+   $ mv regression.mod ../
 
 * Compile the main Fortran subroutines in the parent directory in companian with the descriptor and regression subroutines
   by something like::
 
-   $ f2py -c -m fmodules main.f90 descriptor/behler.f90 regression/neuralnetwork.f90
+   $ f2py -c -m fmodules main.f90 descriptor/gaussian.f90 regression/neuralnetwork.f90
 
 or on a Windows machine by::
 
-   $ f2py -c -m fmodules main.f90 descriptor/behler.f90 regression/neuralnetwork.f90 --fcompiler=gnu95 --compiler=mingw32
+   $ f2py -c -m fmodules main.f90 descriptor/gaussian.f90 regression/neuralnetwork.f90 --fcompiler=gnu95 --compiler=mingw32
 
 If you update the code and your fmodules extension is not updated, an exception will be raised, telling you
 to re-compile.
