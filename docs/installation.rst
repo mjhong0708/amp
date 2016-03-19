@@ -102,4 +102,4 @@ package to see if your installation is working. The tests are in the folder `tes
 
    $ mkdir /tmp/amptests
    $ cd /tmp/amptests
-   $ nosetests ~/path/to/my/codes/amp
+   $ nosetests ~/path/to/my/codes/amp/tests
