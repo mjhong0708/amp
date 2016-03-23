@@ -106,13 +106,6 @@ class NeuralNetwork(Model):
         self.parent = None  # Can hold a reference to main Amp instance.
         self.lossfunction = lossfunction
 
-        # Reset local variables corresponding to energy.
-        self.o = {}
-        self.D = {}
-        self.delta = {}
-        self.ohat = {}
-        self.dOutputs_dInputs = {}
-
     def fit(self, trainingimages, descriptor, convergence, energy_coefficient,
             force_coefficient, log, cores):
         """Fit the model parameters such that the fingerprints can be used to
@@ -178,6 +171,14 @@ class NeuralNetwork(Model):
                                                  p.fprange.keys())
         else:
             log('Initial scalings already present.')
+
+        # self.W dictionary initiated.
+        self.W = {}
+        for elm in p.weights.keys():
+            self.W[elm] = {}
+            weight = p.weights[elm]
+            for _ in xrange(len(weight)):
+                self.W[elm][_ + 1] = np.delete(weight[_ + 1], -1, 0)
 
         # Regress the model.
         result = self.regressor.regress(model=self, log=log)
@@ -252,11 +253,12 @@ class NeuralNetwork(Model):
 
         :returns: float -- energy
         """
+        self.o = {}
         p = self.parameters
-        self.o[index] = {}
         hiddenlayers = p.hiddenlayers[symbol]
         weight = p.weights[symbol]
         activation = p.activation
+
         fprange = self.parameters.fprange[symbol]
         # Scale the fingerprints to be in [-1, 1] range.
         for _ in xrange(np.shape(afp)[0]):
@@ -323,11 +325,14 @@ class NeuralNetwork(Model):
 
         atomic_amp_energy = p.scalings[symbol]['slope'] * \
             float(o[layer]) + p.scalings[symbol]['intercept']
-        self.o[index] = o
-        self.o[index][0] = temp
+        for key, value in o.iteritems():
+            self.o[key] = value
+        self.o[0] = temp
         return atomic_amp_energy
 
-    def get_atomic_force(self, direction, derafp, index=None, symbol=None,):
+    def get_atomic_force(self, afp, derafp,
+                         direction,
+                         nindex=None, nsymbol=None,):
         """
         Given derivative of input to the neural network, derivative of output
         (which corresponds to forces) is calculated.
@@ -336,23 +341,24 @@ class NeuralNetwork(Model):
         :type direction: int
         :param derafp: List of derivatives of inputs
         :type derafp: list
-        :param index: Index of the neighbor atom which force is acting at.
+        :param nindex: Index of the neighbor atom which force is acting at.
                         (only used in the fingerprinting scheme)
-        :type index: int
-        :param symbol: Symbol of the neighbor atom which force is acting at.
+        :type nindex: int
+        :param nsymbol: Symbol of the neighbor atom which force is acting at.
                          (only used in the fingerprinting scheme)
-        :type symbol: str
+        :type nsymbol: str
 
         :returns: float -- force
         """
-
         p = self.parameters
-        o = self.o[index]
-        hiddenlayers = p.hiddenlayers[symbol]
-        weight = p.weights[symbol]
-        scaling = p.scalings[symbol]
+        # call to method get_atomic energy to calculate self.o
+        __ = self.get_atomic_energy(afp, nindex, nsymbol,)
+        o = self.o
+        hiddenlayers = p.hiddenlayers[nsymbol]
+        weight = p.weights[nsymbol]
+        scaling = p.scalings[nsymbol]
         activation = p.activation
-        fprange = self.parameters.fprange[symbol]
+        fprange = self.parameters.fprange[nsymbol]
 
         # Scaling derivative of fingerprints.
         for _ in xrange(len(derafp)):
@@ -390,13 +396,13 @@ class NeuralNetwork(Model):
                                   o[layer]) * temp)
 
         der_o[layer] = [der_o[layer]]
-        self.dOutputs_dInputs[(index, direction)] = der_o
+        self.dOutputs_dInputs = der_o
 
         force = float(-(scaling['slope'] * der_o[layer][0]))
 
         return force
 
-    def get_dEnergy_dParameters(self, index=None, symbol=None):
+    def get_dEnergy_dParameters(self, afp, index=None, symbol=None):
         """
         Returns the derivative of energy square error with respect to
         variables.
@@ -412,24 +418,18 @@ class NeuralNetwork(Model):
                                    error with respect to variables.
         """
         p = self.parameters
-        weights = p.weights
         scalings = p.scalings
         activation = p.activation
+        W = self.W[symbol]
 
         dEnergy_dParameters = np.zeros(self.ravel.count)
 
         dEnergy_dWeights, dEnergy_dScalings = \
             self.ravel.to_dicts(dEnergy_dParameters)
 
-        self.W = {}
-        for elm in weights.keys():
-            self.W[elm] = {}
-            weight = weights[elm]
-            for _ in xrange(len(weight)):
-                self.W[elm][_ + 1] = np.delete(weight[_ + 1], -1, 0)
-
-        o = self.o[index]
-        W = self.W[symbol]
+        # call to method get_atomic energy to calculate self.o
+        _ = self.get_atomic_energy(afp, index, symbol,)
+        o = self.o
 
         N = len(o) - 2  # number of hiddenlayers
         D = {}
@@ -470,24 +470,26 @@ class NeuralNetwork(Model):
         dEnergy_dParameters = \
             self.ravel.to_vector(dEnergy_dWeights, dEnergy_dScalings)
 
-        self.D[index] = D
-        self.delta[index] = delta
-        self.ohat[index] = ohat
+        self.D = D
+        self.delta = delta
+        self.ohat = ohat
 
         return dEnergy_dParameters
 
-    def get_dForce_dParameters(self, direction, index=None, symbol=None,):
+    def get_dForce_dParameters(self, afp, derafp,
+                               direction,
+                               nindex=None, nsymbol=None,):
         """
         Returns the derivative of force square error with respect to variables.
 
         :param direction: Direction of force.
         :type direction: int
-        :param index: Index of the neighbor atom which force is acting at.
+        :param nindex: Index of the neighbor atom which force is acting at.
                         (only used in the fingerprinting scheme)
-        :type index: int
-        :param symbol: Symbol of the neighbor atom which force is acting at.
+        :type nindex: int
+        :param nsymbol: Symbol of the neighbor atom which force is acting at.
                          (only used in the fingerprinting scheme)
-        :type symbol: str
+        :type nsymbol: str
 
         :returns: list of float -- the value of the derivative of force square
                                    error with respect to variables.
@@ -495,18 +497,26 @@ class NeuralNetwork(Model):
         p = self.parameters
         scalings = p.scalings
         activation = p.activation
+        W = self.W[nsymbol]
 
         dForce_dParameters = np.zeros(self.ravel.count)
 
         dForce_dWeights, dForce_dScalings = \
             self.ravel.to_dicts(dForce_dParameters)
 
-        o = self.o[index]
-        dOutputs_dInputs = self.dOutputs_dInputs[(index, direction)]
-        W = self.W[symbol]
-        delta = self.delta[index]
-        ohat = self.ohat[index]
-        D = self.D[index]
+        # call to the method get_dEnergy_dParameters to calculate self.o,
+        # self.delta, self.ohat, and self.D
+        _ = self.get_dEnergy_dParameters(afp, nindex, nsymbol)
+        o = self.o
+        delta = self.delta
+        ohat = self.ohat
+        D = self.D
+        # call to the method get_atomic_force to calculate
+        # self.dOutputs_dInputs
+        _ = self.get_atomic_force(afp, derafp,
+                                  direction,
+                                  nindex, nsymbol,)
+        dOutputs_dInputs = self.dOutputs_dInputs
 
         N = len(o) - 2
         dD_dInputs = {}
@@ -537,23 +547,23 @@ class NeuralNetwork(Model):
         # Calculating coordinate derivative of ohat and
         # coordinates weights derivative of atomic_output
         dOhat_dInputs = {}
-        dOutput_dInputsWeights = {}
+        dOutput_dInputsdWeights = {}
         for k in xrange(1, N + 2):
             dOhat_dInputs[k - 1] = [None] * (1 + len(dOutputs_dInputs[k - 1]))
             bound = len(dOutputs_dInputs[k - 1])
             for count in xrange(bound):
                 dOhat_dInputs[k - 1][count] = dOutputs_dInputs[k - 1][count]
             dOhat_dInputs[k - 1][count + 1] = 0.
-            dOutput_dInputsWeights[k] = \
+            dOutput_dInputsdWeights[k] = \
                 np.dot(np.matrix(dOhat_dInputs[k - 1]).T,
                        np.matrix(delta[k]).T) + \
                 np.dot(np.matrix(ohat[k - 1]).T,
                        np.matrix(dDelta_dInputs[k]).T)
 
         for k in xrange(1, N + 2):
-            dForce_dWeights[symbol][k] = float(scalings[symbol]['slope']) * \
-                dOutput_dInputsWeights[k]
-        dForce_dScalings[symbol]['slope'] = dOutputs_dInputs[N + 1][0]
+            dForce_dWeights[nsymbol][k] = float(scalings[nsymbol]['slope']) * \
+                dOutput_dInputsdWeights[k]
+        dForce_dScalings[nsymbol]['slope'] = dOutputs_dInputs[N + 1][0]
         dForce_dParameters = self.ravel.to_vector(dForce_dWeights,
                                                   dForce_dScalings)
         return dForce_dParameters

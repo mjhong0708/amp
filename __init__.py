@@ -196,7 +196,8 @@ class Amp(Calculator, object):
             energy = self.model.get_energy(self.descriptor.fingerprints[key])
             self.results['energy'] = energy
             forces = \
-                self.model.get_forces(self.descriptor.derfingerprints[key])
+                self.model.get_forces(self.descriptor.fingerprints[key],
+                                      self.descriptor.derfingerprints[key])
             self.results['forces'] = forces
 
     def train(self,
@@ -247,7 +248,8 @@ class Amp(Calculator, object):
         log('Model: %s' % self.model.__class__.__name__)
 
         log('\nDescriptor\n==========')
-        calculate_derivatives = True if force_coefficient is not None else False
+        calculate_derivatives = True \
+            if force_coefficient is not None else False
         self.descriptor.calculate_fingerprints(images=images,
                                                cores=self.cores,
                                                log=log,
