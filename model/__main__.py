@@ -47,6 +47,7 @@ if purpose == 'calculate_loss_function':
     socket.send_pyobj(msg('<request>', 'lossfunctionstring'))
     lossfunctionstring = socket.recv_pyobj()
     d = string2dict(lossfunctionstring)
+    sys.stderr.write(str(d))
     LossFunction = importhelper(d.pop('importname'))
     lossfunction = LossFunction(cores=1,
                                 raise_ConvergenceOccurred=False, **d)

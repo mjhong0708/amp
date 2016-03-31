@@ -86,12 +86,12 @@ class LossFunction:
         p = self.parameters = Parameters(
             {'importname': '.model.LossFunction'})
         p['convergence'] = convergence
+        p['energy_coefficient'] = energy_coefficient
+        p['force_coefficient'] = force_coefficient
         self.raise_ConvergenceOccurred = raise_ConvergenceOccurred
         self._step = 0
         self._initialized = False
         self._cores = cores
-        self.energy_coefficient = energy_coefficient
-        self.force_coefficient = force_coefficient
 
     def attach_model(self, model, fingerprints=None,
                      derfingerprints=None, images=None):
@@ -116,7 +116,7 @@ class LossFunction:
         if self.fingerprints is None:
             self.fingerprints = \
                 self._model.trainingparameters.descriptor.fingerprints
-        if self.force_coefficient != 0.:  # ap: Is this a good place?
+        if self.parameters.force_coefficient != 0.:  # ap: Is this a good place?
             self.derfingerprints = \
                 self._model.trainingparameters.descriptor.derfingerprints
         if self.images is None:
@@ -305,6 +305,7 @@ class LossFunction:
         """Method that calculates the loss, derivative of the loss with respect
         to parameters (if requested), and max_residual.
         """
+        p = self.parameters
         energyloss = 0.
         forceloss = 0.
         energy_maxresid = 0.
@@ -335,17 +336,17 @@ class LossFunction:
                                                                    symbol)
                         if count == 0:
                             dloss_dparameters = \
-                                self.energy_coefficient * 2. * \
+                                p.energy_coefficient * 2. * \
                                 (predicted_energy - actual_energy) * temp / \
                                 (no_of_atoms ** 2.)
                         else:
                             dloss_dparameters += \
-                                self.energy_coefficient * 2. * \
+                                p.energy_coefficient * 2. * \
                                 (predicted_energy - actual_energy) * temp / \
                                 (no_of_atoms ** 2.)
                         count += 1
 
-            if self.force_coefficient != 0.:
+            if p.force_coefficient != 0.:
                 predicted_forces = \
                     self._model.get_forces(self.fingerprints[hash],
                                            self.derfingerprints[hash])
@@ -376,7 +377,7 @@ class LossFunction:
                                                                    direction=i,
                                                                    nindex=nindex,
                                                                    nsymbol=nsymbol,)
-                            dloss_dparameters += self.force_coefficient * \
+                            dloss_dparameters += p.force_coefficient * \
                                 (2.0 / 3.0) * \
                                 (- predicted_forces[selfindex][i] +
                                  actual_forces[selfindex][i]) * \
@@ -385,8 +386,8 @@ class LossFunction:
 
         energyloss = energyloss / len(self.images)
         forceloss = forceloss / len(self.images)
-        loss = self.energy_coefficient * energyloss + \
-            self.force_coefficient * forceloss
+        loss = p.energy_coefficient * energyloss + \
+            p.force_coefficient * forceloss
         dloss_dparameters = dloss_dparameters / len(self.images)
         dloss_dparameters = np.array(dloss_dparameters)
 
@@ -463,7 +464,7 @@ class LossFunction:
         if p.convergence['energy_maxresid'] is not None:
             if energy_maxresid > p.convergence['energy_maxresid']:
                 energy_maxresid_converged = False
-        if self.force_coefficient != 0.:
+        if self.parameters.force_coefficient != 0.:
             force_rmse_converged = True
             if p.convergence['force_rmse'] is not None:
                 force_rmse = np.sqrt(force_loss)

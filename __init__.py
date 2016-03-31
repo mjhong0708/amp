@@ -18,6 +18,7 @@ except ImportError:
 from .utilities import make_filename
 from .utilities import hash_images
 from .utilities import Logger, string2dict, logo, now, assign_cores
+from .utilities import TrainingConvergenceError
 
 
 class Amp(Calculator, object):
@@ -296,6 +297,9 @@ class Amp(Calculator, object):
             filename = make_filename(self.label, '-untrained-parameters.amp')
         filename = self.save(filename, overwrite)
         log('Parameters saved in file "%s".' % filename)
+        if result is False:
+            raise TrainingConvergenceError('Amp did not converge upon '
+                'training. See log file for more information.')
 
     def save(self, filename, overwrite=False):
         """Saves the calculator in way that it can be re-opened with
