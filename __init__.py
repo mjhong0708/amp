@@ -54,7 +54,7 @@ class Amp(Calculator, object):
                   if None, will determine from environment
     :type cores: int
 
-    :raises: RuntimeError
+    :raises: RuntimeError.
     """
     implemented_properties = ['energy', 'forces']
 
