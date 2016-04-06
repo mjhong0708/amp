@@ -34,7 +34,7 @@ Please see the project's `git repository <https://bitbucket.org/andrewpeterson/a
 
    modules/main.rst
    modules/descriptor.rst
-   modules/regression.rst
+   modules/model.rst
    modules/utilities.rst
    modules/analysis.rst
 
