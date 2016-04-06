@@ -59,39 +59,6 @@ the second command is where you expect::
    >>> print(amp.__file__)
 
 ----------------------------------
-Recommended step: Fortran modules
-----------------------------------
-
-The code is designed to work in pure python, which makes it is easier to read, develop, and debug. However, it will be
-annoyingly slow unless you compile the associated fortran modules which speed up some crucial parts of the code. The
-compilation of Fortran codes and integration with the python parts is accomplished with the command 'f2py', which is
-part of NumPy. A Fortran compiler will also be necessary on your system; a reasonable open-source option is GNU Fortran,
-or gfortran. This complier will generate Fortran modules (.mod). gfortran will also be used by f2py to generate
-extension module 'fmodules.so' on Linux or 'fmodules.pyd' on Windows. In order to prepare the extension module take the
-following steps:
-
-* Compile regression Fortran subroutines inside the regression folder by::
-
-   $ cd ~/path/to/my/codes/regression/
-   $ gfortran -c neuralnetwork.f90
-
-* Move the module 'regression.mod' created in the last step, to the parent directory by::
-
-   $ mv regression.mod ../
-
-* Compile the main Fortran subroutines in the parent directory in companian with the descriptor and regression subroutines
-  by something like::
-
-   $ f2py -c -m fmodules main.f90 descriptor/gaussian.f90 regression/neuralnetwork.f90
-
-or on a Windows machine by::
-
-   $ f2py -c -m fmodules main.f90 descriptor/gaussian.f90 regression/neuralnetwork.f90 --fcompiler=gnu95 --compiler=mingw32
-
-If you update the code and your fmodules extension is not updated, an exception will be raised, telling you
-to re-compile.
-
-----------------------------------
 Recommended step: Run the tests
 ----------------------------------
 
