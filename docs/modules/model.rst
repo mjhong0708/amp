@@ -9,6 +9,11 @@ description.
 Module contents
 ---------------
 
+.. automodule:: model
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 .. automodule:: model.neuralnetwork
     :members:
     :undoc-members:

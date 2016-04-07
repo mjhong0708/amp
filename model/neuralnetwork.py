@@ -2,10 +2,11 @@ import numpy as np
 from collections import OrderedDict
 
 from ase.calculators.calculator import Parameters
-
-from ..regression import Regressor
-from . import LossFunction, calculate_fingerprints_range
-from . import Model
+# should be imported as "amp.regression", "amp.model" and not "..regression",
+# ".", else readthedocs will nor read the docstring
+from amp.regression import Regressor
+from amp.model import LossFunction, calculate_fingerprints_range
+from amp.model import Model
 
 
 class NeuralNetwork(Model):

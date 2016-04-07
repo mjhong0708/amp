@@ -4,8 +4,9 @@ from ase.data import atomic_numbers
 from ase.calculators.neighborlist import NeighborList
 from ase.calculators.calculator import Parameters
 from scipy.special import sph_harm
-
-from ..utilities import Data, Logger
+# should be imported as amp.utilities and not ..utilities, else readthedocs
+# will nor read the docstring
+from amp.utilities import Data, Logger
 
 
 class Zernike(object):
