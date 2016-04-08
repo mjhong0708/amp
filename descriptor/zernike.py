@@ -1,13 +1,13 @@
 import numpy as np
 
 from ase.data import atomic_numbers
-from ase.calculators.neighborlist import NeighborList
 from ase.calculators.calculator import Parameters
 from scipy.special import sph_harm
 # should be imported as amp.utilities and not ..utilities, else readthedocs
 # will nor read the docstring
 from amp.utilities import Data, Logger
 from .cutoffs import Cosine, Polynomial
+from . import NeighborlistCalculator
 
 
 class Zernike(object):
@@ -191,27 +191,6 @@ class Zernike(object):
 
 
 # Calculators #################################################################
-
-class NeighborlistCalculator:
-
-    """For integration with .utilities.Data
-    For each image fed to calculate, a list of neighbors with offset
-    distances is returned.
-    """
-
-    def __init__(self, cutoff):
-        self.globals = Parameters({'cutoff': cutoff})
-        self.keyed = Parameters()
-        self.parallel_command = 'calculate_neighborlists'
-
-    def calculate(self, image, key):
-        cutoff = self.globals.cutoff
-        n = NeighborList(cutoffs=[cutoff / 2.] * len(image),
-                         self_interaction=False,
-                         bothways=True,
-                         skin=0.)
-        n.update(image)
-        return [n.get_neighbors(index) for index in xrange(len(image))]
 
 
 class FingerprintCalculator:
