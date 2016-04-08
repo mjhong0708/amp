@@ -226,7 +226,14 @@ class FingerprintCalculator:
         self.keyed = Parameters({'neighborlist': neighborlist})
         self.parallel_command = 'calculate_fingerprints'
 
-        from scipy.special import factorial as fac
+        try:  # for scipy v <= 0.90
+            from scipy import factorial as fac
+        except ImportError:
+            try:  # for scipy v >= 0.10
+                from scipy.misc import factorial as fac
+            except ImportError:  # for newer version of scipy
+                from scipy.special import factorial as fac
+
         self.factorial = [fac(0.5 * _) for _ in xrange(2 * nmax + 2)]
 
     def calculate(self, image, key):
