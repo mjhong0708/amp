@@ -6,6 +6,7 @@ from ase.calculators.calculator import Parameters
 # should be imported as amp.utilities and not ..utilities, else readthedocs
 # will nor read the docstring
 from amp.utilities import Data, Logger
+from .cutoffs import Cosine, Polynomial
 
 
 class Gaussian(object):
@@ -13,9 +14,10 @@ class Gaussian(object):
     """
     Class that calculates Gaussian fingerprints (i.e., Behler-style).
 
-    :param cutoff: Radius above which neighbor interactions are ignored.
+    :param cutoff: Cutoff function. Can be also fed as a float representing the
+                   radius above which neighbor interactions are ignored.
                    Default is 6.5 Angstroms.
-    :type cutoff: float
+    :type cutoff: object or float
 
     :param Gs: Dictionary of symbols and lists of dictionaries for making
                symmetry functions. Either auto-genetrated, or given in the
@@ -48,8 +50,8 @@ class Gaussian(object):
     :raises: RuntimeError, TypeError
     """
 
-    def __init__(self, cutoff=6.5, Gs=None, dblabel=None, elements=None,
-                 version=None, **kwargs):
+    def __init__(self, cutoff=Cosine(6.5), Gs=None, dblabel=None,
+                 elements=None, version=None, **kwargs):
 
         # Check of the version of descriptor, particularly if restarting.
         compatibleversions = ['2015.12', ]
@@ -73,6 +75,11 @@ class Gaussian(object):
             raise TypeError('Unexpected keyword arguments: %s' %
                             repr(kwargs))
 
+        # If the cutoff is provided as a number, Cosine function will be used
+        # by default.
+        if isinstance(cutoff, int) or isinstance(cutoff, float):
+            cutoff=Cosine(cutoff)
+
         # The parameters dictionary contains the minimum information
         # to produce a compatible descriptor; that is, one that gives
         # an identical fingerprint when fed an ASE image.
@@ -80,7 +87,8 @@ class Gaussian(object):
             {'importname': '.descriptor.gaussian.Gaussian',
              'mode': 'atom-centered'})
         p.version = version
-        p.cutoff = cutoff
+        p.cutoff = cutoff.Rc
+        p.cutofffn = cutoff.__class__.__name__
         p.Gs = Gs
         p.elements = elements
 
@@ -105,6 +113,7 @@ class Gaussian(object):
         p = self.parameters
 
         log('Cutoff radius: %.2f' % p.cutoff)
+        log('Cutoff function: %s' % p.cutofffn)
 
         if p.elements is None:
             log('Finding unique set of elements in training data.')
@@ -133,7 +142,8 @@ class Gaussian(object):
         if not hasattr(self, 'fingerprints'):
             calc = FingerprintCalculator(neighborlist=self.neighborlist,
                                          Gs=p.Gs,
-                                         cutoff=p.cutoff)
+                                         cutoff=p.cutoff,
+                                         cutofffn=p.cutofffn)
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
                                      calculator=calc)
@@ -147,7 +157,8 @@ class Gaussian(object):
                 calc = \
                     FingerprintDerivativeCalculator(neighborlist=self.neighborlist,
                                                     Gs=p.Gs,
-                                                    cutoff=p.cutoff)
+                                                    cutoff=p.cutoff,
+                                                    cutofffn=p.cutofffn)
                 self.derfingerprints = \
                     Data(filename='%s-fingerprint-derivatives'
                          % self.dblabel,
@@ -184,8 +195,9 @@ class FingerprintCalculator:
 
     """For integration with .utilities.Data"""
 
-    def __init__(self, neighborlist, Gs, cutoff):
+    def __init__(self, neighborlist, Gs, cutoff, cutofffn):
         self.globals = Parameters({'cutoff': cutoff,
+                                   'cutofffn': cutofffn,
                                    'Gs': Gs})
         self.keyed = Parameters({'neighborlist': neighborlist})
         self.parallel_command = 'calculate_fingerprints'
@@ -238,11 +250,12 @@ class FingerprintCalculator:
 
             if G['type'] == 'G2':
                 ridge = calculate_G2(n_symbols, Rs, G['element'], G['eta'],
-                                     self.globals.cutoff, home)
+                                     self.globals.cutoff,
+                                     self.globals.cutofffn, home)
             elif G['type'] == 'G4':
                 ridge = calculate_G4(n_symbols, Rs, G['elements'], G['gamma'],
                                      G['zeta'], G['eta'], self.globals.cutoff,
-                                     home)
+                                     self.globals.cutofffn, home)
             else:
                 raise NotImplementedError('Unknown G type: %s' % G['type'])
             fingerprint[count] = ridge
@@ -254,8 +267,9 @@ class FingerprintDerivativeCalculator:
 
     """For integration with .utilities.Data"""
 
-    def __init__(self, neighborlist, Gs, cutoff):
+    def __init__(self, neighborlist, Gs, cutoff, cutofffn):
         self.globals = Parameters({'cutoff': cutoff,
+                                   'cutofffn': cutofffn,
                                    'Gs': Gs})
         self.keyed = Parameters({'neighborlist': neighborlist})
         self.parallel_command = 'calculate_fingerprint_derivatives'
@@ -370,6 +384,7 @@ class FingerprintDerivativeCalculator:
                     G['element'],
                     G['eta'],
                     self.globals.cutoff,
+                    self.globals.cutofffn,
                     index,
                     Rindex,
                     m,
@@ -384,6 +399,7 @@ class FingerprintDerivativeCalculator:
                     G['zeta'],
                     G['eta'],
                     self.globals.cutoff,
+                    self.globals.cutofffn,
                     index,
                     Rindex,
                     m,
@@ -398,7 +414,8 @@ class FingerprintDerivativeCalculator:
 # Auxiliary functions #########################################################
 
 
-def calculate_G2(symbols, Rs, G_element, eta, cutoff, home, fortran=False):
+def calculate_G2(symbols, Rs, G_element, eta, cutoff, cutofffn, home,
+                 fortran=False):
     """
     Calculate G2 symmetry function. Ideally this will not be used but
     will be a template for how to build the fortran version (and serves as
@@ -414,6 +431,8 @@ def calculate_G2(symbols, Rs, G_element, eta, cutoff, home, fortran=False):
     :type eta: float
     :param cutoff: Radius above which neighbor interactions are ignored.
     :type cutoff: float
+    :param cutofffn: Cutoff function that is used.
+    :type cutofffn: str
     :param home: Index of the center atom.
     :type home: int
     :param fortran: If True, will use the fortran subroutines, else will not.
@@ -429,8 +448,13 @@ def calculate_G2(symbols, Rs, G_element, eta, cutoff, home, fortran=False):
         else:
             ridge = fmodules.calculate_g2(numbers=numbers, rs=Rs,
                                           g_number=G_number, g_eta=eta,
-                                          cutoff=cutoff, home=home)
+                                          cutoff=cutoff, cutofffn=cutofffn,
+                                          home=home)
     else:
+        if cutofffn is 'Cosine':
+            cutoff_fxn = Cosine(cutoff)
+        elif cutofffn is 'Polynomial':
+            cutoff_fxn = Polynomial(cutoff)
         ridge = 0.  # One aspect of a fingerprint :)
         len_of_symbols = len(symbols)
         for count in xrange(len_of_symbols):
@@ -439,13 +463,13 @@ def calculate_G2(symbols, Rs, G_element, eta, cutoff, home, fortran=False):
             if symbol == G_element:
                 Rij = np.linalg.norm(R - home)
                 ridge += (np.exp(-eta * (Rij ** 2.) / (cutoff ** 2.)) *
-                          cutoff_fxn(Rij, cutoff))
+                          cutoff_fxn(Rij))
 
     return ridge
 
 
-def calculate_G4(symbols, Rs, G_elements, gamma, zeta, eta, cutoff, home,
-                 fortran=False):
+def calculate_G4(symbols, Rs, G_elements, gamma, zeta, eta, cutoff, cutofffn,
+                 home, fortran=False):
     """
     Calculate G4 symmetry function. Ideally this will not be used but
     will be a template for how to build the fortran version (and serves as
@@ -465,6 +489,8 @@ def calculate_G4(symbols, Rs, G_elements, gamma, zeta, eta, cutoff, home,
     :type eta: float
     :param cutoff: Radius above which neighbor interactions are ignored.
     :type cutoff: float
+    :param cutofffn: Cutoff function that is used.
+    :type cutofffn: str
     :param home: Index of the center atom.
     :type home: int
     :param fortran: If True, will use the fortran subroutines, else will not.
@@ -482,29 +508,35 @@ def calculate_G4(symbols, Rs, G_elements, gamma, zeta, eta, cutoff, home,
             return fmodules.calculate_g4(numbers=numbers, rs=Rs,
                                          g_numbers=G_numbers, g_gamma=gamma,
                                          g_zeta=zeta, g_eta=eta,
-                                         cutoff=cutoff, home=home)
-    ridge = 0.
-    counts = range(len(symbols))
-    for j in counts:
-        for k in counts[(j + 1):]:
-            els = sorted([symbols[j], symbols[k]])
-            if els != G_elements:
-                continue
-            Rij_ = Rs[j] - home
-            Rij = np.linalg.norm(Rij_)
-            Rik_ = Rs[k] - home
-            Rik = np.linalg.norm(Rik_)
-            Rjk = np.linalg.norm(Rs[j] - Rs[k])
-            cos_theta_ijk = np.dot(Rij_, Rik_) / Rij / Rik
-            term = (1. + gamma * cos_theta_ijk) ** zeta
-            term *= np.exp(-eta * (Rij ** 2. + Rik ** 2. + Rjk ** 2.) /
-                           (cutoff ** 2.))
-            term *= cutoff_fxn(Rij, cutoff)
-            term *= cutoff_fxn(Rik, cutoff)
-            term *= cutoff_fxn(Rjk, cutoff)
-            ridge += term
-    ridge *= 2. ** (1. - zeta)
-    return ridge
+                                         cutoff=cutoff, cutofffn=cutofffn,
+                                         home=home)
+    else:
+        if cutofffn is 'Cosine':
+            cutoff_fxn = Cosine(cutoff)
+        elif cutofffn is 'Polynomial':
+            cutoff_fxn = Polynomial(cutoff)
+        ridge = 0.
+        counts = range(len(symbols))
+        for j in counts:
+            for k in counts[(j + 1):]:
+                els = sorted([symbols[j], symbols[k]])
+                if els != G_elements:
+                    continue
+                Rij_ = Rs[j] - home
+                Rij = np.linalg.norm(Rij_)
+                Rik_ = Rs[k] - home
+                Rik = np.linalg.norm(Rik_)
+                Rjk = np.linalg.norm(Rs[j] - Rs[k])
+                cos_theta_ijk = np.dot(Rij_, Rik_) / Rij / Rik
+                term = (1. + gamma * cos_theta_ijk) ** zeta
+                term *= np.exp(-eta * (Rij ** 2. + Rik ** 2. + Rjk ** 2.) /
+                               (cutoff ** 2.))
+                term *= cutoff_fxn(Rij)
+                term *= cutoff_fxn(Rik)
+                term *= cutoff_fxn(Rjk)
+                ridge += term
+        ridge *= 2. ** (1. - zeta)
+        return ridge
 
 
 def make_symmetry_functions(elements):
@@ -549,40 +581,6 @@ def make_symmetry_functions(elements):
                                        'zeta': zeta})
         G[element0] = _G
     return G
-
-
-def cutoff_fxn(Rij, Rc):
-    """
-    Cosine cutoff function in Parinello-Behler method.
-
-    :param Rc: Radius above which neighbor interactions are ignored.
-    :type Rc: float
-    :param Rij: Distance between pair atoms.
-    :type Rij: float
-
-    :returns: float -- the vaule of the cutoff function.
-    """
-    if Rij > Rc:
-        return 0.
-    else:
-        return 0.5 * (np.cos(np.pi * Rij / Rc) + 1.)
-
-
-def der_cutoff_fxn(Rij, Rc):
-    """
-    Derivative of the Cosine cutoff function.
-
-    :param Rc: Radius above which neighbor interactions are ignored.
-    :type Rc: float
-    :param Rij: Distance between pair atoms.
-    :type Rij: float
-
-    :returns: float -- the vaule of derivative of the cutoff function.
-    """
-    if Rij > Rc:
-        return 0.
-    else:
-        return -0.5 * np.pi / Rc * np.sin(np.pi * Rij / Rc)
 
 
 def Kronecker_delta(i, j):
@@ -704,8 +702,8 @@ def der_cos_theta(a, j, k, Ra, Rj, Rk, m, i):
     return der_cos_theta
 
 
-def calculate_der_G2(n_indices, symbols, Rs, G_element, eta, cutoff, a, Ra,
-                     m, i, fortran=False):
+def calculate_der_G2(n_indices, symbols, Rs, G_element, eta, cutoff, cutofffn,
+                     a, Ra, m, i, fortran=False):
     """
     Calculates coordinate derivative of G2 symmetry function for atom at
     index a and position Ra with respect to coordinate x_{i} of atom index
@@ -723,6 +721,8 @@ def calculate_der_G2(n_indices, symbols, Rs, G_element, eta, cutoff, a, Ra,
     :type eta: float
     :param cutoff: Radius above which neighbor interactions are ignored.
     :type cutoff: float
+    :param cutofffn: Cutoff function that is used.
+    :type cutofffn: str
     :param a: Index of the center atom.
     :type a: int
     :param Ra: Position of the center atom.
@@ -748,11 +748,15 @@ def calculate_der_G2(n_indices, symbols, Rs, G_element, eta, cutoff, a, Ra,
                                               numbers=numbers, rs=Rs,
                                               g_number=G_number,
                                               g_eta=eta, cutoff=cutoff,
+                                              cutofffn=cutofffn,
                                               aa=a, home=Ra, mm=m,
                                               ii=i)
     else:
+        if cutofffn is 'Cosine':
+            cutoff_fxn = Cosine(cutoff)
+        elif cutofffn is 'Polynomial':
+            cutoff_fxn = Polynomial(cutoff)
         ridge = 0.  # One aspect of a fingerprint :)
-
         len_of_symbols = len(symbols)
         for count in xrange(len_of_symbols):
             symbol = symbols[count]
@@ -760,9 +764,8 @@ def calculate_der_G2(n_indices, symbols, Rs, G_element, eta, cutoff, a, Ra,
             n_index = n_indices[count]
             if symbol == G_element:
                 Raj = np.linalg.norm(Ra - Rj)
-                term1 = (-2. * eta * Raj * cutoff_fxn(Raj, cutoff) /
-                         (cutoff ** 2.) +
-                         der_cutoff_fxn(Raj, cutoff))
+                term1 = (-2. * eta * Raj * cutoff_fxn(Raj) / (cutoff ** 2.) +
+                         cutoff_fxn.prime(Raj))
                 term2 = der_position(a, n_index, Ra, Rj, m, i)
                 ridge += np.exp(- eta * (Raj ** 2.) / (cutoff ** 2.)) * \
                     term1 * term2
@@ -770,7 +773,7 @@ def calculate_der_G2(n_indices, symbols, Rs, G_element, eta, cutoff, a, Ra,
 
 
 def calculate_der_G4(n_indices, symbols, Rs, G_elements, gamma, zeta, eta,
-                     cutoff, a, Ra, m, i, fortran=False):
+                     cutoff, cutofffn, a, Ra, m, i, fortran=False):
     """
     Calculates coordinate derivative of G4 symmetry function for atom at
     index a and position Ra with respect to coordinate x_{i} of atom index m.
@@ -791,6 +794,8 @@ def calculate_der_G4(n_indices, symbols, Rs, G_elements, gamma, zeta, eta,
     :type eta: float
     :param cutoff: Radius above which neighbor interactions are ignored.
     :type cutoff: float
+    :param cutofffn: Cutoff function that is used.
+    :type cutofffn: str
     :param a: Index of the center atom.
     :type a: int
     :param Ra: Position of the center atom.
@@ -817,10 +822,16 @@ def calculate_der_G4(n_indices, symbols, Rs, G_elements, gamma, zeta, eta,
                                               g_numbers=G_numbers,
                                               g_gamma=gamma,
                                               g_zeta=zeta, g_eta=eta,
-                                              cutoff=cutoff, aa=a,
+                                              cutoff=cutoff,
+                                              cutofffn=cutofffn,
+                                              aa=a,
                                               home=Ra, mm=m,
                                               ii=i)
     else:
+        if cutofffn is 'Cosine':
+            cutoff_fxn = Cosine(cutoff)
+        elif cutofffn is 'Polynomial':
+            cutoff_fxn = Polynomial(cutoff)
         ridge = 0.
         counts = range(len(symbols))
         for j in counts:
@@ -838,9 +849,9 @@ def calculate_der_G4(n_indices, symbols, Rs, G_elements, gamma, zeta, eta,
                 Rjk = np.linalg.norm(Rjk_)
                 cos_theta_ajk = np.dot(Raj_, Rak_) / Raj / Rak
                 c1 = (1. + gamma * cos_theta_ajk)
-                c2 = cutoff_fxn(Raj, cutoff)
-                c3 = cutoff_fxn(Rak, cutoff)
-                c4 = cutoff_fxn(Rjk, cutoff)
+                c2 = cutoff_fxn(Raj)
+                c3 = cutoff_fxn(Rak)
+                c4 = cutoff_fxn(Rjk)
                 if zeta == 1:
                     term1 = \
                         np.exp(- eta * (Raj ** 2. + Rak ** 2. + Rjk ** 2.) /
@@ -860,9 +871,9 @@ def calculate_der_G4(n_indices, symbols, Rs, G_elements, gamma, zeta, eta,
                 term7 = der_position(n_indices[j], n_indices[k], Rj, Rk, m, i)
                 term4 += -2. * c1 * eta * Rjk * term7 / (cutoff ** 2.)
                 term2 = term2 * term4
-                term8 = der_cutoff_fxn(Raj, cutoff) * c3 * c4 * term5
-                term9 = c2 * der_cutoff_fxn(Rak, cutoff) * c4 * term6
-                term10 = c2 * c3 * der_cutoff_fxn(Rjk, cutoff) * term7
+                term8 = cutoff_fxn.prime(Raj) * c3 * c4 * term5
+                term9 = c2 * cutoff_fxn.prime(Rak) * c4 * term6
+                term10 = c2 * c3 * cutoff_fxn.prime(Rjk) * term7
 
                 term11 = term2 + c1 * (term8 + term9 + term10)
                 term = term1 * term11
@@ -929,6 +940,8 @@ if __name__ == "__main__":
         # Request variables.
         socket.send_pyobj(msg('<request>', 'cutoff'))
         cutoff = socket.recv_pyobj()
+        socket.send_pyobj(msg('<request>', 'cutofffn'))
+        cutofffn = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'Gs'))
         Gs = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'neighborlist'))
@@ -936,7 +949,7 @@ if __name__ == "__main__":
         socket.send_pyobj(msg('<request>', 'images'))
         images = socket.recv_pyobj()
 
-        calc = FingerprintCalculator(neighborlist, Gs, cutoff)
+        calc = FingerprintCalculator(neighborlist, Gs, cutoff, cutofffn)
         result = {}
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.
@@ -953,6 +966,8 @@ if __name__ == "__main__":
         # Request variables.
         socket.send_pyobj(msg('<request>', 'cutoff'))
         cutoff = socket.recv_pyobj()
+        socket.send_pyobj(msg('<request>', 'cutofffn'))
+        cutofffn = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'Gs'))
         Gs = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'neighborlist'))
@@ -960,7 +975,8 @@ if __name__ == "__main__":
         socket.send_pyobj(msg('<request>', 'images'))
         images = socket.recv_pyobj()
 
-        calc = FingerprintDerivativeCalculator(neighborlist, Gs, cutoff)
+        calc = FingerprintDerivativeCalculator(neighborlist, Gs, cutoff,
+                                               cutofffn)
         result = {}
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.

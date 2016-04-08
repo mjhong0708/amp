@@ -6,6 +6,7 @@ from ase.calculators.neighborlist import NeighborList
 from ase.calculators.calculator import Parameters
 
 from ..utilities import Data, Logger
+from .cutoffs import Cosine, Polynomial
 
 
 class AtomCenteredExample(object):
@@ -15,9 +16,10 @@ class AtomCenteredExample(object):
     doesn't do much; it just shows the code structure. If making your own
     module, you can copy and modify this one.
 
-    :param cutoff: Radius above which neighbor interactions are ignored.
+    :param cutoff: Cutoff function. Can be also fed as a float representing the
+                   radius above which neighbor interactions are ignored.
                    Default is 6.5 Angstroms.
-    :type cutoff: float
+    :type cutoff: object or float
 
     :param anotherparameter: Just an example.
     :type anotherparameter: float
@@ -40,7 +42,7 @@ class AtomCenteredExample(object):
     :raises: RuntimeError, TypeError
     """
 
-    def __init__(self, cutoff=6.5, anotherparameter=12.2, dblabel=None,
+    def __init__(self, cutoff=Cosine(6.5), anotherparameter=12.2, dblabel=None,
                  elements=None, version=None, **kwargs):
         # FIXME/ap add some example keywords, get rid of these.
 
@@ -66,6 +68,11 @@ class AtomCenteredExample(object):
             raise TypeError('Unexpected keyword arguments: %s' %
                             repr(kwargs))
 
+        # If the cutoff is provided as a number, Cosine function will be used
+        # by default.
+        if isinstance(cutoff, int) or isinstance(cutoff, float):
+            cutoff = Cosine(cutoff)
+
         # The parameters dictionary contains the minimum information
         # to produce a compatible descriptor; that is, one that gives
         # an identical fingerprint when fed an ASE image.
@@ -74,7 +81,8 @@ class AtomCenteredExample(object):
                 #FIXME/ap: Above should not be gaussian
              'mode': 'atom-centered'})
         p.version = version
-        p.cutoff = cutoff
+        p.cutoff = cutoff.Rc
+        p.cutofffn = cutoff.__class__.__name__
         p.anotherparameter = anotherparameter
         p.elements = elements
 
@@ -87,7 +95,7 @@ class AtomCenteredExample(object):
         return self.parameters.tostring()
 
     def calculate_fingerprints(self, images, cores=1, fortran=False,
-                               log=None):
+                               log=None, calculate_derivatives=False):
         """Calculates the fingerpints of the images, for the ones not already
         done."""
         log = Logger(file=None) if log is None else log
@@ -98,7 +106,8 @@ class AtomCenteredExample(object):
 
         p = self.parameters
 
-        log('Cutoff radius: %.3f' % p.cutoff)
+        log('Cutoff radius: %.2f' % p.cutoff)
+        log('Cutoff function: %s' % p.cutofffn)
 
         if p.elements is None:
             log('Finding unique set of elements in training data.')
@@ -123,7 +132,8 @@ class AtomCenteredExample(object):
         if not hasattr(self, 'fingerprints'):
             calc = FingerprintCalculator(neighborlist=self.neighborlist,
                                          anotherparamter=p.anotherparameter,
-                                         cutoff=p.cutoff)
+                                         cutoff=p.cutoff,
+                                         cutofffn=p.cutofffn)
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
                                      calculator=calc)
@@ -159,8 +169,9 @@ class FingerprintCalculator:
 
     """For integration with .utilities.Data"""
 
-    def __init__(self, neighborlist, anotherparamter, cutoff):
+    def __init__(self, neighborlist, anotherparamter, cutoff, cutofffn):
         self.globals = Parameters({'cutoff': cutoff,
+                                   'cutofffn': cutofffn,
                                    'anotherparameter': anotherparamter})
         self.keyed = Parameters({'neighborlist': neighborlist})
         self.parallel_command = 'calculate_fingerprints'
@@ -266,6 +277,8 @@ if __name__ == "__main__":
         # Request variables.
         socket.send_pyobj(msg('<request>', 'cutoff'))
         cutoff = socket.recv_pyobj()
+        socket.send_pyobj(msg('<request>', 'cutofffn'))
+        cutofffn = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'anotherparameter'))
         anotherparameter = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'neighborlist'))
@@ -273,7 +286,8 @@ if __name__ == "__main__":
         socket.send_pyobj(msg('<request>', 'images'))
         images = socket.recv_pyobj()
 
-        calc = FingerprintCalculator(neighborlist, anotherparameter, cutoff)
+        calc = FingerprintCalculator(neighborlist, anotherparameter, cutoff,
+                                     cutofffn)
         result = {}
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.

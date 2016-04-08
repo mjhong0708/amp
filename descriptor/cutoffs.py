@@ -57,7 +57,7 @@ class Polynomial(object):
     :type Rc: float
     """
 
-    def __init__(self, gamma, Rc):
+    def __init__(self, Rc, gamma=4):
         self.gamma = gamma
         self.Rc = Rc
 

@@ -225,14 +225,14 @@ class Amp(Calculator, object):
                           overwrite it.
         :type overwrite: bool
 
-        :param energy_tol: Threshold energy per atom rmse at which simulation
+        :param energy_rmse: Threshold energy per atom rmse at which simulation
                             is converged.
-        :type energy_tol: float
+        :type energy_rmse: float
 
-        :param force_tol: Threshold force rmse at which simulation is
+        :param force_rmse: Threshold force rmse at which simulation is
                            converged. The default value is in unit of eV/Ang.
-                           If 'force_tol = None', forces will not be trained.
-        :type force_tol: float
+                           If 'force_rmse = None', forces will not be trained.
+        :type force_rmse: float
 
         :param force_coefficient: Coefficient of the force contribution in the
                                   cost function.
@@ -299,7 +299,7 @@ class Amp(Calculator, object):
         log('Parameters saved in file "%s".' % filename)
         if result is False:
             raise TrainingConvergenceError('Amp did not converge upon '
-                'training. See log file for more information.')
+                                           'training. See log file for more information.')
 
     def save(self, filename, overwrite=False):
         """Saves the calculator in way that it can be re-opened with
