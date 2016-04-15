@@ -5,6 +5,10 @@ from ase.calculators.calculator import Parameters
 from ..utilities import Data, Logger
 from .cutoffs import Cosine, Polynomial
 from . import NeighborlistCalculator
+try:
+    from .. import fmodules
+except ImportError:
+    fmodules = None
 
 
 class Gaussian(object):
@@ -45,11 +49,14 @@ class Gaussian(object):
     :param version: Version of fingerprints.
     :type version: str
 
+    :param fortran: If True, will use fortran modules, if False, will not.
+    :type fortran: bool
+
     :raises: RuntimeError, TypeError
     """
 
     def __init__(self, cutoff=Cosine(6.5), Gs=None, dblabel=None,
-                 elements=None, version=None, **kwargs):
+                 elements=None, version=None, fortran=True, **kwargs):
 
         # Check of the version of descriptor, particularly if restarting.
         compatibleversions = ['2015.12', ]
@@ -91,6 +98,7 @@ class Gaussian(object):
         p.elements = elements
 
         self.dblabel = dblabel
+        self.fortran = fortran
         self.parent = None  # Can hold a reference to main Amp instance.
 
     def tostring(self):
@@ -141,7 +149,8 @@ class Gaussian(object):
             calc = FingerprintCalculator(neighborlist=self.neighborlist,
                                          Gs=p.Gs,
                                          cutoff=p.cutoff,
-                                         cutofffn=p.cutofffn)
+                                         cutofffn=p.cutofffn,
+                                         fortran=self.fortran)
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
                                      calculator=calc)
@@ -156,7 +165,8 @@ class Gaussian(object):
                     FingerprintPrimeCalculator(neighborlist=self.neighborlist,
                                                Gs=p.Gs,
                                                cutoff=p.cutoff,
-                                               cutofffn=p.cutofffn)
+                                               cutofffn=p.cutofffn,
+                                               fortran=self.fortran)
                 self.fingerprintprimes = \
                     Data(filename='%s-fingerprint-primes'
                          % self.dblabel,
@@ -173,12 +183,13 @@ class FingerprintCalculator:
 
     """For integration with .utilities.Data"""
 
-    def __init__(self, neighborlist, Gs, cutoff, cutofffn):
+    def __init__(self, neighborlist, Gs, cutoff, cutofffn, fortran):
         self.globals = Parameters({'cutoff': cutoff,
                                    'cutofffn': cutofffn,
                                    'Gs': Gs})
         self.keyed = Parameters({'neighborlist': neighborlist})
         self.parallel_command = 'calculate_fingerprints'
+        self.fortran = fortran
 
     def calculate(self, image, key):
         """Makes a list of fingerprints, one per atom, for the fed image."""
@@ -229,11 +240,11 @@ class FingerprintCalculator:
             if G['type'] == 'G2':
                 ridge = calculate_G2(n_symbols, Rs, G['element'], G['eta'],
                                      self.globals.cutoff,
-                                     self.globals.cutofffn, home)
+                                     self.globals.cutofffn, home, self.fortran)
             elif G['type'] == 'G4':
                 ridge = calculate_G4(n_symbols, Rs, G['elements'], G['gamma'],
                                      G['zeta'], G['eta'], self.globals.cutoff,
-                                     self.globals.cutofffn, home)
+                                     self.globals.cutofffn, home, self.fortran)
             else:
                 raise NotImplementedError('Unknown G type: %s' % G['type'])
             fingerprint[count] = ridge
@@ -245,12 +256,13 @@ class FingerprintPrimeCalculator:
 
     """For integration with .utilities.Data"""
 
-    def __init__(self, neighborlist, Gs, cutoff, cutofffn):
+    def __init__(self, neighborlist, Gs, cutoff, cutofffn, fortran):
         self.globals = Parameters({'cutoff': cutoff,
                                    'cutofffn': cutofffn,
                                    'Gs': Gs})
         self.keyed = Parameters({'neighborlist': neighborlist})
         self.parallel_command = 'calculate_fingerprint_prime'
+        self.fortran = fortran
 
     def calculate(self, image, key):
         """Makes a list of fingerprint derivatives, one per atom,
@@ -366,7 +378,8 @@ class FingerprintPrimeCalculator:
                     index,
                     Rindex,
                     m,
-                    i)
+                    i,
+                    self.fortran)
             elif G['type'] == 'G4':
                 ridge = calculate_G4_prime(
                     n_indices,
@@ -381,7 +394,8 @@ class FingerprintPrimeCalculator:
                     index,
                     Rindex,
                     m,
-                    i)
+                    i,
+                    self.fortran)
             else:
                 raise NotImplementedError('Unknown G type: %s' % G['type'])
 
@@ -392,8 +406,7 @@ class FingerprintPrimeCalculator:
 # Auxiliary functions #########################################################
 
 
-def calculate_G2(symbols, Rs, G_element, eta, cutoff, cutofffn, home,
-                 fortran=False):
+def calculate_G2(symbols, Rs, G_element, eta, cutoff, cutofffn, home, fortran):
     """
     Calculate G2 symmetry function. Ideally this will not be used but
     will be a template for how to build the fortran version (and serves as
@@ -447,7 +460,7 @@ def calculate_G2(symbols, Rs, G_element, eta, cutoff, cutofffn, home,
 
 
 def calculate_G4(symbols, Rs, G_elements, gamma, zeta, eta, cutoff, cutofffn,
-                 home, fortran=False):
+                 home, fortran):
     """
     Calculate G4 symmetry function. Ideally this will not be used but
     will be a template for how to build the fortran version (and serves as
@@ -681,7 +694,7 @@ def der_cos_theta(a, j, k, Ra, Rj, Rk, m, i):
 
 
 def calculate_G2_prime(n_indices, symbols, Rs, G_element, eta, cutoff,
-                       cutofffn, a, Ra, m, i, fortran=False):
+                       cutofffn, a, Ra, m, i, fortran):
     """
     Calculates coordinate derivative of G2 symmetry function for atom at
     index a and position Ra with respect to coordinate x_{i} of atom index
@@ -751,7 +764,7 @@ def calculate_G2_prime(n_indices, symbols, Rs, G_element, eta, cutoff,
 
 
 def calculate_G4_prime(n_indices, symbols, Rs, G_elements, gamma, zeta, eta,
-                       cutoff, cutofffn, a, Ra, m, i, fortran=False):
+                       cutoff, cutofffn, a, Ra, m, i, fortran):
     """
     Calculates coordinate derivative of G4 symmetry function for atom at
     index a and position Ra with respect to coordinate x_{i} of atom index m.
@@ -875,6 +888,7 @@ if __name__ == "__main__":
     import zmq
     from ..utilities import MessageDictionary
 
+    fortran = False if fmodules is None else True
     hostsocket = sys.argv[-1]
     proc_id = sys.argv[-2]
     msg = MessageDictionary(proc_id)
@@ -927,7 +941,8 @@ if __name__ == "__main__":
         socket.send_pyobj(msg('<request>', 'images'))
         images = socket.recv_pyobj()
 
-        calc = FingerprintCalculator(neighborlist, Gs, cutoff, cutofffn)
+        calc = FingerprintCalculator(neighborlist, Gs, cutoff, cutofffn,
+                                     fortran)
         result = {}
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.
@@ -954,7 +969,7 @@ if __name__ == "__main__":
         images = socket.recv_pyobj()
 
         calc = FingerprintPrimeCalculator(neighborlist, Gs, cutoff,
-                                          cutofffn)
+                                          cutofffn, fortran)
         result = {}
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.
