@@ -155,15 +155,16 @@ class Gaussian(object):
                 tic='derfp')
             if not hasattr(self, 'fingerprintprimes'):
                 calc = \
-                    FingerprintDerivativeCalculator(neighborlist=self.neighborlist,
-                                                    Gs=p.Gs,
-                                                    cutoff=p.cutoff,
-                                                    cutofffn=p.cutofffn)
+                    FingerprintPrimeCalculator(neighborlist=self.neighborlist,
+                                               Gs=p.Gs,
+                                               cutoff=p.cutoff,
+                                               cutofffn=p.cutofffn)
                 self.fingerprintprimes = \
                     Data(filename='%s-fingerprint-primes'
                          % self.dblabel,
                          calculator=calc)
-            self.fingerprintprimes.calculate_items(images, cores=cores, log=log)
+            self.fingerprintprimes.calculate_items(
+                images, cores=cores, log=log)
             log('...fingerprint derivatives calculated.', toc='derfp')
 
 
@@ -242,7 +243,7 @@ class FingerprintCalculator:
         return symbol, fingerprint
 
 
-class FingerprintDerivativeCalculator:
+class FingerprintPrimeCalculator:
 
     """For integration with .utilities.Data"""
 
@@ -251,7 +252,7 @@ class FingerprintDerivativeCalculator:
                                    'cutofffn': cutofffn,
                                    'Gs': Gs})
         self.keyed = Parameters({'neighborlist': neighborlist})
-        self.parallel_command = 'calculate_fingerprint_derivatives'
+        self.parallel_command = 'calculate_fingerprint_prime'
 
     def calculate(self, image, key):
         """Makes a list of fingerprint derivatives, one per atom,
@@ -277,7 +278,7 @@ class FingerprintDerivativeCalculator:
                       in zip(nneighborindices,
                              nneighboroffsets)]
 
-                der_indexfp = self.get_der_fingerprint(
+                der_indexfp = self.get_fingerprint_prime(
                     selfindex, selfsymbol,
                     nneighborindices,
                     nneighborsymbols,
@@ -308,7 +309,7 @@ class FingerprintDerivativeCalculator:
                         # for calculating derivatives of fingerprints,
                         # summation runs over neighboring atoms of type
                         # I (either inside or outside the main cell)
-                        der_indexfp = self.get_der_fingerprint(
+                        der_indexfp = self.get_fingerprint_prime(
                             nindex, nsymbol,
                             nneighborindices,
                             nneighborsymbols,
@@ -320,8 +321,8 @@ class FingerprintDerivativeCalculator:
 
         return fingerprintprimes
 
-    def get_der_fingerprint(self, index, symbol, n_indices, n_symbols, Rs,
-                            m, i):
+    def get_fingerprint_prime(self, index, symbol, n_indices, n_symbols, Rs,
+                              m, i):
         """
         Returns the value of the derivative of G for atom with index and
         symbol with respect to coordinate x_{i} of atom index m. n_indices,
@@ -356,7 +357,7 @@ class FingerprintDerivativeCalculator:
         for count in xrange(len_of_symmetries):
             G = self.globals.Gs[symbol][count]
             if G['type'] == 'G2':
-                ridge = calculate_der_G2(
+                ridge = calculate_G2_prime(
                     n_indices,
                     n_symbols,
                     Rs,
@@ -369,7 +370,7 @@ class FingerprintDerivativeCalculator:
                     m,
                     i)
             elif G['type'] == 'G4':
-                ridge = calculate_der_G4(
+                ridge = calculate_G4_prime(
                     n_indices,
                     n_symbols,
                     Rs,
@@ -681,8 +682,8 @@ def der_cos_theta(a, j, k, Ra, Rj, Rk, m, i):
     return der_cos_theta
 
 
-def calculate_der_G2(n_indices, symbols, Rs, G_element, eta, cutoff, cutofffn,
-                     a, Ra, m, i, fortran=False):
+def calculate_G2_prime(n_indices, symbols, Rs, G_element, eta, cutoff,
+                       cutofffn, a, Ra, m, i, fortran=False):
     """
     Calculates coordinate derivative of G2 symmetry function for atom at
     index a and position Ra with respect to coordinate x_{i} of atom index
@@ -723,13 +724,13 @@ def calculate_der_G2(n_indices, symbols, Rs, G_element, eta, cutoff, cutofffn,
         if len(Rs) == 0:
             ridge = 0.
         else:
-            ridge = fmodules.calculate_der_g2(n_indices=list(n_indices),
-                                              numbers=numbers, rs=Rs,
-                                              g_number=G_number,
-                                              g_eta=eta, cutoff=cutoff,
-                                              cutofffn=cutofffn,
-                                              aa=a, home=Ra, mm=m,
-                                              ii=i)
+            ridge = fmodules.calculate_g2_prime(n_indices=list(n_indices),
+                                                numbers=numbers, rs=Rs,
+                                                g_number=G_number,
+                                                g_eta=eta, cutoff=cutoff,
+                                                cutofffn=cutofffn,
+                                                aa=a, home=Ra, mm=m,
+                                                ii=i)
     else:
         if cutofffn is 'Cosine':
             cutoff_fxn = Cosine(cutoff)
@@ -751,8 +752,8 @@ def calculate_der_G2(n_indices, symbols, Rs, G_element, eta, cutoff, cutofffn,
     return ridge
 
 
-def calculate_der_G4(n_indices, symbols, Rs, G_elements, gamma, zeta, eta,
-                     cutoff, cutofffn, a, Ra, m, i, fortran=False):
+def calculate_G4_prime(n_indices, symbols, Rs, G_elements, gamma, zeta, eta,
+                       cutoff, cutofffn, a, Ra, m, i, fortran=False):
     """
     Calculates coordinate derivative of G4 symmetry function for atom at
     index a and position Ra with respect to coordinate x_{i} of atom index m.
@@ -796,16 +797,16 @@ def calculate_der_G4(n_indices, symbols, Rs, G_elements, gamma, zeta, eta,
         if len(Rs) == 0:
             ridge = 0.
         else:
-            ridge = fmodules.calculate_der_g4(n_indices=list(n_indices),
-                                              numbers=numbers, rs=Rs,
-                                              g_numbers=G_numbers,
-                                              g_gamma=gamma,
-                                              g_zeta=zeta, g_eta=eta,
-                                              cutoff=cutoff,
-                                              cutofffn=cutofffn,
-                                              aa=a,
-                                              home=Ra, mm=m,
-                                              ii=i)
+            ridge = fmodules.calculate_g4_prime(n_indices=list(n_indices),
+                                                numbers=numbers, rs=Rs,
+                                                g_numbers=G_numbers,
+                                                g_gamma=gamma,
+                                                g_zeta=zeta, g_eta=eta,
+                                                cutoff=cutoff,
+                                                cutofffn=cutofffn,
+                                                aa=a,
+                                                home=Ra, mm=m,
+                                                ii=i)
     else:
         if cutofffn is 'Cosine':
             cutoff_fxn = Cosine(cutoff)
@@ -941,7 +942,7 @@ if __name__ == "__main__":
         socket.send_pyobj(msg('<result>', result))
         socket.recv_string()  # Needed to complete REQ/REP.
 
-    elif purpose == 'calculate_fingerprint_derivatives':
+    elif purpose == 'calculate_fingerprint_primes':
         # Request variables.
         socket.send_pyobj(msg('<request>', 'cutoff'))
         cutoff = socket.recv_pyobj()
@@ -954,8 +955,8 @@ if __name__ == "__main__":
         socket.send_pyobj(msg('<request>', 'images'))
         images = socket.recv_pyobj()
 
-        calc = FingerprintDerivativeCalculator(neighborlist, Gs, cutoff,
-                                               cutofffn)
+        calc = FingerprintPrimeCalculator(neighborlist, Gs, cutoff,
+                                          cutofffn)
         result = {}
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.
