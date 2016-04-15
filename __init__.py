@@ -59,9 +59,9 @@ class Amp(Calculator, object):
     implemented_properties = ['energy', 'forces']
 
     def __init__(self, descriptor, model, label='amp', dblabel=None,
-                 cores=None, **kwargs):
+                 cores=None, atoms=None):
 
-        Calculator.__init__(self, label=label, **kwargs)
+        Calculator.__init__(self, label=label, atoms=atoms)
 
         log = Logger(make_filename(self.label, '-log.txt'))
         self.log = log
