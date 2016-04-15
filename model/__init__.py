@@ -47,7 +47,7 @@ class Model(object):
                 energy += atom_energy
         return energy
 
-    def get_forces(self, fingerprints, derfingerprints):
+    def get_forces(self, fingerprints, fingerprintprimes):
         """Returns the model-predicted forces for an image, based on
         derivatives of fingerprints.
         """
@@ -55,11 +55,11 @@ class Model(object):
         if self.parameters.mode == 'image-centered':
             raise NotImplementedError('This needs to be coded.')
         elif self.parameters.mode == 'atom-centered':
-            selfindices = set([key[0] for key in derfingerprints.keys()])
+            selfindices = set([key[0] for key in fingerprintprimes.keys()])
             forces = np.zeros((len(selfindices), 3))
-            while len(derfingerprints) > 0:
+            while len(fingerprintprimes) > 0:
                 (selfindex, selfsymbol, nindex, nsymbol, i), derafp = \
-                    derfingerprints.popitem()  # Reduce memory.
+                    fingerprintprimes.popitem()  # Reduce memory.
                 afp = fingerprints[nindex][1]
                 forces[selfindex][i] += \
                     self.get_atomic_force(afp=afp,
@@ -97,13 +97,13 @@ class LossFunction:
         self._cores = cores
 
     def attach_model(self, model, fingerprints=None,
-                     derfingerprints=None, images=None):
+                     fingerprintprimes=None, images=None):
         """Attach the model to be used to the loss function. fingerprints and
         training images need not be supplied if they are already attached to
         the model via model.trainingparameters."""
         self._model = model
         self.fingerprints = fingerprints
-        self.derfingerprints = derfingerprints
+        self.fingerprintprimes = fingerprintprimes
         self.images = images
 
     def _initialize(self):
@@ -120,8 +120,8 @@ class LossFunction:
             self.fingerprints = \
                 self._model.trainingparameters.descriptor.fingerprints
         if self.parameters.force_coefficient != 0.:  # ap: Is this a good place?
-            self.derfingerprints = \
-                self._model.trainingparameters.descriptor.derfingerprints
+            self.fingerprintprimes = \
+                self._model.trainingparameters.descriptor.fingerprintprimes
         if self.images is None:
             self.images = self._model.trainingparameters.trainingimages
 
@@ -352,7 +352,7 @@ class LossFunction:
             if p.force_coefficient != 0.:
                 predicted_forces = \
                     self._model.get_forces(self.fingerprints[hash],
-                                           self.derfingerprints[hash])
+                                           self.fingerprintprimes[hash])
                 actual_forces = image.get_forces(apply_constraint=False)
                 for i in xrange(3):
                     for index in xrange(no_of_atoms):
@@ -371,7 +371,7 @@ class LossFunction:
                         raise NotImplementedError('This needs to be coded.')
                     elif self._model.parameters.mode == 'atom-centered':
                         for key, derafp in \
-                                self.derfingerprints[hash].iteritems():
+                                self.fingerprintprimes[hash].iteritems():
                             (selfindex, selfsymbol, nindex, nsymbol, i) = key
                             afp = self.fingerprints[hash][nindex][1]
                             temp = \
@@ -428,8 +428,8 @@ class LossFunction:
                 elif request == 'fingerprints':
                     server.send_pyobj({k: self.fingerprints[k] for k in
                                        keys[int(message['id'])]})
-                elif request == 'derfingerprints':
-                    server.send_pyobj({k: self.derfingerprints[k] for k in
+                elif request == 'fingerprintprimes':
+                    server.send_pyobj({k: self.fingerprintprimes[k] for k in
                                        keys[int(message['id'])]})
                 elif request == 'parameters':
                     if finished[int(message['id'])]:

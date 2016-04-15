@@ -153,17 +153,17 @@ class Gaussian(object):
         if calculate_derivatives:
             log('Calculating fingerprint derivatives of images...',
                 tic='derfp')
-            if not hasattr(self, 'derfingerprints'):
+            if not hasattr(self, 'fingerprintprimes'):
                 calc = \
                     FingerprintDerivativeCalculator(neighborlist=self.neighborlist,
                                                     Gs=p.Gs,
                                                     cutoff=p.cutoff,
                                                     cutofffn=p.cutofffn)
-                self.derfingerprints = \
-                    Data(filename='%s-fingerprint-derivatives'
+                self.fingerprintprimes = \
+                    Data(filename='%s-fingerprint-primes'
                          % self.dblabel,
                          calculator=calc)
-            self.derfingerprints.calculate_items(images, cores=cores, log=log)
+            self.fingerprintprimes.calculate_items(images, cores=cores, log=log)
             log('...fingerprint derivatives calculated.', toc='derfp')
 
 
@@ -258,7 +258,7 @@ class FingerprintDerivativeCalculator:
         for the fed image."""
         self.atoms = image
         nl = self.keyed.neighborlist[key]
-        derfingerprints = {}
+        fingerprintprimes = {}
         for atom in image:
             selfsymbol = atom.symbol
             selfindex = atom.index
@@ -283,7 +283,7 @@ class FingerprintDerivativeCalculator:
                     nneighborsymbols,
                     Rs, selfindex, i)
 
-                derfingerprints[
+                fingerprintprimes[
                     (selfindex, selfsymbol, selfindex, selfsymbol, i)] = \
                     der_indexfp
                 # Calculating derivative of neighbor atom fingerprints w.r.t.
@@ -314,11 +314,11 @@ class FingerprintDerivativeCalculator:
                             nneighborsymbols,
                             Rs, selfindex, i)
 
-                        derfingerprints[
+                        fingerprintprimes[
                             (selfindex, selfsymbol, nindex, nsymbol, i)] = \
                             der_indexfp
 
-        return derfingerprints
+        return fingerprintprimes
 
     def get_der_fingerprint(self, index, symbol, n_indices, n_symbols, Rs,
                             m, i):

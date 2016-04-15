@@ -200,7 +200,7 @@ class Amp(Calculator, object):
             self.results['energy'] = energy
             forces = \
                 self.model.get_forces(self.descriptor.fingerprints[key],
-                                      self.descriptor.derfingerprints[key])
+                                      self.descriptor.fingerprintprimes[key])
             self.results['forces'] = forces
 
     def train(self,
