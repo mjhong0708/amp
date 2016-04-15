@@ -233,8 +233,9 @@ class Amp(Calculator, object):
         log('Model: %s' % self.model.__class__.__name__)
 
         log('\nDescriptor\n==========')
-        calculate_derivatives = True \
-            if train_forces is not None else False
+        # Derivatives of fingerprints need to be calculated if train_forces is
+        # True.
+        calculate_derivatives = train_forces
         self.descriptor.calculate_fingerprints(images=images,
                                                cores=self.cores,
                                                log=log,
