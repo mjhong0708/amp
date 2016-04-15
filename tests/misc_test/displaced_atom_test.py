@@ -10,9 +10,9 @@ different.
 import numpy as np
 from ase import Atoms
 from collections import OrderedDict
-from . import Amp
-from ..descriptor.gaussian import Gaussian
-from ..model.neuralnetwork import NeuralNetwork
+from amp import Amp
+from amp.descriptor.gaussian import Gaussian
+from amp.model.neuralnetwork import NeuralNetwork
 
 ###############################################################################
 

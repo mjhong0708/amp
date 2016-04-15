@@ -6,8 +6,8 @@ calculated and compared."""
 import numpy as np
 from numpy import sin, cos
 from ase import Atom, Atoms
-from ..descriptor.gaussian import Gaussian
-from ..utilities import hash_images
+from amp.descriptor.gaussian import Gaussian
+from amp.utilities import hash_images
 import random
 
 
