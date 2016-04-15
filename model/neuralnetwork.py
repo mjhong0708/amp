@@ -8,6 +8,11 @@ from amp.regression import Regressor
 from amp.model import LossFunction, calculate_fingerprints_range
 from amp.model import Model
 
+default_convergence = {'energy_rmse': 0.001,
+                       'energy_maxresid': None,
+                       'force_rmse': 0.005,
+                       'force_maxresid': None, }
+
 
 class NeuralNetwork(Model):
 
@@ -67,7 +72,6 @@ class NeuralNetwork(Model):
 
     :raises: RuntimeError, NotImplementedError
     """
-    ###########################################################################
 
     def __init__(self, hiddenlayers=(5, 5), activation='tanh', weights=None,
                  scalings=None, fprange=None, regressor=None, mode=None,
@@ -107,19 +111,31 @@ class NeuralNetwork(Model):
         self.parent = None  # Can hold a reference to main Amp instance.
         self.lossfunction = lossfunction
 
-    def fit(self, trainingimages, descriptor, convergence, energy_coefficient,
-            force_coefficient, log, cores):
+    def fit(self,
+            trainingimages,
+            descriptor,
+            log,
+            cores,
+            convergence=None,):
         """Fit the model parameters such that the fingerprints can be used to
         describe the energies in trainingimages. log is the logging object.
         descriptor is a descriptor object, as would be in calc.descriptor.
         """
+        # Takes the default values of convergence, if they are not provided by
+        # the user.
+        if convergence is not None:
+            user_keys = convergence.keys()
+            for key in default_convergence.keys():
+                if key not in user_keys:
+                    convergence[key] = default_convergence[key]
+        else:
+            convergence = default_convergence.copy()
+
         # Set all parameters and report to logfile.
         self.cores = cores
 
         if self.lossfunction is None:
-            self.lossfunction = LossFunction(energy_coefficient,
-                                             force_coefficient,
-                                             cores=self.cores,
+            self.lossfunction = LossFunction(cores=self.cores,
                                              convergence=convergence)
         if self.regressor is None:
             self.regressor = Regressor()
@@ -290,7 +306,7 @@ class NeuralNetwork(Model):
                                                       outputs, nsymbol,)
 
         force = float(-(scaling['slope'] *
-                        dOutputs_dInputs[len(dOutputs_dInputs)-1][0]))
+                        dOutputs_dInputs[len(dOutputs_dInputs) - 1][0]))
 
         return force
 

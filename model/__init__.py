@@ -83,8 +83,9 @@ class LossFunction:
     Also has parallelization methods built in.
     """
 
-    def __init__(self, energy_coefficient, force_coefficient,
-                 convergence, cores=None, raise_ConvergenceOccurred=True,):
+    def __init__(self, energy_coefficient=1.0, force_coefficient=0.04,
+                 convergence=None, cores=None,
+                 raise_ConvergenceOccurred=True,):
         p = self.parameters = Parameters(
             {'importname': '.model.LossFunction'})
         p['convergence'] = convergence

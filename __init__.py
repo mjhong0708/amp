@@ -206,12 +206,7 @@ class Amp(Calculator, object):
     def train(self,
               images,
               overwrite=False,
-              convergence={'energy_rmse': 0.001,
-                           'energy_maxresid': None,
-                           'force_rmse': 0.005,
-                           'force_maxresid': None, },
-              energy_coefficient=1,
-              force_coefficient=0.04,
+              train_forces=True
               ):
         """
         Fits the model to the training images.
@@ -226,19 +221,6 @@ class Amp(Calculator, object):
         :param overwrite: If a trained output file with the same name exists,
                           overwrite it.
         :type overwrite: bool
-
-        :param energy_rmse: Threshold energy per atom rmse at which simulation
-                            is converged.
-        :type energy_rmse: float
-
-        :param force_rmse: Threshold force rmse at which simulation is
-                           converged. The default value is in unit of eV/Ang.
-                           If 'force_rmse = None', forces will not be trained.
-        :type force_rmse: float
-
-        :param force_coefficient: Coefficient of the force contribution in the
-                                  cost function.
-        :type force_coefficient: float
         """
 
         log = self.log
@@ -252,42 +234,15 @@ class Amp(Calculator, object):
 
         log('\nDescriptor\n==========')
         calculate_derivatives = True \
-            if force_coefficient is not None else False
+            if train_forces is not None else False
         self.descriptor.calculate_fingerprints(images=images,
                                                cores=self.cores,
                                                log=log,
                                                calculate_derivatives=calculate_derivatives)
 
-        if convergence.has_key('energy_rmse') is False:
-            convergence['energy_rmse'] = None
-        if convergence.has_key('energy_maxresid') is False:
-            convergence['energy_maxresid'] = None
-        if convergence.has_key('force_rmse') is False:
-            convergence['force_rmse'] = None
-        if convergence.has_key('force_maxresid') is False:
-            convergence['force_maxresid'] = None
-
-        if (not convergence['force_rmse']) and \
-                (not convergence['force_maxresid']):
-            if not force_coefficient:
-                force_coefficient = 0.
-        elif not force_coefficient:
-            if (not convergence['energy_rmse']) or \
-                    (not convergence['force_rmse']):
-                force_coefficient = \
-                    (convergence['energy_maxresid'] /
-                     convergence['force_maxresid'])**2.
-            else:
-                force_coefficient = \
-                    (convergence['energy_rmse'] /
-                     convergence['force_rmse'])**2.
-
         log('\nModel fitting\n=============')
         result = self.model.fit(trainingimages=images,
                                 descriptor=self.descriptor,
-                                convergence=convergence,
-                                energy_coefficient=energy_coefficient,
-                                force_coefficient=force_coefficient,
                                 log=log,
                                 cores=self.cores)
 
