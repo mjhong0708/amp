@@ -1,9 +1,7 @@
 
 import numpy as np
 from ase.calculators.calculator import Parameters
-# should be imported as "amp.utilities", and not "..utilities", else
-# readthedocs will nor read the docstring
-from amp.utilities import Logger, ConvergenceOccurred, make_sublists, now
+from ..utilities import Logger, ConvergenceOccurred, make_sublists, now
 
 
 class Model(object):

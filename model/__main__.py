@@ -9,10 +9,8 @@ itself with id. Instructions on what to do will come from the socket.
 import sys
 import tempfile
 import zmq
-# should be imported as "amp.utilities", "amp" and not "..utilities", "..",
-# else readthedocs will nor read the docstring
-from amp.utilities import MessageDictionary, string2dict, Logger
-from amp import importhelper
+from ..utilities import MessageDictionary, string2dict, Logger
+from . import importhelper
 
 
 hostsocket = sys.argv[-1]

@@ -3,9 +3,7 @@ import numpy as np
 from ase.data import atomic_numbers
 from ase.calculators.calculator import Parameters
 from scipy.special import sph_harm
-# should be imported as amp.utilities and not ..utilities, else readthedocs
-# will nor read the docstring
-from amp.utilities import Data, Logger
+from ..utilities import Data, Logger
 from .cutoffs import Cosine, Polynomial
 from . import NeighborlistCalculator
 

@@ -11,9 +11,9 @@ by the code with and without fortran modules.
 import numpy as np
 from ase import Atoms
 from collections import OrderedDict
-from amp import Amp
-from amp.descriptor.gaussian import Gaussian
-from amp.model.neuralnetwork import NeuralNetwork
+from . import Amp
+from ..descriptor.gaussian import Gaussian
+from ..model.neuralnetwork import NeuralNetwork
 
 ###############################################################################
 # The test function for non-periodic systems

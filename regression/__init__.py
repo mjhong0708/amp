@@ -1,7 +1,4 @@
-# should be imported as amp.utilities and not ..utilities, else readthedocs
-# will nor read the docstring
-from amp.utilities import ConvergenceOccurred
-
+from ..utilities import ConvergenceOccurred
 
 class Regressor:
 

@@ -2,11 +2,9 @@ import numpy as np
 from collections import OrderedDict
 
 from ase.calculators.calculator import Parameters
-# should be imported as "amp.regression", "amp.model" and not "..regression",
-# ".", else readthedocs will nor read the docstring
-from amp.regression import Regressor
-from amp.model import LossFunction, calculate_fingerprints_range
-from amp.model import Model
+from ..regression import Regressor
+from ..model import LossFunction, calculate_fingerprints_range
+from ..model import Model
 
 default_convergence = {'energy_rmse': 0.001,
                        'energy_maxresid': None,
