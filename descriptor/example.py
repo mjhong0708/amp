@@ -43,7 +43,7 @@ class AtomCenteredExample(object):
     """
 
     def __init__(self, cutoff=Cosine(6.5), anotherparameter=12.2, dblabel=None,
-                 elements=None, version=None, **kwargs):
+                 elements=None, version=None, mode='atom-centered'):
         # FIXME/ap add some example keywords, get rid of these.
 
         # Check of the version of descriptor, particularly if restarting.
@@ -57,16 +57,11 @@ class AtomCenteredExample(object):
         else:
             version = compatibleversions[-1]
 
-        # Check any extra kwargs fed.
-        if 'mode' in kwargs:
-            mode = kwargs.pop('mode')
-            if mode != 'atom-centered':
-                raise RuntimeError('This scheme only works '
-                                   'in atom-centered mode. %s '
-                                   'specified.' % mode)
-        if len(kwargs) > 0:
-            raise TypeError('Unexpected keyword arguments: %s' %
-                            repr(kwargs))
+        # Check that the mode is atom-centered.
+        if mode != 'atom-centered':
+            raise RuntimeError('This scheme only works '
+                               'in atom-centered mode. %s '
+                               'specified.' % mode)
 
         # If the cutoff is provided as a number, Cosine function will be used
         # by default.
@@ -78,7 +73,7 @@ class AtomCenteredExample(object):
         # an identical fingerprint when fed an ASE image.
         p = self.parameters = Parameters(
             {'importname': '.descriptor.gaussian.Gaussian',
-                #FIXME/ap: Above should not be gaussian
+                # FIXME/ap: Above should not be gaussian
              'mode': 'atom-centered'})
         p.version = version
         p.cutoff = cutoff.Rc

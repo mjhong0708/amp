@@ -50,7 +50,7 @@ class Zernike(object):
     """
 
     def __init__(self, cutoff=Cosine(6.5), Gs=None, nmax=5, dblabel=None,
-                 elements=None, version='2016.02', **kwargs):
+                 elements=None, version='2016.02', mode='atom-centered'):
 
         # Check of the version of descriptor, particularly if restarting.
         compatibleversions = ['2016.02', ]
@@ -63,16 +63,11 @@ class Zernike(object):
         else:
             version = compatibleversions[-1]
 
-        # Check any extra kwargs fed.
-        if 'mode' in kwargs:
-            mode = kwargs.pop('mode')
-            if mode != 'atom-centered':
-                raise RuntimeError('This scheme only works '
-                                   'in atom-centered mode. %s '
-                                   'specified.' % mode)
-        if len(kwargs) > 0:
-            raise TypeError('Unexpected keyword arguments: %s' %
-                            repr(kwargs))
+        # Check that the mode is atom-centered.
+        if mode != 'atom-centered':
+            raise RuntimeError('Zernike scheme only works '
+                               'in atom-centered mode. %s '
+                               'specified.' % mode)
 
         # If the cutoff is provided as a number, Cosine function will be used
         # by default.
