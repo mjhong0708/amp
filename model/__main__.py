@@ -10,7 +10,7 @@ import sys
 import tempfile
 import zmq
 from ..utilities import MessageDictionary, string2dict, Logger
-from .. import importhelper
+from . import importhelper
 
 
 hostsocket = sys.argv[-1]
@@ -47,6 +47,7 @@ if purpose == 'calculate_loss_function':
     socket.send_pyobj(msg('<request>', 'lossfunctionstring'))
     lossfunctionstring = socket.recv_pyobj()
     d = string2dict(lossfunctionstring)
+    sys.stderr.write(str(d))
     LossFunction = importhelper(d.pop('importname'))
     lossfunction = LossFunction(cores=1,
                                 raise_ConvergenceOccurred=False, **d)
@@ -57,12 +58,13 @@ if purpose == 'calculate_loss_function':
     socket.send_pyobj(msg('<request>', 'fingerprints'))
     fingerprints = socket.recv_pyobj()
 
-    socket.send_pyobj(msg('<request>', 'derfingerprints'))
-    derfingerprints = socket.recv_pyobj()
+    socket.send_pyobj(msg('<request>', 'fingerprintprimes'))
+    fingerprintprimes = socket.recv_pyobj()
 
     # Set up local loss function.
     lossfunction.attach_model(model, fingerprints=fingerprints,
-                              derfingerprints=derfingerprints, images=images)
+                              fingerprintprimes=fingerprintprimes,
+                              images=images)
 
     # Now wait for parameters, and send the component of the cost
     # function.

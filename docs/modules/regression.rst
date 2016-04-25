@@ -1,14 +1,13 @@
 Regression
 ==============
 
-This module includes methods for interpolating energies and forces with local
-atomic environment.
+This module includes different regressor objects.
 
 
 Module contents
 ---------------
 
-.. automodule:: regression.neuralnetwork
+.. automodule:: regression
     :members:
     :undoc-members:
     :show-inheritance:

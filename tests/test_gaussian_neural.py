@@ -48,7 +48,7 @@ def train_test():
                label=label,
                cores=1)
 
-    calc.train(images=train_images, force_coefficient=0.04)
+    calc.train(images=train_images,)
     for image in train_images[0:2]:
         print "energy =", calc.get_potential_energy(image)
         print "forces =", calc.get_forces(image)

@@ -12,12 +12,13 @@ from ase.calculators.calculator import Calculator, Parameters
 try:
     from ase import __version__ as aseversion
 except ImportError:
-    # We're on ASE 3.10 or older
+    # We're on ASE 3.9 or older
     from ase.version import version as aseversion
 
 from .utilities import make_filename
 from .utilities import hash_images
 from .utilities import Logger, string2dict, logo, now, assign_cores
+from .utilities import TrainingConvergenceError
 
 
 class Amp(Calculator, object):
@@ -53,14 +54,14 @@ class Amp(Calculator, object):
                   if None, will determine from environment
     :type cores: int
 
-    :raises: RuntimeError
+    :raises: RuntimeError.
     """
     implemented_properties = ['energy', 'forces']
 
     def __init__(self, descriptor, model, label='amp', dblabel=None,
-                 cores=None, **kwargs):
+                 cores=None, atoms=None):
 
-        Calculator.__init__(self, label=label, **kwargs)
+        Calculator.__init__(self, label=label, atoms=atoms)
 
         log = Logger(make_filename(self.label, '-log.txt'))
         self.log = log
@@ -161,6 +162,8 @@ class Amp(Calculator, object):
         Calculator.set_label(self, label)
 
         # Create directories for output structure if needed.
+        #FIXME/ap Do we need the extra part below in addition
+        # to what's in ASE Calculator?
         if self.label:
             if (self.directory != os.curdir and
                     not os.path.isdir(self.directory)):
@@ -196,15 +199,14 @@ class Amp(Calculator, object):
             energy = self.model.get_energy(self.descriptor.fingerprints[key])
             self.results['energy'] = energy
             forces = \
-                self.model.get_forces(self.descriptor.fingerprints[key],self.descriptor.derfingerprints[key])
+                self.model.get_forces(self.descriptor.fingerprints[key],
+                                      self.descriptor.fingerprintprimes[key])
             self.results['forces'] = forces
 
     def train(self,
               images,
               overwrite=False,
-              energy_tol=0.001,
-              force_tol=0.005,
-              force_coefficient=None,
+              train_forces=True
               ):
         """
         Fits the model to the training images.
@@ -219,19 +221,6 @@ class Amp(Calculator, object):
         :param overwrite: If a trained output file with the same name exists,
                           overwrite it.
         :type overwrite: bool
-
-        :param energy_tol: Threshold energy per atom rmse at which simulation
-                            is converged.
-        :type energy_tol: float
-
-        :param force_tol: Threshold force rmse at which simulation is
-                           converged. The default value is in unit of eV/Ang.
-                           If 'force_tol = None', forces will not be trained.
-        :type force_tol: float
-
-        :param force_coefficient: Coefficient of the force contribution in the
-                                  cost function.
-        :type force_coefficient: float
         """
 
         log = self.log
@@ -244,27 +233,19 @@ class Amp(Calculator, object):
         log('Model: %s' % self.model.__class__.__name__)
 
         log('\nDescriptor\n==========')
-        calculate_derivatives = True if force_coefficient is not None else False
+        # Derivatives of fingerprints need to be calculated if train_forces is
+        # True.
+        calculate_derivatives = train_forces
         self.descriptor.calculate_fingerprints(images=images,
                                                cores=self.cores,
                                                log=log,
                                                calculate_derivatives=calculate_derivatives)
 
-        if force_tol is None:
-            if not force_coefficient:
-                force_coefficient = 0.
-        elif not force_coefficient:
-            force_coefficient = (energy_tol / force_tol)**2.
-
-        energy_coefficient = 1.
-
         log('\nModel fitting\n=============')
         result = self.model.fit(trainingimages=images,
                                 descriptor=self.descriptor,
-                                energy_coefficient=energy_coefficient,
-                                force_coefficient=force_coefficient,
                                 log=log,
-                                cores=self.cores,)
+                                cores=self.cores)
 
         if result is True:
             log('Amp successfully trained. Saving current parameters.')
@@ -274,6 +255,9 @@ class Amp(Calculator, object):
             filename = make_filename(self.label, '-untrained-parameters.amp')
         filename = self.save(filename, overwrite)
         log('Parameters saved in file "%s".' % filename)
+        if result is False:
+            raise TrainingConvergenceError('Amp did not converge upon '
+                                           'training. See log file for more information.')
 
     def save(self, filename, overwrite=False):
         """Saves the calculator in way that it can be re-opened with
@@ -339,7 +323,7 @@ class Amp(Calculator, object):
         except ImportError:
             log('ZMQ: not available')
         try:
-            from pexpect import pxssh
+            import pxssh
             log('pxssh: %s' % os.path.dirname(pxssh.__file__))
         except ImportError:
             log('pxssh: Not available')

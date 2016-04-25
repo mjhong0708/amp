@@ -162,7 +162,7 @@ class Data:
             log(' Calculated %i new images.' % len(calcs_needed))
         else:
             import zmq
-            from pexpect import pxssh
+            import pxssh
             from socket import gethostname
             from getpass import getuser
             log(' Parallel processing.')

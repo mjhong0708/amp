@@ -1,10 +1,10 @@
 import numpy as np
 from numpy import cos, sqrt, exp
 from ase.data import atomic_numbers
-from ase.calculators.neighborlist import NeighborList
 from ase.calculators.calculator import Parameters
-
 from ..utilities import Data, Logger
+from .cutoffs import Cosine, Polynomial
+from . import NeighborlistCalculator
 
 
 class Bispectrum(object):
@@ -12,9 +12,10 @@ class Bispectrum(object):
     """
     Class that calculates spherical harmonic bispectrum fingerprints.
 
-    :param cutoff: Radius above which neighbor interactions are ignored.
+    :param cutoff: Cutoff function. Can be also fed as a float representing the
+                   radius above which neighbor interactions are ignored.
                    Default is 6.5 Angstroms.
-    :type cutoff: float
+    :type cutoff: object or float
 
     :param Gs: Dictionary of symbols and dictionaries for making fingerprints.
                 Either auto-genetrated, or given in the following form,
@@ -47,8 +48,8 @@ class Bispectrum(object):
     :raises: RuntimeError, TypeError
     """
 
-    def __init__(self, cutoff=6.5, Gs=None, jmax=5, dblabel=None,
-                 elements=None, version='2016.02', **kwargs):
+    def __init__(self, cutoff=Cosine(6.5), Gs=None, jmax=5, dblabel=None,
+                 elements=None, version='2016.02', mode='atom-centered'):
 
         # Check of the version of descriptor, particularly if restarting.
         compatibleversions = ['2016.02', ]
@@ -61,16 +62,16 @@ class Bispectrum(object):
         else:
             version = compatibleversions[-1]
 
-        # Check any extra kwargs fed.
-        if 'mode' in kwargs:
-            mode = kwargs.pop('mode')
-            if mode != 'atom-centered':
-                raise RuntimeError('This scheme only works '
-                                   'in atom-centered mode. %s '
-                                   'specified.' % mode)
-        if len(kwargs) > 0:
-            raise TypeError('Unexpected keyword arguments: %s' %
-                            repr(kwargs))
+        # Check that the mode is atom-centered.
+        if mode != 'atom-centered':
+            raise RuntimeError('Bispectrum scheme only works '
+                               'in atom-centered mode. %s '
+                               'specified.' % mode)
+
+        # If the cutoff is provided as a number, Cosine function will be used
+        # by default.
+        if isinstance(cutoff, int) or isinstance(cutoff, float):
+            cutoff = Cosine(cutoff)
 
         # The parameters dictionary contains the minimum information
         # to produce a compatible descriptor; that is, one that gives
@@ -79,7 +80,8 @@ class Bispectrum(object):
             {'importname': '.descriptor.bispectrum.Bispectrum',
              'mode': 'atom-centered'})
         p.version = version
-        p.cutoff = cutoff
+        p.cutoff = cutoff.Rc
+        p.cutofffn = cutoff.__class__.__name__
         p.Gs = Gs
         p.jmax = jmax
         p.elements = elements
@@ -93,9 +95,16 @@ class Bispectrum(object):
         return self.parameters.tostring()
 
     def calculate_fingerprints(self, images, cores=1, fortran=False,
-                               log=None):
+                               log=None, calculate_derivatives=False):
         """Calculates the fingerpints of the images, for the ones not already
         done."""
+
+        if calculate_derivatives is True:
+            import warnings
+            warnings.warn('Zernike descriptor cannot train forces yet. '
+                          'Force training automatically turnned off. ')
+            calculate_derivatives = False
+
         log = Logger(file=None) if log is None else log
 
         if (self.dblabel is None) and hasattr(self.parent, 'dblabel'):
@@ -105,6 +114,7 @@ class Bispectrum(object):
         p = self.parameters
 
         log('Cutoff radius: %.2f' % p.cutoff)
+        log('Cutoff function: %s' % p.cutofffn)
 
         if p.elements is None:
             log('Finding unique set of elements in training data.')
@@ -161,7 +171,8 @@ class Bispectrum(object):
             calc = FingerprintCalculator(neighborlist=self.neighborlist,
                                          Gs=p.Gs,
                                          jmax=p.jmax,
-                                         cutoff=p.cutoff)
+                                         cutoff=p.cutoff,
+                                         cutofffn=p.cutofffn)
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
                                      calculator=calc)
@@ -171,34 +182,14 @@ class Bispectrum(object):
 
 # Calculators #################################################################
 
-class NeighborlistCalculator:
-
-    """For integration with .utilities.Data
-    For each image fed to calculate, a list of neighbors with offset
-    distances is returned.
-    """
-
-    def __init__(self, cutoff):
-        self.globals = Parameters({'cutoff': cutoff})
-        self.keyed = Parameters()
-        self.parallel_command = 'calculate_neighborlists'
-
-    def calculate(self, image, key):
-        cutoff = self.globals.cutoff
-        n = NeighborList(cutoffs=[cutoff / 2.] * len(image),
-                         self_interaction=False,
-                         bothways=True,
-                         skin=0.)
-        n.update(image)
-        return [n.get_neighbors(index) for index in xrange(len(image))]
-
 
 class FingerprintCalculator:
 
     """For integration with .utilities.Data"""
 
-    def __init__(self, neighborlist, Gs, jmax, cutoff):
+    def __init__(self, neighborlist, Gs, jmax, cutoff, cutofffn):
         self.globals = Parameters({'cutoff': cutoff,
+                                   'cutofffn': cutofffn,
                                    'Gs': Gs,
                                    'jmax': jmax})
         self.keyed = Parameters({'neighborlist': neighborlist})
@@ -251,6 +242,7 @@ class FingerprintCalculator:
 
         home = self.atoms[index].position
         cutoff = self.globals.cutoff
+        cutofffn = self.globals.cutofffn
         jmax = self.globals.jmax
 
         rs = []
@@ -296,7 +288,7 @@ class FingerprintCalculator:
             j2 = 0.5 * _2j1
             for j in xrange(int(min(_2j1, jmax)) + 1):
                 value = calculate_B(j1, j2, 1.0 * j, self.globals.Gs[symbol],
-                                    cutoff, self.factorial, n_symbols,
+                                    cutoff, cutofffn, self.factorial, n_symbols,
                                     rs, psis, thetas, phis)
                 value = value.real
                 fingerprint.append(value)
@@ -306,8 +298,8 @@ class FingerprintCalculator:
 # Auxiliary functions #########################################################
 
 
-def calculate_B(j1, j2, j, G_element, cutoff, factorial, n_symbols, rs, psis,
-                thetas, phis):
+def calculate_B(j1, j2, j, G_element, cutoff, cutofffn, factorial, n_symbols,
+                rs, psis, thetas, phis):
     """
     Calculates bi-spectrum B_{j1, j2, j} according to Eq. (5) of "Gaussian
     Approximation Potentials: The Accuracy of Quantum Mechanics, without the
@@ -318,19 +310,20 @@ def calculate_B(j1, j2, j, G_element, cutoff, factorial, n_symbols, rs, psis,
     B = 0.
     for m in mvals:
         for mp in mvals:
-            c = calculate_c(j, mp, m, G_element, cutoff, factorial, n_symbols,
-                            rs, psis, thetas, phis)
+            c = calculate_c(j, mp, m, G_element, cutoff, cutofffn, factorial,
+                            n_symbols, rs, psis, thetas, phis)
             m1bound = min(j1, m + j2)
             mp1bound = min(j1, mp + j2)
             m1 = max(-j1, m - j2)
             while m1 < (m1bound + 0.5):
                 mp1 = max(-j1, mp - j2)
                 while mp1 < (mp1bound + 0.5):
-                    c1 = calculate_c(j1, mp1, m1, G_element, cutoff, factorial,
-                                     n_symbols, rs, psis, thetas, phis)
-                    c2 = calculate_c(j2, mp - mp1, m - m1, G_element, cutoff,
+                    c1 = calculate_c(j1, mp1, m1, G_element, cutoff, cutofffn,
                                      factorial, n_symbols, rs, psis, thetas,
                                      phis)
+                    c2 = calculate_c(j2, mp - mp1, m - m1, G_element, cutoff,
+                                     cutofffn, factorial, n_symbols, rs, psis,
+                                     thetas, phis)
                     B += CG(j1, m1, j2, m - m1, j, m, factorial) * \
                         CG(j1, mp1, j2, mp - mp1, j, mp, factorial) * \
                         np.conjugate(c) * c1 * c2
@@ -342,41 +335,27 @@ def calculate_B(j1, j2, j, G_element, cutoff, factorial, n_symbols, rs, psis,
 ###############################################################################
 
 
-def calculate_c(j, mp, m, G_element, cutoff, factorial, n_symbols, rs, psis,
-                thetas, phis):
+def calculate_c(j, mp, m, G_element, cutoff, cutofffn, factorial, n_symbols,
+                rs, psis, thetas, phis):
     """
     Calculates c^{j}_{m'm} according to Eq. (4) of "Gaussian Approximation
     Potentials: The Accuracy of Quantum Mechanics, without the Electrons",
     Phys. Rev. Lett. 104, 136403
     """
 
+    if cutofffn is 'Cosine':
+        cutoff_fxn = Cosine(cutoff)
+    elif cutofffn is 'Polynomial':
+        cutoff_fxn = Polynomial(cutoff)
+
     value = 0.
     for n_symbol, r, psi, theta, phi in zip(n_symbols, rs, psis, thetas, phis):
 
         value += G_element[n_symbol] * \
             np.conjugate(U(j, m, mp, psi, theta, phi, factorial)) * \
-            cutoff_fxn(r, cutoff)
+            cutoff_fxn(r)
 
     return value
-
-###############################################################################
-
-
-def cutoff_fxn(Rij, Rc):
-    """
-    Cosine cutoff function in Parinello-Behler method.
-
-    :param Rc: Radius above which neighbor interactions are ignored.
-    :type Rc: float
-    :param Rij: Distance between pair atoms.
-    :type Rij: float
-
-    :returns: float -- the vaule of the cutoff function.
-    """
-    if Rij > Rc:
-        return 0.
-    else:
-        return 0.5 * (cos(np.pi * Rij / Rc) + 1.)
 
 ###############################################################################
 
@@ -623,6 +602,8 @@ if __name__ == "__main__":
         # Request variables.
         socket.send_pyobj(msg('<request>', 'cutoff'))
         cutoff = socket.recv_pyobj()
+        socket.send_pyobj(msg('<request>', 'cutofffn'))
+        cutofffn = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'Gs'))
         Gs = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'jmax'))
@@ -632,7 +613,7 @@ if __name__ == "__main__":
         socket.send_pyobj(msg('<request>', 'images'))
         images = socket.recv_pyobj()
 
-        calc = FingerprintCalculator(neighborlist, Gs, jmax, cutoff)
+        calc = FingerprintCalculator(neighborlist, Gs, jmax, cutoff, cutofffn)
         result = {}
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.

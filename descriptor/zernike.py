@@ -1,11 +1,11 @@
 import numpy as np
 
 from ase.data import atomic_numbers
-from ase.calculators.neighborlist import NeighborList
 from ase.calculators.calculator import Parameters
 from scipy.special import sph_harm
-
 from ..utilities import Data, Logger
+from .cutoffs import Cosine, Polynomial
+from . import NeighborlistCalculator
 
 
 class Zernike(object):
@@ -13,9 +13,10 @@ class Zernike(object):
     """
     Class that calculates Zernike fingerprints.
 
-    :param cutoff: Radius above which neighbor interactions are ignored.
+    :param cutoff: Cutoff function. Can be also fed as a float representing the
+                   radius above which neighbor interactions are ignored.
                    Default is 6.5 Angstroms.
-    :type cutoff: float
+    :type cutoff: object or float
 
     :param Gs: Dictionary of symbols and dictionaries for making symmetry
                 functions. Either auto-genetrated, or given in the following
@@ -48,8 +49,8 @@ class Zernike(object):
     :raises: RuntimeError, TypeError
     """
 
-    def __init__(self, cutoff=6.5, Gs=None, nmax=5, dblabel=None,
-                 elements=None, version='2016.02', **kwargs):
+    def __init__(self, cutoff=Cosine(6.5), Gs=None, nmax=5, dblabel=None,
+                 elements=None, version='2016.02', mode='atom-centered'):
 
         # Check of the version of descriptor, particularly if restarting.
         compatibleversions = ['2016.02', ]
@@ -62,16 +63,16 @@ class Zernike(object):
         else:
             version = compatibleversions[-1]
 
-        # Check any extra kwargs fed.
-        if 'mode' in kwargs:
-            mode = kwargs.pop('mode')
-            if mode != 'atom-centered':
-                raise RuntimeError('This scheme only works '
-                                   'in atom-centered mode. %s '
-                                   'specified.' % mode)
-        if len(kwargs) > 0:
-            raise TypeError('Unexpected keyword arguments: %s' %
-                            repr(kwargs))
+        # Check that the mode is atom-centered.
+        if mode != 'atom-centered':
+            raise RuntimeError('Zernike scheme only works '
+                               'in atom-centered mode. %s '
+                               'specified.' % mode)
+
+        # If the cutoff is provided as a number, Cosine function will be used
+        # by default.
+        if isinstance(cutoff, int) or isinstance(cutoff, float):
+            cutoff = Cosine(cutoff)
 
         # The parameters dictionary contains the minimum information
         # to produce a compatible descriptor; that is, one that gives
@@ -80,7 +81,8 @@ class Zernike(object):
             {'importname': '.descriptor.zernike.Zernike',
              'mode': 'atom-centered'})
         p.version = version
-        p.cutoff = cutoff
+        p.cutoff = cutoff.Rc
+        p.cutofffn = cutoff.__class__.__name__
         p.Gs = Gs
         p.nmax = nmax
         p.elements = elements
@@ -94,9 +96,16 @@ class Zernike(object):
         return self.parameters.tostring()
 
     def calculate_fingerprints(self, images, cores=1, fortran=False,
-                               log=None):
+                               log=None, calculate_derivatives=False):
         """Calculates the fingerpints of the images, for the ones not already
         done."""
+
+        if calculate_derivatives is True:
+            import warnings
+            warnings.warn('Zernike descriptor cannot train forces yet. '
+                          'Force training automatically turnned off. ')
+            calculate_derivatives = False
+
         log = Logger(file=None) if log is None else log
 
         if (self.dblabel is None) and hasattr(self.parent, 'dblabel'):
@@ -106,6 +115,7 @@ class Zernike(object):
         p = self.parameters
 
         log('Cutoff radius: %.2f' % p.cutoff)
+        log('Cutoff function: %s' % p.cutofffn)
 
         if p.elements is None:
             log('Finding unique set of elements in training data.')
@@ -164,7 +174,8 @@ class Zernike(object):
             calc = FingerprintCalculator(neighborlist=self.neighborlist,
                                          Gs=p.Gs,
                                          nmax=p.nmax,
-                                         cutoff=p.cutoff)
+                                         cutoff=p.cutoff,
+                                         cutofffn=p.cutofffn)
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
                                      calculator=calc)
@@ -174,40 +185,27 @@ class Zernike(object):
 
 # Calculators #################################################################
 
-class NeighborlistCalculator:
-
-    """For integration with .utilities.Data
-    For each image fed to calculate, a list of neighbors with offset
-    distances is returned.
-    """
-
-    def __init__(self, cutoff):
-        self.globals = Parameters({'cutoff': cutoff})
-        self.keyed = Parameters()
-        self.parallel_command = 'calculate_neighborlists'
-
-    def calculate(self, image, key):
-        cutoff = self.globals.cutoff
-        n = NeighborList(cutoffs=[cutoff / 2.] * len(image),
-                         self_interaction=False,
-                         bothways=True,
-                         skin=0.)
-        n.update(image)
-        return [n.get_neighbors(index) for index in xrange(len(image))]
-
 
 class FingerprintCalculator:
 
     """For integration with .utilities.Data"""
 
-    def __init__(self, neighborlist, Gs, nmax, cutoff):
+    def __init__(self, neighborlist, Gs, nmax, cutoff, cutofffn):
         self.globals = Parameters({'cutoff': cutoff,
+                                   'cutofffn': cutofffn,
                                    'Gs': Gs,
                                    'nmax': nmax})
         self.keyed = Parameters({'neighborlist': neighborlist})
         self.parallel_command = 'calculate_fingerprints'
 
-        from scipy.special import factorial as fac
+        try:  # for scipy v <= 0.90
+            from scipy import factorial as fac
+        except ImportError:
+            try:  # for scipy v >= 0.10
+                from scipy.misc import factorial as fac
+            except ImportError:  # for newer version of scipy
+                from scipy.special import factorial as fac
+
         self.factorial = [fac(0.5 * _) for _ in xrange(2 * nmax + 2)]
 
     def calculate(self, image, key):
@@ -252,6 +250,12 @@ class FingerprintCalculator:
 
         home = self.atoms[index].position
         cutoff = self.globals.cutoff
+        cutofffn = self.globals.cutofffn
+
+        if cutofffn is 'Cosine':
+            cutoff_fxn = Cosine(cutoff)
+        elif cutofffn is 'Polynomial':
+            cutoff_fxn = Polynomial(cutoff)
 
         fingerprint = []
         for n in xrange(self.globals.nmax + 1):
@@ -288,7 +292,7 @@ class FingerprintCalculator:
                             ZZ = self.globals.Gs[symbol][n_symbol] * \
                                 calculate_R(n, l, rho, self.factorial) * \
                                 sph_harm(m, l, phi, theta) * \
-                                cutoff_fxn(rho * cutoff, cutoff)
+                                cutoff_fxn(rho * cutoff)
 
                             # sum over neighbors
                             omega += np.conjugate(ZZ)
@@ -335,23 +339,6 @@ def calculate_R(n, l, rho, factorial):
 
         value *= term1
         return value
-
-
-def cutoff_fxn(Rij, Rc):
-    """
-    Cosine cutoff function in Parinello-Behler method.
-
-    :param Rc: Radius above which neighbor interactions are ignored.
-    :type Rc: float
-    :param Rij: Distance between pair atoms.
-    :type Rij: float
-
-    :returns: float -- the vaule of the cutoff function.
-    """
-    if Rij > Rc:
-        return 0.
-    else:
-        return 0.5 * (np.cos(np.pi * Rij / Rc) + 1.)
 
 
 def generate_coefficients(elements):
@@ -429,6 +416,8 @@ if __name__ == "__main__":
         # Request variables.
         socket.send_pyobj(msg('<request>', 'cutoff'))
         cutoff = socket.recv_pyobj()
+        socket.send_pyobj(msg('<request>', 'cutofffn'))
+        cutofffn = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'Gs'))
         Gs = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'nmax'))
@@ -438,7 +427,7 @@ if __name__ == "__main__":
         socket.send_pyobj(msg('<request>', 'images'))
         images = socket.recv_pyobj()
 
-        calc = FingerprintCalculator(neighborlist, Gs, nmax, cutoff)
+        calc = FingerprintCalculator(neighborlist, Gs, nmax, cutoff, cutofffn)
         result = {}
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.

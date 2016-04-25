@@ -10,10 +10,10 @@ In its most basic form, it has few requirements:
 * Python, version 2.7 is recommended.
 * ASE.
 * NumPy.
+* SciPy.
 
 To get more features, such as parallelization in training, a few more packages are recommended:
 
-* SciPy.
 * Pexpect (or pxssh)
 * ZMQ (or PyZMQ, the python version of ØMQ).
 
@@ -31,8 +31,9 @@ order to generate plots.
 Check out the code
 ----------------------------------
 
-As a relatively new project, we do not yet have stable releases. However, we run daily unit tests to make sure that our
-development code works as intended. We recommend checking out the latest version of the code via `the project's bitbucket
+As a relatively new project, it may be preferable to use the development version rather than "stable" releases, as improvements are constantly being made and features added.
+We run daily unit tests to make sure that our development code works as intended.
+We recommend checking out the latest version of the code via `the project's bitbucket
 page <https://bitbucket.org/andrewpeterson/amp/>`_. If you use git, check out the code with::
 
    $ cd ~/path/to/my/codes
@@ -40,7 +41,7 @@ page <https://bitbucket.org/andrewpeterson/amp/>`_. If you use git, check out th
 
 where you should replace '~/path/to/my/codes' with wherever you would like the code to be located on your computer.
 If you do not use git, just download the code as a zip file from the project's
-`download <https://bitbucket.org/andrewpeterson/amp/downloads>`_ page, and extract it into '~/path/to/my/codes'.
+`download <https://bitbucket.org/andrewpeterson/amp/downloads>`_ page, and extract it into '~/path/to/my/codes'. Please make sure that the folder '~/path/to/my/codes/amp' includes the script '__init__.py' as well as the folders 'descriptor', 'model', 'regression', ... 
 
 ----------------------------------
 Set the environment
@@ -58,39 +59,6 @@ the second command is where you expect::
    >>> print(amp.__file__)
 
 ----------------------------------
-Recommended step: Fortran modules
-----------------------------------
-
-The code is designed to work in pure python, which makes it is easier to read, develop, and debug. However, it will be
-annoyingly slow unless you compile the associated fortran modules which speed up some crucial parts of the code. The
-compilation of Fortran codes and integration with the python parts is accomplished with the command 'f2py', which is
-part of NumPy. A Fortran compiler will also be necessary on your system; a reasonable open-source option is GNU Fortran,
-or gfortran. This complier will generate Fortran modules (.mod). gfortran will also be used by f2py to generate
-extension module 'fmodules.so' on Linux or 'fmodules.pyd' on Windows. In order to prepare the extension module take the
-following steps:
-
-* Compile regression Fortran subroutines inside the regression folder by::
-
-   $ cd ~/path/to/my/codes/regression/
-   $ gfortran -c neuralnetwork.f90
-
-* Move the module 'regression.mod' created in the last step, to the parent directory by::
-
-   $ mv regression.mod ../regression.mod
-
-* Compile the main Fortran subroutines in the parent directory in companian with the descriptor and regression subroutines
-  by something like::
-
-   $ f2py -c -m fmodules main.f90 descriptor/behler.f90 regression/neuralnetwork.f90
-
-or on a Windows machine by::
-
-   $ f2py -c -m fmodules main.f90 descriptor/behler.f90 regression/neuralnetwork.f90 --fcompiler=gnu95 --compiler=mingw32
-
-If you update the code and your fmodules extension is not updated, an exception will be raised, telling you
-to re-compile.
-
-----------------------------------
 Recommended step: Run the tests
 ----------------------------------
 
@@ -101,4 +69,4 @@ package to see if your installation is working. The tests are in the folder `tes
 
    $ mkdir /tmp/amptests
    $ cd /tmp/amptests
-   $ nosetests ~/path/to/my/codes/amp
+   $ nosetests ~/path/to/my/codes/amp/tests

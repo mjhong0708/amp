@@ -1,6 +1,5 @@
 from ..utilities import ConvergenceOccurred
 
-
 class Regressor:
 
     """Class to manage the regression of a generic model. That is, for a
