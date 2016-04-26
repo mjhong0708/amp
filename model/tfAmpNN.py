@@ -302,7 +302,7 @@ class tfAmpNN:
         self.parameters['elementFPScales'] = {}
         for element in self.elements:
             if len(atomArraysAll[element]) == 0:
-                self.parameters['elementFPScales'] = 1.
+                self.parameters['elementFPScales'][element] = 1.
             else:
                 self.parameters['elementFPScales'][element] = np.max(
                     np.max(np.abs(atomArraysAll[element])))
