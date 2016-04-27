@@ -259,7 +259,7 @@ class tfAmpNN:
             fingerprintDerDB = None
         else:
             log('Training the Tensorflow network w/ Forces!')
-            fingerprintDerDB = descriptor.derfingerprints
+            fingerprintDerDB = descriptor.fingerprintprimes
         images = trainingimages
         keylist = images.keys()
         fingerprintDB = descriptor.fingerprints
