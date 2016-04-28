@@ -19,7 +19,8 @@ import sklearn.linear_model
 
 class tfAmpNN:
 
-    def __init__(self, elementFingerprintLengths,
+    def __init__(self,
+                 elementFingerprintLengths,
                  hiddenlayers=[5, 5],
                  activation='relu',
                  keep_prob=0.5,
@@ -31,7 +32,11 @@ class tfAmpNN:
                  tfVars=None,
                  saveVariableName=None,
                  parameters={},
-                 sess=None, maxAtomsForces=0):
+                 sess=None,
+                 maxAtomsForces=0,
+                 energy_coefficient=1.0,
+                 force_coefficient=0.04,
+                ):
         # Inputs:
         # elementFingerprintLengths: dictionary (one for each element type)
         #     that contains the fingerprint length for each element
@@ -52,6 +57,12 @@ class tfAmpNN:
         # sets the upper bound on the number of atoms that can be used to
         # calculate the force for (e.g. if maxAtomsForces=40, then forces can
         # only be calculated for images with less than 40 atoms)
+        # energy_coefficient and force_coefficient are used to adjust the
+        # loss function; note you must turn on train_forces when calling
+        # Amp.train (or model.fit) if you want to use force training.
+
+        self.energy_coefficient = energy_coefficient
+        self.force_coefficient = force_coefficient
 
         self.hiddenlayers = hiddenlayers
         if isinstance(activation, basestring):
@@ -250,12 +261,19 @@ class tfAmpNN:
     # fit takes a bunch of training images (which are assumed to have a
     # working calculator attached), and fits the internal variables to the
     # training images.
-    def fit(self, trainingimages, descriptor, cores=1, log=[], energy_coefficient=1., force_coefficient=None, outlier_energy=10.):
+    def fit(self, trainingimages, descriptor, cores=1, log=[],
+            outlier_energy=10.):
+        # The force_coefficient was moved out of Amp.train; pull from the
+        # initialization variables. This doesn't catch if the user sends
+        # train_forces=False in Amp.train, but an issue is filed to fix
+        # this.
+        energy_coefficient = self.energy_coefficient
+        force_coefficient = self.force_coefficient
         # Inputs:
         # trainingimages:
         batchsize = self.batchsize
         if force_coefficient == 0.:
-            log('Training the Tensorflow network!')
+            log('Training the Tensorflow network without forces!')
             fingerprintDerDB = None
         else:
             log('Training the Tensorflow network w/ Forces!')
@@ -390,7 +408,7 @@ class tfAmpNN:
                                                     forcecoefficient=force_coefficient)
                     RMSE = self.loss.eval(
                         feed_dict=feedin) * self.parameters['energyProdScale']
-                    log('global RMSE=%1.3f' % (RMSE))
+                    log('%10i: global RMSE=%1.3f' % (icount, RMSE))
                     if force_coefficient > 1.e-5:
                         RMSE_total = self.totalloss.eval(
                             feed_dict=feedin) * self.parameters['energyProdScale']
