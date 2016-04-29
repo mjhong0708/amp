@@ -105,10 +105,12 @@ class Zernike(object):
         be used to restart the calculator."""
         return self.parameters.tostring()
 
-    def calculate_fingerprints(self, images, cores=1, fortran=False,
+    def calculate_fingerprints(self, images, cores=1, fortran=None,
                                log=None, calculate_derivatives=False):
         """Calculates the fingerpints of the images, for the ones not already
         done."""
+        if fortran is None:
+            fortran = self.fortran
         log = Logger(file=None) if log is None else log
 
         if (self.dblabel is None) and hasattr(self.parent, 'dblabel'):
@@ -179,7 +181,7 @@ class Zernike(object):
                                          nmax=p.nmax,
                                          cutoff=p.cutoff,
                                          cutofffn=p.cutofffn,
-                                         fortran=self.fortran)
+                                         fortran=fortran)
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
                                      calculator=calc)
@@ -196,7 +198,7 @@ class Zernike(object):
                                                nmax=p.nmax,
                                                cutoff=p.cutoff,
                                                cutofffn=p.cutofffn,
-                                               fortran=self.fortran)
+                                               fortran=fortran)
                 self.fingerprintprimes = \
                     Data(filename='%s-fingerprint-primes'
                          % self.dblabel,
@@ -463,7 +465,6 @@ class FingerprintPrimeCalculator:
         for n in xrange(self.globals.nmax + 1):
             for l in xrange(n + 1):
                 if (n - l) % 2 == 0:
-
                     if self.fortran:  # fortran version; faster
                         G_numbers = [self.globals.Gs[symbol][elm]
                                      for elm in n_symbols]

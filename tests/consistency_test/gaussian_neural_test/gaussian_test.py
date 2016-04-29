@@ -79,7 +79,8 @@ def test():
     count = 0
     for fortran in [False, True]:
         for cores in range(1, 2):
-            descriptor = Gaussian(fortran=fortran,)
+            descriptor = Gaussian(fortran=fortran,
+                                  dblabel='Gaussian-%s-%d' % (fortran, cores))
             descriptor.calculate_fingerprints(images,
                                               cores=cores,
                                               fortran=fortran,
@@ -98,14 +99,14 @@ def test():
                             'fortran-python consistency for Gaussian '
                         'fingerprints broken!'
                         for _, __ in zip(afp1, afp2):
-                            assert (abs(_ - __) < 10 ** (-10.)), \
+                            assert (abs(_ - __) < 10 ** (-15.)), \
                                 'fortran-python consistency for Gaussian '
                             'fingerprints broken!'
                     # Checking consistency between fingerprint primes
                     fpprime = descriptor.fingerprintprimes[hash]
                     for key, value in ref_fp_primes[hash].items():
                         for _, __ in zip(value, fpprime[key]):
-                            assert (abs(_ - __) < 10 ** (-10.)), \
+                            assert (abs(_ - __) < 10 ** (-15.)), \
                                 'fortran-python consistency for Gaussian '
                             'fingerprint primes broken!'
             count += 1
