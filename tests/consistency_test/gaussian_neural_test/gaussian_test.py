@@ -7,11 +7,7 @@ cores, and check consistency between them.
 
 import numpy as np
 from ase import Atoms
-from ase.calculators.emt import EMT
-from amp import Amp
 from amp.descriptor.gaussian import Gaussian
-from amp.model.neuralnetwork import NeuralNetwork
-from amp.model import LossFunction
 from amp.utilities import hash_images
 
 # Making the list of images
