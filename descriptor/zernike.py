@@ -232,7 +232,7 @@ class FingerprintCalculator:
             except ImportError:  # for newer version of scipy
                 from scipy.special import factorial as fac
 
-        self.factorial = [fac(0.5 * _) for _ in xrange(2 * nmax + 2)]
+        self.factorial = [fac(0.5 * _) for _ in xrange(4 * nmax + 3)]
 
     def calculate(self, image, key):
         """Makes a list of fingerprints, one per atom, for the fed image.
@@ -289,44 +289,60 @@ class FingerprintCalculator:
                 if (n - l) % 2 == 0:
                     norm = 0.
                     for m in xrange(l + 1):
-                        omega = 0.
+                        c_nlm = 0.
                         for n_symbol, neighbor in zip(n_symbols, Rs):
                             x = (neighbor[0] - home[0]) / cutoff
                             y = (neighbor[1] - home[1]) / cutoff
                             z = (neighbor[2] - home[2]) / cutoff
-
                             rho = np.linalg.norm([x, y, z])
 
-                            if rho > 0.:
-                                theta = np.arccos(z / rho)
-                            else:
-                                theta = 0.
+                            if self.fortran:
+                                Z_nlm = fmodules.calculate_z(n=n, l=l, m=m,
+                                                             x=x, y=y, z=z,
+                                                             factorial=self.factorial,
+                                                             length=len(self.factorial))
+                                Z_nlm = self.globals.Gs[symbol][n_symbol] * \
+                                    Z_nlm * cutoff_fxn(rho * cutoff)
 
-                            if x < 0.:
-                                phi = np.pi + np.arctan(y / x)
-                            elif 0. < x and y < 0.:
-                                phi = 2 * np.pi + np.arctan(y / x)
-                            elif 0. < x and 0. <= y:
-                                phi = np.arctan(y / x)
-                            elif x == 0. and 0. < y:
-                                phi = 0.5 * np.pi
-                            elif x == 0. and y < 0.:
-                                phi = 1.5 * np.pi
                             else:
-                                phi = 0.
+                                # Alternative ways to calculate Z_nlm
+#                                Z_nlm = self.globals.Gs[symbol][n_symbol] * \
+#                                    calculate_Z(n, l, m, x, y, z, self.factorial) * \
+#                                    cutoff_fxn(rho * cutoff)
+#                                Z_nlm = self.globals.Gs[symbol][n_symbol] * \
+#                                    calculate_Z2(n, l, m, x, y, z) * \
+#                                    cutoff_fxn(rho * cutoff)
 
-                            ZZ = self.globals.Gs[symbol][n_symbol] * \
-                                calculate_R(n, l, rho, self.factorial) * \
-                                sph_harm(m, l, phi, theta) * \
-                                cutoff_fxn(rho * cutoff)
+                                if rho > 0.:
+                                    theta = np.arccos(z / rho)
+                                else:
+                                    theta = 0.
+
+                                if x < 0.:
+                                    phi = np.pi + np.arctan(y / x)
+                                elif 0. < x and y < 0.:
+                                    phi = 2 * np.pi + np.arctan(y / x)
+                                elif 0. < x and 0. <= y:
+                                    phi = np.arctan(y / x)
+                                elif x == 0. and 0. < y:
+                                    phi = 0.5 * np.pi
+                                elif x == 0. and y < 0.:
+                                    phi = 1.5 * np.pi
+                                else:
+                                    phi = 0.
+
+                                Z_nlm = self.globals.Gs[symbol][n_symbol] * \
+                                    calculate_R(n, l, rho, self.factorial) * \
+                                    sph_harm(m, l, phi, theta) * \
+                                    cutoff_fxn(rho * cutoff)
 
                             # sum over neighbors
-                            omega += np.conjugate(ZZ)
+                            c_nlm += np.conjugate(Z_nlm)
                         # sum over m values
                         if m == 0:
-                            norm += omega * np.conjugate(omega)
+                            norm += c_nlm * np.conjugate(c_nlm)
                         else:
-                            norm += 2. * omega * np.conjugate(omega)
+                            norm += 2. * c_nlm * np.conjugate(c_nlm)
 
                     fingerprint.append(norm.real)
 
@@ -515,28 +531,28 @@ class FingerprintPrimeCalculator:
                                     cutoff_fxn.prime(rho * cutoff) * \
                                     der_position(
                                         index, n_index, home, neighbor, p, q)
+
+                                _Z_nlm_prime = calculate_Z_prime(n, l, m,
+                                                                 x, y, z, q,
+                                                                 self.factorial)
+
                                 if (Kronecker(n_index, p) -
-                                   Kronecker(index, p)) is 1:
+                                   Kronecker(index, p)) == 1:
                                     Z_nlm_prime += \
                                         cutoff_fxn(rho * cutoff) * \
-                                        calculate_Z_prime(n, l, m,
-                                                          x, y, z, q,
-                                                          self.factorial) / \
-                                        cutoff
+                                        _Z_nlm_prime / cutoff
                                 elif (Kronecker(n_index, p) -
-                                      Kronecker(index, p)) is -1:
+                                      Kronecker(index, p)) == -1:
                                     Z_nlm_prime -= \
                                         cutoff_fxn(rho * cutoff) * \
-                                        calculate_Z_prime(n, l, m,
-                                                          x, y, z, q,
-                                                          self.factorial) / \
-                                        cutoff
+                                        _Z_nlm_prime / cutoff
 
                                 # sum over neighbors
                                 c_nlm += self.globals.Gs[symbol][
                                     n_symbol] * np.conjugate(Z_nlm)
                                 c_nlm_prime += self.globals.Gs[symbol][
                                     n_symbol] * np.conjugate(Z_nlm_prime)
+
                             # sum over m values
                             if m == 0:
                                 norm_prime += 2. * c_nlm * \
@@ -615,9 +631,9 @@ def Kronecker(i, j):
     :returns: int -- the value of the Kronecker delta.
     """
     if i == j:
-        return 1.
+        return 1
     else:
-        return 0.
+        return 0
 
 
 def der_position(m, n, Rm, Rn, l, i):
@@ -687,12 +703,12 @@ def calculate_Z(n, l, m, x, y, z, factorial):
                 b2 = binomial(nu - alpha, beta, factorial)
                 term3 = q * b1 * b2
                 for u in xrange(m + 1):
-                    term4 = ((-1.)**(m - u)) * binomial(m, u, factorial) * \
-                        (1j**u)
+                    b5 = binomial(m, u, factorial)
+                    term4 = ((-1.)**(m - u)) * b5 * (1j**u)
                     for mu in xrange(int((l - m) / 2.) + 1):
-                        term5 = ((-1.)**mu) * (2.**(-2. * mu)) * \
-                            binomial(l, mu, factorial) * \
-                            binomial(l - mu, m + mu, factorial)
+                        b6 = binomial(l, mu, factorial)
+                        b7 = binomial(l - mu, m + mu, factorial)
+                        term5 = ((-1.)**mu) * (2.**(-2. * mu)) * b6 * b7
                         for eta in xrange(mu + 1):
                             r = 2. * (eta + alpha) + u
                             s = 2. * (mu - eta + beta) + m - u
