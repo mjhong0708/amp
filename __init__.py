@@ -107,7 +107,7 @@ class Amp(Calculator, object):
         self.reset()  # Clears any old calculations.
 
     @classmethod
-    def load(Cls, filename, Descriptor=None, Model=None, **kwargs):
+    def load(Cls, filename, Descriptor=None, Model=None):
         """Attempts to load calculators and return a new instance of Amp.
         Only a filename is required, in typical cases.
 
@@ -139,7 +139,7 @@ class Amp(Calculator, object):
         model = Model(**p['model'])
 
         # Instantiate Amp.
-        calc = Cls(descriptor=descriptor, model=model, **kwargs)
+        calc = Cls(descriptor=descriptor, model=model)
         calc.log('Loaded file: %s' % filename)
         return calc
 
