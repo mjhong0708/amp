@@ -329,7 +329,16 @@ class Amp(Calculator, object):
             import pxssh
             log('pxssh: %s' % os.path.dirname(pxssh.__file__))
         except ImportError:
-            log('pxssh: Not available')
+            log('pxssh: Not available from pxssh.')
+            try:
+                from pexpect import pxssh
+            except ImportError:
+                log('pxssh: Not available from pexpect.')
+            else:
+                import pexpect
+                log('pxssh (via pexpect v%s): %s' %
+                    (pexpect.__version__, pxssh.__file__))
+
         log('=' * 70)
 
 

@@ -162,9 +162,9 @@ class Data:
             log(' Calculated %i new images.' % len(calcs_needed))
         else:
             import zmq
-            import pxssh
             from socket import gethostname
             from getpass import getuser
+            pxssh = importer('pxssh')
             log(' Parallel processing.')
             module = self.calc.__module__
             globals = self.calc.globals
@@ -528,3 +528,18 @@ o      o   o       o   o
 o      o   o       o   o
 o      o   o       o   o
 """
+
+
+def importer(modulename):
+    """Handles strange import cases, like pxssh which might show
+    up in pexpect or pxssh."""
+
+    if modulename == 'pxssh':
+        try:
+            import pxssh
+        except ImportError:
+            try:
+                from pexpect import pxssh
+            except ImportError:
+                raise ImportError('pexpect not found!')
+        return pxssh

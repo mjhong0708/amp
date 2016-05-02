@@ -1,7 +1,8 @@
 
 import numpy as np
 from ase.calculators.calculator import Parameters
-from ..utilities import Logger, ConvergenceOccurred, make_sublists, now
+from ..utilities import (Logger, ConvergenceOccurred, make_sublists, now,
+                         importer)
 
 
 class Model(object):
@@ -125,9 +126,9 @@ class LossFunction:
 
         if self._cores != 1:  # Initialize workers.
             import zmq
-            import pxssh
             from socket import gethostname
             from getpass import getuser
+            pxssh = importer('pxssh')
             log(' Parallel processing.')
             context = zmq.Context()
             server = context.socket(zmq.REP)
