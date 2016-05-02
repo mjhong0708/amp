@@ -107,7 +107,7 @@ class Amp(Calculator, object):
         self.reset()  # Clears any old calculations.
 
     @classmethod
-    def load(Cls, filename, Descriptor=None, Model=None):
+    def load(Cls, filename, Descriptor=None, Model=None, **kwargs):
         """Attempts to load calculators and return a new instance of Amp.
         Only a filename is required, in typical cases.
 
@@ -134,12 +134,14 @@ class Amp(Calculator, object):
         # into the keyword arguments used to instantiate in the next line.
 
         # Instantiate the descriptor and model.
+        print(p['descriptor'])
+        print(p['descriptor'].keys())
         descriptor = Descriptor(**p['descriptor'])
         # ** sends all the key-value pairs at once.
         model = Model(**p['model'])
 
         # Instantiate Amp.
-        calc = Cls(descriptor=descriptor, model=model)
+        calc = Cls(descriptor=descriptor, model=model, **kwargs)
         calc.log('Loaded file: %s' % filename)
         return calc
 
@@ -162,7 +164,7 @@ class Amp(Calculator, object):
         Calculator.set_label(self, label)
 
         # Create directories for output structure if needed.
-        #FIXME/ap Do we need the extra part below in addition
+        # FIXME/ap Do we need the extra part below in addition
         # to what's in ASE Calculator?
         if self.label:
             if (self.directory != os.curdir and
@@ -257,7 +259,8 @@ class Amp(Calculator, object):
         log('Parameters saved in file "%s".' % filename)
         if result is False:
             raise TrainingConvergenceError('Amp did not converge upon '
-                                           'training. See log file for more information.')
+                                           'training. See log file for'
+                                           ' more information.')
 
     def save(self, filename, overwrite=False):
         """Saves the calculator in way that it can be re-opened with
