@@ -134,8 +134,6 @@ class Amp(Calculator, object):
         # into the keyword arguments used to instantiate in the next line.
 
         # Instantiate the descriptor and model.
-        print(p['descriptor'])
-        print(p['descriptor'].keys())
         descriptor = Descriptor(**p['descriptor'])
         # ** sends all the key-value pairs at once.
         model = Model(**p['model'])
