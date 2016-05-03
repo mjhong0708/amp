@@ -6,11 +6,6 @@ from ..regression import Regressor
 from ..model import LossFunction, calculate_fingerprints_range
 from ..model import Model
 
-default_convergence = {'energy_rmse': 0.001,
-                       'energy_maxresid': None,
-                       'force_rmse': 0.005,
-                       'force_maxresid': None, }
-
 
 class NeuralNetwork(Model):
 
@@ -113,28 +108,17 @@ class NeuralNetwork(Model):
             trainingimages,
             descriptor,
             log,
-            cores,
-            convergence=None,):
+            cores,):
         """Fit the model parameters such that the fingerprints can be used to
         describe the energies in trainingimages. log is the logging object.
         descriptor is a descriptor object, as would be in calc.descriptor.
         """
-        # Takes the default values of convergence, if they are not provided by
-        # the user.
-        if convergence is not None:
-            user_keys = convergence.keys()
-            for key in default_convergence.keys():
-                if key not in user_keys:
-                    convergence[key] = default_convergence[key]
-        else:
-            convergence = default_convergence.copy()
 
         # Set all parameters and report to logfile.
         self.cores = cores
 
         if self.lossfunction is None:
-            self.lossfunction = LossFunction(cores=self.cores,
-                                             convergence=convergence)
+            self.lossfunction = LossFunction(cores=self.cores)
         if self.regressor is None:
             self.regressor = Regressor()
 
@@ -458,7 +442,7 @@ def calculate_nodal_outputs(parameters, afp, symbol,):
     for _ in xrange(np.shape(_afp)[0]):
         if (fprange[_, 1] - fprange[_, 0]) > (10.**(-8.)):
             _afp[_] = -1.0 + 2.0 * ((_afp[_] - fprange[_, 0]) /
-                                   (fprange[_, 1] - fprange[_, 0]))
+                                    (fprange[_, 1] - fprange[_, 0]))
     # Calculate node values.
     o = {}  # node values
     layer = 1  # input layer

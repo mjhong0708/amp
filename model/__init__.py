@@ -80,14 +80,27 @@ class LossFunction:
     this keyword to override the model's specification.
 
     Also has parallelization methods built in.
+
+    See self.default_parameters for the default values of parameters
+    specified as None.
     """
+
+    default_parameters = {'convergence': {'energy_rmse': 0.001,
+                                          'energy_maxresid': None,
+                                          'force_rmse': 0.005,
+                                          'force_maxresid': None, }
+                          }
 
     def __init__(self, energy_coefficient=1.0, force_coefficient=0.04,
                  convergence=None, cores=None,
                  raise_ConvergenceOccurred=True,):
         p = self.parameters = Parameters(
             {'importname': '.model.LossFunction'})
-        p['convergence'] = convergence
+        # 'dict' creates a copy; otherwise mutable in class.
+        p['convergence'] = dict(self.default_parameters['convergence'])
+        if convergence is not None:
+            for key, value in convergence.items():
+                p['convergence'][key] = value
         p['energy_coefficient'] = energy_coefficient
         p['force_coefficient'] = force_coefficient
         self.raise_ConvergenceOccurred = raise_ConvergenceOccurred
@@ -374,11 +387,12 @@ class LossFunction:
                             (selfindex, selfsymbol, nindex, nsymbol, i) = key
                             afp = self.fingerprints[hash][nindex][1]
                             temp = \
-                                self._model.get_dForce_dParameters(afp=afp,
-                                                                   derafp=derafp,
-                                                                   direction=i,
-                                                                   nindex=nindex,
-                                                                   nsymbol=nsymbol,)
+                                self._model.get_dForce_dParameters(
+                                    afp=afp,
+                                    derafp=derafp,
+                                    direction=i,
+                                    nindex=nindex,
+                                    nsymbol=nsymbol,)
                             dloss_dparameters += p.force_coefficient * \
                                 (2.0 / 3.0) * \
                                 (- predicted_forces[selfindex][i] +
