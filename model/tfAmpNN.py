@@ -17,7 +17,7 @@ import string
 import sklearn.linear_model
 import pickle
 import uuid
-
+from collections import OrderedDict
 
 class tfAmpNN:
     """
@@ -100,13 +100,16 @@ class tfAmpNN:
             self.activationName = activation.__name__
         self.keep_prob = keep_prob
         self.elements = elementFingerprintLengths.keys()
+        self.elements.sort()
         if saveVariableName is None:
             self.saveVariableName = str(uuid.uuid4())[:8]
         else:
             self.saveVariableName = saveVariableName
 
-
-        self.elementFingerprintLengths = elementFingerprintLengths
+        self.elementFingerprintLengths={}
+        for element in self.elements:
+            self.elementFingerprintLengths[element] = elementFingerprintLengths[element]
+        
         self.constructModel()
         if sess is None:
             self.sess = tf.InteractiveSession()
@@ -194,7 +197,7 @@ class tfAmpNN:
                                                          name=self.saveVariableName,
                                                          dxdxik=self.tensorDerivDict[
                                                              element],
-                                                         tilederiv=self.tileDerivs)
+                                                         tilederiv=self.tileDerivs,element=element)
         self.outdict = outdict
 
         # The total energy is the sum of the energies over each atom type.
@@ -566,13 +569,13 @@ class tfAmpNN:
 
 
 def model(x, segmentinds, keep_prob, batchsize, neuronList, activationType,
-          fplength, mask, name, dxdxik, tilederiv):
+          fplength, mask, name, dxdxik, tilederiv,element):
     """Generates a multilayer neural network with variable number
     of neurons, so that we have a template for each atom's NN."""
 
     nNeurons = neuronList[0]
     # Pass  the input tensors through the first soft-plus layer
-    W_fc = weight_variable([fplength, nNeurons], name=name)
+    W_fc = weight_variable([fplength, nNeurons], name=name+element)
     b_fc = bias_variable([nNeurons], name=name)
     h_fc = activationType(tf.matmul(x, W_fc) + b_fc)
     #h_fc = tf.nn.dropout(activationType(tf.matmul(x, W_fc) + b_fc),keep_prob)
