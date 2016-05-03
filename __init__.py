@@ -162,7 +162,7 @@ class Amp(Calculator, object):
         Calculator.set_label(self, label)
 
         # Create directories for output structure if needed.
-        #FIXME/ap Do we need the extra part below in addition
+        # FIXME/ap Do we need the extra part below in addition
         # to what's in ASE Calculator?
         if self.label:
             if (self.directory != os.curdir and
@@ -257,7 +257,8 @@ class Amp(Calculator, object):
         log('Parameters saved in file "%s".' % filename)
         if result is False:
             raise TrainingConvergenceError('Amp did not converge upon '
-                                           'training. See log file for more information.')
+                                           'training. See log file for'
+                                           ' more information.')
 
     def save(self, filename, overwrite=False):
         """Saves the calculator in way that it can be re-opened with
@@ -326,7 +327,16 @@ class Amp(Calculator, object):
             import pxssh
             log('pxssh: %s' % os.path.dirname(pxssh.__file__))
         except ImportError:
-            log('pxssh: Not available')
+            log('pxssh: Not available from pxssh.')
+            try:
+                from pexpect import pxssh
+            except ImportError:
+                log('pxssh: Not available from pexpect.')
+            else:
+                import pexpect
+                log('pxssh (via pexpect v%s): %s' %
+                    (pexpect.__version__, pxssh.__file__))
+
         log('=' * 70)
 
 

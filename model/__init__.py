@@ -1,7 +1,8 @@
 
 import numpy as np
 from ase.calculators.calculator import Parameters
-from ..utilities import Logger, ConvergenceOccurred, make_sublists, now
+from ..utilities import (Logger, ConvergenceOccurred, make_sublists, now,
+                         importer)
 
 
 class Model(object):
@@ -79,14 +80,27 @@ class LossFunction:
     this keyword to override the model's specification.
 
     Also has parallelization methods built in.
+
+    See self.default_parameters for the default values of parameters
+    specified as None.
     """
+
+    default_parameters = {'convergence': {'energy_rmse': 0.001,
+                                          'energy_maxresid': None,
+                                          'force_rmse': 0.005,
+                                          'force_maxresid': None, }
+                          }
 
     def __init__(self, energy_coefficient=1.0, force_coefficient=0.04,
                  convergence=None, cores=None,
                  raise_ConvergenceOccurred=True,):
         p = self.parameters = Parameters(
             {'importname': '.model.LossFunction'})
-        p['convergence'] = convergence
+        # 'dict' creates a copy; otherwise mutable in class.
+        p['convergence'] = dict(self.default_parameters['convergence'])
+        if convergence is not None:
+            for key, value in convergence.items():
+                p['convergence'][key] = value
         p['energy_coefficient'] = energy_coefficient
         p['force_coefficient'] = force_coefficient
         self.raise_ConvergenceOccurred = raise_ConvergenceOccurred
@@ -125,9 +139,9 @@ class LossFunction:
 
         if self._cores != 1:  # Initialize workers.
             import zmq
-            import pxssh
             from socket import gethostname
             from getpass import getuser
+            pxssh = importer('pxssh')
             log(' Parallel processing.')
             context = zmq.Context()
             server = context.socket(zmq.REP)
@@ -311,6 +325,7 @@ class LossFunction:
         forceloss = 0.
         energy_maxresid = 0.
         force_maxresid = 0.
+        dloss_dparameters = None
         for hash, image in self.images.iteritems():
             no_of_atoms = len(image)
             predicted_energy = self._model.get_energy(self.fingerprints[hash])
@@ -327,7 +342,6 @@ class LossFunction:
                 if self._model.parameters.mode == 'image-centered':
                     raise NotImplementedError('This needs to be coded.')
                 elif self._model.parameters.mode == 'atom-centered':
-                    count = 0
                     for atom in image:
                         symbol = atom.symbol
                         index = atom.index
@@ -335,7 +349,7 @@ class LossFunction:
                         temp = self._model.get_dEnergy_dParameters(afp,
                                                                    index,
                                                                    symbol)
-                        if count == 0:
+                        if dloss_dparameters is None:
                             dloss_dparameters = \
                                 p.energy_coefficient * 2. * \
                                 (predicted_energy - actual_energy) * temp / \
@@ -345,7 +359,6 @@ class LossFunction:
                                 p.energy_coefficient * 2. * \
                                 (predicted_energy - actual_energy) * temp / \
                                 (no_of_atoms ** 2.)
-                        count += 1
 
             if p.force_coefficient != 0.:
                 predicted_forces = \
@@ -373,11 +386,12 @@ class LossFunction:
                             (selfindex, selfsymbol, nindex, nsymbol, i) = key
                             afp = self.fingerprints[hash][nindex][1]
                             temp = \
-                                self._model.get_dForce_dParameters(afp=afp,
-                                                                   derafp=derafp,
-                                                                   direction=i,
-                                                                   nindex=nindex,
-                                                                   nsymbol=nsymbol,)
+                                self._model.get_dForce_dParameters(
+                                    afp=afp,
+                                    derafp=derafp,
+                                    direction=i,
+                                    nindex=nindex,
+                                    nsymbol=nsymbol,)
                             dloss_dparameters += p.force_coefficient * \
                                 (2.0 / 3.0) * \
                                 (- predicted_forces[selfindex][i] +

@@ -2,9 +2,27 @@
 """
 This script contains different cutoff function forms.
 
+Note all cutoff functions need to have a "todict" method
+to support saving/loading as an Amp object.
+
+All cutoff functions also need to have an `Rc` attribute which
+is the maximum distance at which properties are calculated; this
+will be used in calculating neighborlists.
+
 """
 
 import numpy as np
+
+
+def dict2cutoff(dct):
+    """This function converts a dictionary (which was created with the
+    to_dict method of one of the cutoff classes) into an instantiated
+    version of the class. Modeled after ASE's dict2constraint function.
+    """
+    if len(dct) != 2:
+        raise RuntimeError('Cutoff dictionary must have only two values,'
+                           ' "name" and "kwargs".')
+    return globals()[dct['name']](**dct['kwargs'])
 
 
 class Cosine(object):
@@ -44,6 +62,14 @@ class Cosine(object):
             return 0.
         else:
             return -0.5 * np.pi / self.Rc * np.sin(np.pi * Rij / self.Rc)
+
+    def todict(self):
+        return {'name': 'Cosine',
+                'kwargs': {'Rc': self.Rc}}
+
+    def __repr__(self):
+        return ('Cosine cutoff with Rc=%.3f from amp.descriptor.cutoffs'
+                % self.Rc)
 
 
 class Polynomial(object):
@@ -93,3 +119,12 @@ class Polynomial(object):
                 ((Rij / self.Rc) ** self.gamma -
                  (Rij / self.Rc) ** (self.gamma - 1))
             return value
+
+    def todict(self):
+        return {'name': 'Polynomial',
+                'kwargs': {'Rc': self.Rc}}
+
+    def __repr__(self):
+        return ('Polynomial cutoff with Rc=%.3f and gamma=%i '
+                'from amp.descriptor.cutoffs'
+                % (self.Rc, self.gamma))

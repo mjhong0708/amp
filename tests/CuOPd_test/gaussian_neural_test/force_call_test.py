@@ -166,14 +166,15 @@ def non_periodic_test():
 
     for fortran in [False, ]:
 
-        calc = Amp(descriptor=Gaussian(cutoff=6.5, Gs=Gs),
+        calc = Amp(descriptor=Gaussian(cutoff=6.5,
+                                       Gs=Gs,
+                                       fortran=fortran),
                    model=NeuralNetwork(hiddenlayers=hiddenlayers,
                                        weights=weights,
                                        scalings=scalings,
                                        activation='sigmoid',
                                        fprange=fingerprints_range,
                                        mode='atom-centered'),
-                   fortran=fortran,
                    cores=1)
 
         predicted_energies = [calc.get_potential_energy(image) for image in
@@ -312,14 +313,15 @@ def periodic_test():
 
     for fortran in [False, ]:
 
-        calc = Amp(descriptor=Gaussian(cutoff=4., Gs=Gs),
+        calc = Amp(descriptor=Gaussian(cutoff=4.,
+                                       Gs=Gs,
+                                       fortran=fortran),
                    model=NeuralNetwork(hiddenlayers=hiddenlayers,
                                        weights=weights,
                                        scalings=scalings,
                                        activation='tanh',
                                        fprange=fingerprints_range,
                                        mode='atom-centered'),
-                   fortran=fortran,
                    cores=1)
 
         predicted_energies = [calc.get_potential_energy(image) for image in

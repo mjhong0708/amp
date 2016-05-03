@@ -33,7 +33,7 @@ def rotate_atom(x, y, z, phi, theta, psi):
 
 def test():
 
-    for descriptor in [Gaussian(), ]:
+    for descriptor in [Gaussian(fortran=False), ]:
 
         # Non-rotated atomic configuration
         atoms = Atoms([Atom('Pt', (0., 0., 0.)),

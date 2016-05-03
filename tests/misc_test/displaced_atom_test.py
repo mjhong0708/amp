@@ -80,7 +80,9 @@ def test():
 
     ###########################################################################
 
-    calc = Amp(descriptor=Gaussian(cutoff=6.5, Gs=Gs,),
+    calc = Amp(descriptor=Gaussian(cutoff=6.5,
+                                   Gs=Gs,
+                                   fortran=False,),
                model=NeuralNetwork(hiddenlayers=hiddenlayers,
                                    weights=weights,
                                    scalings=scalings,

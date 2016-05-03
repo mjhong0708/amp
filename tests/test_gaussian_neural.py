@@ -14,6 +14,7 @@ from ase.constraints import FixAtoms
 from amp import Amp
 from amp.descriptor.gaussian import Gaussian
 from amp.model.neuralnetwork import NeuralNetwork
+from amp.model import LossFunction
 
 
 def generate_data(count):
@@ -30,8 +31,8 @@ def generate_data(count):
     newatoms.set_calculator(EMT())
     newatoms.get_potential_energy()
     images = [newatoms]
-    for step in range(count):
-        dyn.run(5)
+    for step in range(count - 1):
+        dyn.run(50)
         newatoms = atoms.copy()
         newatoms.set_calculator(EMT())
         newatoms.get_potential_energy()
@@ -44,12 +45,15 @@ def train_test():
     train_images = generate_data(2)
 
     calc = Amp(descriptor=Gaussian(),
-               model=NeuralNetwork(),
+               model=NeuralNetwork(hiddenlayers=(3, 3)),
                label=label,
                cores=1)
+    loss = LossFunction(convergence={'energy_rmse': 0.02,
+                                     'force_rmse': 0.02})
+    calc.model.lossfunction = loss
 
     calc.train(images=train_images,)
-    for image in train_images[0:2]:
+    for image in train_images:
         print "energy =", calc.get_potential_energy(image)
         print "forces =", calc.get_forces(image)
 

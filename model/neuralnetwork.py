@@ -6,11 +6,6 @@ from ..regression import Regressor
 from ..model import LossFunction, calculate_fingerprints_range
 from ..model import Model
 
-default_convergence = {'energy_rmse': 0.001,
-                       'energy_maxresid': None,
-                       'force_rmse': 0.005,
-                       'force_maxresid': None, }
-
 
 class NeuralNetwork(Model):
 
@@ -113,28 +108,17 @@ class NeuralNetwork(Model):
             trainingimages,
             descriptor,
             log,
-            cores,
-            convergence=None,):
+            cores,):
         """Fit the model parameters such that the fingerprints can be used to
         describe the energies in trainingimages. log is the logging object.
         descriptor is a descriptor object, as would be in calc.descriptor.
         """
-        # Takes the default values of convergence, if they are not provided by
-        # the user.
-        if convergence is not None:
-            user_keys = convergence.keys()
-            for key in default_convergence.keys():
-                if key not in user_keys:
-                    convergence[key] = default_convergence[key]
-        else:
-            convergence = default_convergence.copy()
 
         # Set all parameters and report to logfile.
         self.cores = cores
 
         if self.lossfunction is None:
-            self.lossfunction = LossFunction(cores=self.cores,
-                                             convergence=convergence)
+            self.lossfunction = LossFunction(cores=self.cores)
         if self.regressor is None:
             self.regressor = Regressor()
 
@@ -448,27 +432,28 @@ def calculate_nodal_outputs(parameters, afp, symbol,):
     :returns: float -- energy
     """
 
+    _afp = np.array(afp).copy()
     hiddenlayers = parameters.hiddenlayers[symbol]
     weight = parameters.weights[symbol]
     activation = parameters.activation
 
     fprange = parameters.fprange[symbol]
     # Scale the fingerprints to be in [-1, 1] range.
-    for _ in xrange(np.shape(afp)[0]):
+    for _ in xrange(np.shape(_afp)[0]):
         if (fprange[_, 1] - fprange[_, 0]) > (10.**(-8.)):
-            afp[_] = -1.0 + 2.0 * ((afp[_] - fprange[_, 0]) /
-                                   (fprange[_, 1] - fprange[_, 0]))
+            _afp[_] = -1.0 + 2.0 * ((_afp[_] - fprange[_, 0]) /
+                                    (fprange[_, 1] - fprange[_, 0]))
     # Calculate node values.
     o = {}  # node values
     layer = 1  # input layer
     net = {}  # excitation
     ohat = {}  # FIXME/ap need description
 
-    len_of_afp = len(afp)
+    len_of_afp = len(_afp)
     temp = np.zeros((1, len_of_afp + 1))
     for _ in xrange(len_of_afp):
-        temp[0, _] = afp[_]
-    temp[0, len(afp)] = 1.0
+        temp[0, _] = _afp[_]
+    temp[0, len(_afp)] = 1.0
     ohat[0] = temp
     net[1] = np.dot(ohat[0], weight[1])
     if activation == 'linear':
@@ -511,10 +496,10 @@ def calculate_nodal_outputs(parameters, afp, symbol,):
 
     del hiddenlayers, weight, ohat, net
 
-    len_of_afp = len(afp)
+    len_of_afp = len(_afp)
     temp = np.zeros((1, len_of_afp))  # FIXME/ap Need descriptive name
     for _ in xrange(len_of_afp):
-        temp[0, _] = afp[_]
+        temp[0, _] = _afp[_]
     o[0] = temp
 
     return o
@@ -522,18 +507,19 @@ def calculate_nodal_outputs(parameters, afp, symbol,):
 
 def calculate_dOutputs_dInputs(parameters, derafp, outputs, nsymbol,):
 
+    _derafp = np.array(derafp).copy()
     hiddenlayers = parameters.hiddenlayers[nsymbol]
     weight = parameters.weights[nsymbol]
     activation = parameters.activation
 
     fprange = parameters.fprange[nsymbol]
     # Scaling derivative of fingerprints.
-    for _ in xrange(len(derafp)):
+    for _ in xrange(len(_derafp)):
         if (fprange[_, 1] - fprange[_, 0]) > (10.**(-8.)):
-            derafp[_] = 2.0 * (derafp[_] / (fprange[_, 1] - fprange[_, 0]))
+            _derafp[_] = 2.0 * (_derafp[_] / (fprange[_, 1] - fprange[_, 0]))
 
     der_o = {}  # node values
-    der_o[0] = derafp
+    der_o[0] = _derafp
     layer = 0  # input layer
     for hiddenlayer in hiddenlayers[0:]:
         layer += 1

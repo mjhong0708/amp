@@ -3,7 +3,7 @@ import numpy as np
 from ase.data import atomic_numbers
 from ase.calculators.calculator import Parameters
 from ..utilities import Data, Logger
-from .cutoffs import Cosine, Polynomial
+from .cutoffs import Cosine, dict2cutoff
 from . import NeighborlistCalculator
 try:
     from .. import fmodules
@@ -80,6 +80,10 @@ class Gaussian(object):
         # by default.
         if isinstance(cutoff, int) or isinstance(cutoff, float):
             cutoff = Cosine(cutoff)
+        # If the cutoff is provided as a dictionary, assume we need to load it
+        # with dict2cutoff.
+        if type(cutoff) is dict:
+            cutoff = dict2cutoff(cutoff)
 
         # The parameters dictionary contains the minimum information
         # to produce a compatible descriptor; that is, one that gives
@@ -88,8 +92,7 @@ class Gaussian(object):
             {'importname': '.descriptor.gaussian.Gaussian',
              'mode': 'atom-centered'})
         p.version = version
-        p.cutoff = cutoff.Rc
-        p.cutofffn = cutoff.__class__.__name__
+        p.cutoff = cutoff.todict()
         p.Gs = Gs
         p.elements = elements
 
@@ -102,10 +105,12 @@ class Gaussian(object):
         be used to restart the calculator."""
         return self.parameters.tostring()
 
-    def calculate_fingerprints(self, images, cores=1, fortran=False,
+    def calculate_fingerprints(self, images, cores=1, fortran=None,
                                log=None, calculate_derivatives=False):
         """Calculates the fingerpints of the images, for the ones not already
         done.  """
+        if fortran is None:
+            fortran = self.fortran
         log = Logger(file=None) if log is None else log
 
         if (self.dblabel is None) and hasattr(self.parent, 'dblabel'):
@@ -114,8 +119,7 @@ class Gaussian(object):
 
         p = self.parameters
 
-        log('Cutoff radius: %.2f' % p.cutoff)
-        log('Cutoff function: %s' % p.cutofffn)
+        log('Cutoff function: %s' % repr(dict2cutoff(p.cutoff)))
 
         if p.elements is None:
             log('Finding unique set of elements in training data.')
@@ -135,7 +139,8 @@ class Gaussian(object):
         log('Calculating neighborlists...', tic='nl')
         if not hasattr(self, 'neighborlist'):
             nl = Data(filename='%s-neighborlists' % self.dblabel,
-                      calculator=NeighborlistCalculator(cutoff=p.cutoff))
+                      calculator=NeighborlistCalculator(
+                          cutoff=p.cutoff['kwargs']['Rc']))
             self.neighborlist = nl
         self.neighborlist.calculate_items(images, cores=cores, log=log)
         log('...neighborlists calculated.', toc='nl')
@@ -145,8 +150,7 @@ class Gaussian(object):
             calc = FingerprintCalculator(neighborlist=self.neighborlist,
                                          Gs=p.Gs,
                                          cutoff=p.cutoff,
-                                         cutofffn=p.cutofffn,
-                                         fortran=self.fortran)
+                                         fortran=fortran)
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
                                      calculator=calc)
@@ -161,8 +165,7 @@ class Gaussian(object):
                     FingerprintPrimeCalculator(neighborlist=self.neighborlist,
                                                Gs=p.Gs,
                                                cutoff=p.cutoff,
-                                               cutofffn=p.cutofffn,
-                                               fortran=self.fortran)
+                                               fortran=fortran)
                 self.fingerprintprimes = \
                     Data(filename='%s-fingerprint-primes'
                          % self.dblabel,
@@ -179,9 +182,8 @@ class FingerprintCalculator:
 
     """For integration with .utilities.Data"""
 
-    def __init__(self, neighborlist, Gs, cutoff, cutofffn, fortran):
+    def __init__(self, neighborlist, Gs, cutoff, fortran):
         self.globals = Parameters({'cutoff': cutoff,
-                                   'cutofffn': cutofffn,
                                    'Gs': Gs})
         self.keyed = Parameters({'neighborlist': neighborlist})
         self.parallel_command = 'calculate_fingerprints'
@@ -235,12 +237,11 @@ class FingerprintCalculator:
 
             if G['type'] == 'G2':
                 ridge = calculate_G2(n_symbols, Rs, G['element'], G['eta'],
-                                     self.globals.cutoff,
-                                     self.globals.cutofffn, home, self.fortran)
+                                     self.globals.cutoff, home, self.fortran)
             elif G['type'] == 'G4':
                 ridge = calculate_G4(n_symbols, Rs, G['elements'], G['gamma'],
                                      G['zeta'], G['eta'], self.globals.cutoff,
-                                     self.globals.cutofffn, home, self.fortran)
+                                     home, self.fortran)
             else:
                 raise NotImplementedError('Unknown G type: %s' % G['type'])
             fingerprint[count] = ridge
@@ -252,9 +253,8 @@ class FingerprintPrimeCalculator:
 
     """For integration with .utilities.Data"""
 
-    def __init__(self, neighborlist, Gs, cutoff, cutofffn, fortran):
+    def __init__(self, neighborlist, Gs, cutoff, fortran):
         self.globals = Parameters({'cutoff': cutoff,
-                                   'cutofffn': cutofffn,
                                    'Gs': Gs})
         self.keyed = Parameters({'neighborlist': neighborlist})
         self.parallel_command = 'calculate_fingerprint_prime'
@@ -370,7 +370,6 @@ class FingerprintPrimeCalculator:
                     G['element'],
                     G['eta'],
                     self.globals.cutoff,
-                    self.globals.cutofffn,
                     index,
                     Rindex,
                     m,
@@ -386,7 +385,6 @@ class FingerprintPrimeCalculator:
                     G['zeta'],
                     G['eta'],
                     self.globals.cutoff,
-                    self.globals.cutofffn,
                     index,
                     Rindex,
                     m,
@@ -402,7 +400,7 @@ class FingerprintPrimeCalculator:
 # Auxiliary functions #########################################################
 
 
-def calculate_G2(symbols, Rs, G_element, eta, cutoff, cutofffn, home, fortran):
+def calculate_G2(symbols, Rs, G_element, eta, cutoff, home, fortran):
     """
     Calculate G2 symmetry function. Ideally this will not be used but
     will be a template for how to build the fortran version (and serves as
@@ -416,10 +414,8 @@ def calculate_G2(symbols, Rs, G_element, eta, cutoff, cutofffn, home, fortran):
     :type G_element: dict
     :param eta: Parameter of Gaussian symmetry functions.
     :type eta: float
-    :param cutoff: Radius above which neighbor interactions are ignored.
+    :param cutoff: Radius above which neighbor interactions are ignored. #FIXME
     :type cutoff: float
-    :param cutofffn: Cutoff function that is used.
-    :type cutofffn: str
     :param home: Index of the center atom.
     :type home: int
     :param fortran: If True, will use the fortran subroutines, else will not.
@@ -433,15 +429,17 @@ def calculate_G2(symbols, Rs, G_element, eta, cutoff, cutofffn, home, fortran):
         if len(Rs) == 0:
             ridge = 0.
         else:
+
+            cutofffn = cutoff['name']
+            if cutofffn != 'Cosine':
+                raise NotImplementedError()
+            rc = cutoff['kwargs']['Rc']
             ridge = fmodules.calculate_g2(numbers=numbers, rs=Rs,
                                           g_number=G_number, g_eta=eta,
-                                          cutoff=cutoff, cutofffn=cutofffn,
+                                          cutoff=rc, cutofffn=cutofffn,
                                           home=home)
     else:
-        if cutofffn is 'Cosine':
-            cutoff_fxn = Cosine(cutoff)
-        elif cutofffn is 'Polynomial':
-            cutoff_fxn = Polynomial(cutoff)
+        cutoff_fxn = dict2cutoff(cutoff)
         ridge = 0.  # One aspect of a fingerprint :)
         len_of_symbols = len(symbols)
         for count in xrange(len_of_symbols):
@@ -455,7 +453,7 @@ def calculate_G2(symbols, Rs, G_element, eta, cutoff, cutofffn, home, fortran):
     return ridge
 
 
-def calculate_G4(symbols, Rs, G_elements, gamma, zeta, eta, cutoff, cutofffn,
+def calculate_G4(symbols, Rs, G_elements, gamma, zeta, eta, cutoff,
                  home, fortran):
     """
     Calculate G4 symmetry function. Ideally this will not be used but
@@ -475,9 +473,7 @@ def calculate_G4(symbols, Rs, G_elements, gamma, zeta, eta, cutoff, cutofffn,
     :param eta: Parameter of Gaussian symmetry functions.
     :type eta: float
     :param cutoff: Radius above which neighbor interactions are ignored.
-    :type cutoff: float
-    :param cutofffn: Cutoff function that is used.
-    :type cutofffn: str
+    :type cutoff: float #FIXME
     :param home: Index of the center atom.
     :type home: int
     :param fortran: If True, will use the fortran subroutines, else will not.
@@ -492,16 +488,17 @@ def calculate_G4(symbols, Rs, G_elements, gamma, zeta, eta, cutoff, cutofffn,
         if len(Rs) == 0:
             return 0.
         else:
+            cutofffn = cutoff['name']
+            if cutofffn != 'Cosine':
+                raise NotImplementedError()
+            rc = cutoff['kwargs']['Rc']
             return fmodules.calculate_g4(numbers=numbers, rs=Rs,
                                          g_numbers=G_numbers, g_gamma=gamma,
                                          g_zeta=zeta, g_eta=eta,
-                                         cutoff=cutoff, cutofffn=cutofffn,
+                                         cutoff=rc, cutofffn=cutofffn,
                                          home=home)
     else:
-        if cutofffn is 'Cosine':
-            cutoff_fxn = Cosine(cutoff)
-        elif cutofffn is 'Polynomial':
-            cutoff_fxn = Polynomial(cutoff)
+        cutoff_fxn = dict2cutoff(cutoff)
         ridge = 0.
         counts = range(len(symbols))
         for j in counts:
@@ -690,7 +687,7 @@ def der_cos_theta(a, j, k, Ra, Rj, Rk, m, i):
 
 
 def calculate_G2_prime(n_indices, symbols, Rs, G_element, eta, cutoff,
-                       cutofffn, a, Ra, m, i, fortran):
+                       a, Ra, m, i, fortran):
     """
     Calculates coordinate derivative of G2 symmetry function for atom at
     index a and position Ra with respect to coordinate x_{i} of atom index
@@ -707,9 +704,7 @@ def calculate_G2_prime(n_indices, symbols, Rs, G_element, eta, cutoff,
     :param eta: Parameter of Behler symmetry functions.
     :type eta: float
     :param cutoff: Radius above which neighbor interactions are ignored.
-    :type cutoff: float
-    :param cutofffn: Cutoff function that is used.
-    :type cutofffn: str
+    :type cutoff: float #FIXME
     :param a: Index of the center atom.
     :type a: int
     :param Ra: Position of the center atom.
@@ -731,18 +726,19 @@ def calculate_G2_prime(n_indices, symbols, Rs, G_element, eta, cutoff,
         if len(Rs) == 0:
             ridge = 0.
         else:
+            cutofffn = cutoff['name']
+            if cutofffn != 'Cosine':
+                raise NotImplementedError()
+            rc = cutoff['kwargs']['Rc']
             ridge = fmodules.calculate_g2_prime(n_indices=list(n_indices),
                                                 numbers=numbers, rs=Rs,
                                                 g_number=G_number,
-                                                g_eta=eta, cutoff=cutoff,
+                                                g_eta=eta, cutoff=rc,
                                                 cutofffn=cutofffn,
                                                 aa=a, home=Ra, mm=m,
                                                 ii=i)
     else:
-        if cutofffn is 'Cosine':
-            cutoff_fxn = Cosine(cutoff)
-        elif cutofffn is 'Polynomial':
-            cutoff_fxn = Polynomial(cutoff)
+        cutoff_fxn = dict2cutoff(cutoff)
         ridge = 0.  # One aspect of a fingerprint :)
         len_of_symbols = len(symbols)
         for count in xrange(len_of_symbols):
@@ -760,7 +756,7 @@ def calculate_G2_prime(n_indices, symbols, Rs, G_element, eta, cutoff,
 
 
 def calculate_G4_prime(n_indices, symbols, Rs, G_elements, gamma, zeta, eta,
-                       cutoff, cutofffn, a, Ra, m, i, fortran):
+                       cutoff, a, Ra, m, i, fortran):
     """
     Calculates coordinate derivative of G4 symmetry function for atom at
     index a and position Ra with respect to coordinate x_{i} of atom index m.
@@ -780,9 +776,7 @@ def calculate_G4_prime(n_indices, symbols, Rs, G_elements, gamma, zeta, eta,
     :param eta: Parameter of Behler symmetry functions.
     :type eta: float
     :param cutoff: Radius above which neighbor interactions are ignored.
-    :type cutoff: float
-    :param cutofffn: Cutoff function that is used.
-    :type cutofffn: str
+    :type cutoff: float #FIXME
     :param a: Index of the center atom.
     :type a: int
     :param Ra: Position of the center atom.
@@ -804,21 +798,22 @@ def calculate_G4_prime(n_indices, symbols, Rs, G_elements, gamma, zeta, eta,
         if len(Rs) == 0:
             ridge = 0.
         else:
+            cutofffn = cutoff['name']
+            if cutofffn != 'Cosine':
+                raise NotImplementedError()
+            rc = cutoff['kwargs']['Rc']
             ridge = fmodules.calculate_g4_prime(n_indices=list(n_indices),
                                                 numbers=numbers, rs=Rs,
                                                 g_numbers=G_numbers,
                                                 g_gamma=gamma,
                                                 g_zeta=zeta, g_eta=eta,
-                                                cutoff=cutoff,
+                                                cutoff=rc,
                                                 cutofffn=cutofffn,
                                                 aa=a,
                                                 home=Ra, mm=m,
                                                 ii=i)
     else:
-        if cutofffn is 'Cosine':
-            cutoff_fxn = Cosine(cutoff)
-        elif cutofffn is 'Polynomial':
-            cutoff_fxn = Polynomial(cutoff)
+        cutoff_fxn = dict2cutoff(cutoff)
         ridge = 0.
         counts = range(len(symbols))
         for j in counts:
@@ -928,8 +923,6 @@ if __name__ == "__main__":
         # Request variables.
         socket.send_pyobj(msg('<request>', 'cutoff'))
         cutoff = socket.recv_pyobj()
-        socket.send_pyobj(msg('<request>', 'cutofffn'))
-        cutofffn = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'Gs'))
         Gs = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'neighborlist'))
@@ -937,7 +930,7 @@ if __name__ == "__main__":
         socket.send_pyobj(msg('<request>', 'images'))
         images = socket.recv_pyobj()
 
-        calc = FingerprintCalculator(neighborlist, Gs, cutoff, cutofffn,
+        calc = FingerprintCalculator(neighborlist, Gs, cutoff,
                                      fortran)
         result = {}
         while len(images) > 0:
@@ -955,8 +948,6 @@ if __name__ == "__main__":
         # Request variables.
         socket.send_pyobj(msg('<request>', 'cutoff'))
         cutoff = socket.recv_pyobj()
-        socket.send_pyobj(msg('<request>', 'cutofffn'))
-        cutofffn = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'Gs'))
         Gs = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'neighborlist'))
@@ -965,7 +956,7 @@ if __name__ == "__main__":
         images = socket.recv_pyobj()
 
         calc = FingerprintPrimeCalculator(neighborlist, Gs, cutoff,
-                                          cutofffn, fortran)
+                                          fortran)
         result = {}
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.
