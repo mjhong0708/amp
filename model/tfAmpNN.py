@@ -17,7 +17,6 @@ import string
 import sklearn.linear_model
 import pickle
 import uuid
-from collections import OrderedDict
 
 class tfAmpNN:
     """
