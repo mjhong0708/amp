@@ -16,9 +16,53 @@ import random
 import string
 import sklearn.linear_model
 import pickle
+import uuid
 
 
 class tfAmpNN:
+    """
+    TensorFlow-based Neural Network model. (Google's machine-learning
+    code).
+
+    Initialize with:
+      elementFingerprintLengths: dictionary (one for each element type)
+          that contains the fingerprint length for each element
+
+      hiddenlayers: structure of the neural network
+
+      activation: activation type
+
+      keep_prob: dropout rate for the neural network to reduce overfitting.
+        (keep_prob=1. uses all nodes, keep_prob~0.5-0.8 better for training)
+
+      RMSEtarget: target for the final loss function
+      Note this is the per-image value.
+
+      maxTrainingEpochs: maximum number of times to loop through the
+      training data before giving up
+
+      batchsize: batch size for minibatch (if miniBatch is set to True)
+
+      tfVars: tensorflow variables (used if restoring from a previous save)
+
+      saveVariableName: name used for the internal tensorflow variable
+      naming scheme.  if variables have the same name as another model in
+      the same tensorflow session, there will be collisions
+
+      sess: tensorflow session to use (None means start a new session)
+
+      maxAtomsForces: number of atoms to be used in the force training.  It
+      sets the upper bound on the number of atoms that can be used to
+      calculate the force for (e.g. if maxAtomsForces=40, then forces can
+      only be calculated for images with less than 40 atoms)
+
+      energy_coefficient and force_coefficient are used to adjust the
+      loss function; note you must turn on train_forces when calling
+      Amp.train (or model.fit) if you want to use force training.
+
+      scikit_model: a pickled version of the scikit model used to
+      re-establish this model.
+    """
 
     def __init__(self,
                  elementFingerprintLengths,
@@ -39,31 +83,6 @@ class tfAmpNN:
                  force_coefficient=0.04,
                  scikit_model=None,
                 ):
-        # Inputs:
-        # elementFingerprintLengths: dictionary (one for each element type)
-        #     that contains the fingerprint length for each element
-        # hiddenlayers: structure of the neural network
-        # activation: activation type
-        # keep_prob: dropout rate for the neural network to reduce overfitting.
-        #   (keep_prob=1. uses all nodes, keep_prob~0.5-0.8 better for training)
-        # RMSEtarget: target for the final loss function
-        # maxTrainingEpochs: maximum number of times to loop through the
-        # training data before giving up
-        # batchsize: batch size for minibatch (if miniBatch is set to True)
-        # tfVars: tensorflow variables (used if restoring from a previous save)
-        # saveVariableName: name used for the internal tensorflow variable
-        # naming scheme.  if variables have the same name as another model in
-        # the same tensorflow session, there will be collisions
-        # sess: tensorflow session to use (None means start a new session)
-        # maxAtomsForces: number of atoms to be used in the force training.  It
-        # sets the upper bound on the number of atoms that can be used to
-        # calculate the force for (e.g. if maxAtomsForces=40, then forces can
-        # only be calculated for images with less than 40 atoms)
-        # energy_coefficient and force_coefficient are used to adjust the
-        # loss function; note you must turn on train_forces when calling
-        # Amp.train (or model.fit) if you want to use force training.
-        # scikit_model is a pickled version of the scikit model used to
-        # re-establish this model.
 
 
         if scikit_model is not None:
@@ -82,11 +101,11 @@ class tfAmpNN:
         self.keep_prob = keep_prob
         self.elements = elementFingerprintLengths.keys()
         if saveVariableName is None:
-            self.saveVariableName = ''.join(random.choice(
-                string.ascii_uppercase + string.digits +
-                string.ascii_lowercase) for _ in range(10))
+            self.saveVariableName = str(uuid.uuid4())[:8]
         else:
             self.saveVariableName = saveVariableName
+
+
         self.elementFingerprintLengths = elementFingerprintLengths
         self.constructModel()
         if sess is None:
@@ -121,10 +140,10 @@ class tfAmpNN:
 
         self.maxAtomsForces = maxAtomsForces
 
-    # constructModel goes through and sets up the tensorflow neural networks
-    # for each atom type
     def constructModel(self):
-        # make tensorflow inputs for each element
+        """Sets up the tensorflow neural networks for each atom type."""
+
+        # Make tensorflow inputs for each element.
         tensordict = {}
         indsdict = {}
         maskdict = {}
@@ -142,7 +161,7 @@ class tfAmpNN:
         self.maskdict = maskdict
         self.tensorDerivDict = tensorDerivDict
 
-        # y_ is the input energy for each configuration
+        # y_ is the input energy for each configuration.
         self.y_ = tf.placeholder("float", shape=[None, 1])
 
         self.keep_prob_in = tf.placeholder("float")
@@ -154,7 +173,7 @@ class tfAmpNN:
         self.energycoefficient = tf.placeholder("float")
         self.forcecoefficient = tf.placeholder("float")
 
-        # generate a multilayer neural network for each element type
+        # Generate a multilayer neural network for each element type.
         outdict = {}
         forcedict = {}
         for element in self.elements:
@@ -178,14 +197,14 @@ class tfAmpNN:
                                                          tilederiv=self.tileDerivs)
         self.outdict = outdict
 
-        # The total energy is the sum of the energies over each atom type
+        # The total energy is the sum of the energies over each atom type.
         keylist = self.elements
         ytot = outdict[keylist[0]]
         for i in range(1, len(keylist)):
             ytot = ytot + outdict[keylist[i]]
         self.energy = ytot
 
-        # The total energy is the sum of the energies over each atom type
+        # The total force is the sum of the forces over each atom type.
         Ftot = forcedict[keylist[0]]
         for i in range(1, len(keylist)):
             Ftot = Ftot + forcedict[keylist[i]]
@@ -198,24 +217,22 @@ class tfAmpNN:
         self.lossPerAtom = tf.sqrt(tf.reduce_mean(
             tf.square(tf.div(tf.sub(self.energy, self.y_), self.nAtoms_in))))
 
-        # Define the training step for energy training
+        # Define the training step for energy training.
         self.train_step = tf.train.AdamOptimizer(
             self.learningrate, beta1=0.9).minimize(self.loss)
 
         self.loss_forces = self.forcecoefficient * \
             tf.sqrt(tf.reduce_mean(tf.square(tf.sub(self.forces_in, self.forces))))
 
-        # Define the training step for force training
+        # Define the training step for force training.
         self.totalloss = self.loss_forces + self.loss
         self.train_step_forces = tf.train.AdamOptimizer(
             self.learningrate, beta1=0.9).minimize(self.totalloss)
 
-    # this function resets all of the variables in the current tensorflow model
     def initializeVariables(self):
+        """Resets all of the variables in the current tensorflow model."""
         self.sess.run(tf.initialize_all_variables())
 
-    # This function generates the input dictionary that maps various inputs on
-    # the python side to placeholders for the tensorflow model
     def generateFeedInput(self, curinds,
                           energies,
                           atomArraysAll,
@@ -229,6 +246,9 @@ class tfAmpNN:
                           forces=False,
                           energycoefficient=1.,
                           forcecoefficient=None):
+        """Generates the input dictionary that maps various inputs on
+        the python side to placeholders for the tensorflow model.  """
+
         atomArraysFinal, atomArraysDerivsFinal, atomInds = generateBatch(curinds,
                                                                          self.elements,
                                                                          atomArraysAll,
@@ -266,11 +286,13 @@ class tfAmpNN:
             feedinput[self.energycoefficient] = energycoefficient
         return feedinput
 
-    # fit takes a bunch of training images (which are assumed to have a
-    # working calculator attached), and fits the internal variables to the
-    # training images.
     def fit(self, trainingimages, descriptor, cores=1, log=None,
             outlier_energy=10.):
+        """Fit takes a bunch of training images (which are assumed to have a
+        working calculator attached), and fits the internal variables to the
+        training images.
+        """
+
         # The force_coefficient was moved out of Amp.train; pull from the
         # initialization variables. This doesn't catch if the user sends
         # train_forces=False in Amp.train, but an issue is filed to fix
@@ -436,17 +458,17 @@ class tfAmpNN:
         else:
             return False
 
-    # implement methods to get the energy and forces for a set of
-    # configurations
     def get_energy_list(self, hashs, fingerprintDB, fingerprintDerDB=None, keep_prob=1., forces=False):
+        """Methods to get the energy and forces for a set of
+        configurations."""
 
-        # make images a list in case we've been passed a single hash to
-        # calculate
+        # Make images a list in case we've been passed a single hash to
+        # calculate.
         if not(isinstance(hashs, list)):
             hashs = [hashs]
 
-        # reformat the image and fingerprint data into something we can pass
-        # into tensorflow
+        # Reformat the image and fingerprint data into something we can pass
+        # into tensorflow.
 
         atomArraysAll, nAtomsDict, atomsIndsReverse, natoms, atomArraysAllDerivs = generateTensorFlowArrays(
             fingerprintDB, self.elements, hashs, fingerprintDerDB, self.maxAtomsForces)
@@ -485,7 +507,7 @@ class tfAmpNN:
         energies = np.array(self.energy.eval(feed_dict=feedinput)) * self.parameters[
             'energyProdScale'] + self.parameters['energyMeanScale']
 
-        # Add in the per-atom base energy
+        # Add in the per-atom base energy.
         natomsArray = np.zeros((len(hashs), len(self.elements)))
         for i in range(len(hashs)):
             for j in range(len(self.elements)):
@@ -499,23 +521,23 @@ class tfAmpNN:
             force = []
         return energies, force
 
-    # Get the energy by feeding in a list to the get_list version (which is
-    # more efficient for anything greater than 1 image)
     def get_energy(self, fingerprint):
+        """Get the energy by feeding in a list to the get_list version (which
+        is more efficient for anything greater than 1 image)."""
         key = '1'
         energies, forces = self.get_energy_list([key], {key: fingerprint})
         return energies[0]
 
+    def get_forces(self, fingerprint, derfingerprint):
     # get_forces function still needs to be implemented.  Can't do this
     # without the fingerprint derivates working properly though
-    def get_forces(self, fingerprint, derfingerprint):
         key = '1'
         energies, forces = self.get_energy_list(
             [key], {key: fingerprint}, fingerprintDerDB={key: derfingerprint}, forces=True)
         return forces[0][0:len(fingerprint)]
 
-    # Dummy tostring to make things work
     def tostring(self):
+        """Dummy tostring to make things work."""
         params = {}
 
         params['hiddenlayers'] = self.hiddenlayers
@@ -543,9 +565,10 @@ class tfAmpNN:
         return str(params)
 
 
-# This function generates a multilayer neural network with variable number
-# of neurons, so that we have a template for each atom's NN
-def model(x, segmentinds, keep_prob, batchsize, neuronList, activationType, fplength, mask, name, dxdxik, tilederiv):
+def model(x, segmentinds, keep_prob, batchsize, neuronList, activationType,
+          fplength, mask, name, dxdxik, tilederiv):
+    """Generates a multilayer neural network with variable number
+    of neurons, so that we have a template for each atom's NN."""
 
     nNeurons = neuronList[0]
     # Pass  the input tensors through the first soft-plus layer
@@ -579,25 +602,27 @@ def model(x, segmentinds, keep_prob, batchsize, neuronList, activationType, fple
     dEdxik_reduced = tf.unsorted_segment_sum(
         dEdxikReduce, segmentinds, batchsize)
     return tf.mul(reducedSum, mask), dEdxik_reduced
-    # return reducedSum
 
 
-# Helper functions taken from the MNIST tutorial to generate weight and
-# bias variables with random initial weights
 def weight_variable(shape, name, stddev=0.1):
+    """Helper functions taken from the MNIST tutorial to generate weight and
+    bias variables with random initial weights."""
     initial = tf.truncated_normal(shape, stddev=stddev)
     return tf.Variable(initial, name=name)
 
 
 def bias_variable(shape, name, a=0.1):
+    """Helper functions taken from the MNIST tutorial to generate weight and
+    bias variables with random initial weights."""
     initial = tf.truncated_normal(stddev=a, shape=shape)
     return tf.Variable(initial, name=name)
 
-# This method generates batches from a large dataset using a set of
-# selected indices curinds.
 
 
-def generateBatch(curinds, elements, atomArraysAll, nAtomsDict, atomsIndsReverse, atomArraysAllDerivs):
+def generateBatch(curinds, elements, atomArraysAll, nAtomsDict,
+                  atomsIndsReverse, atomArraysAllDerivs):
+    """This method generates batches from a large dataset using a set of
+    selected indices curinds."""
     # inputs:
     atomArraysFinal = {}
     atomArraysDerivsFinal = {}
@@ -628,24 +653,42 @@ def generateBatch(curinds, elements, atomArraysAll, nAtomsDict, atomsIndsReverse
     return atomArraysFinal, atomArraysDerivsFinal, atomInds
 
 
-# This function generates the inputs to the tensorflow graph for the selected images.
-# The essential problem is that each neural network is associated with a
-# specific element type.  Thus, atoms in each ASE image need to be sent to
-# different
-def generateTensorFlowArrays(fingerprintDB, elements, keylist, fingerprintDerDB=None, maxAtomsForces=0):
-    # Inputs:
-    # fingerprintDB: a database of fingerprints, as taken from the descriptor
-    # elements: a list of element types (e.g. 'C','O', etc)
-    # keylist: a list of hashs into the fingerprintDB that we want to creat inputs for
-    # fingerprintDerDB: a database of fingerprint derivatives, as taken from the descriptor
-    # maxAtomsForces: the maximum length of the atoms
-    # Outputs:
-    # atomArraysAll: a dictionary of fingerprint inputs to each element's neural network
-    # nAtomsDict: a dictionary for each element with lists of the number of atoms of each type in each image
-    # atomsIndsReverse: a dictionary that contains the index of each atom into the original keylist
-    # nAtoms: the number of atoms in each image
-    # atomArraysAllDerivs: dictionary of fingerprint derivates for each
-    # element's neural network
+def generateTensorFlowArrays(fingerprintDB, elements, keylist,
+                             fingerprintDerDB=None, maxAtomsForces=0):
+    """
+    This function generates the inputs to the tensorflow graph for the selected images.
+    The essential problem is that each neural network is associated with a
+    specific element type.  Thus, atoms in each ASE image need to be sent to
+    different networks.
+
+    Inputs:
+
+    fingerprintDB: a database of fingerprints, as taken from the descriptor
+
+    elements: a list of element types (e.g. 'C','O', etc)
+
+    keylist: a list of hashs into the fingerprintDB that we want to creat inputs for
+
+    fingerprintDerDB: a database of fingerprint derivatives, as taken from the descriptor
+
+    maxAtomsForces: the maximum length of the atoms
+
+    Outputs:
+
+    atomArraysAll: a dictionary of fingerprint inputs to each element's neural
+        network
+
+    nAtomsDict: a dictionary for each element with lists of the number of
+        atoms of each type in each image
+
+    atomsIndsReverse: a dictionary that contains the index of each atom into
+        the original keylist
+
+    nAtoms: the number of atoms in each image
+
+    atomArraysAllDerivs: dictionary of fingerprint derivates for each
+        element's neural network
+    """
 
     nAtomsDict = {}
     for element in elements:
@@ -697,7 +740,7 @@ def generateTensorFlowArrays(fingerprintDB, elements, keylist, fingerprintDerDB=
         else:
             atomArraysAll[element] = []
 
-    # Set up the array for atom-based fingerprint derivatives
+    # Set up the array for atom-based fingerprint derivatives.
     atomArraysAllDerivs = {}
     for element in elements:
         atomArraysAllDerivs[element] = []
