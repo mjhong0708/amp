@@ -22,7 +22,7 @@ class tfAmpNN:
 
     def __init__(self,
                  elementFingerprintLengths,
-                 hiddenlayers=[5, 5],
+                 hiddenlayers=(5, 5),
                  activation='relu',
                  keep_prob=0.5,
                  RMSEtarget=1e-2,
@@ -32,7 +32,7 @@ class tfAmpNN:
                  miniBatch=True,
                  tfVars=None,
                  saveVariableName=None,
-                 parameters={},
+                 parameters=None,
                  sess=None,
                  maxAtomsForces=0,
                  energy_coefficient=1.0,
@@ -113,10 +113,10 @@ class tfAmpNN:
         self.batchsize = batchsize
         self.initialTrainingRate = initialTrainingRate
         self.miniBatch = miniBatch
-        self.parameters = parameters
+        self.parameters = {} if parameters is None else parameters
         for prop in ['elementFPScales', 'energyMeanScale', 'energyProdScale',
                      'energyPerElement']:
-            if prop not in parameters:
+            if prop not in self.parameters:
                 self.parameters[prop] = None
 
         self.maxAtomsForces = maxAtomsForces
@@ -269,7 +269,7 @@ class tfAmpNN:
     # fit takes a bunch of training images (which are assumed to have a
     # working calculator attached), and fits the internal variables to the
     # training images.
-    def fit(self, trainingimages, descriptor, cores=1, log=[],
+    def fit(self, trainingimages, descriptor, cores=1, log=None,
             outlier_energy=10.):
         # The force_coefficient was moved out of Amp.train; pull from the
         # initialization variables. This doesn't catch if the user sends
