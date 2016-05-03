@@ -15,6 +15,7 @@ import tensorflow as tf
 import random
 import string
 import sklearn.linear_model
+import pickle
 
 
 class tfAmpNN:
@@ -36,6 +37,7 @@ class tfAmpNN:
                  maxAtomsForces=0,
                  energy_coefficient=1.0,
                  force_coefficient=0.04,
+                 scikit_model=None,
                 ):
         # Inputs:
         # elementFingerprintLengths: dictionary (one for each element type)
@@ -60,6 +62,12 @@ class tfAmpNN:
         # energy_coefficient and force_coefficient are used to adjust the
         # loss function; note you must turn on train_forces when calling
         # Amp.train (or model.fit) if you want to use force training.
+        # scikit_model is a pickled version of the scikit model used to
+        # re-establish this model.
+
+
+        if scikit_model is not None:
+            self.linearmodel = pickle.loads(scikit_model)
 
         self.energy_coefficient = energy_coefficient
         self.force_coefficient = force_coefficient
@@ -523,12 +531,16 @@ class tfAmpNN:
 
         params['miniBatch'] = self.miniBatch
 
+        # Create a string format of the tensorflow variables.
         self.saver.save(self.sess, 'tfAmpNN-checkpoint')
         with open('tfAmpNN-checkpoint') as fhandle:
             params['tfVars'] = fhandle.read()
-        # params['tfVars']='tfAmpNN-checkpoint'
+
+        # Unfortunately, scikit learn only can use the pickle for
+        # saving/reestablishing itself.
+        params['scikit_model'] = pickle.dumps(self.linearmodel)
+
         return str(params)
-        # return open()
 
 
 # This function generates a multilayer neural network with variable number
