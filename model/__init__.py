@@ -325,6 +325,7 @@ class LossFunction:
         forceloss = 0.
         energy_maxresid = 0.
         force_maxresid = 0.
+        dloss_dparameters = None
         for hash, image in self.images.iteritems():
             no_of_atoms = len(image)
             predicted_energy = self._model.get_energy(self.fingerprints[hash])
@@ -341,7 +342,6 @@ class LossFunction:
                 if self._model.parameters.mode == 'image-centered':
                     raise NotImplementedError('This needs to be coded.')
                 elif self._model.parameters.mode == 'atom-centered':
-                    count = 0
                     for atom in image:
                         symbol = atom.symbol
                         index = atom.index
@@ -349,7 +349,7 @@ class LossFunction:
                         temp = self._model.get_dEnergy_dParameters(afp,
                                                                    index,
                                                                    symbol)
-                        if count == 0:
+                        if dloss_dparameters is None:
                             dloss_dparameters = \
                                 p.energy_coefficient * 2. * \
                                 (predicted_energy - actual_energy) * temp / \
@@ -359,7 +359,6 @@ class LossFunction:
                                 p.energy_coefficient * 2. * \
                                 (predicted_energy - actual_energy) * temp / \
                                 (no_of_atoms ** 2.)
-                        count += 1
 
             if p.force_coefficient != 0.:
                 predicted_forces = \
