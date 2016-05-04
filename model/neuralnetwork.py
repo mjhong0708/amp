@@ -108,10 +108,16 @@ class NeuralNetwork(Model):
             trainingimages,
             descriptor,
             log,
-            cores,):
+            cores,
+            only_setup=False,
+           ):
+
         """Fit the model parameters such that the fingerprints can be used to
         describe the energies in trainingimages. log is the logging object.
         descriptor is a descriptor object, as would be in calc.descriptor.
+
+        only_setup is primarily for debugging. It initializes all variables
+        but skips the last line of starting the regressor.
         """
 
         # Set all parameters and report to logfile.
@@ -179,6 +185,9 @@ class NeuralNetwork(Model):
             for _ in xrange(len(weight)):
                 self.W[elm][_ + 1] = np.delete(weight[_ + 1], -1, 0)
 
+        if only_setup:
+            return
+
         # Regress the model.
         result = self.regressor.regress(model=self, log=log)
         return result  # True / False
@@ -190,19 +199,19 @@ class NeuralNetwork(Model):
         regression."""
         if self.parameters['weights'] is None:
             return None
+        p = self.parameters
         if not hasattr(self, 'ravel'):
-            p = self.parameters
             self.ravel = Raveler(p.weights, p.scalings)
         return self.ravel.to_vector(weights=p.weights, scalings=p.scalings)
 
     @vector.setter
     def vector(self, vector):
+        p = self.parameters
         if not hasattr(self, 'ravel'):
-            p = self.parameters
             self.ravel = Raveler(p.weights, p.scalings)
         weights, scalings = self.ravel.to_dicts(vector)
-        self.parameters['weights'] = weights
-        self.parameters['scalings'] = scalings
+        p['weights'] = weights
+        p['scalings'] = scalings
 
     def get_loss(self, vector):
         """
