@@ -5,6 +5,7 @@ from ase.calculators.calculator import Parameters
 from ..regression import Regressor
 from ..model import LossFunction, calculate_fingerprints_range
 from ..model import Model
+from ..utilities import Logger, hash_images
 
 
 class NeuralNetwork(Model):
@@ -110,7 +111,7 @@ class NeuralNetwork(Model):
             log,
             cores,
             only_setup=False,
-           ):
+            ):
 
         """Fit the model parameters such that the fingerprints can be used to
         describe the energies in trainingimages. log is the logging object.
@@ -900,3 +901,113 @@ class Raveler:
             scalings[k['key1']][k['key2']] = vector[count]
             count += 1
         return weights, scalings
+
+
+# Analysis tools ##############################################################
+
+
+class NodePlot:
+    """Creates plots to visualize the output of the nodes in the neural
+    networks.
+
+    initialize with a calculator that has parameters; e.g. a trained
+    calculator or else one in which fit has been called with the setup_only
+    flag turned on.
+
+    Call with the 'plot' method, which takes as argment a list of images
+    """
+
+    # Local imports; these are not package-wide dependencies.
+    from matplotlib import pyplot
+    from matplotlib.backends.backend_pdf import PdfPages
+
+    def __init__(self, calc):
+        self.calc = calc
+        self.data = {}  # For accumulating the data.
+
+    def plot(self, images, filename='nodeplot.pdf'):
+        """ Creates a plot of the output of each node, as a violin plot.
+        """
+        calc = self.calc
+        data = {}
+        log = Logger('develop.log')
+        images = hash_images(images, log=log)
+        calc.descriptor.calculate_fingerprints(images=images,
+                                               cores=1,
+                                               log=log,
+                                               calculate_derivatives=False)
+        for hash, image in images.iteritems():
+            fingerprints = calc.descriptor.fingerprints[hash]
+            for fp in fingerprints:
+                outputs = calculate_nodal_outputs(calc.model.parameters,
+                                                  afp=fp[1],
+                                                  symbol=fp[0])
+                self._accumulate(symbol=fp[0], output=outputs)
+
+        self._finalize_table()
+
+        with self.PdfPages(filename) as pdf:
+            for symbol, data in self.data.iteritems():
+                fig = self._makefig(symbol)
+                pdf.savefig(fig)
+                self.pyplot.close(fig)
+
+    def _makefig(self, symbol, save=False):
+        """Makes a figure for one element."""
+
+        fig = self.pyplot.figure(figsize=(8.5, 11.0))
+        lm = 0.1
+        rm = 0.05
+        bm = 0.05
+        tm = 0.05
+        vg = 0.05
+        numplots = 1 + self.data[symbol]['header'][-1][0]
+        axwidth = 1. - lm - rm
+        axheight = (1. - bm - tm - (numplots - 1) * vg) / numplots
+
+        d = self.data[symbol]
+        for layer in range(1 + d['header'][-1][0]):
+            ax = fig.add_axes((lm,
+                               1. - tm - axheight - (axheight + vg) * layer,
+                               axwidth, axheight))
+            indices = [_ for _, label in enumerate(d['header'])
+                       if label[0] == layer]
+            sub = d['table'][:, indices]
+            ax.violinplot(dataset=sub, positions=range(len(indices)))
+            ax.set_ylim(-1.2, 1.2)
+            ax.set_xlim(-0.5, len(indices) - 0.5)
+            ax.set_ylabel('Layer %i' % layer)
+        ax.set_xlabel('node')
+        fig.text(0.5, 1. - 0.5 * tm, 'Node outputs for %s' % symbol,
+                 ha='center', va='center')
+
+        if save:
+            fig.savefig(save)
+        return fig
+
+    def _accumulate(self, symbol, output):
+        """Accumulates the data for the symbol."""
+        data = self.data
+        layerkeys = output.keys()  # Correspond to layers.
+        layerkeys.sort()
+        if symbol not in data:
+            # Create headers, structure.
+            data[symbol] = {'header': [],
+                            'table': []}
+            for layerkey in layerkeys:
+                v = output[layerkey]
+                v = v.reshape(v.size).tolist()
+                data[symbol]['header'].extend([(layerkey, _) for _ in
+                                              range(len(v))])
+        # Add as a row to data table.
+        row = []
+        for layerkey in layerkeys:
+            v = output[layerkey]
+            v = v.reshape(v.size).tolist()
+            row.extend(v)
+        data[symbol]['table'].append(row)
+
+    def _finalize_table(self):
+        """Converts the data table into a numpy array."""
+        for symbol in self.data:
+            self.data[symbol]['table'] = np.array(self.data[symbol]['table'])
