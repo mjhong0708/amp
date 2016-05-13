@@ -10,7 +10,7 @@ import sys
 import tempfile
 import zmq
 from ..utilities import MessageDictionary, string2dict, Logger
-from . import importhelper
+from amp import importhelper
 
 
 hostsocket = sys.argv[-1]

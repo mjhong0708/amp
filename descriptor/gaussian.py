@@ -2,9 +2,9 @@ import numpy as np
 
 from ase.data import atomic_numbers
 from ase.calculators.calculator import Parameters
+from ase.calculators.neighborlist import NeighborList
 from ..utilities import Data, Logger
 from .cutoffs import Cosine, dict2cutoff
-from . import NeighborlistCalculator
 try:
     from .. import fmodules
 except ImportError:
@@ -178,6 +178,29 @@ class Gaussian(object):
 # Calculators #################################################################
 
 
+# Neighborlist Calculator
+class NeighborlistCalculator:
+
+    """For integration with .utilities.Data
+    For each image fed to calculate, a list of neighbors with offset
+    distances is returned.
+    """
+
+    def __init__(self, cutoff):
+        self.globals = Parameters({'cutoff': cutoff})
+        self.keyed = Parameters()
+        self.parallel_command = 'calculate_neighborlists'
+
+    def calculate(self, image, key):
+        cutoff = self.globals.cutoff
+        n = NeighborList(cutoffs=[cutoff / 2.] * len(image),
+                         self_interaction=False,
+                         bothways=True,
+                         skin=0.)
+        n.update(image)
+        return [n.get_neighbors(index) for index in xrange(len(image))]
+
+
 class FingerprintCalculator:
 
     """For integration with .utilities.Data"""
@@ -257,7 +280,7 @@ class FingerprintPrimeCalculator:
         self.globals = Parameters({'cutoff': cutoff,
                                    'Gs': Gs})
         self.keyed = Parameters({'neighborlist': neighborlist})
-        self.parallel_command = 'calculate_fingerprint_prime'
+        self.parallel_command = 'calculate_fingerprint_primes'
         self.fortran = fortran
 
     def calculate(self, image, key):
@@ -433,12 +456,13 @@ def calculate_G2(symbols, Rs, G_element, eta, cutoff, home, fortran):
             cutofffn = cutoff['name']
             if cutofffn != 'Cosine':
                 raise NotImplementedError()
-            rc = cutoff['kwargs']['Rc']
+            Rc = cutoff['kwargs']['Rc']
             ridge = fmodules.calculate_g2(numbers=numbers, rs=Rs,
                                           g_number=G_number, g_eta=eta,
-                                          cutoff=rc, cutofffn=cutofffn,
+                                          cutoff=Rc, cutofffn=cutofffn,
                                           home=home)
     else:
+        Rc = cutoff['kwargs']['Rc']
         cutoff_fxn = dict2cutoff(cutoff)
         ridge = 0.  # One aspect of a fingerprint :)
         len_of_symbols = len(symbols)
@@ -447,7 +471,7 @@ def calculate_G2(symbols, Rs, G_element, eta, cutoff, home, fortran):
             R = Rs[count]
             if symbol == G_element:
                 Rij = np.linalg.norm(R - home)
-                ridge += (np.exp(-eta * (Rij ** 2.) / (cutoff ** 2.)) *
+                ridge += (np.exp(-eta * (Rij ** 2.) / (Rc ** 2.)) *
                           cutoff_fxn(Rij))
 
     return ridge
@@ -491,13 +515,14 @@ def calculate_G4(symbols, Rs, G_elements, gamma, zeta, eta, cutoff,
             cutofffn = cutoff['name']
             if cutofffn != 'Cosine':
                 raise NotImplementedError()
-            rc = cutoff['kwargs']['Rc']
+            Rc = cutoff['kwargs']['Rc']
             return fmodules.calculate_g4(numbers=numbers, rs=Rs,
                                          g_numbers=G_numbers, g_gamma=gamma,
                                          g_zeta=zeta, g_eta=eta,
-                                         cutoff=rc, cutofffn=cutofffn,
+                                         cutoff=Rc, cutofffn=cutofffn,
                                          home=home)
     else:
+        Rc = cutoff['kwargs']['Rc']
         cutoff_fxn = dict2cutoff(cutoff)
         ridge = 0.
         counts = range(len(symbols))
@@ -514,7 +539,7 @@ def calculate_G4(symbols, Rs, G_elements, gamma, zeta, eta, cutoff,
                 cos_theta_ijk = np.dot(Rij_, Rik_) / Rij / Rik
                 term = (1. + gamma * cos_theta_ijk) ** zeta
                 term *= np.exp(-eta * (Rij ** 2. + Rik ** 2. + Rjk ** 2.) /
-                               (cutoff ** 2.))
+                               (Rc ** 2.))
                 term *= cutoff_fxn(Rij)
                 term *= cutoff_fxn(Rik)
                 term *= cutoff_fxn(Rjk)
@@ -729,15 +754,16 @@ def calculate_G2_prime(n_indices, symbols, Rs, G_element, eta, cutoff,
             cutofffn = cutoff['name']
             if cutofffn != 'Cosine':
                 raise NotImplementedError()
-            rc = cutoff['kwargs']['Rc']
+            Rc = cutoff['kwargs']['Rc']
             ridge = fmodules.calculate_g2_prime(n_indices=list(n_indices),
                                                 numbers=numbers, rs=Rs,
                                                 g_number=G_number,
-                                                g_eta=eta, cutoff=rc,
+                                                g_eta=eta, cutoff=Rc,
                                                 cutofffn=cutofffn,
                                                 aa=a, home=Ra, mm=m,
                                                 ii=i)
     else:
+        Rc = cutoff['kwargs']['Rc']
         cutoff_fxn = dict2cutoff(cutoff)
         ridge = 0.  # One aspect of a fingerprint :)
         len_of_symbols = len(symbols)
@@ -747,10 +773,10 @@ def calculate_G2_prime(n_indices, symbols, Rs, G_element, eta, cutoff,
             n_index = n_indices[count]
             if symbol == G_element:
                 Raj = np.linalg.norm(Ra - Rj)
-                term1 = (-2. * eta * Raj * cutoff_fxn(Raj) / (cutoff ** 2.) +
+                term1 = (-2. * eta * Raj * cutoff_fxn(Raj) / (Rc ** 2.) +
                          cutoff_fxn.prime(Raj))
                 term2 = der_position(a, n_index, Ra, Rj, m, i)
-                ridge += np.exp(- eta * (Raj ** 2.) / (cutoff ** 2.)) * \
+                ridge += np.exp(- eta * (Raj ** 2.) / (Rc ** 2.)) * \
                     term1 * term2
     return ridge
 
@@ -801,18 +827,19 @@ def calculate_G4_prime(n_indices, symbols, Rs, G_elements, gamma, zeta, eta,
             cutofffn = cutoff['name']
             if cutofffn != 'Cosine':
                 raise NotImplementedError()
-            rc = cutoff['kwargs']['Rc']
+            Rc = cutoff['kwargs']['Rc']
             ridge = fmodules.calculate_g4_prime(n_indices=list(n_indices),
                                                 numbers=numbers, rs=Rs,
                                                 g_numbers=G_numbers,
                                                 g_gamma=gamma,
                                                 g_zeta=zeta, g_eta=eta,
-                                                cutoff=rc,
+                                                cutoff=Rc,
                                                 cutofffn=cutofffn,
                                                 aa=a,
                                                 home=Ra, mm=m,
                                                 ii=i)
     else:
+        Rc = cutoff['kwargs']['Rc']
         cutoff_fxn = dict2cutoff(cutoff)
         ridge = 0.
         counts = range(len(symbols))
@@ -837,21 +864,21 @@ def calculate_G4_prime(n_indices, symbols, Rs, G_elements, gamma, zeta, eta,
                 if zeta == 1:
                     term1 = \
                         np.exp(- eta * (Raj ** 2. + Rak ** 2. + Rjk ** 2.) /
-                               (cutoff ** 2.))
+                               (Rc ** 2.))
                 else:
                     term1 = c1 ** (zeta - 1.) * \
                         np.exp(- eta * (Raj ** 2. + Rak ** 2. + Rjk ** 2.) /
-                               (cutoff ** 2.))
+                               (Rc ** 2.))
                 term2 = c2 * c3 * c4
                 term3 = der_cos_theta(a, n_indices[j], n_indices[k], Ra, Rj,
                                       Rk, m, i)
                 term4 = gamma * zeta * term3
                 term5 = der_position(a, n_indices[j], Ra, Rj, m, i)
-                term4 += -2. * c1 * eta * Raj * term5 / (cutoff ** 2.)
+                term4 += -2. * c1 * eta * Raj * term5 / (Rc ** 2.)
                 term6 = der_position(a, n_indices[k], Ra, Rk, m, i)
-                term4 += -2. * c1 * eta * Rak * term6 / (cutoff ** 2.)
+                term4 += -2. * c1 * eta * Rak * term6 / (Rc ** 2.)
                 term7 = der_position(n_indices[j], n_indices[k], Rj, Rk, m, i)
-                term4 += -2. * c1 * eta * Rjk * term7 / (cutoff ** 2.)
+                term4 += -2. * c1 * eta * Rjk * term7 / (Rc ** 2.)
                 term2 = term2 * term4
                 term8 = cutoff_fxn.prime(Raj) * c3 * c4 * term5
                 term9 = c2 * cutoff_fxn.prime(Rak) * c4 * term6
