@@ -56,9 +56,8 @@ class Model(object):
         elif self.parameters.mode == 'atom-centered':
             selfindices = set([key[0] for key in fingerprintprimes.keys()])
             forces = np.zeros((len(selfindices), 3))
-            while len(fingerprintprimes) > 0:
-                (selfindex, selfsymbol, nindex, nsymbol, i), derafp = \
-                    fingerprintprimes.popitem()  # Reduce memory.
+            for (selfindex, selfsymbol, nindex, nsymbol, i), derafp in \
+                    fingerprintprimes.iteritems():
                 afp = fingerprints[nindex][1]
                 forces[selfindex][i] += \
                     self.get_atomic_force(afp=afp,
@@ -99,7 +98,7 @@ class LossFunction:
         # 'dict' creates a copy; otherwise mutable in class.
         p['convergence'] = dict(self.default_parameters['convergence'])
         if convergence is not None:
-            for key, value in convergence.items():
+            for key, value in convergence.iteritems():
                 p['convergence'][key] = value
         p['energy_coefficient'] = energy_coefficient
         p['force_coefficient'] = force_coefficient
@@ -131,7 +130,10 @@ class LossFunction:
         if self.fingerprints is None:
             self.fingerprints = \
                 self._model.trainingparameters.descriptor.fingerprints
-        if self.parameters.force_coefficient != 0.:  # ap: Is this a good place?
+        # FIXME: AKh: ap, should it decide whether or not to train forces based
+        # on the value of force_coefficient?
+        if ((self.parameters.force_coefficient != 0.) and
+                (self.fingerprintprimes is None)): 
             self.fingerprintprimes = \
                 self._model.trainingparameters.descriptor.fingerprintprimes
         if self.images is None:
@@ -243,8 +245,13 @@ class LossFunction:
             # Subdivide tasks.
             keys = make_sublists(self.images.keys(), len(processes))
 
-            results = self.process_parallels(parametervector, server,
-                                             processes, keys)
+            args = {'task': 'f', 'prime': prime}
+
+            results = self.process_parallels(parametervector,
+                                             server,
+                                             processes,
+                                             keys,
+                                             args=args)
             loss = results['loss']
             dloss_dparameters = results['dloss_dparameters']
             energy_loss = results['energy_loss']
@@ -275,7 +282,7 @@ class LossFunction:
                     'energy_maxresid': self.energy_maxresid,
                     'force_maxresid': self.force_maxresid, }
 
-    def fprime(self, parametervector, complete_output=False):
+    def fprime(self, parametervector, prime=True, complete_output=False):
         """Returns the current value of teh cost function for a given set of
         parameters, or, if the energy is less than the energy_tol raises a
         ConvergenceException.
@@ -300,8 +307,13 @@ class LossFunction:
                 # Subdivide tasks.
                 keys = make_sublists(self.images.keys(), len(processes))
 
-                results = self.process_parallels(parametervector, server,
-                                                 processes, keys)
+                args = {'task': 'fprime', 'prime': prime}
+
+                results = self.process_parallels(parametervector,
+                                                 server,
+                                                 processes,
+                                                 keys,
+                                                 args=args)
                 loss = results['loss']
                 dloss_dparameters = results['dloss_dparameters']
                 energy_loss = results['energy_loss']
@@ -314,7 +326,15 @@ class LossFunction:
                 loss, dloss_dparameters, energy_loss, force_loss, \
                 energy_maxresid, force_maxresid
 
-        return self.dloss_dparameters
+        if complete_output is False:
+            return self.dloss_dparameters
+        else:
+            return {'loss': self.loss,
+                    'dloss_dparameters': self.dloss_dparameters,
+                    'energy_loss': self.energy_loss,
+                    'force_loss': self.force_loss,
+                    'energy_maxresid': self.energy_maxresid,
+                    'force_maxresid': self.force_maxresid, }
 
     def calculate_loss(self, prime):
         """Method that calculates the loss, derivative of the loss with respect
@@ -414,7 +434,7 @@ class LossFunction:
     # d['subject']: what the message is asking for / telling you.
     # d['data']: optional data passed from worker.
 
-    def process_parallels(self, vector, server, processes, keys):
+    def process_parallels(self, vector, server, processes, keys, args):
         # For each process
         finished = np.array([False] * len(processes))
         results = {'loss': 0.,
@@ -443,6 +463,8 @@ class LossFunction:
                 elif request == 'fingerprintprimes':
                     server.send_pyobj({k: self.fingerprintprimes[k] for k in
                                        keys[int(message['id'])]})
+                elif request == 'args':
+                    server.send_pyobj(args)
                 elif request == 'parameters':
                     if finished[int(message['id'])]:
                         server.send_pyobj('<continue>')
@@ -453,6 +475,7 @@ class LossFunction:
             elif message['subject'] == '<result>':
                 result = message['data']
                 server.send_string('meaningless reply')
+
                 results['loss'] += result['loss']
                 results['dloss_dparameters'] += result['dloss_dparameters']
                 results['energy_loss'] += result['energy_loss']
@@ -539,6 +562,6 @@ def calculate_fingerprints_range(fp, images):
                             fprange[element][i][0] = ridge
                         elif ridge > fprange[element][i][1]:
                             fprange[element][i][1] = ridge
-    for key, value in fprange.items():
+    for key, value in fprange.iteritems():
         fprange[key] = np.array(value)
     return fprange

@@ -80,7 +80,16 @@ if purpose == 'calculate_loss_function':
             # or having a thread for each process?
             pass
         else:
-            output = lossfunction(parameters, complete_output=True)
+            socket.send_pyobj(msg('<request>', 'args'))
+            args = socket.recv_pyobj()
+            if args['task'] == 'f':
+                output = lossfunction.f(parameters,
+                                        prime=args['prime'],
+                                        complete_output=True)
+            elif args['task'] == 'fprime':
+                output = lossfunction.fprime(parameters,
+                                             prime=args['prime'],
+                                             complete_output=True)
             socket.send_pyobj(msg('<result>', output))
             socket.recv_string()
 

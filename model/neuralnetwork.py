@@ -155,7 +155,7 @@ class NeuralNetwork(Model):
         if p.mode == 'image-centered':
             log(' %s' % str(p.hiddenlayers))
         elif p.mode == 'atom-centered':
-            for item in p.hiddenlayers.items():
+            for item in p.hiddenlayers.iteritems():
                 log(' %2s: %s' % item)
 
         if p.weights is None:
@@ -177,14 +177,6 @@ class NeuralNetwork(Model):
                                                  p.fprange.keys())
         else:
             log('Initial scalings already present.')
-
-        # self.W dictionary initiated.
-        self.W = {}
-        for elm in p.weights.keys():
-            self.W[elm] = {}
-            weight = p.weights[elm]
-            for _ in xrange(len(weight)):
-                self.W[elm][_ + 1] = np.delete(weight[_ + 1], -1, 0)
 
         if only_setup:
             return
@@ -317,7 +309,15 @@ class NeuralNetwork(Model):
         :returns: list of float -- the value of the derivative of energy square
                                    error with respect to variables.
         """
-        scaling = self.parameters.scalings[symbol]
+        p = self.parameters
+        scaling = p.scalings[symbol]
+        # self.W dictionary initiated.
+        self.W = {}
+        for elm in p.weights.keys():
+            self.W[elm] = {}
+            weight = p.weights[elm]
+            for _ in xrange(len(weight)):
+                self.W[elm][_ + 1] = np.delete(weight[_ + 1], -1, 0)
         W = self.W[symbol]
 
         dEnergy_dParameters = np.zeros(self.ravel.count)
@@ -359,6 +359,13 @@ class NeuralNetwork(Model):
         p = self.parameters
         scaling = p.scalings[nsymbol]
         activation = p.activation
+        # self.W dictionary initiated.
+        self.W = {}
+        for elm in p.weights.keys():
+            self.W[elm] = {}
+            weight = p.weights[elm]
+            for _ in xrange(len(weight)):
+                self.W[elm][_ + 1] = np.delete(weight[_ + 1], -1, 0)
         W = self.W[nsymbol]
 
         dForce_dParameters = np.zeros(self.ravel.count)
@@ -769,9 +776,9 @@ def get_random_scalings(images, activation, elements=None):
     no_of_images = len(hashs)
 
     max_act_energy = max(image.get_potential_energy(apply_constraint=False)
-                         for hash, image in images.items())
+                         for hash, image in images.iteritems())
     min_act_energy = min(image.get_potential_energy(apply_constraint=False)
-                         for hash, image in images.items())
+                         for hash, image in images.iteritems())
 
     for count in xrange(no_of_images):
         hash = hashs[count]
