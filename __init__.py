@@ -194,10 +194,6 @@ class Amp(Calculator, object):
             self.descriptor.calculate_fingerprints(images=images,
                                                    log=log,
                                                    calculate_derivatives=True)
-            # for calculating forces, energies should be calculated first,
-            # at least for neural networks
-            energy = self.model.get_energy(self.descriptor.fingerprints[key])
-            self.results['energy'] = energy
             forces = \
                 self.model.get_forces(self.descriptor.fingerprints[key],
                                       self.descriptor.fingerprintprimes[key])
