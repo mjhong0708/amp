@@ -12,7 +12,6 @@ import numpy as np
 from collections import OrderedDict
 from ase import Atoms
 from ase.calculators.emt import EMT
-import os
 from amp import Amp
 from amp.descriptor.gaussian import Gaussian
 from amp.model.neuralnetwork import NeuralNetwork
@@ -28,16 +27,6 @@ convergence = {'energy_rmse': 10.**10.,
 
 
 def non_periodic_0th_bfgs_step_test():
-
-    pwd = os.getcwd()
-    os.mkdir(os.path.join(pwd, 'CuOPdbp'))
-    os.mkdir(os.path.join(pwd, '_CuOPdbp'))
-    os.mkdir(os.path.join(pwd, 'CuOPdbp/0'))
-    os.mkdir(os.path.join(pwd, '_CuOPdbp/0'))
-    os.mkdir(os.path.join(pwd, 'CuOPdbp/1'))
-    os.mkdir(os.path.join(pwd, '_CuOPdbp/1'))
-    os.mkdir(os.path.join(pwd, 'CuOPdbp/2'))
-    os.mkdir(os.path.join(pwd, '_CuOPdbp/2'))
 
     # Making the list of periodic image
 
@@ -147,9 +136,9 @@ def non_periodic_0th_bfgs_step_test():
 
     # Correct values
 
-    ref_loss = 7144.810783950215 / 5
-    ref_energyloss = (24.318837496017185 ** 2.)
-    ref_forceloss = (144.70282475062052 ** 2.)
+    ref_loss = 7144.810783950215
+    ref_energyloss = (24.318837496017185 ** 2.) * 5
+    ref_forceloss = (144.70282475062052 ** 2.) * 5
     ref_dloss_dparameters = np.array([0, 0, 0, 0, 0, 0, 0.01374139170953901,
                                       0.36318423812749656,
                                       0.028312691567496464,
@@ -172,15 +161,14 @@ def non_periodic_0th_bfgs_step_test():
                                       -8.02385959091948, -3.240512651984099,
                                       -27.289862194996896, -26.8177742762254,
                                       -82.45107056053345,
-                                      -80.6816768350809]) / 5
+                                      -80.6816768350809])
 
     # Testing pure-python and fortran versions of Gaussian-neural on different
     # number of processes
 
     for fortran in [False, True]:
-        for cores in range(1, 2):
-            string = 'CuOPdbp/0/%s-%i'
-            label = string % (fortran, cores)
+        for cores in range(1, 6):
+            label = 'train-nonperiodic/%s-%i' % (fortran, cores)
             print label
             calc = Amp(descriptor=Gaussian(cutoff=6.5,
                                            Gs=Gs,
@@ -191,6 +179,7 @@ def non_periodic_0th_bfgs_step_test():
                        scalings=scalings,
                        activation='sigmoid',),
                        label=label,
+                       dblabel=label,
                        cores=cores)
 
             lossfunction = LossFunction(convergence=convergence)
@@ -198,20 +187,20 @@ def non_periodic_0th_bfgs_step_test():
             calc.train(images=images,)
 
             assert (abs(calc.model.lossfunction.loss -
-                        ref_loss) < 10.**(-6.)), \
+                        ref_loss) < 10.**(-5.)), \
                 'The calculated value of loss function is wrong!'
 
             assert (abs(calc.model.lossfunction.energy_loss -
-                        ref_energyloss) < 10.**(-10.)), \
+                        ref_energyloss) < 10.**(-7.)), \
                 'The calculated value of energy per atom RMSE is wrong!'
 
             assert (abs(calc.model.lossfunction.force_loss -
-                        ref_forceloss) < 10 ** (-5)), \
+                        ref_forceloss) < 10 ** (-4)), \
                 'The calculated value of force RMSE is wrong!'
 
             for _ in range(len(ref_dloss_dparameters)):
                 assert(abs(calc.model.lossfunction.dloss_dparameters[_] -
-                           ref_dloss_dparameters[_]) < 10 ** (-10)), \
+                           ref_dloss_dparameters[_]) < 10 ** (-7)), \
                     "The calculated value of loss function derivative is \
                     'wrong!"
 
@@ -234,20 +223,20 @@ def non_periodic_0th_bfgs_step_test():
             calc.train(images=images,)
 
             assert (abs(calc.model.lossfunction.loss -
-                        ref_loss) < 10.**(-6.)), \
+                        ref_loss) < 10.**(-5.)), \
                 'The calculated value of loss function is wrong!'
 
             assert (abs(calc.model.lossfunction.energy_loss -
-                        ref_energyloss) < 10.**(-10.)), \
+                        ref_energyloss) < 10.**(-7.)), \
                 'The calculated value of energy per atom RMSE is wrong!'
 
             assert (abs(calc.model.lossfunction.force_loss -
-                        ref_forceloss) < 10 ** (-5)), \
+                        ref_forceloss) < 10 ** (-4)), \
                 'The calculated value of force RMSE is wrong!'
 
             for _ in range(len(ref_dloss_dparameters)):
                 assert(abs(calc.model.lossfunction.dloss_dparameters[_] -
-                           ref_dloss_dparameters[_]) < 10 ** (-10)), \
+                           ref_dloss_dparameters[_]) < 10 ** (-7)), \
                     'The calculated value of loss function derivative is \
                     wrong!'
 
@@ -333,9 +322,9 @@ def periodic_0th_bfgs_step_test():
 
     # Correct values
 
-    ref_loss = 8004.292841472513 / 3
-    ref_energyloss = (43.736001940333836 ** 2.)
-    ref_forceloss = (137.4099476110887 ** 2.)
+    ref_loss = 8004.292841472513
+    ref_energyloss = (43.736001940333836 ** 2.) * 3
+    ref_forceloss = (137.4099476110887 ** 2.) * 3
     ref_dloss_dparameters = np.array([0.0814166874813534, 0.03231235582927526,
                                       0.04388650395741291,
                                       0.017417514465933048,
@@ -354,19 +343,15 @@ def periodic_0th_bfgs_step_test():
                                       -29.378744559315365, -11.247473567051799,
                                       11.119951466671642, -87.08582317485761,
                                       -20.93948523898559, -125.73267675714658,
-                                      -35.13852440758523]) / 3
+                                      -35.13852440758523])
 
-    #
     # Testing pure-python and fortran versions of Gaussian-neural on different
     # number of processes
 
     for fortran in [False, True]:
-        for cores in range(1, 2):
-            string = 'CuOPdbp/2/%s-%i'
-            label = string % (fortran, cores)
-
+        for cores in range(1, 4):
+            label = 'train-periodic/%s-%i' % (fortran, cores)
             print label
-
             calc = Amp(descriptor=Gaussian(cutoff=4.,
                                            Gs=Gs,
                                            fortran=fortran,),
@@ -375,6 +360,7 @@ def periodic_0th_bfgs_step_test():
                                            scalings=scalings,
                                            activation='tanh'),
                        label=label,
+                       dblabel=label,
                        cores=cores)
 
             lossfunction = LossFunction(convergence=convergence)
@@ -382,20 +368,20 @@ def periodic_0th_bfgs_step_test():
             calc.train(images=images,)
 
             assert (abs(calc.model.lossfunction.loss -
-                        ref_loss) < 10.**(-6.)), \
+                        ref_loss) < 10.**(-4.)), \
                 'The calculated value of loss function is wrong!'
 
             assert (abs(calc.model.lossfunction.energy_loss -
-                        ref_energyloss) < 10.**(-8.)), \
+                        ref_energyloss) < 10.**(-5.)), \
                 'The calculated value of energy per atom RMSE is wrong!'
 
             assert (abs(calc.model.lossfunction.force_loss -
-                        ref_forceloss) < 10 ** (-6.)), \
+                        ref_forceloss) < 10 ** (-3.)), \
                 'The calculated value of force RMSE is wrong!'
 
             for _ in range(len(ref_dloss_dparameters)):
                 assert(abs(calc.model.lossfunction.dloss_dparameters[_] -
-                           ref_dloss_dparameters[_]) < 10 ** (-9.)), \
+                           ref_dloss_dparameters[_]) < 10 ** (-4.)), \
                     'The calculated value of loss function derivative is \
                     wrong!'
 
@@ -418,20 +404,20 @@ def periodic_0th_bfgs_step_test():
             calc.train(images=images,)
 
             assert (abs(calc.model.lossfunction.loss -
-                        ref_loss) < 10.**(-6.)), \
+                        ref_loss) < 10.**(-4.)), \
                 'The calculated value of loss function is wrong!'
 
             assert (abs(calc.model.lossfunction.energy_loss -
-                        ref_energyloss) < 10.**(-8.)), \
+                        ref_energyloss) < 10.**(-5.)), \
                 'The calculated value of energy per atom RMSE is wrong!'
 
             assert (abs(calc.model.lossfunction.force_loss -
-                        ref_forceloss) < 10 ** (-6.)), \
+                        ref_forceloss) < 10 ** (-3.)), \
                 'The calculated value of force RMSE is wrong!'
 
             for _ in range(len(ref_dloss_dparameters)):
                 assert(abs(calc.model.lossfunction.dloss_dparameters[_] -
-                           ref_dloss_dparameters[_]) < 10 ** (-9.)), \
+                           ref_dloss_dparameters[_]) < 10 ** (-4.)), \
                     'The calculated value of loss function derivative is \
                     wrong!'
 

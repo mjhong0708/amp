@@ -6,8 +6,6 @@ by the code with and without fortran modules.
 
 """
 
-###############################################################################
-
 import numpy as np
 from ase import Atoms
 from collections import OrderedDict
@@ -15,15 +13,12 @@ from amp import Amp
 from amp.descriptor.gaussian import Gaussian
 from amp.model.neuralnetwork import NeuralNetwork
 
-###############################################################################
 # The test function for non-periodic systems
 
 
 def non_periodic_test():
 
-    ###########################################################################
     # Making the list of non-periodic images
-
     images = [Atoms(symbols='PdOPd2',
                     pbc=np.array([False, False, False], dtype=bool),
                     cell=np.array(
@@ -74,14 +69,11 @@ def non_periodic_test():
                     positions=np.array(
                         [[0.,  0.,  0.]]))]
 
-    ###########################################################################
     # Correct energies and forces
-
-    correct_predicted_energies = [14.231186811226152, 14.327219917287948,
-                                  5.5742510565528285, 9.41456771216968,
-                                  -0.5019297954597407]
-
-    correct_predicted_forces = \
+    correct_energies = [14.231186811226152, 14.327219917287948,
+                        5.5742510565528285, 9.41456771216968,
+                        -0.5019297954597407]
+    correct_forces = \
         [[[-0.05095024246182649, -0.10709193432146558, -0.09734321482638622],
           [-0.044550772904033635, 0.2469763195486647, -0.07617425912869778],
             [-0.02352490951707703, -0.050782839419131864, 0.24409220250631508],
@@ -102,9 +94,7 @@ def non_periodic_test():
               -0.006767149560032641]],
             [[0.0, 0.0, 0.0]]]
 
-    ###########################################################################
     # Parameters
-
     Gs = {'O': [{'type': 'G2', 'element': 'Pd', 'eta': 0.8},
                 {'type': 'G4', 'elements': [
                     'Pd', 'Pd'], 'eta':0.2, 'gamma':0.3, 'zeta':1},
@@ -161,53 +151,50 @@ def non_periodic_test():
                                           [0.0, 0.28464992134267897],
                                           [0.0, 0.20167521020630502]])}
 
-    ###########################################################################
     # Testing pure-python and fortran versions of Gaussian-neural force call
+    for fortran in [False, True]:
+        for cores in range(1, 6):
+            label = 'call-nonperiodic/%s-%i' % (fortran, cores)
+            calc = Amp(descriptor=Gaussian(cutoff=6.5,
+                                           Gs=Gs,
+                                           fortran=fortran),
+                       model=NeuralNetwork(hiddenlayers=hiddenlayers,
+                                           weights=weights,
+                                           scalings=scalings,
+                                           activation='sigmoid',
+                                           fprange=fingerprints_range,
+                                           mode='atom-centered'),
+                       label=label,
+                       dblabel=label,
+                       cores=cores)
 
-    for fortran in [False, ]:
+            predicted_energies = [calc.get_potential_energy(image) for image in
+                                  images]
 
-        calc = Amp(descriptor=Gaussian(cutoff=6.5,
-                                       Gs=Gs,
-                                       fortran=fortran),
-                   model=NeuralNetwork(hiddenlayers=hiddenlayers,
-                                       weights=weights,
-                                       scalings=scalings,
-                                       activation='sigmoid',
-                                       fprange=fingerprints_range,
-                                       mode='atom-centered'),
-                   cores=1)
+            for image_no in range(len(predicted_energies)):
+                assert (abs(predicted_energies[image_no] -
+                        correct_energies[image_no]) < 10.**(-15.)), \
+                    'The predicted energy of image %i is wrong!' % (
+                        image_no + 1)
 
-        predicted_energies = [calc.get_potential_energy(image) for image in
-                              images]
+            predicted_forces = [calc.get_forces(image) for image in images]
 
-        for image_no in range(len(predicted_energies)):
-            assert (abs(predicted_energies[image_no] -
-                        correct_predicted_energies[image_no]) < 10.**(-15.)), \
-                'The predicted energy of image %i is wrong!' % (image_no + 1)
-
-        predicted_forces = [calc.get_forces(image) for image in images]
-
-        for image_no in range(len(predicted_forces)):
-            for index in range(np.shape(predicted_forces[image_no])[0]):
-                for direction in range(
-                        np.shape(predicted_forces[image_no])[1]):
-                    assert (abs(predicted_forces[image_no][index][direction] -
-                                correct_predicted_forces[image_no][index]
+            for image_no in range(len(predicted_forces)):
+                for index in range(np.shape(predicted_forces[image_no])[0]):
+                    for direction in range(
+                            np.shape(predicted_forces[image_no])[1]):
+                        assert (abs(predicted_forces[image_no][index][
+                                    direction] -
+                                correct_forces[image_no][index]
                                 [direction]) < 10.**(-15.)), \
-                        'The predicted %i force of atom %i of image %i is' \
-                        'wrong!' % (direction, index, image_no + 1)
+                            'The predicted %i force of atom %i of image %i ' \
+                            'is wrong!' % (direction, index, image_no + 1)
 
 
-###############################################################################
-###############################################################################
 # The test function for periodic systems
-
-
 def periodic_test():
 
-    ###########################################################################
     # Making the list of periodic images
-
     images = [Atoms(symbols='PdOPd',
                     pbc=np.array([True, False, False], dtype=bool),
                     cell=np.array(
@@ -236,13 +223,10 @@ def periodic_test():
                     positions=np.array(
                         [[0.,  0., 0.]]))]
 
-    ###########################################################################
     # Correct energies and forces
-
-    correct_predicted_energies = [3.8560954326995978, 1.6120748520627273,
-                                  0.19433107801410093]
-
-    correct_predicted_forces = \
+    correct_energies = [3.8560954326995978, 1.6120748520627273,
+                        0.19433107801410093]
+    correct_forces = \
         [[[0.14747720528015523, -3.3010645563584973, 3.3008168318984463],
           [0.03333579762326405, 9.050780376599887, -0.42608278400777605],
             [-0.1808130029034193, -5.7497158202413905, -2.8747340478906698]],
@@ -254,9 +238,7 @@ def periodic_test():
               -0.00010834689201069249]],
             [[0.0, 0.0, 0.0]]]
 
-    ###########################################################################
     # Parameters
-
     Gs = {'O': [{'type': 'G2', 'element': 'Pd', 'eta': 0.8},
                 {'type': 'G4', 'elements': ['O', 'Pd'], 'eta':0.3, 'gamma':0.6,
                  'zeta':0.5}],
@@ -308,43 +290,46 @@ def periodic_test():
                                           [0.27127576524253594,
                                            0.5898312261433813]])}
 
-    ###########################################################################
     # Testing pure-python and fortran versions of Gaussian-neural force call
+    for fortran in [False, True]:
+        for cores in range(1, 4):
+            label = 'call-periodic/%s-%i' % (fortran, cores)
+            calc = Amp(descriptor=Gaussian(cutoff=4.,
+                                           Gs=Gs,
+                                           fortran=fortran),
+                       model=NeuralNetwork(hiddenlayers=hiddenlayers,
+                                           weights=weights,
+                                           scalings=scalings,
+                                           activation='tanh',
+                                           fprange=fingerprints_range,
+                                           mode='atom-centered'),
+                       label=label,
+                       dblabel=label,
+                       cores=cores)
 
-    for fortran in [False, ]:
+            predicted_energies = [calc.get_potential_energy(image) for image in
+                                  images]
 
-        calc = Amp(descriptor=Gaussian(cutoff=4.,
-                                       Gs=Gs,
-                                       fortran=fortran),
-                   model=NeuralNetwork(hiddenlayers=hiddenlayers,
-                                       weights=weights,
-                                       scalings=scalings,
-                                       activation='tanh',
-                                       fprange=fingerprints_range,
-                                       mode='atom-centered'),
-                   cores=1)
+            for image_no in range(len(predicted_energies)):
+                assert (abs(predicted_energies[image_no] -
+                        correct_energies[image_no]) < 10.**(-14.)), \
+                    'The predicted energy of image %i is wrong!' % (
+                        image_no + 1)
 
-        predicted_energies = [calc.get_potential_energy(image) for image in
-                              images]
+            predicted_forces = [calc.get_forces(image) for image in images]
 
-        for image_no in range(len(predicted_energies)):
-            assert (abs(predicted_energies[image_no] -
-                        correct_predicted_energies[image_no]) < 10.**(-14.)), \
-                'The predicted energy of image %i is wrong!' % (image_no + 1)
-
-        predicted_forces = [calc.get_forces(image) for image in images]
-
-        for image_no in range(len(predicted_forces)):
-            for index in range(np.shape(predicted_forces[image_no])[0]):
-                for direction in range(
-                        np.shape(predicted_forces[image_no])[1]):
-                    assert (abs(predicted_forces[image_no][index][direction] -
-                                correct_predicted_forces[image_no][index]
-                                [direction]) < 10.**(-11.)), \
-                        'The predicted %i force of atom %i of image %i is' \
-                        'wrong!' % (direction, index, image_no + 1)
-
-    ###########################################################################
+            for image_no in range(len(predicted_forces)):
+                for index in range(np.shape(predicted_forces[image_no])[0]):
+                    for direction in range(
+                            np.shape(predicted_forces[image_no])[1]):
+                            assert (abs(predicted_forces[image_no][index][
+                                        direction] -
+                                        correct_forces[image_no][index]
+                                        [direction]) < 10.**(-11.)), \
+                                'The predicted %i force of atom %i of image' \
+                                ' %i is wrong!' % (direction,
+                                                   index,
+                                                   image_no + 1)
 
 if __name__ == '__main__':
     non_periodic_test()

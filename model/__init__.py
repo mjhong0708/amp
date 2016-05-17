@@ -133,7 +133,7 @@ class LossFunction:
         # FIXME: AKh: ap, should it decide whether or not to train forces based
         # on the value of force_coefficient?
         if ((self.parameters.force_coefficient != 0.) and
-                (self.fingerprintprimes is None)): 
+                (self.fingerprintprimes is None)):
             self.fingerprintprimes = \
                 self._model.trainingparameters.descriptor.fingerprintprimes
         if self.images is None:
@@ -419,11 +419,8 @@ class LossFunction:
                                 temp \
                                 / no_of_atoms
 
-        energyloss = energyloss / len(self.images)
-        forceloss = forceloss / len(self.images)
         loss = p.energy_coefficient * energyloss + \
             p.force_coefficient * forceloss
-        dloss_dparameters = dloss_dparameters / len(self.images)
         dloss_dparameters = np.array(dloss_dparameters)
 
         return loss, dloss_dparameters, energyloss, forceloss, \
