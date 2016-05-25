@@ -69,7 +69,7 @@ class NeuralNetwork(Model):
 
     def __init__(self, hiddenlayers=(5, 5), activation='tanh', weights=None,
                  scalings=None, fprange=None, regressor=None, mode=None,
-                 lossfunction=None, version=None):
+                 lossfunction=None, version=None, fortran=True):
 
         # Version check, particularly if restarting.
         compatibleversions = ['2015.12', ]
@@ -104,6 +104,7 @@ class NeuralNetwork(Model):
         self.regressor = regressor
         self.parent = None  # Can hold a reference to main Amp instance.
         self.lossfunction = lossfunction
+        self.fortran = fortran
 
     def fit(self,
             trainingimages,
@@ -112,7 +113,6 @@ class NeuralNetwork(Model):
             cores,
             only_setup=False,
             ):
-
         """Fit the model parameters such that the fingerprints can be used to
         describe the energies in trainingimages. log is the logging object.
         descriptor is a descriptor object, as would be in calc.descriptor.
@@ -535,37 +535,39 @@ def calculate_dOutputs_dInputs(parameters, derafp, outputs, nsymbol,):
         if (fprange[_, 1] - fprange[_, 0]) > (10.**(-8.)):
             _derafp[_] = 2.0 * (_derafp[_] / (fprange[_, 1] - fprange[_, 0]))
 
-    der_o = {}  # node values
-    der_o[0] = _derafp
+    dOutputs_dInputs = {}  # node values
+    dOutputs_dInputs[0] = _derafp
     layer = 0  # input layer
     for hiddenlayer in hiddenlayers[0:]:
         layer += 1
-        temp = np.dot(np.matrix(der_o[layer - 1]),
+        temp = np.dot(np.matrix(dOutputs_dInputs[layer - 1]),
                       np.delete(weight[layer], -1, 0))
-        der_o[layer] = [None] * np.size(outputs[layer])
+        dOutputs_dInputs[layer] = [None] * np.size(outputs[layer])
         bound = np.size(outputs[layer])
         for j in xrange(bound):
             if activation == 'linear':  # linear function
-                der_o[layer][j] = float(temp[0, j])
+                dOutputs_dInputs[layer][j] = float(temp[0, j])
             elif activation == 'sigmoid':  # sigmoid function
-                der_o[layer][j] = float(temp[0, j]) * \
+                dOutputs_dInputs[layer][j] = float(temp[0, j]) * \
                     float(outputs[layer][0, j] * (1. - outputs[layer][0, j]))
             elif activation == 'tanh':  # tanh function
-                der_o[layer][j] = float(temp[0, j]) * \
+                dOutputs_dInputs[layer][j] = float(temp[0, j]) * \
                     float(1. - outputs[layer][0, j] * outputs[layer][0, j])
     layer += 1  # output layer
-    temp = np.dot(np.matrix(der_o[layer - 1]),
+    temp = np.dot(np.matrix(dOutputs_dInputs[layer - 1]),
                   np.delete(weight[layer], -1, 0))
     if activation == 'linear':  # linear function
-        der_o[layer] = float(temp)
+        dOutputs_dInputs[layer] = float(temp)
     elif activation == 'sigmoid':  # sigmoid function
-        der_o[layer] = float(outputs[layer] * (1. - outputs[layer]) * temp)
+        dOutputs_dInputs[layer] = \
+            float(outputs[layer] * (1. - outputs[layer]) * temp)
     elif activation == 'tanh':  # tanh function
-        der_o[layer] = float((1. - outputs[layer] * outputs[layer]) * temp)
+        dOutputs_dInputs[layer] = \
+            float((1. - outputs[layer] * outputs[layer]) * temp)
 
-    der_o[layer] = [der_o[layer]]
+    dOutputs_dInputs[layer] = [dOutputs_dInputs[layer]]
 
-    return der_o
+    return dOutputs_dInputs
 
 
 def calculate_ohat_D_delta(parameters, outputs, W):
@@ -909,11 +911,11 @@ class Raveler:
             count += 1
         return weights, scalings
 
-
 # Analysis tools ##############################################################
 
 
 class NodePlot:
+
     """Creates plots to visualize the output of the nodes in the neural
     networks.
 
