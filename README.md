@@ -1,6 +1,6 @@
 # Amp: Atomistic Machine-learning Potentials#
 
-**The development code in `master` is designed to be more modular (which was the original intent of splitting Amp from Neural), and to allow easier integration with approaches like that of TensorFlow. Some features, like parallelization and backpropagation, are still being fully implemented in this branch. For the latest stable version, see v0.4.**
+**The development code in `master` is designed to be more modular (which was the original intent of splitting Amp from Neural), and to allow easier integration with approaches like that of TensorFlow. Some features, like parallelization and backpropagation, are still being fully implemented in this branch. For the latest stable version, see v0.4.1.**
 
 
 Developed by Andrew Peterson & Alireza Khorshidi, Brown University School of Engineering. *Amp* allows for the modular representation of the potential energy surface with descriptor and regression methods of choice for the user.
@@ -45,28 +45,28 @@ gfortran will also be used by f2py to generate extension module
 fmodules.so on Linux or fmodules.pyd on Windows. In order to
 prepare the extension module the following steps need to be taken:
 
-1- Compile regression Fortran subroutines inside the regression
+1- Compile model Fortran subroutines inside the model
 folder by:
 
-$ cd ~/path/to/my/codes/regression
+$ cd ~/path/to/my/codes/model
 
 $ gfortran -c neuralnetwork.f90
 
-2- Move the module ``regression.mod'' created in the last step, to the parent directory
+2- Move the module ``neuralnetwork.mod'' created in the last step, to the parent directory
 by:
 
-$ mv regression.mod ../
+$ mv neuralnetwork.mod ../
 
-3- Go back to the parent directory and compile the main Fortran subroutines in companion with the descriptor and regression subroutines
+3- Go back to the parent directory and compile the model Fortran subroutines in companion with the descriptor and neuralnetwork subroutines
 by something like:
 
 $ cd ../
 
-$ f2py -c -m fmodules main.f90 descriptor/gaussian.f90 regression/neuralnetwork.f90
+$ f2py -c -m fmodules model.f90 descriptor/gaussian.f90 model/neuralnetwork.f90
 
 or on a Windows machine by:
 
-$ f2py -c -m fmodules main.f90 descriptor/gaussian.f90 regression/neuralnetwork.f90 --fcompiler=gnu95 --compiler=mingw32
+$ f2py -c -m fmodules model.f90 descriptor/gaussian.f90 model/neuralnetwork.f90 --fcompiler=gnu95 --compiler=mingw32
 
 If the version of fmodules.f90 is not updated, an exception
 will be raised which tells user which version number should be
