@@ -638,7 +638,7 @@ class LossFunction:
         energy_rmse_converged = True
         log = self._model.log
         if p.convergence['energy_rmse'] is not None:
-            energy_rmse = np.sqrt(energy_loss)
+            energy_rmse = np.sqrt(energy_loss / len(self.images))
             if energy_rmse > p.convergence['energy_rmse']:
                 energy_rmse_converged = False
         energy_maxresid_converged = True
@@ -648,7 +648,7 @@ class LossFunction:
         if self.parameters.force_coefficient != 0.:
             force_rmse_converged = True
             if p.convergence['force_rmse'] is not None:
-                force_rmse = np.sqrt(force_loss)
+                force_rmse = np.sqrt(force_loss / len(self.images))
                 if force_rmse > p.convergence['force_rmse']:
                     force_rmse_converged = False
             force_maxresid_converged = True
