@@ -254,6 +254,8 @@ class NeuralNetwork(Model):
 
         :returns: float -- energy
         """
+        assert self.parameters.mode == 'atom-centered', \
+            'get_atomic_energy should only be called in atom-centered mode.'
 
         scaling = self.parameters.scalings[symbol]
         outputs = calculate_nodal_outputs(self.parameters, afp, symbol,)
