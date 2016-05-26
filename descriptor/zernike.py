@@ -307,7 +307,8 @@ class FingerprintCalculator:
                             else:
                                 # Alternative ways to calculate Z_nlm
 #                                Z_nlm = self.globals.Gs[symbol][n_symbol] * \
-#                                    calculate_Z(n, l, m, x, y, z, self.factorial) * \
+#                                    calculate_Z(n, l, m, x, y, z,
+#                                                self.factorial) * \
 #                                    cutoff_fxn(rho * cutoff)
 #                                Z_nlm = self.globals.Gs[symbol][n_symbol] * \
 #                                    calculate_Z2(n, l, m, x, y, z) * \
@@ -396,7 +397,7 @@ class FingerprintPrimeCalculator:
                       in zip(nneighborindices,
                              nneighboroffsets)]
 
-                der_indexfp = self.get_fingerprint_prime(
+                der_indexfp = self.get_fingerprintprime(
                     selfindex, selfsymbol,
                     nneighborindices,
                     nneighborsymbols,
@@ -413,7 +414,7 @@ class FingerprintPrimeCalculator:
                             selfneighboroffsets):
                     # for calculating forces, summation runs over neighbor
                     # atoms of type II (within the main cell only)
-                    if noffset[0] == 0 and noffset[1] == 0 and noffset[2] == 0:
+                    if noffset.all() == 0:
                         nneighborindices, nneighboroffsets = nl[nindex]
                         nneighborsymbols = \
                             [image[_].symbol for _ in nneighborindices]
@@ -427,7 +428,7 @@ class FingerprintPrimeCalculator:
                         # for calculating derivatives of fingerprints,
                         # summation runs over neighboring atoms of type
                         # I (either inside or outside the main cell)
-                        der_indexfp = self.get_fingerprint_prime(
+                        der_indexfp = self.get_fingerprintprime(
                             nindex, nsymbol,
                             nneighborindices,
                             nneighborsymbols,
@@ -439,8 +440,8 @@ class FingerprintPrimeCalculator:
 
         return fingerprintprimes
 
-    def get_fingerprint_prime(self, index, symbol, n_indices, n_symbols, Rs,
-                              p, q):
+    def get_fingerprintprime(self, index, symbol, n_indices, n_symbols, Rs,
+                             p, q):
         """
         Returns the value of the derivative of G for atom with index and
         symbol with respect to coordinate x_{i} of atom index m. n_indices,

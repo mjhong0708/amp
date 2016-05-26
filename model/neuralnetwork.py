@@ -263,9 +263,9 @@ class NeuralNetwork(Model):
 
         return atomic_amp_energy
 
-    def get_atomic_force(self, afp, derafp,
-                         direction,
-                         nindex=None, nsymbol=None,):
+    def get_force(self, afp, derafp,
+                  direction,
+                  nindex=None, nsymbol=None,):
         """
         Given derivative of input to the neural network, derivative of output
         (which corresponds to forces) is calculated.

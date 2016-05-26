@@ -64,11 +64,11 @@ class Model(object):
                     fingerprintprimes.iteritems():
                 afp = fingerprints[nindex][1]
                 forces[selfindex][i] += \
-                    self.get_atomic_force(afp=afp,
-                                          derafp=derafp,
-                                          nindex=nindex,
-                                          nsymbol=nsymbol,
-                                          direction=i,)
+                    self.get_force(afp=afp,
+                                   derafp=derafp,
+                                   nindex=nindex,
+                                   nsymbol=nsymbol,
+                                   direction=i,)
             return forces
 
 
