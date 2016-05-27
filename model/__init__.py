@@ -63,12 +63,12 @@ class Model(object):
             for (selfindex, selfsymbol, nindex, nsymbol, i), derafp in \
                     fingerprintprimes.iteritems():
                 afp = fingerprints[nindex][1]
-                forces[selfindex][i] += \
-                    self.get_force(afp=afp,
-                                   derafp=derafp,
-                                   nindex=nindex,
-                                   nsymbol=nsymbol,
-                                   direction=i,)
+                dforce = self.get_force(afp=afp,
+                                        derafp=derafp,
+                                        nindex=nindex,
+                                        nsymbol=nsymbol,
+                                        direction=i,)
+                forces[selfindex][i] += dforce
             return forces
 
 
@@ -785,7 +785,9 @@ def ravel_data(train_forces,
                         selfneighborsymbols = []
                         for key, derafp in fingerprintprimes[hash].iteritems():
                             # key = (selfindex, selfsymbol, nindex, nsymbol, i)
-                            if key[0] == selfindex:
+                            # i runs from 0 to 2. neighbor indices and symbols
+                            # should be added just once.
+                            if key[0] == selfindex and key[4] == 0:
                                 selfneighborindices += [key[2]]
                                 selfneighborsymbols += [key[3]]
 
@@ -865,7 +867,7 @@ def send_data_to_fortran(_fmodules,
 
     if fingerprinting:
         fprange = model.parameters.fprange
-        elements = fprange.keys()
+        elements = sorted(fprange.keys())
         num_elements = len(elements)
         elements_numbers = [an[elm] for elm in elements]
         min_fingerprints = \
@@ -887,11 +889,11 @@ def send_data_to_fortran(_fmodules,
             _fmodules.images_props.raveled_neighborlists = \
                 raveled_neighborlists
 
-        _fmodules.fingerprint_props.min_fingerprints = min_fingerprints
-        _fmodules.fingerprint_props.max_fingerprints = max_fingerprints
         _fmodules.fingerprint_props.num_fingerprints_of_elements = \
             num_fingerprints_of_elements
         _fmodules.fingerprint_props.raveled_fingerprints = raveled_fingerprints
+        _fmodules.neuralnetwork.min_fingerprints = min_fingerprints
+        _fmodules.neuralnetwork.max_fingerprints = max_fingerprints
         if train_forces:
             _fmodules.fingerprint_props.raveled_fingerprintprimes = \
                 raveled_fingerprintprimes

@@ -163,7 +163,8 @@ def non_periodic_test():
                                            scalings=scalings,
                                            activation='sigmoid',
                                            fprange=fingerprints_range,
-                                           mode='atom-centered'),
+                                           mode='atom-centered',
+                                           fortran=fortran),
                        label=label,
                        dblabel=label,
                        cores=cores)
@@ -302,7 +303,8 @@ def periodic_test():
                                            scalings=scalings,
                                            activation='tanh',
                                            fprange=fingerprints_range,
-                                           mode='atom-centered'),
+                                           mode='atom-centered',
+                                           fortran=fortran),
                        label=label,
                        dblabel=label,
                        cores=cores)

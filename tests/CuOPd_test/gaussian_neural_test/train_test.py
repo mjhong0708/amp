@@ -173,11 +173,11 @@ def non_periodic_0th_bfgs_step_test():
             calc = Amp(descriptor=Gaussian(cutoff=6.5,
                                            Gs=Gs,
                                            fortran=fortran,),
-                       model=NeuralNetwork(
-                       hiddenlayers=hiddenlayers,
-                       weights=weights,
-                       scalings=scalings,
-                       activation='sigmoid',),
+                       model=NeuralNetwork(hiddenlayers=hiddenlayers,
+                                           weights=weights,
+                                           scalings=scalings,
+                                           activation='sigmoid',
+                                           fortran=fortran,),
                        label=label,
                        dblabel=label,
                        cores=cores)
@@ -213,7 +213,8 @@ def non_periodic_0th_bfgs_step_test():
                        model=NeuralNetwork(hiddenlayers=hiddenlayers,
                                            weights=weights,
                                            scalings=scalings,
-                                           activation='sigmoid'),
+                                           activation='sigmoid',
+                                           fortran=fortran,),
                        label=secondlabel,
                        dblabel=dblabel,
                        cores=cores)
@@ -358,7 +359,8 @@ def periodic_0th_bfgs_step_test():
                        model=NeuralNetwork(hiddenlayers=hiddenlayers,
                                            weights=weights,
                                            scalings=scalings,
-                                           activation='tanh'),
+                                           activation='tanh',
+                                           fortran=fortran,),
                        label=label,
                        dblabel=label,
                        cores=cores)
@@ -394,7 +396,8 @@ def periodic_0th_bfgs_step_test():
                        model=NeuralNetwork(hiddenlayers=hiddenlayers,
                                            weights=weights,
                                            scalings=scalings,
-                                           activation='tanh',),
+                                           activation='tanh',
+                                           fortran=fortran,),
                        label=secondlabel,
                        dblabel=dblabel,
                        cores=cores)

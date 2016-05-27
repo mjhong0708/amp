@@ -21,9 +21,7 @@
 !     by python)
       module fingerprint_props
       implicit none
-
-      double precision, allocatable::min_fingerprints(:, :)
-      double precision, allocatable::max_fingerprints(:, :) 
+ 
       integer, allocatable:: num_fingerprints_of_elements(:)     
       double precision, allocatable:: raveled_fingerprints(:, :)
       double precision, allocatable:: raveled_fingerprintprimes(:, :)
@@ -130,8 +128,8 @@
       unraveled_fingerprints(:)
       type(integer_one_d_array), allocatable:: &
       unraveled_atomic_numbers(:)
-      double precision:: amp_energy, actual_energy, atomic_amp_energy
-      double precision:: residual_per_atom, force, temp
+      double precision:: amp_energy, actual_energy, atom_energy
+      double precision:: residual_per_atom, dforce, temp
       integer:: i, index, j, p, k, q, l, m, &
       len_of_fingerprint, symbol, element, image_no, num_inputs
       double precision:: partial_dloss_dparameters(num_parameters)
@@ -164,7 +162,6 @@
         allocate(unraveled_fingerprintprimes(num_images))
         call unravel_atomic_numbers()
         call unravel_fingerprints()
-        call scale_fingerprints()
       end if
       if (train_forces .eqv. .true.) then
            allocate(unraveled_actual_forces(num_images))
@@ -172,7 +169,6 @@
           if (fingerprinting .eqv. .true.) then
               call unravel_neighborlists()
               call unravel_fingerprintprimes()
-              call scale_fingerprintprimes()
           end if
       end if
 
@@ -215,11 +211,12 @@
                     unraveled_fingerprints(&
                     image_no)%onedarray(index)%onedarray(p)
                 end do
-                atomic_amp_energy = get_atomic_energy(symbol, &
+
+                atom_energy = get_atomic_energy(symbol, &
                 len_of_fingerprint, fingerprint, num_elements, &
                 elements_numbers, num_parameters, parameters)
                 deallocate(fingerprint)
-                amp_energy = amp_energy + atomic_amp_energy
+                amp_energy = amp_energy + atom_energy
             end do
         end if
 
@@ -337,14 +334,13 @@
                                 image_no)%onedarray(&
                                 nindex)%onedarray(p)
                             end do
-                            force = get_force(nsymbol, &
+                            dforce = get_force(nsymbol, &
                             len_of_fingerprint, fingerprint, &
                             fingerprintprime, &
                             num_elements, elements_numbers, &
-                            num_fingerprints_of_elements, &
                             num_parameters, parameters)
                             amp_forces(selfindex, i) = &
-                            amp_forces(selfindex, i) + force
+                            amp_forces(selfindex, i) + dforce
                             deallocate(fingerprint)
                             deallocate(fingerprintprime)
                         end do
@@ -412,7 +408,6 @@
                                 len_of_fingerprint, fingerprint, &
                                 fingerprintprime, num_elements, &
                                 elements_numbers, &
-                                num_fingerprints_of_elements, &
                                 num_parameters, parameters)
                                 deallocate(fingerprint)
                                 deallocate(fingerprintprime)
@@ -620,39 +615,6 @@
       end do
       
       end subroutine unravel_fingerprints
-      
- !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-      subroutine scale_fingerprints()
-
-      do image_no = 1, num_images
-        do index = 1, size(unraveled_fingerprints(&
-        image_no)%onedarray)
-            do element = 1, num_elements
-                if (unraveled_atomic_numbers(&
-                image_no)%onedarray(index)== &
-                elements_numbers(element)) then
-                    exit
-                end if
-            end do    
-            do l = 1, num_fingerprints_of_elements(element)
-                if ((max_fingerprints(element, l) - &
-                min_fingerprints(element, l)) .GT. &
-                (10.0d0 ** (-8.0d0))) then
-                    temp = unraveled_fingerprints(&
-                    image_no)%onedarray(index)%onedarray(l)
-                    temp = -1.0d0 + 2.0d0 * &
-                    (temp - min_fingerprints(element, l)) / &
-                    (max_fingerprints(element, l) - &
-                    min_fingerprints(element, l))
-                    unraveled_fingerprints(&
-                    image_no)%onedarray(index)%onedarray(l) = temp
-                endif
-            end do
-        end do
-      end do
-      
-      end subroutine scale_fingerprints
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -707,54 +669,6 @@
       end do
       
       end subroutine unravel_fingerprintprimes
-
- !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-      subroutine scale_fingerprintprimes()
-
-      do image_no = 1, num_images
-        do selfindex = 1, size(unraveled_fingerprintprimes(&
-        image_no)%onedarray)
-            allocate(neighborindices(size(&
-            unraveled_neighborlists(image_no)%onedarray(&
-            selfindex)%onedarray)))
-            do p = 1, size(unraveled_neighborlists(image_no)%onedarray(&
-            selfindex)%onedarray)
-                neighborindices(p) = unraveled_neighborlists(&
-                image_no)%onedarray(selfindex)%onedarray(p)
-            end do
-            do nindex = 1, size(neighborindices)
-                do nsymbol = 1, num_elements
-                if (unraveled_atomic_numbers(&
-                image_no)%onedarray(neighborindices(nindex)) == &
-                elements_numbers(nsymbol)) then
-                    exit
-                end if
-                end do
-                do p = 1, 3
-                    do q = 1, num_fingerprints_of_elements(nsymbol)
-                        if ((max_fingerprints(nsymbol, q) - &
-                        min_fingerprints(nsymbol, q)) .GT. &
-                        (10.0d0 ** (-8.0d0))) then
-                            temp = &
-                            unraveled_fingerprintprimes(&
-                            image_no)%onedarray(selfindex)%onedarray(&
-                            nindex)%twodarray(p, q)
-                            temp = 2.0d0 * temp / &
-                            (max_fingerprints(nsymbol, q) - &
-                            min_fingerprints(nsymbol, q))
-                            unraveled_fingerprintprimes(&
-                            image_no)%onedarray(selfindex)%onedarray(&
-                            nindex)%twodarray(p, q) = temp
-                        endif
-                    end do
-                end do
-            end do
-            deallocate(neighborindices)
-        end do
-      end do
-
-      end subroutine scale_fingerprintprimes
  
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       
@@ -775,12 +689,6 @@
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !     deallocating fingerprint_props
-      if (allocated(min_fingerprints) .eqv. .true.) then
-        deallocate(min_fingerprints)
-      end if
-      if (allocated(max_fingerprints) .eqv. .true.) then
-        deallocate(max_fingerprints)
-      end if
       if (allocated(num_fingerprints_of_elements) .eqv. .true.) then
         deallocate(num_fingerprints_of_elements)
       end if
@@ -818,6 +726,12 @@
       end if
 
 !     deallocating neuralnetwork
+      if (allocated(min_fingerprints) .eqv. .true.) then
+        deallocate(min_fingerprints)
+      end if
+      if (allocated(max_fingerprints) .eqv. .true.) then
+        deallocate(max_fingerprints)
+      end if
       if (allocated(no_layers_of_elements) .eqv. .true.) then
         deallocate(no_layers_of_elements)
       end if

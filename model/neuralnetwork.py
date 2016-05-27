@@ -462,6 +462,7 @@ def calculate_nodal_outputs(parameters, afp, symbol,):
         if (fprange[_, 1] - fprange[_, 0]) > (10.**(-8.)):
             _afp[_] = -1.0 + 2.0 * ((_afp[_] - fprange[_, 0]) /
                                     (fprange[_, 1] - fprange[_, 0]))
+
     # Calculate node values.
     o = {}  # node values
     layer = 1  # input layer

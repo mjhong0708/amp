@@ -8,6 +8,8 @@
       implicit none
       
 !     the data of neuralnetwork (should be fed in by python)
+      double precision, allocatable::min_fingerprints(:, :)
+      double precision, allocatable::max_fingerprints(:, :)
       integer, allocatable:: no_layers_of_elements(:)
       integer, allocatable:: no_nodes_of_elements(:)
       integer :: activation_signal
@@ -158,6 +160,24 @@
       double precision, allocatable :: net(:)
       type(real_one_d_array), allocatable:: o(:), ohat(:)
       type(element_parameters):: unraveled_parameters(num_elements)
+
+      ! scaling fingerprints
+      do element = 1, num_elements
+        if (symbol == &
+            elements_numbers(element)) then
+            exit
+        end if
+      end do 
+      do l = 1, len_of_fingerprint
+        if ((max_fingerprints(element, l) - &
+        min_fingerprints(element, l)) .GT. &
+        (10.0d0 ** (-8.0d0))) then
+            fingerprint(l) = -1.0d0 + 2.0d0 * &
+            (fingerprint(l) - min_fingerprints(element, l)) / &
+            (max_fingerprints(element, l) - &
+            min_fingerprints(element, l))
+        endif
+      end do
 
 !     changing the form of variables from vector into derived-types 
       k = 0
@@ -412,7 +432,7 @@
 !     Returns force values in the fingerprinting scheme 
       function get_force(symbol, len_of_fingerprint, fingerprint, &
       fingerprintprime, num_elements, elements_numbers, &
-      num_fingerprints_of_elements, num_parameters, parameters)
+      num_parameters, parameters)
       implicit none
       
       integer :: symbol, len_of_fingerprint, num_parameters
@@ -420,7 +440,6 @@
       double precision :: fingerprint(len_of_fingerprint)
       double precision :: fingerprintprime(len_of_fingerprint)
       integer :: elements_numbers(num_elements)
-      integer :: num_fingerprints_of_elements(num_elements)
       double precision :: parameters(num_parameters)
       double precision :: get_force
    
@@ -432,6 +451,35 @@
       type(real_one_d_array), allocatable:: o(:), ohat(:)
       type(real_one_d_array), allocatable:: doutputs_dinputs(:)
       type(element_parameters):: unraveled_parameters(num_elements)
+
+      ! scaling fingerprints
+      do element = 1, num_elements
+        if (symbol == &
+            elements_numbers(element)) then
+            exit
+        end if
+      end do 
+      do l = 1, len_of_fingerprint
+        if ((max_fingerprints(element, l) - &
+        min_fingerprints(element, l)) .GT. &
+        (10.0d0 ** (-8.0d0))) then
+            fingerprint(l) = -1.0d0 + 2.0d0 * &
+            (fingerprint(l) - min_fingerprints(element, l)) / &
+            (max_fingerprints(element, l) - &
+            min_fingerprints(element, l))
+        endif
+      end do
+      ! scaling fingerprintprimes
+      do p = 1, len_of_fingerprint
+        if ((max_fingerprints(element, p) - &
+        min_fingerprints(element, p)) .GT. &
+        (10.0d0 ** (-8.0d0))) then
+            fingerprintprime(p) = &
+            2.0d0 * fingerprintprime(p) / &
+            (max_fingerprints(element, p) - &
+            min_fingerprints(element, p))
+        endif
+      end do
 
 !     changing the form of variables to derived-types
       k = 0
@@ -521,8 +569,8 @@
       nn = size(o) - 2
       allocate(doutputs_dinputs(nn + 2))
       allocate(doutputs_dinputs(1)%onedarray(&
-      num_fingerprints_of_elements(element)))
-      do m = 1, num_fingerprints_of_elements(element)
+      len_of_fingerprint))
+      do m = 1, len_of_fingerprint
       doutputs_dinputs(1)%onedarray(m) = fingerprintprime(m)
       end do
       do layer = 1, nn + 1
@@ -806,6 +854,24 @@
       type(element_parameters):: unraveled_parameters(num_elements)
       type(element_parameters):: &
       unraveled_denergy_dparameters(num_elements)
+
+      ! scaling fingerprints
+      do element = 1, num_elements
+        if (symbol == &
+            elements_numbers(element)) then
+            exit
+        end if
+      end do 
+      do l = 1, len_of_fingerprint
+        if ((max_fingerprints(element, l) - &
+        min_fingerprints(element, l)) .GT. &
+        (10.0d0 ** (-8.0d0))) then
+            fingerprint(l) = -1.0d0 + 2.0d0 * &
+            (fingerprint(l) - min_fingerprints(element, l)) / &
+            (max_fingerprints(element, l) - &
+            min_fingerprints(element, l))
+        endif
+      end do
 
 !     changing the form of variables to derived types
       k = 0
@@ -1359,14 +1425,13 @@
 !     fingerprinting scheme   
       function get_dforce_dparameters(symbol, len_of_fingerprint, &
       fingerprint, fingerprintprime, num_elements, elements_numbers, &
-      num_fingerprints_of_elements, num_parameters, parameters)
+      num_parameters, parameters)
       implicit none
       
       integer :: symbol, len_of_fingerprint
       integer :: num_parameters, num_elements
       double precision :: fingerprint(len_of_fingerprint)
       double precision :: fingerprintprime(len_of_fingerprint)
-      integer :: num_fingerprints_of_elements(num_elements)
       integer :: elements_numbers(num_elements)
       double precision :: parameters(num_parameters)
       double precision:: get_dforce_dparameters(num_parameters)
@@ -1389,6 +1454,35 @@
       type(element_parameters):: unraveled_parameters(num_elements)
       type(element_parameters):: &
       unraveled_denergy_dparameters(num_elements)
+
+      ! scaling fingerprints
+      do element = 1, num_elements
+        if (symbol == &
+            elements_numbers(element)) then
+            exit
+        end if
+      end do 
+      do l = 1, len_of_fingerprint
+        if ((max_fingerprints(element, l) - &
+        min_fingerprints(element, l)) .GT. &
+        (10.0d0 ** (-8.0d0))) then
+            fingerprint(l) = -1.0d0 + 2.0d0 * &
+            (fingerprint(l) - min_fingerprints(element, l)) / &
+            (max_fingerprints(element, l) - &
+            min_fingerprints(element, l))
+        endif
+      end do
+      ! scaling fingerprintprimes
+      do p = 1, len_of_fingerprint
+        if ((max_fingerprints(element, p) - &
+        min_fingerprints(element, p)) .GT. &
+        (10.0d0 ** (-8.0d0))) then
+            fingerprintprime(p) = &
+            2.0d0 * fingerprintprime(p) / &
+            (max_fingerprints(element, p) - &
+            min_fingerprints(element, p))
+        endif
+      end do
 
 !     changing the form of variables from vector into derived-types 
       k = 0
@@ -1544,8 +1638,8 @@
 
       allocate(doutputs_dinputs(nn + 2))
       allocate(doutputs_dinputs(1)%onedarray(&
-      num_fingerprints_of_elements(element)))
-      do m = 1, num_fingerprints_of_elements(element)
+      len_of_fingerprint))
+      do m = 1, len_of_fingerprint
         doutputs_dinputs(1)%onedarray(m) = fingerprintprime(m)
       end do
       do layer = 1, nn + 1
