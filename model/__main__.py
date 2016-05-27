@@ -37,12 +37,14 @@ purpose = socket.recv_string()
 
 if purpose == 'calculate_loss_function':
     # Request variables.
+    socket.send_pyobj(msg('<request>', 'fortran'))
+    fortran = socket.recv_pyobj()
     socket.send_pyobj(msg('<request>', 'modelstring'))
     modelstring = socket.recv_pyobj()
     d = string2dict(modelstring)
     Model = importhelper(d.pop('importname'))
     log(str(d))
-    model = Model(**d)
+    model = Model(fortran=fortran, **d)
     model.log = log
     log('model set up.')
 
@@ -183,11 +185,11 @@ if purpose == 'calculate_loss_function':
                 if args['task'] == 'f':
                     output = \
                         lossfunction.f(parameters,
-                                       args['complete_output'])
+                                       complete_output=True)
                 elif args['task'] == 'fprime':
                     output = \
                         lossfunction.fprime(parameters,
-                                            args['complete_output'])
+                                            complete_output=True)
 
             socket.send_pyobj(msg('<result>', output))
             socket.recv_string()

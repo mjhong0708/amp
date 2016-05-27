@@ -596,6 +596,8 @@ class LossFunction:
                     subimages = {k: self.images[k] for k in
                                  keys[int(message['id'])]}
                     server.send_pyobj(subimages)
+                elif request == 'fortran':
+                    server.send_pyobj(self._model.fortran)
                 elif request == 'modelstring':
                     server.send_pyobj(self._model.tostring())
                 elif request == 'lossfunctionstring':
