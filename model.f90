@@ -1,14 +1,14 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-!     Fortran Version = 4
+!     Fortran Version = 5
       subroutine check_version(version, warning) 
       implicit none
     
       integer :: version, warning
 !f2py         intent(in) :: version
 !f2py         intent(out) :: warning
-      if (version .NE. 4) then
+      if (version .NE. 5) then
           warning = 1
       else
           warning = 0
@@ -33,11 +33,12 @@
 !     module containing model data (should be fed in by python)
       module model_props
       implicit none
-      
+      ! mode_signal is 1 for image-centered mode, and 2 for
+      ! atom-centered mode
+      integer:: mode_signal
+      logical:: train_forces
       double precision:: energy_coefficient
       double precision:: force_coefficient
-      logical:: train_forces
-      logical:: fingerprinting
       
       end module model_props
 
@@ -49,7 +50,7 @@
       implicit none
 
       integer:: num_images
-!     fingerprinting variables
+!     atom-centered variables
       integer:: num_elements
       integer, allocatable:: elements_numbers(:)
       integer, allocatable:: num_images_atoms(:)
@@ -58,7 +59,7 @@
       integer, allocatable:: raveled_neighborlists(:)
       double precision, allocatable:: actual_energies(:)
       double precision, allocatable:: actual_forces(:, :)
-!     not-fingerprinting variables
+!     image-centered variables
       integer:: num_atoms
       double precision, allocatable:: atomic_positions(:, :)
       
@@ -66,9 +67,9 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!     subroutine that calculates the loss function and its derivative
+!     subroutine that calculates the loss function and its prime
       subroutine calculate_f_and_fprime(parameters, num_parameters, &
-      prime, loss, dloss_dparameters, energyloss, forceloss, &
+      complete_output, loss, dloss_dparameters, energyloss, forceloss, &
       energy_maxresid, force_maxresid)
 
       use images_props
@@ -80,11 +81,12 @@
 
       integer:: num_parameters
       double precision:: parameters(num_parameters)
-      logical:: prime
+      logical:: complete_output
       double precision:: loss, energyloss, forceloss
       double precision:: energy_maxresid, force_maxresid
       double precision:: dloss_dparameters(num_parameters)
-!f2py         intent(in):: parameters
+!f2py         intent(in):: parameters, num_parameters
+!f2py         intent(in):: complete_output
 !f2py         intent(out):: loss, energyloss, forceloss
 !f2py         intent(out):: energy_maxresid, force_maxresid
 !f2py         intent(out):: dloss_dparameters
@@ -129,7 +131,7 @@
       type(integer_one_d_array), allocatable:: &
       unraveled_atomic_numbers(:)
       double precision:: amp_energy, actual_energy, atom_energy
-      double precision:: residual_per_atom, dforce, temp
+      double precision:: residual_per_atom, dforce, force_resid
       integer:: i, index, j, p, k, q, l, m, &
       len_of_fingerprint, symbol, element, image_no, num_inputs
       double precision:: partial_dloss_dparameters(num_parameters)
@@ -143,14 +145,14 @@
       double precision, allocatable:: &
       actual_forces_(:, :), amp_forces(:, :)
       integer, allocatable:: neighborindices(:)
-!     no-fingerprinting scheme
+!     image-centered mode
       type(real_one_d_array), allocatable:: &
       unraveled_atomic_positions(:)
       double precision, allocatable :: inputs(:), inputs_(:)
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!! calculations !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-      if (fingerprinting .eqv. .false.) then
+      if (mode_signal == 1) then
         allocate(inputs(3 * num_atoms))
         allocate(inputs_(3 * num_atoms))
         allocate(unraveled_atomic_positions(num_images))
@@ -163,10 +165,10 @@
         call unravel_atomic_numbers()
         call unravel_fingerprints()
       end if
-      if (train_forces .eqv. .true.) then
-           allocate(unraveled_actual_forces(num_images))
+      if (train_forces .EQV. .TRUE.) then
+          allocate(unraveled_actual_forces(num_images))
           call unravel_actual_forces()
-          if (fingerprinting .eqv. .true.) then
+          if (mode_signal == 2) then
               call unravel_neighborlists()
               call unravel_fingerprintprimes()
           end if
@@ -182,52 +184,27 @@
 
 !     summation over images
       do image_no = 1, num_images
-        actual_energy = actual_energies(image_no)
-        do j = 1, num_parameters
-            partial_dloss_dparameters(j) = 0.0d0
-        end do
-        if (fingerprinting .eqv. .false.) then
+
+        if (mode_signal == 1) then
             num_inputs = 3 * num_atoms
             inputs = unraveled_atomic_positions(image_no)%onedarray
-            amp_energy = &
-            get_image_energy(num_inputs, inputs, num_parameters, &
-            parameters)
         else
             num_atoms = num_images_atoms(image_no)
-            amp_energy = 0.0d0
-            do index = 1, num_atoms
-                symbol = unraveled_atomic_numbers(&
-                image_no)%onedarray(index)
-                do element = 1, num_elements
-                    if (symbol == elements_numbers(element)) then
-                        exit
-                    end if
-                end do
-                len_of_fingerprint = &
-                num_fingerprints_of_elements(element)
-                allocate(fingerprint(len_of_fingerprint))
-                do p = 1, len_of_fingerprint
-                    fingerprint(p) = &
-                    unraveled_fingerprints(&
-                    image_no)%onedarray(index)%onedarray(p)
-                end do
-
-                atom_energy = get_atomic_energy(symbol, &
-                len_of_fingerprint, fingerprint, num_elements, &
-                elements_numbers, num_parameters, parameters)
-                deallocate(fingerprint)
-                amp_energy = amp_energy + atom_energy
-            end do
         end if
-
+        actual_energy = actual_energies(image_no)
+        ! calculates amp_energy
+        call get_energy(image_no)
+        ! calculates energy_maxresid
         residual_per_atom = ABS(amp_energy - actual_energy) / num_atoms
         if (residual_per_atom .GT. energy_maxresid) then
             energy_maxresid = residual_per_atom
         end if
+        ! calculates energyloss
         energyloss = energyloss + residual_per_atom ** 2.0d0
-        
-        if (prime .eqv. .true.) then
-            if (fingerprinting .eqv. .false.) then
+   
+        if (complete_output .EQV. .TRUE.) then
+            ! calculates contribution of energyloss to dloss_dparameters
+            if (mode_signal == 1) then
                 partial_dloss_dparameters = &
                 get_denergy_dparameters_(num_inputs, inputs, &
                 num_parameters, parameters)
@@ -274,88 +251,40 @@
             end if
         end if
 
-        if (train_forces .eqv. .true.) then
+        if (train_forces .EQV. .TRUE.) then
             allocate(actual_forces_(num_atoms, 3))
-            allocate(amp_forces(num_atoms, 3))
             do selfindex = 1, num_atoms
                 do i = 1, 3
                     actual_forces_(selfindex, i) = &
                     unraveled_actual_forces(&
                     image_no)%atom_forces(selfindex, i)
-                    amp_forces(selfindex, i) = 0.0d0
                 end do
             end do
-           
-            do selfindex = 1, num_atoms
-                if (fingerprinting .eqv. .false.) then
-                    do i = 1, 3
-                        do p = 1,  3 * num_atoms
-                            inputs_(p) = 0.0d0
-                        end do
-                        inputs_(3 * (selfindex - 1) + i) = 1.0d0
-                        force = get_force_(num_inputs, inputs, &
-                        inputs_, num_parameters, parameters)
-                        amp_forces(selfindex, i) = force
-                    end do
-                else
-                    allocate(neighborindices(size(&
-                    unraveled_neighborlists(image_no)%onedarray(&
-                    selfindex)%onedarray)))
-                    do p = 1, size(unraveled_neighborlists(&
-                    image_no)%onedarray(selfindex)%onedarray)
-                        neighborindices(p) = unraveled_neighborlists(&
-                        image_no)%onedarray(selfindex)%onedarray(p)
-                    end do 
-                    do i = 1, 3
-                        do l = 1, size(neighborindices)
-                            nindex = neighborindices(l)
-                            nsymbol = unraveled_atomic_numbers(&
-                                        image_no)%onedarray(nindex)
-                            do element = 1, num_elements
-                                if (nsymbol == &
-                                elements_numbers(element)) then
-                                    exit
-                                end if
-                            end do 
-                            len_of_fingerprint = &
-                            num_fingerprints_of_elements(element)
-                            allocate(fingerprintprime(&
-                            len_of_fingerprint))
-                            do p = 1, len_of_fingerprint
-                                fingerprintprime(p) = &
-                                unraveled_fingerprintprimes(&
-                                image_no)%onedarray(&
-                                selfindex)%onedarray(l)%twodarray(i, p)
-                            end do
-                            allocate(fingerprint(len_of_fingerprint))
-                            do p = 1, len_of_fingerprint
-                                fingerprint(p) = &
-                                unraveled_fingerprints(&
-                                image_no)%onedarray(&
-                                nindex)%onedarray(p)
-                            end do
-                            dforce = get_force(nsymbol, &
-                            len_of_fingerprint, fingerprint, &
-                            fingerprintprime, &
-                            num_elements, elements_numbers, &
-                            num_parameters, parameters)
-                            amp_forces(selfindex, i) = &
-                            amp_forces(selfindex, i) + dforce
-                            deallocate(fingerprint)
-                            deallocate(fingerprintprime)
-                        end do
-                    end do
-                end if 
+            ! calculates amp_forces
+            call get_forces(image_no)
 
+            do selfindex = 1, num_atoms
+                ! calculates forceloss
                 do i = 1, 3
                     forceloss = forceloss + &
                     (1.0d0 / 3.0d0) * (amp_forces(selfindex, i) - &
-                    actual_forces_(selfindex, i)) ** 2.0 / num_atoms
+                    actual_forces_(selfindex, i)) ** 2.0d0 / num_atoms
                 end do
 
-                if (prime .eqv. .true.) then
+                if (complete_output .EQV. .TRUE.) then
+                    ! calculates force_maxresid
                     do i = 1, 3
-                        if (fingerprinting .eqv. .false.) then
+                        force_resid = &
+                        ABS(amp_forces(selfindex, i) - &
+                        actual_forces(selfindex, i))
+                        if (force_resid .GT. force_maxresid) then
+                            force_maxresid = force_resid
+                        end if
+                    end do
+                    ! calculates contribution of forceloss to
+                    ! dloss_dparameters
+                    if (mode_signal == 1) then
+                        do i = 1, 3
                             do p = 1,  3 * num_atoms
                                 inputs_(p) = 0.0d0
                             end do
@@ -369,47 +298,57 @@
                                 force_coefficient * (2.0d0 / 3.0d0) * &
                                 (- amp_forces(selfindex, i) + &
                                 actual_forces_(selfindex, i)) * &
-                                partial_dloss_dparameters(j) &
-                                / num_atoms
+                                partial_dloss_dparameters(j) / num_atoms
                             end do
-                        else
-                            do l = 1, size(neighborindices)
-                                nindex = neighborindices(l)
-                                nsymbol = &
-                                unraveled_atomic_numbers(&
-                                image_no)%onedarray(nindex)
-                                do element = 1, num_elements
-                                    if (nsymbol == &
-                                    elements_numbers(element)) then
-                                        exit
-                                    end if
-                                end do 
-                                len_of_fingerprint = &
-                                num_fingerprints_of_elements(element)
-                                allocate(&
-                                fingerprint(len_of_fingerprint))
-                                do p = 1, len_of_fingerprint
-                                    fingerprint(p) = &
-                                    unraveled_fingerprints(&
-                                    image_no)%onedarray(&
-                                    nindex)%onedarray(p)
-                                end do
+                        end do
+                    else
+                        ! neighborindices list is generated.
+                        allocate(neighborindices(size(&
+                        unraveled_neighborlists(image_no)%onedarray(&
+                        selfindex)%onedarray)))
+                        do p = 1, size(unraveled_neighborlists(&
+                        image_no)%onedarray(selfindex)%onedarray)
+                            neighborindices(p) = &
+                            unraveled_neighborlists(&
+                            image_no)%onedarray(selfindex)%onedarray(p)
+                        end do
+                        
+                        do l = 1, size(neighborindices)
+                            nindex = neighborindices(l)
+                            nsymbol = unraveled_atomic_numbers(&
+                            image_no)%onedarray(nindex)
+                            do element = 1, num_elements
+                                if (nsymbol == &
+                                elements_numbers(element)) then
+                                    exit
+                                end if
+                            end do
+                            len_of_fingerprint = &
+                            num_fingerprints_of_elements(element)
+                            allocate(fingerprint(len_of_fingerprint))
+                            do p = 1, len_of_fingerprint
+                                fingerprint(p) = &
+                                unraveled_fingerprints(&
+                                image_no)%onedarray(&
+                                nindex)%onedarray(p)
+                            end do
+                            
+                            do i = 1, 3
                                 allocate(fingerprintprime(&
                                 len_of_fingerprint))
                                 do p = 1, len_of_fingerprint
-                                  fingerprintprime(p) = &
-                                  unraveled_fingerprintprimes(&
-                                  image_no)%onedarray(&
-                                  selfindex)%onedarray(&
-                                  l)%twodarray(i, p)
+                                    fingerprintprime(p) = &
+                                    unraveled_fingerprintprimes(&
+                                    image_no)%onedarray(&
+                                    selfindex)%onedarray(&
+                                    l)%twodarray(i, p)
                                 end do
                                 partial_dloss_dparameters = &
                                 get_dforce_dparameters(nsymbol, &
                                 len_of_fingerprint, fingerprint, &
                                 fingerprintprime, num_elements, &
-                                elements_numbers, &
-                                num_parameters, parameters)
-                                deallocate(fingerprint)
+                                elements_numbers, num_parameters, &
+                                parameters)
                                 deallocate(fingerprintprime)
                                 do j = 1, num_parameters
                                     dloss_dparameters(j) = &
@@ -421,25 +360,21 @@
                                     j) / num_atoms
                                 end do
                             end do
-                        end if
-                    end do
-                end if
-
-                if (fingerprinting .eqv. .true.) then
-                    deallocate(neighborindices)
+                            deallocate(fingerprint)
+                        end do
+                        deallocate(neighborindices)
+                    end if
                 end if
             end do
-                  
             deallocate(actual_forces_)
             deallocate(amp_forces)
         end if
-
       end do
       loss = energy_coefficient * energyloss + &
              force_coefficient * forceloss
 
 !     deallocations for all images
-      if (fingerprinting .eqv. .false.) then
+      if (mode_signal == 1) then
         do image_no = 1, num_images
             deallocate(unraveled_atomic_positions(image_no)%onedarray)
         end do
@@ -462,12 +397,12 @@
         deallocate(unraveled_fingerprints)
       end if
 
-      if (train_forces .eqv. .true.) then
+      if (train_forces .EQV. .TRUE.) then
         do image_no = 1, num_images
             deallocate(unraveled_actual_forces(image_no)%atom_forces)
         end do
         deallocate(unraveled_actual_forces)
-        if (fingerprinting .eqv. .true.) then
+        if (mode_signal == 2) then
             do image_no = 1, num_images
                 num_atoms = num_images_atoms(image_no)
                 do selfindex = 1, num_atoms
@@ -502,7 +437,120 @@
       contains
 
  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!     used only in the no-fingerprinting scheme
+
+      ! calculates amp_energy
+      subroutine get_energy(image_no)
+ 
+      if (mode_signal == 1) then
+        amp_energy = &
+        get_image_energy(num_inputs, inputs, num_parameters, &
+        parameters)
+      else
+        amp_energy = 0.0d0
+        do index = 1, num_atoms
+            symbol = unraveled_atomic_numbers(&
+            image_no)%onedarray(index)
+            do element = 1, num_elements
+                if (symbol == elements_numbers(element)) then
+                    exit
+                end if
+            end do
+            len_of_fingerprint = num_fingerprints_of_elements(element)
+            allocate(fingerprint(len_of_fingerprint))
+            do p = 1, len_of_fingerprint
+                fingerprint(p) = &
+                unraveled_fingerprints(&
+                image_no)%onedarray(index)%onedarray(p)
+            end do
+
+            atom_energy = get_atomic_energy(symbol, &
+            len_of_fingerprint, fingerprint, num_elements, &
+            elements_numbers, num_parameters, parameters)
+            deallocate(fingerprint)
+            amp_energy = amp_energy + atom_energy
+        end do
+      end if
+
+      end subroutine get_energy
+
+ !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ 
+      ! calculates amp_forces
+      subroutine get_forces(image_no)
+
+      allocate(amp_forces(num_atoms, 3))
+      do selfindex = 1, num_atoms
+        do i = 1, 3
+            amp_forces(selfindex, i) = 0.0d0
+        end do
+      end do
+
+      do selfindex = 1, num_atoms
+        if (mode_signal == 1) then
+            do i = 1, 3
+                do p = 1,  3 * num_atoms
+                    inputs_(p) = 0.0d0
+                end do
+                inputs_(3 * (selfindex - 1) + i) = 1.0d0
+                force = get_force_(num_inputs, inputs, inputs_, &
+                        num_parameters, parameters)
+                amp_forces(selfindex, i) = force
+            end do
+        else
+            ! neighborindices list is generated.
+            allocate(neighborindices(size(&
+            unraveled_neighborlists(image_no)%onedarray(&
+            selfindex)%onedarray)))
+            do p = 1, size(unraveled_neighborlists(&
+            image_no)%onedarray(selfindex)%onedarray)
+                neighborindices(p) = unraveled_neighborlists(&
+                image_no)%onedarray(selfindex)%onedarray(p)
+            end do 
+
+            do l = 1, size(neighborindices)
+                nindex = neighborindices(l)
+                nsymbol = unraveled_atomic_numbers(&
+                          image_no)%onedarray(nindex)
+                do element = 1, num_elements
+                    if (nsymbol == elements_numbers(element)) then
+                        exit
+                    end if
+                end do
+                len_of_fingerprint = &
+                num_fingerprints_of_elements(element)
+                allocate(fingerprint(len_of_fingerprint))
+                do p = 1, len_of_fingerprint
+                    fingerprint(p) = unraveled_fingerprints(&
+                    image_no)%onedarray(nindex)%onedarray(p)
+                end do
+
+                do i = 1, 3
+                    allocate(fingerprintprime(len_of_fingerprint))
+                    do p = 1, len_of_fingerprint
+                        fingerprintprime(p) = &
+                        unraveled_fingerprintprimes(&
+                        image_no)%onedarray(&
+                        selfindex)%onedarray(l)%twodarray(i, p)
+                    end do
+                    dforce = get_force(nsymbol, len_of_fingerprint, &
+                            fingerprint, fingerprintprime, &
+                            num_elements, elements_numbers, &
+                            num_parameters, parameters)
+                    amp_forces(selfindex, i) = &
+                    amp_forces(selfindex, i) + dforce
+                    deallocate(fingerprintprime)
+                end do
+                deallocate(fingerprint)
+            end do
+            deallocate(neighborindices)
+        end if
+      end do
+
+      end subroutine get_forces
+
+ !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+!     used only in the image-centered mode.
       subroutine unravel_atomic_positions()
 
       do image_no = 1, num_images
@@ -516,6 +564,7 @@
              end do
         end do
       end do
+
       end subroutine unravel_atomic_positions
 
  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -566,7 +615,7 @@
 
       k = 0
       do image_no = 1, num_images
-        if (fingerprinting .eqv. .false.) then
+        if (mode_signal == 1) then
             num_atoms = num_atoms
         else
             num_atoms = num_images_atoms(image_no)
@@ -630,6 +679,7 @@
         allocate(unraveled_fingerprintprimes(&
         image_no)%onedarray(num_atoms))
         do selfindex = 1, num_atoms
+			! neighborindices list is generated.
             allocate(neighborindices(size(unraveled_neighborlists(&
             image_no)%onedarray(selfindex)%onedarray)))
             do p = 1, size(unraveled_neighborlists(&
@@ -676,8 +726,7 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 !     subroutine that deallocates variables
       subroutine deallocate_variables()
 
@@ -689,53 +738,53 @@
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !     deallocating fingerprint_props
-      if (allocated(num_fingerprints_of_elements) .eqv. .true.) then
+      if (allocated(num_fingerprints_of_elements) .EQV. .TRUE.) then
         deallocate(num_fingerprints_of_elements)
       end if
-      if (allocated(raveled_fingerprints) .eqv. .true.) then
+      if (allocated(raveled_fingerprints) .EQV. .TRUE.) then
         deallocate(raveled_fingerprints)
       end if
-      if (allocated(raveled_fingerprintprimes) .eqv. .true.) then
+      if (allocated(raveled_fingerprintprimes) .EQV. .TRUE.) then
         deallocate(raveled_fingerprintprimes)
       end if
 
 !     deallocating images_props
-      if (allocated(elements_numbers) .eqv. .true.) then
+      if (allocated(elements_numbers) .EQV. .TRUE.) then
         deallocate(elements_numbers)
       end if
-      if (allocated(num_images_atoms) .eqv. .true.) then
+      if (allocated(num_images_atoms) .EQV. .TRUE.) then
         deallocate(num_images_atoms)
       end if
-      if (allocated(atomic_numbers) .eqv. .true.) then
+      if (allocated(atomic_numbers) .EQV. .TRUE.) then
         deallocate(atomic_numbers)
       end if
-      if (allocated(num_neighbors) .eqv. .true.) then
+      if (allocated(num_neighbors) .EQV. .TRUE.) then
         deallocate(num_neighbors)
       end if
-      if (allocated(raveled_neighborlists) .eqv. .true.) then
+      if (allocated(raveled_neighborlists) .EQV. .TRUE.) then
         deallocate(raveled_neighborlists)
       end if
-      if (allocated(actual_energies) .eqv. .true.) then
+      if (allocated(actual_energies) .EQV. .TRUE.) then
         deallocate(actual_energies)
       end if
-      if (allocated(actual_forces) .eqv. .true.) then
+      if (allocated(actual_forces) .EQV. .TRUE.) then
         deallocate(actual_forces)
       end if
-      if (allocated(atomic_positions) .eqv. .true.) then
+      if (allocated(atomic_positions) .EQV. .TRUE.) then
         deallocate(atomic_positions)
       end if
 
 !     deallocating neuralnetwork
-      if (allocated(min_fingerprints) .eqv. .true.) then
+      if (allocated(min_fingerprints) .EQV. .TRUE.) then
         deallocate(min_fingerprints)
       end if
-      if (allocated(max_fingerprints) .eqv. .true.) then
+      if (allocated(max_fingerprints) .EQV. .TRUE.) then
         deallocate(max_fingerprints)
       end if
-      if (allocated(no_layers_of_elements) .eqv. .true.) then
+      if (allocated(no_layers_of_elements) .EQV. .TRUE.) then
         deallocate(no_layers_of_elements)
       end if
-      if (allocated(no_nodes_of_elements) .eqv. .true.) then
+      if (allocated(no_nodes_of_elements) .EQV. .TRUE.) then
         deallocate(no_nodes_of_elements)
       end if
 

@@ -172,7 +172,7 @@ if purpose == 'calculate_loss_function':
                     fmodules.calculate_f_and_fprime(
                     parameters=parameters,
                     num_parameters=len(parameters),
-                    prime=True)
+                    complete_output=True)
                 output = {'loss': loss,
                           'dloss_dparameters': dloss_dparameters,
                           'energy_loss': energy_loss,

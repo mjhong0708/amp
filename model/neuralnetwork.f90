@@ -1,8 +1,8 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !     module that utilizes the regression model to calculate energies
-!     and forces as well as their derivatives function names ending with
-!     an underscore correspond to no-fingerprinting scheme.
+!     and forces as well as their derivatives. Function names ending
+!     with an underscore correspond to image-centered mode.
 
       module neuralnetwork
       implicit none
@@ -34,7 +34,7 @@
       contains
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!     Returns energy value in the no-fingerprinting scheme 
+!     Returns energy value in the image-centered mode. 
       function get_image_energy(num_inputs, inputs, num_parameters, &
       parameters)
       implicit none
@@ -107,14 +107,14 @@
                   tanh(net(m))
               else if (activation_signal == 2) then
                   o(layer + 1)%onedarray(m) = &
-                  1. / (1. +  exp(- net(m)))
+                  1.0d0 / (1.0d0 +  exp(- net(m)))
               else if (activation_signal == 3) then
                   o(layer + 1)%onedarray(m) = net(m)
               end if
               ohat(layer + 1)%onedarray(m) = o(layer + 1)%onedarray(m)
           end do
           ohat(layer + 1)%onedarray(&
-          size(weights(layer)%twodarray, dim=2) + 1) =  1.0
+          size(weights(layer)%twodarray, dim=2) + 1) =  1.0d0
           deallocate(net)
       end do
       
@@ -140,7 +140,7 @@
       end function get_image_energy
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!     Returns energy value in the fingerprinting scheme 
+!     Returns energy value in the atom-centered mode. 
       function get_atomic_energy(symbol, &
       len_of_fingerprint, fingerprint, &
       num_elements, elements_numbers, &
@@ -160,6 +160,7 @@
       double precision, allocatable :: net(:)
       type(real_one_d_array), allocatable:: o(:), ohat(:)
       type(element_parameters):: unraveled_parameters(num_elements)
+      double precision :: fingerprint_(len_of_fingerprint)
 
       ! scaling fingerprints
       do element = 1, num_elements
@@ -172,10 +173,12 @@
         if ((max_fingerprints(element, l) - &
         min_fingerprints(element, l)) .GT. &
         (10.0d0 ** (-8.0d0))) then
-            fingerprint(l) = -1.0d0 + 2.0d0 * &
+            fingerprint_(l) = -1.0d0 + 2.0d0 * &
             (fingerprint(l) - min_fingerprints(element, l)) / &
             (max_fingerprints(element, l) - &
             min_fingerprints(element, l))
+        else
+            fingerprint_(l) = fingerprint(l)
         endif
       end do
 
@@ -205,7 +208,8 @@
       do element = 1, num_elements
         unraveled_parameters(element)%intercept = &
         parameters(l + 2 *  element - 1)
-        unraveled_parameters(element)%slope = parameters(l + 2 * element)
+        unraveled_parameters(element)%slope = &
+        parameters(l + 2 * element)
       end do
 
       p = 0
@@ -227,7 +231,7 @@
       allocate(o(1)%onedarray(len_of_fingerprint))
       allocate(ohat(1)%onedarray(len_of_fingerprint + 1))
       do m = 1, len_of_fingerprint
-          o(1)%onedarray(m) = fingerprint(m)
+          o(1)%onedarray(m) = fingerprint_(m)
       end do
       do layer = 1, size(hiddensizes) + 1
           do m = 1, size(unraveled_parameters(element)%weights(&
@@ -255,14 +259,14 @@
                   o(layer + 1)%onedarray(m) = tanh(net(m))
               else if (activation_signal == 2) then
                   o(layer + 1)%onedarray(m) = &
-                  1. / (1. +  exp(- net(m)))
+                  1.0d0 / (1.0d0 +  exp(- net(m)))
               else if (activation_signal == 3) then
                   o(layer + 1)%onedarray(m) = net(m)
               end if
               ohat(layer + 1)%onedarray(m) = o(layer + 1)%onedarray(m)
           end do
           ohat(layer + 1)%onedarray(size(unraveled_parameters(&
-          element)%weights(layer)%twodarray, dim=2) + 1) =  1.0
+          element)%weights(layer)%twodarray, dim=2) + 1) =  1.0d0
           deallocate(net)
       end do
 
@@ -288,7 +292,7 @@
       end function get_atomic_energy
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!     Returns force values in the no-fingerprinting scheme 
+!     Returns force value in the image-centered mode.
       function get_force_(num_inputs, inputs, inputs_, &
       num_parameters, parameters)
       implicit none
@@ -363,7 +367,7 @@
                   o(layer + 1)%onedarray(m) = tanh(net(m))
               else if (activation_signal == 2) then
                   o(layer + 1)%onedarray(m) = &
-                  1. / (1. +  exp(- net(m)))
+                  1.0d0 / (1.0d0 +  exp(- net(m)))
               else if (activation_signal == 3) then
                   o(layer + 1)%onedarray(m) = net(m)
               end if
@@ -391,11 +395,11 @@
           do p = 1, size(o(layer + 1)%onedarray)
               if (activation_signal == 1) then
                 doutputs_dinputs(layer + 1)%onedarray(p) = &
-                temp(p) * (1.0 - o(layer + 1)%onedarray(p) * &
+                temp(p) * (1.0d0 - o(layer + 1)%onedarray(p) * &
                 o(layer + 1)%onedarray(p))
               else if (activation_signal == 2) then
                 doutputs_dinputs(layer + 1)%onedarray(p) = &
-                temp(p) * (1.0 - o(layer + 1)%onedarray(p)) * &
+                temp(p) * (1.0d0 - o(layer + 1)%onedarray(p)) * &
                 o(layer + 1)%onedarray(p)
               else if (activation_signal == 3) then
                 doutputs_dinputs(layer+ 1)%onedarray(p) = temp(p)
@@ -429,7 +433,7 @@
       end function get_force_
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!     Returns force values in the fingerprinting scheme 
+!     Returns force value in the atom-centered mode.
       function get_force(symbol, len_of_fingerprint, fingerprint, &
       fingerprintprime, num_elements, elements_numbers, &
       num_parameters, parameters)
@@ -451,6 +455,8 @@
       type(real_one_d_array), allocatable:: o(:), ohat(:)
       type(real_one_d_array), allocatable:: doutputs_dinputs(:)
       type(element_parameters):: unraveled_parameters(num_elements)
+      double precision :: fingerprint_(len_of_fingerprint)
+      double precision :: fingerprintprime_(len_of_fingerprint)
 
       ! scaling fingerprints
       do element = 1, num_elements
@@ -463,21 +469,25 @@
         if ((max_fingerprints(element, l) - &
         min_fingerprints(element, l)) .GT. &
         (10.0d0 ** (-8.0d0))) then
-            fingerprint(l) = -1.0d0 + 2.0d0 * &
+            fingerprint_(l) = -1.0d0 + 2.0d0 * &
             (fingerprint(l) - min_fingerprints(element, l)) / &
             (max_fingerprints(element, l) - &
             min_fingerprints(element, l))
+        else
+            fingerprint_(l) = fingerprint(l)
         endif
       end do
       ! scaling fingerprintprimes
-      do p = 1, len_of_fingerprint
-        if ((max_fingerprints(element, p) - &
-        min_fingerprints(element, p)) .GT. &
+      do l = 1, len_of_fingerprint
+        if ((max_fingerprints(element, l) - &
+        min_fingerprints(element, l)) .GT. &
         (10.0d0 ** (-8.0d0))) then
-            fingerprintprime(p) = &
-            2.0d0 * fingerprintprime(p) / &
-            (max_fingerprints(element, p) - &
-            min_fingerprints(element, p))
+            fingerprintprime_(l) = &
+            2.0d0 * fingerprintprime(l) / &
+            (max_fingerprints(element, l) - &
+            min_fingerprints(element, l))
+        else
+            fingerprintprime_(l) = fingerprintprime(l)
         endif
       end do
 
@@ -530,7 +540,7 @@
       allocate(o(1)%onedarray(len_of_fingerprint))
       allocate(ohat(1)%onedarray(len_of_fingerprint + 1))
       do m = 1, len_of_fingerprint
-          o(1)%onedarray(m) = fingerprint(m)
+          o(1)%onedarray(m) = fingerprint_(m)
       end do
       do layer = 1, size(hiddensizes) + 1
           do m = 1, size(unraveled_parameters(element)%weights(&
@@ -558,7 +568,7 @@
                   o(layer + 1)%onedarray(m) = tanh(net(m))
               else if (activation_signal == 2) then
                   o(layer + 1)%onedarray(m) = &
-                  1. / (1. +  exp(- net(m)))
+                  1.0d0 / (1.0d0 +  exp(- net(m)))
               else if (activation_signal == 3) then
                   o(layer + 1)%onedarray(m) = net(m)
               end if
@@ -571,7 +581,7 @@
       allocate(doutputs_dinputs(1)%onedarray(&
       len_of_fingerprint))
       do m = 1, len_of_fingerprint
-      doutputs_dinputs(1)%onedarray(m) = fingerprintprime(m)
+      doutputs_dinputs(1)%onedarray(m) = fingerprintprime_(m)
       end do
       do layer = 1, nn + 1
           allocate(temp(size(unraveled_parameters(element)%weights(&
@@ -591,11 +601,11 @@
           do p = 1, size(o(layer + 1)%onedarray)
               if (activation_signal == 1) then
                 doutputs_dinputs(layer + 1)%onedarray(p) = temp(p) * &
-                (1.0 - o(layer + 1)%onedarray(p) * &
+                (1.0d0 - o(layer + 1)%onedarray(p) * &
                 o(layer + 1)%onedarray(p))
               else if (activation_signal == 2) then
                 doutputs_dinputs(layer + 1)%onedarray(p) = &
-                temp(p) * (1.0 - o(layer + 1)%onedarray(p)) * &
+                temp(p) * (1.0d0 - o(layer + 1)%onedarray(p)) * &
                 o(layer + 1)%onedarray(p)
               else if (activation_signal == 3) then
                 doutputs_dinputs(layer+ 1)%onedarray(p) = temp(p)
@@ -629,8 +639,8 @@
       end function get_force
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!     Returns variable derivative of the energy cost function in the
-!     no-fingerprinting scheme       
+!     Returns derivative of energy w.r.t. parameters in the
+!     image-centered mode.       
       function get_denergy_dparameters_(num_inputs, inputs, &
       num_parameters, parameters)
       implicit none
@@ -723,14 +733,14 @@
                   o(layer + 1)%onedarray(m) = tanh(net(m))
               else if (activation_signal == 2) then
                   o(layer + 1)%onedarray(m) = &
-                  1. / (1. +  exp(- net(m)))
+                  1.0d0 / (1.0d0 +  exp(- net(m)))
               else if (activation_signal == 3) then
                   o(layer + 1)%onedarray(m) = net(m)
               end if
               ohat(layer + 1)%onedarray(m) = o(layer + 1)%onedarray(m)
           end do
           ohat(layer + 1)%onedarray(&
-          size(weights(layer)%twodarray, dim=2) + 1) =  1.0
+          size(weights(layer)%twodarray, dim=2) + 1) =  1.0d0
           deallocate(net)
       end do
 
@@ -798,7 +808,7 @@
       end do
       deallocate(D)
 
-!     changing the derivatives of the cost function from derived-type
+!     changing the derivatives of the energy from derived-type
 !     form into vector
       l = 0
       do j = 1, no_layers_of_elements(1) - 1
@@ -830,8 +840,8 @@
       end function get_denergy_dparameters_
    
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!     Returns variable derivative of the energy cost function in the
-!     fingerprinting scheme         
+!     Returns derivative of energy w.r.t. parameters in the
+!     atom-centered mode.         
       function get_denergy_dparameters(symbol, len_of_fingerprint, &
       fingerprint, num_elements, elements_numbers, num_parameters, &
       parameters)
@@ -854,6 +864,7 @@
       type(element_parameters):: unraveled_parameters(num_elements)
       type(element_parameters):: &
       unraveled_denergy_dparameters(num_elements)
+      double precision :: fingerprint_(len_of_fingerprint)
 
       ! scaling fingerprints
       do element = 1, num_elements
@@ -866,10 +877,12 @@
         if ((max_fingerprints(element, l) - &
         min_fingerprints(element, l)) .GT. &
         (10.0d0 ** (-8.0d0))) then
-            fingerprint(l) = -1.0d0 + 2.0d0 * &
+            fingerprint_(l) = -1.0d0 + 2.0d0 * &
             (fingerprint(l) - min_fingerprints(element, l)) / &
             (max_fingerprints(element, l) - &
             min_fingerprints(element, l))
+        else
+            fingerprint_(l) = fingerprint(l)
         endif
       end do
 
@@ -948,7 +961,7 @@
       allocate(o(1)%onedarray(len_of_fingerprint))
       allocate(ohat(1)%onedarray(len_of_fingerprint + 1))
       do m = 1, len_of_fingerprint
-          o(1)%onedarray(m) = fingerprint(m)
+          o(1)%onedarray(m) = fingerprint_(m)
       end do
       do layer = 1, size(hiddensizes) + 1
           do m = 1, size(unraveled_parameters(element)%weights(&
@@ -976,14 +989,14 @@
                   o(layer + 1)%onedarray(m) = tanh(net(m))
               else if (activation_signal == 2) then
                   o(layer + 1)%onedarray(m) = &
-                  1. / (1. +  exp(- net(m)))
+                  1.0d0 / (1.0d0 +  exp(- net(m)))
               else if (activation_signal == 3) then
                   o(layer + 1)%onedarray(m) = net(m)
               end if
               ohat(layer + 1)%onedarray(m) = o(layer + 1)%onedarray(m)
           end do
           ohat(layer + 1)%onedarray(size(unraveled_parameters(&
-          element)%weights(layer)%twodarray, dim=2) + 1) =  1.0
+          element)%weights(layer)%twodarray, dim=2) + 1) =  1.0d0
           deallocate(net)
       end do
  
@@ -1052,7 +1065,7 @@
       end do
       deallocate(D)
 
-!     changing the derivatives of the cost function from derived-type 
+!     changing the derivatives of the energy from derived-type 
 !     form into vector
       k = 0
       l = 0
@@ -1090,8 +1103,8 @@
       end function get_denergy_dparameters
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!     Returns variable derivative of the force cost function in the 
-!     no-fingerprinting scheme   
+!     Returns derivative of force w.r.t. parameters in the 
+!     image-centered mode.   
       function get_dforce_dparameters_(num_inputs, inputs, &
       inputs_, num_parameters, parameters)
       implicit none
@@ -1193,14 +1206,14 @@
                   o(layer + 1)%onedarray(m) = tanh(net(m))
               else if (activation_signal == 2) then
                   o(layer + 1)%onedarray(m) = &
-                  1. / (1. +  exp(- net(m)))
+                  1.0d0 / (1.0d0 +  exp(- net(m)))
               else if (activation_signal == 3) then
                   o(layer + 1)%onedarray(m) = net(m)
               end if
               ohat(layer + 1)%onedarray(m) = o(layer + 1)%onedarray(m)
           end do
           ohat(layer + 1)%onedarray(&
-          size(weights(layer)%twodarray, dim=2) + 1) =  1.0
+          size(weights(layer)%twodarray, dim=2) + 1) =  1.0d0
           deallocate(net)
       end do
 
@@ -1256,11 +1269,11 @@
           do p = 1, size(o(layer + 1)%onedarray)
               if (activation_signal == 1) then
                 doutputs_dinputs(layer + 1)%onedarray(p) = temp(p) * &
-                (1.0 - o(layer + 1)%onedarray(p) * &
+                (1.0d0 - o(layer + 1)%onedarray(p) * &
                 o(layer + 1)%onedarray(p))
               else if (activation_signal == 2) then
                 doutputs_dinputs(layer + 1)%onedarray(p) = &
-                temp(p) * (1.0 - o(layer + 1)%onedarray(p)) * &
+                temp(p) * (1.0d0 - o(layer + 1)%onedarray(p)) * &
                 o(layer + 1)%onedarray(p)
               else if (activation_signal == 3) then
                 doutputs_dinputs(layer+ 1)%onedarray(p) = temp(p)
@@ -1421,8 +1434,8 @@
       end function get_dforce_dparameters_
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!     Returns variable derivative of the force cost function in the 
-!     fingerprinting scheme   
+!     Returns derivative of force w.r.t. parameters in the 
+!     atom-centered mode   
       function get_dforce_dparameters(symbol, len_of_fingerprint, &
       fingerprint, fingerprintprime, num_elements, elements_numbers, &
       num_parameters, parameters)
@@ -1454,6 +1467,8 @@
       type(element_parameters):: unraveled_parameters(num_elements)
       type(element_parameters):: &
       unraveled_denergy_dparameters(num_elements)
+      double precision :: fingerprint_(len_of_fingerprint)
+      double precision :: fingerprintprime_(len_of_fingerprint)
 
       ! scaling fingerprints
       do element = 1, num_elements
@@ -1466,21 +1481,25 @@
         if ((max_fingerprints(element, l) - &
         min_fingerprints(element, l)) .GT. &
         (10.0d0 ** (-8.0d0))) then
-            fingerprint(l) = -1.0d0 + 2.0d0 * &
+            fingerprint_(l) = -1.0d0 + 2.0d0 * &
             (fingerprint(l) - min_fingerprints(element, l)) / &
             (max_fingerprints(element, l) - &
             min_fingerprints(element, l))
+        else
+            fingerprint_(l) = fingerprint(l)
         endif
       end do
       ! scaling fingerprintprimes
-      do p = 1, len_of_fingerprint
-        if ((max_fingerprints(element, p) - &
-        min_fingerprints(element, p)) .GT. &
+      do l = 1, len_of_fingerprint
+        if ((max_fingerprints(element, l) - &
+        min_fingerprints(element, l)) .GT. &
         (10.0d0 ** (-8.0d0))) then
-            fingerprintprime(p) = &
-            2.0d0 * fingerprintprime(p) / &
-            (max_fingerprints(element, p) - &
-            min_fingerprints(element, p))
+            fingerprintprime_(l) = &
+            2.0d0 * fingerprintprime(l) / &
+            (max_fingerprints(element, l) - &
+            min_fingerprints(element, l))
+        else
+            fingerprintprime_(l) = fingerprintprime(l)
         endif
       end do
 
@@ -1560,7 +1579,7 @@
       allocate(o(1)%onedarray(len_of_fingerprint))
       allocate(ohat(1)%onedarray(len_of_fingerprint + 1))
       do m = 1, len_of_fingerprint
-          o(1)%onedarray(m) = fingerprint(m)
+          o(1)%onedarray(m) = fingerprint_(m)
       end do
       do layer = 1, size(hiddensizes) + 1
           do m = 1, size(unraveled_parameters(&
@@ -1589,14 +1608,14 @@
                   o(layer + 1)%onedarray(m) = tanh(net(m))
               else if (activation_signal == 2) then
                   o(layer + 1)%onedarray(m) = &
-                  1. / (1. +  exp(- net(m)))
+                  1.0d0 / (1.0d0 +  exp(- net(m)))
               else if (activation_signal == 3) then
                   o(layer + 1)%onedarray(m) = net(m)
               end if
               ohat(layer + 1)%onedarray(m) = o(layer + 1)%onedarray(m)
           end do
           ohat(layer + 1)%onedarray(size(unraveled_parameters(&
-          element)%weights(layer)%twodarray, dim=2) + 1) =  1.0
+          element)%weights(layer)%twodarray, dim=2) + 1) =  1.0d0
           deallocate(net)
       end do
 
@@ -1640,7 +1659,7 @@
       allocate(doutputs_dinputs(1)%onedarray(&
       len_of_fingerprint))
       do m = 1, len_of_fingerprint
-        doutputs_dinputs(1)%onedarray(m) = fingerprintprime(m)
+        doutputs_dinputs(1)%onedarray(m) = fingerprintprime_(m)
       end do
       do layer = 1, nn + 1
           allocate(temp(size(unraveled_parameters(&
@@ -1660,11 +1679,11 @@
           do p = 1, size(o(layer + 1)%onedarray)
               if (activation_signal == 1) then
                 doutputs_dinputs(layer + 1)%onedarray(p) = temp(p) * &
-                (1.0 - o(layer + 1)%onedarray(p) * &
+                (1.0d0 - o(layer + 1)%onedarray(p) * &
                 o(layer + 1)%onedarray(p))
               else if (activation_signal == 2) then
                 doutputs_dinputs(layer + 1)%onedarray(p) = temp(p) * &
-                (1.0 - o(layer + 1)%onedarray(p)) * &
+                (1.0d0 - o(layer + 1)%onedarray(p)) * &
                 o(layer + 1)%onedarray(p)
               else if (activation_signal == 3) then
                 doutputs_dinputs(layer+ 1)%onedarray(p) = temp(p)

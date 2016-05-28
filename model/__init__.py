@@ -3,10 +3,18 @@ import numpy as np
 from ase.calculators.calculator import Parameters
 from ..utilities import (Logger, ConvergenceOccurred, make_sublists, now,
                          importer)
+import warnings
 try:
     from .. import fmodules
+    fmodules_version = 5
+    wrong_version = fmodules.check_version(version=fmodules_version)
+    if wrong_version:
+        raise RuntimeError('fortran modules are not updated. Recompile'
+                           'with f2py as described in the README. '
+                           'Correct version is %i.' % fmodules_version)
 except ImportError:
     fmodules = None
+    warnings.warn('Did not find fortran modules for use.')
 
 
 class Model(object):
@@ -43,10 +51,10 @@ class Model(object):
             raise NotImplementedError('This needs to be coded.')
         elif self.parameters.mode == 'atom-centered':
             energy = 0.0
-            for index, (element, atomicfingerprint) in enumerate(fingerprints):
+            for index, (symbol, atomicfingerprint) in enumerate(fingerprints):
                 atom_energy = self.get_atomic_energy(afp=atomicfingerprint,
                                                      index=index,
-                                                     symbol=element)
+                                                     symbol=symbol)
                 energy += atom_energy
         return energy
 
@@ -304,7 +312,7 @@ class LossFunction:
                     fmodules.calculate_f_and_fprime(
                     parameters=parametervector,
                     num_parameters=len(parametervector),
-                    prime=True)
+                    complete_output=True)
 
                 fmodules.deallocate_variables()
 
@@ -438,7 +446,7 @@ class LossFunction:
                         fmodules.calculate_f_and_fprime(
                         parameters=parametervector,
                         num_parameters=len(parametervector),
-                        prime=True)
+                        complete_output=True)
 
                     fmodules.deallocate_variables()
 
@@ -533,10 +541,10 @@ class LossFunction:
                 actual_forces = image.get_forces(apply_constraint=False)
                 for i in xrange(3):
                     for index in xrange(no_of_atoms):
-                        residual_force = abs(amp_forces[index][i] -
-                                             actual_forces[index][i])
-                        if residual_force > force_maxresid:
-                            force_maxresid = residual_force
+                        force_resid = abs(amp_forces[index][i] -
+                                          actual_forces[index][i])
+                        if force_resid > force_maxresid:
+                            force_maxresid = force_resid
                         forceloss += \
                             (1. / 3.) * (amp_forces[index][i] -
                                          actual_forces[index][i]) ** 2. / \
@@ -852,10 +860,11 @@ def send_data_to_fortran(_fmodules,
     core.
     """
     from ase.data import atomic_numbers as an
-    if num_atoms is None:
-        fingerprinting = True
-    else:
-        fingerprinting = False
+
+    if model.parameters.mode == 'image-centered':
+        mode_signal = 1
+    elif model.parameters.mode == 'atom-centered':
+        mode_signal = 2
 
     _fmodules.images_props.num_images = num_images
     _fmodules.images_props.actual_energies = actual_energies
@@ -865,9 +874,9 @@ def send_data_to_fortran(_fmodules,
     _fmodules.model_props.energy_coefficient = energy_coefficient
     _fmodules.model_props.force_coefficient = force_coefficient
     _fmodules.model_props.train_forces = train_forces
-    _fmodules.model_props.fingerprinting = fingerprinting
+    _fmodules.model_props.mode_signal = mode_signal
 
-    if fingerprinting:
+    if model.parameters.mode == 'atom-centered':
         fprange = model.parameters.fprange
         elements = sorted(fprange.keys())
         num_elements = len(elements)
@@ -909,7 +918,7 @@ def send_data_to_fortran(_fmodules,
         hiddenlayers = model.parameters.hiddenlayers
         activation = model.parameters.activation
 
-        if fingerprinting:
+        if model.parameters.mode == 'atom-centered':
             from collections import OrderedDict
             no_layers_of_elements = \
                 [3 if isinstance(hiddenlayers[elm], int)
