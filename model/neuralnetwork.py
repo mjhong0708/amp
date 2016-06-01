@@ -138,10 +138,11 @@ class NeuralNetwork(Model):
             p.mode = descriptor.parameters.mode
         else:
             assert p.mode == descriptor.parameters.mode
-        log(' Regression in %s mode.' % p.mode)
+        log('Regression in %s mode.' % p.mode)
 
         if 'fprange' not in p or p.fprange is None:
-            log('Calculating new fingerprint range.')
+            log('Calculating new fingerprint range; this range is part '
+                'of the model.')
             p.fprange = calculate_fingerprints_range(descriptor,
                                                      trainingimages)
 

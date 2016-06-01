@@ -201,17 +201,21 @@ class LossFunction:
         log('  energy_maxresid: ' + str(convergence['energy_maxresid']))
         log('  force_rmse: ' + str(convergence['force_rmse']))
         log('  force_maxresid: ' + str(convergence['force_maxresid']))
+        log('\n')
         if (convergence['force_rmse'] is None) and \
                 (convergence['force_maxresid'] is None):
             log('\n  %12s  %12s' % ('EnergyLoss', 'MaxResid'))
             log('  %12s  %12s' % ('==========', '========'))
         else:
-            log('\n  %12s  %12s  %12s  %12s' % ('EnergyLoss', 'EnergyMaxResid',
-                                                'ForceLoss', 'ForceMaxResid'))
-            log('  %12s  %12s  %12s  %12s' % ('==========',
-                                              '==========',
-                                              '==========',
-                                              '==========',))
+            log('%5s %19s %12s %12s %12s %12s' %
+                ('', '', '', 'Energy',
+                 '', 'Force'))
+            log('%5s %19s %12s %12s %12s %12s' %
+                ('Step', 'Time', 'EnergyLoss', 'MaxResid',
+                 'ForceLoss', 'MaxResid'))
+            log('%5s %19s %12s %12s %12s %12s' %
+                ('='*5, '='*19, '='*12, '='*12,
+                 '='*12, '='*12))
 
         self._initialized = True
 
@@ -666,7 +670,7 @@ class LossFunction:
                 if force_maxresid > p.convergence['force_maxresid']:
                     force_maxresid_converged = False
 
-            log(' %5i  %19s %12.4e %1s %12.4e %1s %12.4e %1s %12.4e %1s' %
+            log('%5i %19s %10.4e %1s %10.4e %1s %10.4e %1s %10.4e %1s' %
                 (self._step, now(), energy_rmse,
                  'C' if energy_rmse_converged else '',
                  energy_maxresid,
