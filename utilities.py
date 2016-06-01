@@ -18,10 +18,14 @@ def assign_cores(cores, log=None):
     log = Logger(None) if log is None else log
 
     def fail(q):
-        msg = ('Auto core detection not set up for %s. You are invited to '
-               ' submit a patch to return a dictionary of the form '
-               '{nodename: ncores} for this batching system. The environment'
-               ' contents were dumped.')
+        msg = ('Auto core detection is either not set up or not working for'
+               ' your version of %s. You are invited to submit a patch to '
+               'return a dictionary of the form {nodename: ncores} for this'
+               ' batching system. The environment contents were dumped to '
+               'the log file.')
+        log('Environment dump:')
+        for key, value in os.environ.iteritems():
+            log('%s: %s' % (key, value))
         raise NotImplementedError(msg % q)
 
     def success(q, cores, log):
@@ -48,9 +52,9 @@ def assign_cores(cores, log=None):
 
     if 'SLURM_NODELIST' in os.environ.keys():
         q = 'SLURM'
-        nnodes = os.environ['SLURM_NNODES']
+        nnodes = int(os.environ['SLURM_NNODES'])
         nodes = os.environ['SLURM_NODELIST']
-        taskspernode = os.environ['SLURM_TASKS_PER_NODE']
+        taskspernode = int(os.environ['SLURM_TASKS_PER_NODE'])
         if nnodes == 1:
             cores = {nodes: taskspernode}
         else:
