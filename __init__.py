@@ -36,9 +36,6 @@ class Amp(Calculator, object):
                        NeuralNetwork.
     :type regression: object
 
-    :param load: Path for loading an existing parameters of Amp calculator.
-    :type load: str
-
     :param label: Default prefix/location used for all files.
     :type label: str
 
