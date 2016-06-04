@@ -304,7 +304,7 @@ class Logger:
         if label:
             self.tics[label] = time.time()
         else:
-            self.tic = time.time()
+            self._tic = time.time()
 
     def __call__(self, message, toc=None, tic=False):
         """
@@ -325,7 +325,7 @@ class Logger:
         dt = ''
         if toc:
             if toc is True:
-                tic = self.tic
+                tic = self._tic
             else:
                 tic = self.tics[toc]
             dt = (time.time() - tic) / 60.
