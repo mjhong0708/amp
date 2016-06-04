@@ -114,6 +114,9 @@ class Amp(Calculator, object):
         Any additional keyword arguments (such as fortran=True) can be
         fed through to Amp.
         """
+        if not os.path.exists(filename):
+            filename += '.amp'
+
         with open(filename) as f:
             text = f.read()
 
