@@ -930,13 +930,14 @@ class NodePlot:
     Call with the 'plot' method, which takes as argment a list of images
     """
 
-    # Local imports; these are not package-wide dependencies.
-    from matplotlib import pyplot
-    from matplotlib.backends.backend_pdf import PdfPages
-
     def __init__(self, calc):
         self.calc = calc
         self.data = {}  # For accumulating the data.
+        # Local imports; these are not package-wide dependencies.
+        from matplotlib import pyplot
+        from matplotlib.backends.backend_pdf import PdfPages
+        self.pyplot = pyplot
+        self.PdfPages = PdfPages
 
     def plot(self, images, filename='nodeplot.pdf'):
         """ Creates a plot of the output of each node, as a violin plot.
