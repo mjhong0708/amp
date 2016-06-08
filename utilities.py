@@ -8,6 +8,8 @@ from ase import io as aseio
 from ase.parallel import paropen
 import shelve
 from datetime import datetime
+from threading import Thread
+from getpass import getuser
 
 
 # Parallel processing ########################################################
@@ -107,6 +109,31 @@ def make_sublists(masterlist, n):
     return sublists
 
 
+class EstablishSSH(Thread):
+    """A thread to start a new SSH session. Starting via threads allows all
+    sessions to start simultaneously, rather than waiting on one another.
+    Access its created session with self.ssh.
+    """
+
+    def __init__(self, process_id, workerhostname, workercommand, log):
+        self._process_id = process_id
+        self._workerhostname = workerhostname
+        self._workercommand = workercommand
+        self._log = log
+        Thread.__init__(self)
+
+    def run(self):
+        pxssh = importer('pxssh')
+        ssh = pxssh.pxssh()
+        ssh.login(self._workerhostname, getuser())
+        ssh.sendline(self._workercommand % self._process_id)
+        ssh.expect('<amp-connect>')
+        ssh.expect('<stderr>')
+        self._log('  Session %i (%s): %s' %
+            (self._process_id, self._workerhostname, ssh.before.strip()))
+        self.ssh = ssh
+
+
 # Data and logging ###########################################################
 
 class Data:
@@ -184,29 +211,24 @@ class Data:
 
             workercommand = 'python -m %s %%s %s' % (module, serversocket)
 
-            def establish_ssh(process_id):
-                """Uses pxssh to establish a SSH connections and get the
-                command running. process_id is an assigned unique identifier
-                for each process. When the process starts, it needs to send
-                <amp-connect>, followed by the location of its standard error,
-                followed by <stderr>. Then it should communicate via zmq.
-                """
-                ssh = pxssh.pxssh()
-                ssh.login(workerhostname, getuser())
-                ssh.sendline(workercommand % process_id)
-                ssh.expect('<amp-connect>')
-                ssh.expect('<stderr>')
-                log('  Session %i (%s): %s' %
-                    (process_id, workerhostname, ssh.before.strip()))
-                return ssh
-
             # Create processes over SSH.
+            # 'processes' contains links to the actual processes;
+            # 'threads' is only used here to start all the SSH connections
+            # simultaneously.
             log(' Establishing worker sessions.')
             processes = []
+            threads = []  # Only used to start processes.
             for workerhostname, nprocesses in cores.iteritems():
-                n = len(processes)
-                processes.extend([establish_ssh(_ + n) for _ in
-                                  range(nprocesses)])
+                for pid in range(len(threads), len(threads) + nprocesses):
+                    threads.append(EstablishSSH(pid,
+                                                workerhostname,
+                                                workercommand, log))
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+            for thread in threads:
+                processes.append(thread.ssh)
 
             # All incoming requests will be dictionaries with three keys.
             # d['id']: process id number, assigned when process created above.

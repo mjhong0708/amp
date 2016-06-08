@@ -2,7 +2,7 @@
 import numpy as np
 from ase.calculators.calculator import Parameters
 from ..utilities import (Logger, ConvergenceOccurred, make_sublists, now,
-                         importer)
+                         importer, EstablishSSH)
 import warnings
 try:
     from .. import fmodules
@@ -167,29 +167,25 @@ class LossFunction:
             workercommand = ('python -m %s %%s %s' %
                              (module, serversocket))
 
-            def establish_ssh(process_id):
-                """Uses pxssh to establish a SSH connections and get the
-                command running. process_id is an assigned unique identifier
-                for each process. When the process starts, it needs to send
-                <amp-connect>, followed by the location of its standard error,
-                followed by <stderr>. Then it should communicate via zmq.
-                """
-                ssh = pxssh.pxssh()
-                ssh.login(workerhostname, getuser())
-                ssh.sendline(workercommand % process_id)
-                ssh.expect('<amp-connect>')
-                ssh.expect('<stderr>')
-                log('  Session %i (%s): %s' %
-                    (process_id, workerhostname, ssh.before.strip()))
-                return ssh
 
             # Create processes over SSH.
-            log('  Establishing workers:')
+            # 'processes' contains links to the actual processes;
+            # 'threads' is only used here to start all the SSH connections
+            # simultaneously.
+            log(' Establishing worker sessions.')
             processes = []
+            threads = []  # Only used to start processes.
             for workerhostname, nprocesses in self._cores.iteritems():
-                n = len(processes)
-                processes.extend([establish_ssh(_ + n) for _ in
-                                  range(nprocesses)])
+                for pid in range(len(threads), len(threads) + nprocesses):
+                    threads.append(EstablishSSH(pid,
+                                                workerhostname,
+                                                workercommand, log))
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+            for thread in threads:
+                processes.append(thread.ssh)
 
             self._sessions = {'master': server,
                               'workers': processes}
