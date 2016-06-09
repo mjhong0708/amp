@@ -111,7 +111,7 @@ class Amp(Calculator, object):
         If using a home-rolled descriptor or model, also supply
         uninstantiated classes to those models, as in Model=MyModel.
 
-        Any additional keyword arguments (such as fortran=True) can be
+        Any additional keyword arguments (such as label or dblabel) can be
         fed through to Amp.
         """
         if not os.path.exists(filename):
@@ -178,19 +178,22 @@ class Amp(Calculator, object):
         Calculator.calculate(self, atoms, properties, system_changes)
 
         log = self.log
-        log('Amp calculator started.')
+        log('Calculation requested.')
 
         images = hash_images([self.atoms])
         key = images.keys()[0]
 
         if properties == ['energy']:
+            log('Calculating potential energy...', tic='pot-energy')
             self.descriptor.calculate_fingerprints(images=images,
                                                    log=log,
                                                    calculate_derivatives=False)
             energy = self.model.get_energy(self.descriptor.fingerprints[key])
             self.results['energy'] = energy
+            log('...potential energy calculated.', toc='pot-energy')
 
         if properties == ['forces']:
+            log('Calculating forces...', tic='forces')
             self.descriptor.calculate_fingerprints(images=images,
                                                    log=log,
                                                    calculate_derivatives=True)
@@ -198,6 +201,7 @@ class Amp(Calculator, object):
                 self.model.get_forces(self.descriptor.fingerprints[key],
                                       self.descriptor.fingerprintprimes[key])
             self.results['forces'] = forces
+            log('...forces calculated.', toc='forces')
 
     def train(self,
               images,
