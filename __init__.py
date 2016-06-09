@@ -221,21 +221,20 @@ class Amp(Calculator, object):
 
         log = self.log
         log('Amp training started. ' + now() + '\n')
-
-        log('Hashing training images.')
-        images = hash_images(images, log=log)
-
         log('Descriptor: %s' % self.descriptor.__class__.__name__)
         log('Model: %s' % self.model.__class__.__name__)
+
+        images = hash_images(images, log=log)
 
         log('\nDescriptor\n==========')
         # Derivatives of fingerprints need to be calculated if train_forces is
         # True.
         calculate_derivatives = train_forces
-        self.descriptor.calculate_fingerprints(images=images,
-                                               cores=self.cores,
-                                               log=log,
-                                               calculate_derivatives=calculate_derivatives)
+        self.descriptor.calculate_fingerprints(
+                images=images,
+                cores=self.cores,
+                log=log,
+                calculate_derivatives=calculate_derivatives)
 
         log('\nModel fitting\n=============')
         result = self.model.fit(trainingimages=images,
@@ -251,6 +250,7 @@ class Amp(Calculator, object):
             filename = make_filename(self.label, '-untrained-parameters.amp')
         filename = self.save(filename, overwrite)
         log('Parameters saved in file "%s".' % filename)
+        log("This file can be opened with `calc = Amp.load('amp.amp')`")
         if result is False:
             raise TrainingConvergenceError('Amp did not converge upon '
                                            'training. See log file for'

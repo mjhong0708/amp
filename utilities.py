@@ -130,7 +130,7 @@ class EstablishSSH(Thread):
         ssh.expect('<amp-connect>')
         ssh.expect('<stderr>')
         self._log('  Session %i (%s): %s' %
-            (self._process_id, self._workerhostname, ssh.before.strip()))
+                  (self._process_id, self._workerhostname, ssh.before.strip()))
         self.ssh = ssh
 
 
@@ -194,7 +194,6 @@ class Data:
         else:
             import zmq
             from socket import gethostname
-            from getpass import getuser
             pxssh = importer('pxssh')
             log(' Parallel processing.')
             module = self.calc.__module__
@@ -446,7 +445,7 @@ def hash_images(images, log=None, ordered=False):
                     ' Was this expected? Hash: %s' % hash)
             dict_images[hash] = image
         log(' %i unique images after hashing.' % len(dict_images))
-        log(' ...hashing completed.', toc='hash')
+        log('...hashing completed.', toc='hash')
         return dict_images
 
 

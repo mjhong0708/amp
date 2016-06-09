@@ -132,7 +132,7 @@ class Gaussian(object):
         if p.Gs is None:
             log('No symmetry functions supplied; creating defaults.')
             p.Gs = make_symmetry_functions(p.elements)
-        log('Symmetry functions for each element:')
+        log('Number of symmetry functions for each element:')
         for _ in p.Gs.keys():
             log(' %2s: %i' % (_, len(p.Gs[_])))
 
@@ -141,7 +141,7 @@ class Gaussian(object):
             self.neighborlist = \
                 Data(filename='%s-neighborlists' % self.dblabel,
                      calculator=NeighborlistCalculator(
-                     cutoff=p.cutoff['kwargs']['Rc']))
+                         cutoff=p.cutoff['kwargs']['Rc']))
         self.neighborlist.calculate_items(images, cores=cores, log=log)
         log('...neighborlists calculated.', toc='nl')
 
@@ -158,7 +158,7 @@ class Gaussian(object):
         log('...fingerprints calculated.', toc='fp')
 
         if calculate_derivatives:
-            log('Calculating fingerprint derivatives of images...',
+            log('Calculating fingerprint derivatives...',
                 tic='derfp')
             if not hasattr(self, 'fingerprintprimes'):
                 calc = \
