@@ -254,7 +254,8 @@ class Amp(Calculator, object):
             filename = make_filename(self.label, '-untrained-parameters.amp')
         filename = self.save(filename, overwrite)
         log('Parameters saved in file "%s".' % filename)
-        log("This file can be opened with `calc = Amp.load('amp.amp')`")
+        log("This file can be opened with `calc = Amp.load('%s')`" %
+            filename)
         if result is False:
             raise TrainingConvergenceError('Amp did not converge upon '
                                            'training. See log file for'
