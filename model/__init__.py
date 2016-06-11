@@ -716,7 +716,7 @@ def calculate_fingerprints_range(fp, images):
                         elif ridge > fprange[element][i][1]:
                             fprange[element][i][1] = ridge
     for key, value in fprange.iteritems():
-        fprange[key] = np.array(value)
+        fprange[key] = value
     return fprange
 
 

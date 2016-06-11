@@ -460,9 +460,9 @@ def calculate_nodal_outputs(parameters, afp, symbol,):
     fprange = parameters.fprange[symbol]
     # Scale the fingerprints to be in [-1, 1] range.
     for _ in xrange(np.shape(_afp)[0]):
-        if (fprange[_, 1] - fprange[_, 0]) > (10.**(-8.)):
-            _afp[_] = -1.0 + 2.0 * ((_afp[_] - fprange[_, 0]) /
-                                    (fprange[_, 1] - fprange[_, 0]))
+        if (fprange[_][1] - fprange[_][0]) > (10.**(-8.)):
+            _afp[_] = -1.0 + 2.0 * ((_afp[_] - fprange[_][0]) /
+                                    (fprange[_][1] - fprange[_][0]))
 
     # Calculate node values.
     o = {}  # node values
@@ -536,8 +536,8 @@ def calculate_dOutputs_dInputs(parameters, derafp, outputs, nsymbol,):
     fprange = parameters.fprange[nsymbol]
     # Scaling derivative of fingerprints.
     for _ in xrange(len(_derafp)):
-        if (fprange[_, 1] - fprange[_, 0]) > (10.**(-8.)):
-            _derafp[_] = 2.0 * (_derafp[_] / (fprange[_, 1] - fprange[_, 0]))
+        if (fprange[_][1] - fprange[_][0]) > (10.**(-8.)):
+            _derafp[_] = 2.0 * (_derafp[_] / (fprange[_][1] - fprange[_][0]))
 
     dOutputs_dInputs = {}  # node values
     dOutputs_dInputs[0] = _derafp
@@ -906,7 +906,7 @@ class Raveler:
             matrix = vector[count:count + k['size']]
             matrix = matrix.flatten()
             matrix = np.matrix(matrix.reshape(k['shape']))
-            weights[k['key1']][k['key2']] = matrix
+            weights[k['key1']][k['key2']] = matrix.tolist()
             count += k['size']
         for k in sorted(self.scalingskeys):
             if k['key1'] not in scalings.keys():
