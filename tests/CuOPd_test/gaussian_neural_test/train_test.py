@@ -185,22 +185,20 @@ def non_periodic_0th_bfgs_step_test():
             lossfunction = LossFunction(convergence=convergence)
             calc.model.lossfunction = lossfunction
             calc.train(images=images,)
-
-            assert (abs(calc.model.lossfunction.loss -
-                        ref_loss) < 10.**(-5.)), \
+            diff = abs(calc.model.lossfunction.loss - ref_loss)
+            assert (diff < 10.**(-5.)), \
                 'The calculated value of loss function is wrong!'
-
-            assert (abs(calc.model.lossfunction.energy_loss -
-                        ref_energyloss) < 10.**(-7.)), \
+            diff = abs(calc.model.lossfunction.energy_loss - ref_energyloss)
+            assert (diff < 10.**(-9.)), \
                 'The calculated value of energy per atom RMSE is wrong!'
-
-            assert (abs(calc.model.lossfunction.force_loss -
-                        ref_forceloss) < 10 ** (-4)), \
+            diff = abs(calc.model.lossfunction.force_loss - ref_forceloss)
+            assert (diff < 10 ** (-4)), \
                 'The calculated value of force RMSE is wrong!'
 
             for _ in range(len(ref_dloss_dparameters)):
-                assert(abs(calc.model.lossfunction.dloss_dparameters[_] -
-                           ref_dloss_dparameters[_]) < 10 ** (-7)), \
+                diff = abs(calc.model.lossfunction.dloss_dparameters[_] -
+                           ref_dloss_dparameters[_])
+                assert(diff < 10 ** (-9)), \
                     "The calculated value of loss function derivative is \
                     'wrong!"
 
@@ -222,22 +220,20 @@ def non_periodic_0th_bfgs_step_test():
             lossfunction = LossFunction(convergence=convergence)
             calc.model.lossfunction = lossfunction
             calc.train(images=images,)
-
-            assert (abs(calc.model.lossfunction.loss -
-                        ref_loss) < 10.**(-5.)), \
+            diff = abs(calc.model.lossfunction.loss - ref_loss)
+            assert (diff < 10.**(-5.)), \
                 'The calculated value of loss function is wrong!'
-
-            assert (abs(calc.model.lossfunction.energy_loss -
-                        ref_energyloss) < 10.**(-7.)), \
+            diff = abs(calc.model.lossfunction.energy_loss - ref_energyloss)
+            assert (diff < 10.**(-9.)), \
                 'The calculated value of energy per atom RMSE is wrong!'
-
-            assert (abs(calc.model.lossfunction.force_loss -
-                        ref_forceloss) < 10 ** (-4)), \
+            diff = abs(calc.model.lossfunction.force_loss - ref_forceloss)
+            assert (diff < 10 ** (-4)), \
                 'The calculated value of force RMSE is wrong!'
 
             for _ in range(len(ref_dloss_dparameters)):
-                assert(abs(calc.model.lossfunction.dloss_dparameters[_] -
-                           ref_dloss_dparameters[_]) < 10 ** (-7)), \
+                diff = abs(calc.model.lossfunction.dloss_dparameters[_] -
+                           ref_dloss_dparameters[_])
+                assert(diff < 10 ** (-9)), \
                     'The calculated value of loss function derivative is \
                     wrong!'
 
@@ -368,22 +364,20 @@ def periodic_0th_bfgs_step_test():
             lossfunction = LossFunction(convergence=convergence)
             calc.model.lossfunction = lossfunction
             calc.train(images=images,)
-
-            assert (abs(calc.model.lossfunction.loss -
-                        ref_loss) < 10.**(-4.)), \
+            diff = abs(calc.model.lossfunction.loss - ref_loss)
+            assert (diff < 10.**(-7.)), \
                 'The calculated value of loss function is wrong!'
-
-            assert (abs(calc.model.lossfunction.energy_loss -
-                        ref_energyloss) < 10.**(-5.)), \
+            diff = abs(calc.model.lossfunction.energy_loss - ref_energyloss)
+            assert (diff < 10.**(-8.)), \
                 'The calculated value of energy per atom RMSE is wrong!'
-
-            assert (abs(calc.model.lossfunction.force_loss -
-                        ref_forceloss) < 10 ** (-3.)), \
+            diff = abs(calc.model.lossfunction.force_loss - ref_forceloss)
+            assert (diff < 10 ** (-5.)), \
                 'The calculated value of force RMSE is wrong!'
 
             for _ in range(len(ref_dloss_dparameters)):
-                assert(abs(calc.model.lossfunction.dloss_dparameters[_] -
-                           ref_dloss_dparameters[_]) < 10 ** (-4.)), \
+                diff = abs(calc.model.lossfunction.dloss_dparameters[_] -
+                           ref_dloss_dparameters[_])
+                assert(diff < 10 ** (-8.)), \
                     'The calculated value of loss function derivative is \
                     wrong!'
 
@@ -405,22 +399,20 @@ def periodic_0th_bfgs_step_test():
             lossfunction = LossFunction(convergence=convergence)
             calc.model.lossfunction = lossfunction
             calc.train(images=images,)
-
-            assert (abs(calc.model.lossfunction.loss -
-                        ref_loss) < 10.**(-4.)), \
+            diff = abs(calc.model.lossfunction.loss - ref_loss)
+            assert (diff < 10.**(-7.)), \
                 'The calculated value of loss function is wrong!'
-
-            assert (abs(calc.model.lossfunction.energy_loss -
-                        ref_energyloss) < 10.**(-5.)), \
+            diff = abs(calc.model.lossfunction.energy_loss - ref_energyloss)
+            assert (diff < 10.**(-8.)), \
                 'The calculated value of energy per atom RMSE is wrong!'
-
-            assert (abs(calc.model.lossfunction.force_loss -
-                        ref_forceloss) < 10 ** (-3.)), \
+            diff = abs(calc.model.lossfunction.force_loss - ref_forceloss)
+            assert (diff < 10 ** (-5.)), \
                 'The calculated value of force RMSE is wrong!'
 
             for _ in range(len(ref_dloss_dparameters)):
-                assert(abs(calc.model.lossfunction.dloss_dparameters[_] -
-                           ref_dloss_dparameters[_]) < 10 ** (-4.)), \
+                diff = abs(calc.model.lossfunction.dloss_dparameters[_] -
+                           ref_dloss_dparameters[_])
+                assert(diff < 10 ** (-8.)), \
                     'The calculated value of loss function derivative is \
                     wrong!'
 

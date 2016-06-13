@@ -173,8 +173,9 @@ def non_periodic_test():
                                   images]
 
             for image_no in range(len(predicted_energies)):
-                assert (abs(predicted_energies[image_no] -
-                        correct_energies[image_no]) < 10.**(-15.)), \
+                diff = abs(predicted_energies[image_no] -
+                           correct_energies[image_no])
+                assert (diff < 10.**(-15.)), \
                     'The predicted energy of image %i is wrong!' % (
                         image_no + 1)
 
@@ -184,10 +185,10 @@ def non_periodic_test():
                 for index in range(np.shape(predicted_forces[image_no])[0]):
                     for direction in range(
                             np.shape(predicted_forces[image_no])[1]):
-                        assert (abs(predicted_forces[image_no][index][
-                                    direction] -
-                                correct_forces[image_no][index]
-                                [direction]) < 10.**(-15.)), \
+                        diff = abs(predicted_forces[image_no][index][
+                            direction] -
+                            correct_forces[image_no][index][direction])
+                        assert (diff < 10.**(-15.)), \
                             'The predicted %i force of atom %i of image %i ' \
                             'is wrong!' % (direction, index, image_no + 1)
 
@@ -313,8 +314,9 @@ def periodic_test():
                                   images]
 
             for image_no in range(len(predicted_energies)):
-                assert (abs(predicted_energies[image_no] -
-                        correct_energies[image_no]) < 10.**(-14.)), \
+                diff = abs(predicted_energies[image_no] -
+                           correct_energies[image_no])
+                assert (diff < 10.**(-14.)), \
                     'The predicted energy of image %i is wrong!' % (
                         image_no + 1)
 
@@ -324,14 +326,14 @@ def periodic_test():
                 for index in range(np.shape(predicted_forces[image_no])[0]):
                     for direction in range(
                             np.shape(predicted_forces[image_no])[1]):
-                            assert (abs(predicted_forces[image_no][index][
-                                        direction] -
-                                        correct_forces[image_no][index]
-                                        [direction]) < 10.**(-11.)), \
-                                'The predicted %i force of atom %i of image' \
-                                ' %i is wrong!' % (direction,
-                                                   index,
-                                                   image_no + 1)
+                        diff = abs(predicted_forces[image_no][index][
+                            direction] -
+                            correct_forces[image_no][index][direction])
+                        assert (diff < 10.**(-11.)), \
+                            'The predicted %i force of atom %i of image' \
+                            ' %i is wrong!' % (direction,
+                                               index,
+                                               image_no + 1)
 
 if __name__ == '__main__':
     non_periodic_test()
