@@ -220,20 +220,25 @@ class FingerprintCalculator:
         for atom in image:
             symbol = atom.symbol
             index = atom.index
-            neighbors, offsets = nl[index]
-            neighborsymbols = [image[_].symbol for _ in neighbors]
-            Rs = [image.positions[neighbor] + np.dot(offset, image.cell)
-                  for (neighbor, offset) in zip(neighbors, offsets)]
-            indexfp = self.get_fingerprint(index, symbol, neighborsymbols, Rs)
+            neighborindices, neighboroffsets = nl[index]
+            neighborsymbols = [image[_].symbol for _ in neighborindices]
+            neighborpositions = \
+                [image.positions[neighbor] + np.dot(offset, image.cell)
+                 for (neighbor, offset) in zip(neighborindices,
+                                               neighboroffsets)]
+            indexfp = self.get_fingerprint(
+                index, symbol, neighborsymbols, neighborpositions)
             fingerprints.append(indexfp)
 
         return fingerprints
 
-    def get_fingerprint(self, index, symbol, n_symbols, Rs):
+    def get_fingerprint(self, index, symbol,
+                        neighborsymbols, neighborpositions):
         """
         Returns the fingerprint of symmetry function values for atom
-        specified by its index and symbol. n_symbols and Rs are lists of
-        neighbors' symbols and Cartesian positions, respectively.
+        specified by its index and symbol. neighborsymbols and
+        neighborpositions are lists of neighbors' symbols and Cartesian
+        positions, respectively.
 
         :param index: Index of the center atom.
         :type index: int
@@ -241,30 +246,32 @@ class FingerprintCalculator:
         :param symbol: Symbol of the center atom.
         :type symbol: str
 
-        :param n_symbols: List of neighbors' symbols.
-        :type n_symbols: list of str
+        :param neighborsymbols: List of neighbors' symbols.
+        :type neighborsymbols: list of str
 
-        :param Rs: List of Cartesian atomic positions.
-        :type Rs: list of list of float
+        :param neighborpositions: List of Cartesian atomic positions.
+        :type neighborpositions: list of list of float
 
         :returns: list of float -- fingerprints for atom specified by its index
                                     and symbol.
         """
-        home = self.atoms[index].position
+        Ri = self.atoms[index].position
 
-        len_of_symmetries = len(self.globals.Gs[symbol])
-        fingerprint = [None] * len_of_symmetries
+        num_symmetries = len(self.globals.Gs[symbol])
+        fingerprint = [None] * num_symmetries
 
-        for count in xrange(len_of_symmetries):
+        for count in xrange(num_symmetries):
             G = self.globals.Gs[symbol][count]
 
             if G['type'] == 'G2':
-                ridge = calculate_G2(n_symbols, Rs, G['element'], G['eta'],
-                                     self.globals.cutoff, home, self.fortran)
+                ridge = calculate_G2(neighborsymbols, neighborpositions,
+                                     G['element'], G['eta'],
+                                     self.globals.cutoff, Ri, self.fortran)
             elif G['type'] == 'G4':
-                ridge = calculate_G4(n_symbols, Rs, G['elements'], G['gamma'],
+                ridge = calculate_G4(neighborsymbols, neighborpositions,
+                                     G['elements'], G['gamma'],
                                      G['zeta'], G['eta'], self.globals.cutoff,
-                                     home, self.fortran)
+                                     Ri, self.fortran)
             else:
                 raise NotImplementedError('Unknown G type: %s' % G['type'])
             fingerprint[count] = ridge
@@ -295,29 +302,27 @@ class FingerprintPrimeCalculator:
             selfneighborindices, selfneighboroffsets = nl[selfindex]
             selfneighborsymbols = [
                 image[_].symbol for _ in selfneighborindices]
+
+            selfneighborpositions = [image.positions[_index] +
+                                     np.dot(_offset, image.get_cell())
+                                     for _index, _offset
+                                     in zip(selfneighborindices,
+                                            selfneighboroffsets)]
+
             for i in xrange(3):
-                # Calculating derivative of self atom fingerprints w.r.t.
+                # Calculating derivative of fingerprints of self atom w.r.t.
                 # coordinates of itself.
-                nneighborindices, nneighboroffsets = nl[selfindex]
-                nneighborsymbols = [image[_].symbol for _ in nneighborindices]
-
-                Rs = [image.positions[_index] +
-                      np.dot(_offset, image.get_cell())
-                      for _index, _offset
-                      in zip(nneighborindices,
-                             nneighboroffsets)]
-
-                der_indexfp = self.get_fingerprintprime(
+                fpprime = self.get_fingerprintprime(
                     selfindex, selfsymbol,
-                    nneighborindices,
-                    nneighborsymbols,
-                    Rs, selfindex, i)
+                    selfneighborindices,
+                    selfneighborsymbols,
+                    selfneighborpositions, selfindex, i)
 
                 fingerprintprimes[
                     (selfindex, selfsymbol, selfindex, selfsymbol, i)] = \
-                    der_indexfp
-                # Calculating derivative of neighbor atom fingerprints w.r.t.
-                # coordinates of self atom.
+                    fpprime
+                # Calculating derivative of fingerprints of neighbor atom
+                # w.r.t. coordinates of self atom.
                 for nindex, nsymbol, noffset in \
                         zip(selfneighborindices,
                             selfneighborsymbols,
@@ -329,80 +334,83 @@ class FingerprintPrimeCalculator:
                         nneighborsymbols = \
                             [image[_].symbol for _ in nneighborindices]
 
-                        Rs = [image.positions[_index] +
-                              np.dot(_offset, image.get_cell())
-                              for _index, _offset
-                              in zip(nneighborindices,
-                                     nneighboroffsets)]
+                        neighborpositions = [image.positions[_index] +
+                                             np.dot(_offset, image.get_cell())
+                                             for _index, _offset
+                                             in zip(nneighborindices,
+                                                    nneighboroffsets)]
 
                         # for calculating derivatives of fingerprints,
                         # summation runs over neighboring atoms of type
                         # I (either inside or outside the main cell)
-                        der_indexfp = self.get_fingerprintprime(
+                        fpprime = self.get_fingerprintprime(
                             nindex, nsymbol,
                             nneighborindices,
                             nneighborsymbols,
-                            Rs, selfindex, i)
+                            neighborpositions, selfindex, i)
 
                         fingerprintprimes[
                             (selfindex, selfsymbol, nindex, nsymbol, i)] = \
-                            der_indexfp
+                            fpprime
 
         return fingerprintprimes
 
-    def get_fingerprintprime(self, index, symbol, n_indices, n_symbols, Rs,
-                             m, i):
+    def get_fingerprintprime(self, index, symbol,
+                             neighborindices,
+                             neighborsymbols,
+                             neighborpositions,
+                             m, l):
         """
         Returns the value of the derivative of G for atom with index and
-        symbol with respect to coordinate x_{i} of atom index m. n_indices,
-        n_symbols and Rs are lists of neighbors' indices, symbols and Cartesian
-        positions, respectively.
+        symbol with respect to coordinate x_{l} of atom index m.
+        neighborindices, neighborsymbols and neighborpositions are lists of
+        neighbors' indices, symbols and Cartesian positions, respectively.
 
         :param index: Index of the center atom.
         :type index: int
         :param symbol: Symbol of the center atom.
         :type symbol: str
-        :param n_indices: List of neighbors' indices.
-        :type n_indices: list of int
-        :param n_symbols: List of neighbors' symbols.
-        :type n_symbols: list of str
-        :param Rs: List of Cartesian atomic positions.
-        :type Rs: list of list of float
+        :param neighborindices: List of neighbors' indices.
+        :type neighborindices: list of int
+        :param neighborsymbols: List of neighbors' symbols.
+        :type neighborsymbols: list of str
+        :param neighborpositions: List of Cartesian atomic positions.
+        :type neighborpositions: list of list of float
         :param m: Index of the pair atom.
         :type m: int
-        :param i: Direction of the derivative; is an integer from 0 to 2.
-        :type i: int
+        :param l: Direction of the derivative; is an integer from 0 to 2.
+        :type l: int
 
         :returns: list of float -- the value of the derivative of the
                                    fingerprints for atom with index and symbol
-                                   with respect to coordinate x_{i} of atom
+                                   with respect to coordinate x_{l} of atom
                                    index m.
         """
 
-        len_of_symmetries = len(self.globals.Gs[symbol])
+        num_symmetries = len(self.globals.Gs[symbol])
         Rindex = self.atoms.positions[index]
-        der_fingerprint = [None] * len_of_symmetries
+        fingerprintprime = [None] * num_symmetries
 
-        for count in xrange(len_of_symmetries):
+        for count in xrange(num_symmetries):
             G = self.globals.Gs[symbol][count]
             if G['type'] == 'G2':
                 ridge = calculate_G2_prime(
-                    n_indices,
-                    n_symbols,
-                    Rs,
+                    neighborindices,
+                    neighborsymbols,
+                    neighborpositions,
                     G['element'],
                     G['eta'],
                     self.globals.cutoff,
                     index,
                     Rindex,
                     m,
-                    i,
+                    l,
                     self.fortran)
             elif G['type'] == 'G4':
                 ridge = calculate_G4_prime(
-                    n_indices,
-                    n_symbols,
-                    Rs,
+                    neighborindices,
+                    neighborsymbols,
+                    neighborpositions,
                     G['elements'],
                     G['gamma'],
                     G['zeta'],
@@ -411,36 +419,39 @@ class FingerprintPrimeCalculator:
                     index,
                     Rindex,
                     m,
-                    i,
+                    l,
                     self.fortran)
             else:
                 raise NotImplementedError('Unknown G type: %s' % G['type'])
 
-            der_fingerprint[count] = ridge
+            fingerprintprime[count] = ridge
 
-        return der_fingerprint
+        return fingerprintprime
 
 # Auxiliary functions #########################################################
 
 
-def calculate_G2(symbols, Rs, G_element, eta, cutoff, home, fortran):
+def calculate_G2(neighborsymbols,
+                 neighborpositions, G_element, eta, cutoff, Ri, fortran):
     """
     Calculate G2 symmetry function. Ideally this will not be used but
     will be a template for how to build the fortran version (and serves as
     a slow backup if the fortran one goes uncompiled).
+    See Eq. 13a of the supplementary information of Khorshidi, Peterson,
+    CPC(2016).
 
-    :param symbols: List of symbols of all atoms.
-    :type symbols: list of str
-    :param Rs: List of Cartesian atomic positions.
-    :type Rs: list of list of float
+    :param neighborsymbols: List of symbols of all neighbor atoms.
+    :type neighborsymbols: list of str
+    :param neighborpositions: List of Cartesian atomic positions.
+    :type neighborpositions: list of list of float
     :param G_element: Symmetry functions of the center atom.
     :type G_element: dict
     :param eta: Parameter of Gaussian symmetry functions.
     :type eta: float
     :param cutoff: Radius above which neighbor interactions are ignored. #FIXME
     :type cutoff: float
-    :param home: Index of the center atom.
-    :type home: int
+    :param Ri: Index of the center atom.
+    :type Ri: int
     :param fortran: If True, will use the fortran subroutines, else will not.
     :type fortran: bool
 
@@ -448,8 +459,9 @@ def calculate_G2(symbols, Rs, G_element, eta, cutoff, home, fortran):
     """
     if fortran:  # fortran version; faster
         G_number = [atomic_numbers[G_element]]
-        numbers = [atomic_numbers[symbol] for symbol in symbols]
-        if len(Rs) == 0:
+        neighbornumbers = \
+            [atomic_numbers[symbol] for symbol in neighborsymbols]
+        if len(neighbornumbers) == 0:
             ridge = 0.
         else:
 
@@ -457,37 +469,42 @@ def calculate_G2(symbols, Rs, G_element, eta, cutoff, home, fortran):
             if cutofffn != 'Cosine':
                 raise NotImplementedError()
             Rc = cutoff['kwargs']['Rc']
-            ridge = fmodules.calculate_g2(numbers=numbers, rs=Rs,
+            ridge = fmodules.calculate_g2(neighbornumbers=neighbornumbers,
+                                          neighborpositions=neighborpositions,
                                           g_number=G_number, g_eta=eta,
-                                          cutoff=Rc, cutofffn=cutofffn,
-                                          home=home)
+                                          rc=Rc, cutofffn=cutofffn,
+                                          ri=Ri)
     else:
         Rc = cutoff['kwargs']['Rc']
         cutoff_fxn = dict2cutoff(cutoff)
         ridge = 0.  # One aspect of a fingerprint :)
-        len_of_symbols = len(symbols)
-        for count in xrange(len_of_symbols):
-            symbol = symbols[count]
-            R = Rs[count]
+        num_neighbors = len(neighborpositions)   # number of neighboring atoms
+        for count in xrange(num_neighbors):
+            symbol = neighborsymbols[count]
+            Rj = neighborpositions[count]
             if symbol == G_element:
-                Rij = np.linalg.norm(R - home)
+                Rij = np.linalg.norm(Rj - Ri)
                 ridge += (np.exp(-eta * (Rij ** 2.) / (Rc ** 2.)) *
                           cutoff_fxn(Rij))
 
     return ridge
 
 
-def calculate_G4(symbols, Rs, G_elements, gamma, zeta, eta, cutoff,
-                 home, fortran):
+def calculate_G4(neighborsymbols, neighborpositions,
+                 G_elements, gamma, zeta, eta, cutoff,
+                 Ri, fortran):
     """
     Calculate G4 symmetry function. Ideally this will not be used but
     will be a template for how to build the fortran version (and serves as
     a slow backup if the fortran one goes uncompiled).
+    See Eq. 13c of the supplementary information of Khorshidi, Peterson,
+    CPC(2016).
 
-    :param symbols: List of symbols of neighboring atoms.
-    :type symbols: list of str
-    :param Rs: List of Cartesian atomic positions of neighboring atoms.
-    :type Rs: list of list of float
+    :param neighborsymbols: List of symbols of neighboring atoms.
+    :type neighborsymbols: list of str
+    :param neighborpositions: List of Cartesian atomic positions of neighboring
+                              atoms.
+    :type neighborpositions: list of list of float
     :param G_elements: Symmetry functions of the center atom.
     :type G_elements: dict
     :param gamma: Parameter of Gaussian symmetry functions.
@@ -498,8 +515,8 @@ def calculate_G4(symbols, Rs, G_elements, gamma, zeta, eta, cutoff,
     :type eta: float
     :param cutoff: Radius above which neighbor interactions are ignored.
     :type cutoff: float #FIXME
-    :param home: Index of the center atom.
-    :type home: int
+    :param Ri: Index of the center atom.
+    :type Ri: int
     :param fortran: If True, will use the fortran subroutines, else will not.
     :type fortran: bool
 
@@ -508,35 +525,38 @@ def calculate_G4(symbols, Rs, G_elements, gamma, zeta, eta, cutoff,
 
     if fortran:  # fortran version; faster
         G_numbers = sorted([atomic_numbers[el] for el in G_elements])
-        numbers = [atomic_numbers[symbol] for symbol in symbols]
-        if len(Rs) == 0:
+        neighbornumbers = \
+            [atomic_numbers[symbol] for symbol in neighborsymbols]
+        if len(neighborpositions) == 0:
             return 0.
         else:
             cutofffn = cutoff['name']
             if cutofffn != 'Cosine':
                 raise NotImplementedError()
             Rc = cutoff['kwargs']['Rc']
-            return fmodules.calculate_g4(numbers=numbers, rs=Rs,
+            return fmodules.calculate_g4(neighbornumbers=neighbornumbers,
+                                         neighborpositions=neighborpositions,
                                          g_numbers=G_numbers, g_gamma=gamma,
                                          g_zeta=zeta, g_eta=eta,
-                                         cutoff=Rc, cutofffn=cutofffn,
-                                         home=home)
+                                         rc=Rc, cutofffn=cutofffn,
+                                         ri=Ri)
     else:
         Rc = cutoff['kwargs']['Rc']
         cutoff_fxn = dict2cutoff(cutoff)
         ridge = 0.
-        counts = range(len(symbols))
+        counts = range(len(neighborpositions))
         for j in counts:
             for k in counts[(j + 1):]:
-                els = sorted([symbols[j], symbols[k]])
+                els = sorted([neighborsymbols[j], neighborsymbols[k]])
                 if els != G_elements:
                     continue
-                Rij_ = Rs[j] - home
-                Rij = np.linalg.norm(Rij_)
-                Rik_ = Rs[k] - home
-                Rik = np.linalg.norm(Rik_)
-                Rjk = np.linalg.norm(Rs[j] - Rs[k])
-                cos_theta_ijk = np.dot(Rij_, Rik_) / Rij / Rik
+                Rij_vector = neighborpositions[j] - Ri
+                Rij = np.linalg.norm(Rij_vector)
+                Rik_vector = neighborpositions[k] - Ri
+                Rik = np.linalg.norm(Rik_vector)
+                Rjk_vector = neighborpositions[k] - neighborpositions[j]
+                Rjk = np.linalg.norm(Rjk_vector)
+                cos_theta_ijk = np.dot(Rij_vector, Rik_vector) / Rij / Rik
                 term = (1. + gamma * cos_theta_ijk) ** zeta
                 term *= np.exp(-eta * (Rij ** 2. + Rik ** 2. + Rjk ** 2.) /
                                (Rc ** 2.))
@@ -592,7 +612,7 @@ def make_symmetry_functions(elements):
     return G
 
 
-def Kronecker_delta(i, j):
+def Kronecker(i, j):
     """
     Kronecker delta function.
 
@@ -604,195 +624,221 @@ def Kronecker_delta(i, j):
     :returns: int -- the value of the Kronecker delta.
     """
     if i == j:
-        return 1.
+        return 1
     else:
-        return 0.
+        return 0
 
 
-def der_position_vector(a, b, m, i):
+def dRij_dRml_vector(i, j, m, l):
     """
-    Returns the derivative of the position vector R_{ab} with respect to
-        x_{i} of atomic index m.
+    Returns the derivative of the position vector R_{ij} with respect to
+        x_{l} of itomic index m.
+    See Eq. 14d of the supplementary information of Khorshidi, Peterson,
+    CPC(2016).
 
-    :param a: Index of the first atom.
-    :type a: int
-    :param b: Index of the second atom.
-    :type b: int
+    :param i: Index of the first atom.
+    :type i: int
+    :param j: Index of the second atom.
+    :type j: int
     :param m: Index of the atom force is acting on.
     :type m: int
-    :param i: Direction of force.
-    :type i: int
-
-    :returns: list of float -- the derivative of the position vector R_{ab}
-                               with respect to x_{i} of atomic index m.
-    """
-    der_position_vector = [None, None, None]
-    der_position_vector[0] = (Kronecker_delta(m, a) - Kronecker_delta(m, b)) \
-        * Kronecker_delta(0, i)
-    der_position_vector[1] = (Kronecker_delta(m, a) - Kronecker_delta(m, b)) \
-        * Kronecker_delta(1, i)
-    der_position_vector[2] = (Kronecker_delta(m, a) - Kronecker_delta(m, b)) \
-        * Kronecker_delta(2, i)
-
-    return der_position_vector
-
-
-def der_position(m, n, Rm, Rn, l, i):
-    """
-    Returns the derivative of the norm of position vector R_{mn} with
-        respect to x_{i} of atomic index l.
-
-    :param m: Index of the first atom.
-    :type m: int
-    :param n: Index of the second atom.
-    :type n: int
-    :param Rm: Position of the first atom.
-    :type Rm: float
-    :param Rn: Position of the second atom.
-    :type Rn: float
-    :param l: Index of the atom force is acting on.
+    :param l: Direction of force.
     :type l: int
-    :param i: Direction of force.
-    :type i: int
 
-    :returns: list of float -- the derivative of the norm of position vector
-                               R_{mn} with respect to x_{i} of atomic index l.
+    :returns: list of float -- the derivative of the position vector R_{ij}
+                               with respect to x_{l} of atomic index m.
     """
-    Rmn = np.linalg.norm(Rm - Rn)
-    # mm != nn is necessary for periodic systems
-    if l == m and m != n:
-        der_position = (Rm[i] - Rn[i]) / Rmn
-    elif l == n and m != n:
-        der_position = -(Rm[i] - Rn[i]) / Rmn
+    if (m != i) and (m != j):
+        return [0, 0, 0]
     else:
-        der_position = 0.
-    return der_position
+        dRij_dRml_vector = [None, None, None]
+        c1 = Kronecker(m, j) - Kronecker(m, i)
+        dRij_dRml_vector[0] = c1 * Kronecker(0, l)
+        dRij_dRml_vector[1] = c1 * Kronecker(1, l)
+        dRij_dRml_vector[2] = c1 * Kronecker(2, l)
+        return dRij_dRml_vector
 
 
-def der_cos_theta(a, j, k, Ra, Rj, Rk, m, i):
+def dRij_dRml(i, j, Ri, Rj, m, l):
     """
-    Returns the derivative of Cos(theta_{ajk}) with respect to
-        x_{i} of atomic index m.
+    Returns the derivative of the norm of position vector R_{ij} with
+        respect to coordinate x_{l} of atomic index m.
+    See Eq. 14c of the supplementary information of Khorshidi, Peterson,
+    CPC(2016).
 
-    :param a: Index of the center atom.
-    :type a: int
+    :param i: Index of the first atom.
+    :type i: int
+    :param j: Index of the second atom.
+    :type j: int
+    :param Ri: Position of the first atom.
+    :type Ri: float
+    :param Rj: Position of the second atom.
+    :type Rj: float
+    :param m: Index of the atom force is acting on.
+    :type m: int
+    :param l: Direction of force.
+    :type l: int
+
+    :retuRjs: list of float -- the derivative of the noRi of position vector
+                               R_{ij} with respect to x_{l} of atomic index m.
+    """
+    Rij = np.linalg.norm(Rj - Ri)
+    if m == i and i != j:  # i != j is necessary for periodic systems
+        dRij_dRml = -(Rj[l] - Ri[l]) / Rij
+    elif m == j and i != j:  # i != j is necessary for periodic systems
+        dRij_dRml = (Rj[l] - Ri[l]) / Rij
+    else:
+        dRij_dRml = 0
+    return dRij_dRml
+
+
+def dCos_theta_ijk_dR_ml(i, j, k, Ri, Rj, Rk, m, l):
+    """
+    Returns the derivative of Cos(theta_{ijk}) with respect to
+        x_{l} of atomic index m.
+    See Eq. 14f of the supplementary information of Khorshidi, Peterson,
+    CPC(2016).
+
+    :param i: Index of the center atom.
+    :type i: int
     :param j: Index of the first atom.
     :type j: int
     :param k: Index of the second atom.
     :type k: int
-    :param Ra: Position of the center atom.
-    :type Ra: float
+    :param Ri: Position of the center atom.
+    :type Ri: float
     :param Rj: Position of the first atom.
     :type Rj: float
     :param Rk: Position of the second atom.
     :type Rk: float
     :param m: Index of the atom force is acting on.
     :type m: int
-    :param i: Direction of force.
-    :type i: int
+    :param l: Direction of force.
+    :type l: int
 
-    :returns: float -- derivative of Cos(theta_{ajk}) with respect to x_{i}
+    :returns: float -- derivative of Cos(theta_{ijk}) with respect to x_{l}
                        of atomic index m.
     """
-    Raj_ = Ra - Rj
-    Raj = np.linalg.norm(Raj_)
-    Rak_ = Ra - Rk
-    Rak = np.linalg.norm(Rak_)
-    der_cos_theta = 1. / \
-        (Raj * Rak) * np.dot(der_position_vector(a, j, m, i), Rak_)
-    der_cos_theta += +1. / \
-        (Raj * Rak) * np.dot(Raj_, der_position_vector(a, k, m, i))
-    der_cos_theta += -1. / \
-        ((Raj ** 2.) * Rak) * np.dot(Raj_, Rak_) * \
-        der_position(a, j, Ra, Rj, m, i)
-    der_cos_theta += -1. / \
-        (Raj * (Rak ** 2.)) * np.dot(Raj_, Rak_) * \
-        der_position(a, k, Ra, Rk, m, i)
-    return der_cos_theta
+    Rij_vector = Rj - Ri
+    Rij = np.linalg.norm(Rij_vector)
+    Rik_vector = Rk - Ri
+    Rik = np.linalg.norm(Rik_vector)
+    dCos_theta_ijk_dR_ml = 0
+
+    dRijdRml = dRij_dRml_vector(i, j, m, l)
+    if np.array(dRijdRml).any() != 0:
+        dCos_theta_ijk_dR_ml += np.dot(dRijdRml, Rik_vector) / (Rij * Rik)
+
+    dRikdRml = dRij_dRml_vector(i, k, m, l)
+    if np.array(dRikdRml).any() != 0:
+        dCos_theta_ijk_dR_ml += np.dot(Rij_vector, dRikdRml) / (Rij * Rik)
+
+    dRijdRml = dRij_dRml(i, j, Ri, Rj, m, l)
+    if dRijdRml != 0:
+        dCos_theta_ijk_dR_ml += - np.dot(Rij_vector, Rik_vector) * dRijdRml / \
+            ((Rij ** 2.) * Rik)
+
+    dRikdRml = dRij_dRml(i, k, Ri, Rk, m, l)
+    if dRikdRml != 0:
+        dCos_theta_ijk_dR_ml += - np.dot(Rij_vector, Rik_vector) * dRikdRml / \
+            (Rij * (Rik ** 2.))
+    return dCos_theta_ijk_dR_ml
 
 
-def calculate_G2_prime(n_indices, symbols, Rs, G_element, eta, cutoff,
-                       a, Ra, m, i, fortran):
+def calculate_G2_prime(neighborindices, neighborsymbols, neighborpositions,
+                       G_element, eta, cutoff,
+                       i, Ri, m, l, fortran):
     """
     Calculates coordinate derivative of G2 symmetry function for atom at
-    index a and position Ra with respect to coordinate x_{i} of atom index
+    index i and position Ri with respect to coordinate x_{l} of atom index
     m.
+    See Eq. 13b of the supplementary information of Khorshidi, Peterson,
+    CPC(2016).
 
-    :param n_indices: List of int of neighboring atoms.
-    :type n_indices: list of int
-    :param symbols: List of symbols of neighboring atoms.
-    :type symbols: list of str
-    :param Rs: List of Cartesian atomic positions of neighboring atoms.
-    :type Rs: list of list of float
+    :param neighborindices: List of int of neighboring atoms.
+    :type neighborindices: list of int
+    :param neighborsymbols: List of symbols of neighboring atoms.
+    :type neighborsymbols: list of str
+    :param neighborpositions: List of Cartesian atomic positions of neighboring
+                              atoms.
+    :type neighborpositions: list of list of float
     :param G_element: Symmetry functions of the center atom.
     :type G_element: dict
     :param eta: Parameter of Behler symmetry functions.
     :type eta: float
     :param cutoff: Radius above which neighbor interactions are ignored.
     :type cutoff: float #FIXME
-    :param a: Index of the center atom.
-    :type a: int
-    :param Ra: Position of the center atom.
-    :type Ra: float
+    :param i: Index of the center atom.
+    :type i: int
+    :param Ri: Position of the center atom.
+    :type Ri: float
     :param m: Index of the atom force is acting on.
     :type m: int
-    :param i: Direction of force.
-    :type i: int
+    :param l: Direction of force.
+    :type l: int
     :param fortran: If True, will use the fortran subroutines, else will not.
     :type fortran: bool
 
     :returns: float -- coordinate derivative of G2 symmetry function for atom
-                       at index a and position Ra with respect to coordinate
-                       x_{i} of atom index m.
+                       at index a and position Ri with respect to coordinate
+                       x_{l} of atom index m.
     """
     if fortran:  # fortran version; faster
         G_number = [atomic_numbers[G_element]]
-        numbers = [atomic_numbers[symbol] for symbol in symbols]
-        if len(Rs) == 0:
+        neighbornumbers = \
+            [atomic_numbers[symbol] for symbol in neighborsymbols]
+        if len(neighborpositions) == 0:
             ridge = 0.
         else:
             cutofffn = cutoff['name']
             if cutofffn != 'Cosine':
                 raise NotImplementedError()
             Rc = cutoff['kwargs']['Rc']
-            ridge = fmodules.calculate_g2_prime(n_indices=list(n_indices),
-                                                numbers=numbers, rs=Rs,
-                                                g_number=G_number,
-                                                g_eta=eta, cutoff=Rc,
-                                                cutofffn=cutofffn,
-                                                aa=a, home=Ra, mm=m,
-                                                ii=i)
+            ridge = fmodules.calculate_g2_prime(
+                neighborindices=list(neighborindices),
+                neighbornumbers=neighbornumbers,
+                neighborpositions=neighborpositions,
+                g_number=G_number,
+                g_eta=eta, rc=Rc,
+                cutofffn=cutofffn,
+                i=i, ri=Ri, m=m,
+                l=l)
     else:
         Rc = cutoff['kwargs']['Rc']
         cutoff_fxn = dict2cutoff(cutoff)
         ridge = 0.  # One aspect of a fingerprint :)
-        len_of_symbols = len(symbols)
-        for count in xrange(len_of_symbols):
-            symbol = symbols[count]
-            Rj = Rs[count]
-            n_index = n_indices[count]
+        num_neighbors = len(neighborpositions)   # number of neighboring atoms
+        for count in xrange(num_neighbors):
+            symbol = neighborsymbols[count]
+            Rj = neighborpositions[count]
+            j = neighborindices[count]
             if symbol == G_element:
-                Raj = np.linalg.norm(Ra - Rj)
-                term1 = (-2. * eta * Raj * cutoff_fxn(Raj) / (Rc ** 2.) +
-                         cutoff_fxn.prime(Raj))
-                term2 = der_position(a, n_index, Ra, Rj, m, i)
-                ridge += np.exp(- eta * (Raj ** 2.) / (Rc ** 2.)) * \
-                    term1 * term2
+                Rij = np.linalg.norm(Rj - Ri)
+                term1 = (-2. * eta * Rij * cutoff_fxn(Rij) / (Rc ** 2.) +
+                         cutoff_fxn.prime(Rij))
+                dRijdRml = dRij_dRml(i, j, Ri, Rj, m, l)
+                if dRijdRml != 0:
+                    ridge += np.exp(- eta * (Rij ** 2.) / (Rc ** 2.)) * \
+                        term1 * dRijdRml
     return ridge
 
 
-def calculate_G4_prime(n_indices, symbols, Rs, G_elements, gamma, zeta, eta,
-                       cutoff, a, Ra, m, i, fortran):
+def calculate_G4_prime(neighborindices, neighborsymbols, neighborpositions,
+                       G_elements, gamma, zeta, eta,
+                       cutoff, i, Ri, m, l, fortran):
     """
     Calculates coordinate derivative of G4 symmetry function for atom at
-    index a and position Ra with respect to coordinate x_{i} of atom index m.
+    index i and position Ri with respect to coordinate x_{l} of atom index m.
+    See Eq. 13d of the supplementary information of Khorshidi, Peterson,
+    CPC(2016).
 
-    :param n_indices: List of int of neighboring atoms.
-    :type n_indices: list of int
-    :param symbols: List of symbols of neighboring atoms.
-    :type symbols: list of str
-    :param Rs: List of Cartesian atomic positions of neighboring atoms.
-    :type Rs: list of list of float
+    :param neighborindices: List of int of neighboring atoms.
+    :type neighborindices: list of int
+    :param neighborsymbols: List of symbols of neighboring atoms.
+    :type neighborsymbols: list of str
+    :param neighborpositions: List of Cartesian atomic positions of neighboring
+                              atoms.
+    :type neighborpositions: list of list of float
     :param G_elements: Symmetry functions of the center atom.
     :type G_elements: dict
     :param gamma: Parameter of Behler symmetry functions.
@@ -803,90 +849,102 @@ def calculate_G4_prime(n_indices, symbols, Rs, G_elements, gamma, zeta, eta,
     :type eta: float
     :param cutoff: Radius above which neighbor interactions are ignored.
     :type cutoff: float #FIXME
-    :param a: Index of the center atom.
-    :type a: int
-    :param Ra: Position of the center atom.
-    :type Ra: float
+    :param i: Index of the center atom.
+    :type i: int
+    :param Ri: Position of the center atom.
+    :type Ri: float
     :param m: Index of the atom force is acting on.
     :type m: int
-    :param i: Direction of force.
-    :type i: int
+    :param l: Direction of force.
+    :type l: int
     :param fortran: If True, will use the fortran subroutines, else will not.
     :type fortran: bool
 
     :returns: float -- coordinate derivative of G4 symmetry function for atom
-                       at index a and position Ra with respect to coordinate
-                       x_{i} of atom index m.
+                       at index i and position Ri with respect to coordinate
+                       x_{l} of atom index m.
     """
     if fortran:  # fortran version; faster
         G_numbers = sorted([atomic_numbers[el] for el in G_elements])
-        numbers = [atomic_numbers[symbol] for symbol in symbols]
-        if len(Rs) == 0:
+        neighbornumbers = [atomic_numbers[symbol]
+                           for symbol in neighborsymbols]
+        if len(neighborpositions) == 0:
             ridge = 0.
         else:
             cutofffn = cutoff['name']
             if cutofffn != 'Cosine':
                 raise NotImplementedError()
             Rc = cutoff['kwargs']['Rc']
-            ridge = fmodules.calculate_g4_prime(n_indices=list(n_indices),
-                                                numbers=numbers, rs=Rs,
-                                                g_numbers=G_numbers,
-                                                g_gamma=gamma,
-                                                g_zeta=zeta, g_eta=eta,
-                                                cutoff=Rc,
-                                                cutofffn=cutofffn,
-                                                aa=a,
-                                                home=Ra, mm=m,
-                                                ii=i)
+            ridge = fmodules.calculate_g4_prime(
+                neighborindices=list(neighborindices),
+                neighbornumbers=neighbornumbers,
+                neighborpositions=neighborpositions,
+                g_numbers=G_numbers,
+                g_gamma=gamma,
+                g_zeta=zeta, g_eta=eta,
+                rc=Rc,
+                cutofffn=cutofffn,
+                i=i,
+                ri=Ri, m=m,
+                l=l)
     else:
         Rc = cutoff['kwargs']['Rc']
         cutoff_fxn = dict2cutoff(cutoff)
         ridge = 0.
-        counts = range(len(symbols))
+        # number of neighboring atoms
+        counts = range(len(neighborpositions))
         for j in counts:
             for k in counts[(j + 1):]:
-                els = sorted([symbols[j], symbols[k]])
+                els = sorted([neighborsymbols[j], neighborsymbols[k]])
                 if els != G_elements:
                     continue
-                Rj = Rs[j]
-                Rk = Rs[k]
-                Raj_ = Rs[j] - Ra
-                Raj = np.linalg.norm(Raj_)
-                Rak_ = Rs[k] - Ra
-                Rak = np.linalg.norm(Rak_)
-                Rjk_ = Rs[j] - Rs[k]
-                Rjk = np.linalg.norm(Rjk_)
-                cos_theta_ajk = np.dot(Raj_, Rak_) / Raj / Rak
-                c1 = (1. + gamma * cos_theta_ajk)
-                c2 = cutoff_fxn(Raj)
-                c3 = cutoff_fxn(Rak)
-                c4 = cutoff_fxn(Rjk)
+                Rj = neighborpositions[j]
+                Rk = neighborpositions[k]
+                Rij_vector = neighborpositions[j] - Ri
+                Rij = np.linalg.norm(Rij_vector)
+                Rik_vector = neighborpositions[k] - Ri
+                Rik = np.linalg.norm(Rik_vector)
+                Rjk_vector = neighborpositions[k] - neighborpositions[j]
+                Rjk = np.linalg.norm(Rjk_vector)
+                cos_theta_ijk = np.dot(Rij_vector, Rik_vector) / Rij / Rik
+                c1 = (1. + gamma * cos_theta_ijk)
+                fcRij = cutoff_fxn(Rij)
+                fcRik = cutoff_fxn(Rik)
+                fcRjk = cutoff_fxn(Rjk)
                 if zeta == 1:
                     term1 = \
-                        np.exp(- eta * (Raj ** 2. + Rak ** 2. + Rjk ** 2.) /
+                        np.exp(- eta * (Rij ** 2. + Rik ** 2. + Rjk ** 2.) /
                                (Rc ** 2.))
                 else:
                     term1 = c1 ** (zeta - 1.) * \
-                        np.exp(- eta * (Raj ** 2. + Rak ** 2. + Rjk ** 2.) /
+                        np.exp(- eta * (Rij ** 2. + Rik ** 2. + Rjk ** 2.) /
                                (Rc ** 2.))
-                term2 = c2 * c3 * c4
-                term3 = der_cos_theta(a, n_indices[j], n_indices[k], Ra, Rj,
-                                      Rk, m, i)
-                term4 = gamma * zeta * term3
-                term5 = der_position(a, n_indices[j], Ra, Rj, m, i)
-                term4 += -2. * c1 * eta * Raj * term5 / (Rc ** 2.)
-                term6 = der_position(a, n_indices[k], Ra, Rk, m, i)
-                term4 += -2. * c1 * eta * Rak * term6 / (Rc ** 2.)
-                term7 = der_position(n_indices[j], n_indices[k], Rj, Rk, m, i)
-                term4 += -2. * c1 * eta * Rjk * term7 / (Rc ** 2.)
-                term2 = term2 * term4
-                term8 = cutoff_fxn.prime(Raj) * c3 * c4 * term5
-                term9 = c2 * cutoff_fxn.prime(Rak) * c4 * term6
-                term10 = c2 * c3 * cutoff_fxn.prime(Rjk) * term7
+                term2 = 0.
+                fcRijfcRikfcRjk = fcRij * fcRik * fcRjk
+                dCosthetadRml = dCos_theta_ijk_dR_ml(i,
+                                                     neighborindices[j],
+                                                     neighborindices[k],
+                                                     Ri, Rj,
+                                                     Rk, m, l)
+                if dCosthetadRml != 0:
+                    term2 += gamma * zeta * dCosthetadRml
+                dRijdRml = dRij_dRml(i, neighborindices[j], Ri, Rj, m, l)
+                if dRijdRml != 0:
+                    term2 += -2. * c1 * eta * Rij * dRijdRml / (Rc ** 2.)
+                dRikdRml = dRij_dRml(i, neighborindices[k], Ri, Rk, m, l)
+                if dRikdRml != 0:
+                    term2 += -2. * c1 * eta * Rik * dRikdRml / (Rc ** 2.)
+                dRjkdRml = dRij_dRml(neighborindices[j],
+                                     neighborindices[k],
+                                     Rj, Rk, m, l)
+                if dRjkdRml != 0:
+                    term2 += -2. * c1 * eta * Rjk * dRjkdRml / (Rc ** 2.)
+                term3 = fcRijfcRikfcRjk * term2
+                term4 = cutoff_fxn.prime(Rij) * dRijdRml * fcRik * fcRjk
+                term5 = fcRij * cutoff_fxn.prime(Rik) * dRikdRml * fcRjk
+                term6 = fcRij * fcRik * cutoff_fxn.prime(Rjk) * dRjkdRml
 
-                term11 = term2 + c1 * (term8 + term9 + term10)
-                term = term1 * term11
-                ridge += term
+                ridge += term1 * (term3 + c1 * (term4 + term5 + term6))
         ridge *= 2. ** (1. - zeta)
 
     return ridge
