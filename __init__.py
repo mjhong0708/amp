@@ -6,6 +6,7 @@ import tempfile
 import platform
 from getpass import getuser
 from socket import gethostname
+import subprocess
 
 import ase
 from ase.calculators.calculator import Calculator, Parameters
@@ -302,10 +303,14 @@ class Amp(Calculator, object):
         uname = platform.uname()
         log('Architecture: %s' % uname[4])
         log('PID: %s' % os.getpid())
-        log('Version: %s' % 'NOT NUMBERED YET.')  # FIXME/ap. Look at GPAW
+        log('Amp version: %s' % 'NOT NUMBERED YET.')  # FIXME/ap. Look at GPAW
+        ampdirectory = os.path.dirname(os.path.abspath(__file__))
+        log('Amp directory: %s' % ampdirectory)
+        commithash, commitdate = get_git_commit(ampdirectory)
+        log(' Last commit: %s' % commithash)
+        log(' Last commit date: %s' % commitdate)
         log('Python: v{0}.{1}.{2}: %s'.format(*sys.version_info[:3]) %
             sys.executable)
-        log('Amp: %s' % os.path.dirname(os.path.abspath(__file__)))
         log('ASE v%s: %s' % (aseversion, os.path.dirname(ase.__file__)))
         log('NumPy v%s: %s' %
             (np.version.version, os.path.dirname(np.__file__)))
@@ -363,3 +368,20 @@ def importhelper(importname):
             importname)
 
     return Module
+
+
+def get_git_commit(ampdirectory):
+    """Attempts to get the last git commit from the amp directory."""
+    pwd = os.getcwd()
+    os.chdir(ampdirectory)
+    try:
+        with open(os.devnull, 'w') as devnull:
+            output = subprocess.check_output(['git', 'log', '-1',
+                                              '--pretty=%H\t%ci'],
+                                             stderr=devnull)
+    except:
+        output = 'unknown hash\tunknown date'
+    output = output.strip()
+    commithash, commitdate = output.split('\t')
+    os.chdir(pwd)
+    return commithash, commitdate
