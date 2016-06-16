@@ -6,7 +6,7 @@ from ..utilities import (Logger, ConvergenceOccurred, make_sublists, now,
 import warnings
 try:
     from .. import fmodules
-    fmodules_version = 5
+    fmodules_version = 6
     wrong_version = fmodules.check_version(version=fmodules_version)
     if wrong_version:
         raise RuntimeError('fortran modules are not updated. Recompile'
