@@ -46,4 +46,8 @@ class Regressor:
             return True
         else:
             log('...optimization unsuccessful.', toc='opt')
+            max_lossprime = max(abs(max(model.lossfunction.dloss_dparameters)),
+                                abs(min(model.lossfunction.dloss_dparameters)))
+            log('...maximum absolute value of loss prime: %.3e'
+                % max_lossprime)
             return False
