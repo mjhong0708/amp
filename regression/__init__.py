@@ -19,7 +19,7 @@ class Regressor:
         the optimizer_kwargs dictionary."""
         if optimizer is None:
             from scipy.optimize import fmin_bfgs as optimizer
-            optimizer_kwargs = {'gtol': 1e-15}
+            optimizer_kwargs = {'gtol': 1e-500}
         if optimizer_kwargs is None:
             optimizer_kwargs = {}
         self.optimizer = optimizer
