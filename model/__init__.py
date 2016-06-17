@@ -199,6 +199,11 @@ class LossFunction:
 
     See self.default_parameters for the default values of parameters
     specified as None.
+
+    :param d: If d is None, both loss function and its gradient are calculated
+              analytically. If d is a float, then gradient of the loss function
+              is calculated by perturbing each parameter plus/minus d.
+    :type d:  None or float
     """
 
     default_parameters = {'convergence': {'energy_rmse': 0.001,
