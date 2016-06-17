@@ -98,6 +98,30 @@ class Model(object):
                     denergy_dparameters += temp
         return denergy_dparameters
 
+    def get_numerical_dEnergy_dParameters(self, fingerprints, d=0.00001):
+        """Evaluates dEnergy_dParameters using finite difference. This will
+        trigger two calls to get_energy(), with each parameter perturbed
+        plus/minus d.
+        """
+
+        if self.parameters.mode == 'image-centered':
+            raise NotImplementedError('This needs to be coded.')
+        elif self.parameters.mode == 'atom-centered':
+            vector = self.vector
+            denergy_dparameters = []
+            for _ in range(len(vector)):
+                vector[_] += d
+                self.vector = vector
+                eplus = self.get_energy(fingerprints)
+                vector[_] -= 2 * d
+                self.vector = vector
+                eminus = self.get_energy(fingerprints)
+                denergy_dparameters += [(eplus - eminus) / (2 * d)]
+                vector[_] += d
+                self.vector = vector
+            denergy_dparameters = np.array(denergy_dparameters)
+        return denergy_dparameters
+
     def get_dForces_dParameters(self, fingerprints, fingerprintprimes):
         """Returns an array of floats corresponding to the derivative of
         model-predicted atomic forces of an image with respect to model
@@ -125,6 +149,41 @@ class Model(object):
                     dforces_dparameters[(selfindex, i)] += temp
         return dforces_dparameters
 
+    def get_numerical_dForces_dParameters(self, fingerprints,
+                                          fingerprintprimes, d=0.00001):
+        """Evaluates dForces_dParameters using finite difference. This will
+        trigger two calls to get_forces(), with each parameter perturbed
+        plus/minus d.
+        """
+
+        if self.parameters.mode == 'image-centered':
+            raise NotImplementedError('This needs to be coded.')
+        elif self.parameters.mode == 'atom-centered':
+            selfindices = set([key[0] for key in fingerprintprimes.keys()])
+            dforces_dparameters = {(selfindex, i): []
+                                   for selfindex in selfindices
+                                   for i in range(3)}
+            vector = self.vector
+            for _ in range(len(vector)):
+                vector[_] += d
+                self.vector = vector
+                fplus = self.get_forces(fingerprints, fingerprintprimes)
+                vector[_] -= 2 * d
+                self.vector = vector
+                fminus = self.get_forces(fingerprints, fingerprintprimes)
+                for selfindex in selfindices:
+                    for i in range(3):
+                        dforces_dparameters[(selfindex, i)] += \
+                            [(fplus[selfindex][i] - fminus[selfindex][i]) / (
+                                2 * d)]
+                vector[_] += d
+                self.vector = vector
+            for selfindex in selfindices:
+                for i in range(3):
+                    dforces_dparameters[(selfindex, i)] = \
+                        np.array(dforces_dparameters[(selfindex, i)])
+        return dforces_dparameters
+
 
 class LossFunction:
 
@@ -150,7 +209,7 @@ class LossFunction:
 
     def __init__(self, energy_coefficient=1.0, force_coefficient=0.04,
                  convergence=None, cores=None,
-                 raise_ConvergenceOccurred=True,):
+                 raise_ConvergenceOccurred=True, d=None):
         p = self.parameters = Parameters(
             {'importname': '.model.LossFunction'})
         # 'dict' creates a copy; otherwise mutable in class.
@@ -161,6 +220,7 @@ class LossFunction:
         p['energy_coefficient'] = energy_coefficient
         p['force_coefficient'] = force_coefficient
         self.raise_ConvergenceOccurred = raise_ConvergenceOccurred
+        self.d = d
         self._step = 0
         self._initialized = False
         self._cores = cores
@@ -363,8 +423,8 @@ class LossFunction:
 
             else:
                 loss, dloss_dparameters, energy_loss, force_loss, \
-                    energy_maxresid, force_maxresid = self.calculate_loss(
-                        complete_output=True)
+                    energy_maxresid, force_maxresid = \
+                    self.calculate_loss(complete_output=True, d=self.d)
         else:
             server = self._sessions['master']
             processes = self._sessions['workers']
@@ -498,7 +558,7 @@ class LossFunction:
                 else:
                     loss, dloss_dparameters, energy_loss, force_loss, \
                         energy_maxresid, force_maxresid = \
-                        self.calculate_loss(complete_output=True)
+                        self.calculate_loss(complete_output=True, d=self.d)
             else:
                 server = self._sessions['master']
                 processes = self._sessions['workers']
@@ -535,7 +595,7 @@ class LossFunction:
                     'energy_maxresid': self.energy_maxresid,
                     'force_maxresid': self.force_maxresid, }
 
-    def calculate_loss(self, complete_output):
+    def calculate_loss(self, complete_output, d):
         """Method that calculates the loss, derivative of the loss with respect
         to parameters (if requested), and max_residual.
         """
@@ -561,9 +621,14 @@ class LossFunction:
                 if self._model.parameters.mode == 'image-centered':
                     raise NotImplementedError('This needs to be coded.')
                 elif self._model.parameters.mode == 'atom-centered':
-                    denergy_dparameters = \
-                        self._model.get_dEnergy_dParameters(
-                            self.fingerprints[hash])
+                    if d is None:
+                        denergy_dparameters = \
+                            self._model.get_dEnergy_dParameters(
+                                self.fingerprints[hash])
+                    else:
+                        denergy_dparameters = \
+                            self._model.get_numerical_dEnergy_dParameters(
+                                self.fingerprints[hash], d=d)
                     if dloss_dparameters is None:
                         dloss_dparameters = p.energy_coefficient * 2. * \
                             (amp_energy - actual_energy) * \
@@ -596,10 +661,17 @@ class LossFunction:
                     if self._model.parameters.mode == 'image-centered':
                         raise NotImplementedError('This needs to be coded.')
                     elif self._model.parameters.mode == 'atom-centered':
-                        dforces_dparameters = \
-                            self._model.get_dForces_dParameters(
-                                self.fingerprints[hash],
-                                self.fingerprintprimes[hash])
+                        if d is None:
+                            dforces_dparameters = \
+                                self._model.get_dForces_dParameters(
+                                    self.fingerprints[hash],
+                                    self.fingerprintprimes[hash])
+                        else:
+                            dforces_dparameters = \
+                                self._model.get_numerical_dForces_dParameters(
+                                    self.fingerprints[hash],
+                                    self.fingerprintprimes[hash],
+                                    d=d)
                         for selfindex in range(no_of_atoms):
                             for i in range(3):
                                 dloss_dparameters += p.force_coefficient * \
