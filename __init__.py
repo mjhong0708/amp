@@ -21,6 +21,18 @@ from .utilities import hash_images
 from .utilities import Logger, string2dict, logo, now, assign_cores
 from .utilities import TrainingConvergenceError
 
+import warnings
+try:
+    from . import fmodules
+    fmodules_version = 7
+    wrong_version = fmodules.check_version(version=fmodules_version)
+    if wrong_version:
+        raise RuntimeError('fortran modules are not updated. Recompile'
+                           'with f2py as described in the README. '
+                           'Correct version is %i.' % fmodules_version)
+except ImportError:
+    warnings.warn('Did not find fortran modules.')
+
 
 class Amp(Calculator, object):
 

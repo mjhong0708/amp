@@ -3,18 +3,10 @@ import numpy as np
 from ase.calculators.calculator import Parameters
 from ..utilities import (Logger, ConvergenceOccurred, make_sublists, now,
                          importer, EstablishSSH)
-import warnings
 try:
     from .. import fmodules
-    fmodules_version = 7
-    wrong_version = fmodules.check_version(version=fmodules_version)
-    if wrong_version:
-        raise RuntimeError('fortran modules are not updated. Recompile'
-                           'with f2py as described in the README. '
-                           'Correct version is %i.' % fmodules_version)
 except ImportError:
     fmodules = None
-    warnings.warn('Did not find fortran modules for use.')
 
 
 class Model(object):
