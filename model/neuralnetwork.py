@@ -292,8 +292,10 @@ class NeuralNetwork(Model):
         dOutputs_dInputs = calculate_dOutputs_dInputs(self.parameters, derafp,
                                                       outputs, nsymbol,)
 
-        force = float(-(scaling['slope'] *
-                        dOutputs_dInputs[len(dOutputs_dInputs) - 1][0]))
+        force = float((scaling['slope'] *
+                       dOutputs_dInputs[len(dOutputs_dInputs) - 1][0]))
+        # force is multiplied by -1, because it is -dE/dx and not dE/dx.
+        force *= -1.
 
         return force
 
@@ -331,13 +333,15 @@ class NeuralNetwork(Model):
         ohat, D, delta = calculate_ohat_D_delta(self.parameters, outputs, W)
 
         dAtomicEnergy_dScalings[symbol]['intercept'] = 1.
-        dAtomicEnergy_dScalings[symbol]['slope'] = float(outputs[len(outputs) - 1])
+        dAtomicEnergy_dScalings[symbol][
+            'slope'] = float(outputs[len(outputs) - 1])
         for k in xrange(1, len(outputs)):
             dAtomicEnergy_dWeights[symbol][k] = float(scaling['slope']) * \
                 np.dot(np.matrix(ohat[k - 1]).T, np.matrix(delta[k]).T)
 
         dAtomicEnergy_dParameters = \
-            self.ravel.to_vector(dAtomicEnergy_dWeights, dAtomicEnergy_dScalings)
+            self.ravel.to_vector(
+                dAtomicEnergy_dWeights, dAtomicEnergy_dScalings)
 
         return dAtomicEnergy_dParameters
 
@@ -430,6 +434,9 @@ class NeuralNetwork(Model):
         dForce_dScalings[nsymbol]['slope'] = dOutputs_dInputs[N + 1][0]
         dForce_dParameters = self.ravel.to_vector(dForce_dWeights,
                                                   dForce_dScalings)
+        # force is multiplied by -1, because it is -dE/dx and not dE/dx.
+        dForce_dParameters *= -1.
+
         return dForce_dParameters
 
 # Auxiliary functions #########################################################

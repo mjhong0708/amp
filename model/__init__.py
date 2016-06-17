@@ -673,7 +673,7 @@ class LossFunction:
                             for i in range(3):
                                 dloss_dparameters += p.force_coefficient * \
                                     (2.0 / 3.0) * \
-                                    (- amp_forces[selfindex][i] +
+                                    (amp_forces[selfindex][i] -
                                      actual_forces[selfindex][i]) * \
                                     dforces_dparameters[(selfindex, i)] \
                                     / no_of_atoms
