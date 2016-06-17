@@ -5,9 +5,9 @@
       subroutine check_version(version, warning) 
       implicit none
     
-      integer :: version, warning
-!f2py         intent(in) :: version
-!f2py         intent(out) :: warning
+      integer::  version, warning
+!f2py         intent(in)::  version
+!f2py         intent(out)::  warning
       if (version .NE. 7) then
           warning = 1
       else
@@ -39,6 +39,8 @@
       logical:: train_forces
       double precision:: energy_coefficient
       double precision:: force_coefficient
+      logical:: numericprime
+      double precision:: d      
       
       end module model_props
 
@@ -125,7 +127,7 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!! dummy variables !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-      double precision, allocatable :: fingerprint(:)
+      double precision, allocatable::  fingerprint(:)
       type(embedded_real_one_one_d_array), allocatable:: &
       unraveled_fingerprints(:)
       type(integer_one_d_array), allocatable:: &
@@ -151,7 +153,7 @@
 !     image-centered mode
       type(real_one_d_array), allocatable:: &
       unraveled_atomic_positions(:)
-      double precision, allocatable :: inputs(:), inputs_(:)
+      double precision, allocatable::  inputs(:), inputs_(:)
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!! calculations !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -214,7 +216,11 @@
 				do j = 1, num_parameters
 					denergy_dparameters(j) = 0.0d0
 				end do
-                call get_denergy_dparameters(image_no) ! analytical
+                if (numericprime .EQV. .FALSE.) then
+                    call get_denergy_dparameters(image_no)
+                else
+                    call get_numerical_denergy_dparameters(image_no)
+                end if
             end if
 			! calculates contribution of energyloss to dloss_dparameters
             do j = 1, num_parameters
@@ -266,8 +272,12 @@
 					    end do
 					end do
 				end do
-                ! calculates dforces_dparameters              
-                call get_dforces_dparameters(image_no)
+                ! calculates dforces_dparameters  
+                if (numericprime .EQV. .FALSE.) then
+                    call get_dforces_dparameters(image_no)
+                else
+                    call get_numerical_dforces_dparameters(image_no)
+                end if
                 ! calculates contribution of forceloss to
                 ! dloss_dparameters 
                 do selfindex = 1, num_atoms
@@ -276,7 +286,7 @@
                             dloss_dparameters(j) = &
                             dloss_dparameters(j) + &
                             force_coefficient * (2.0d0 / 3.0d0) * &
-                            (- amp_forces(selfindex, i) + &
+                            (amp_forces(selfindex, i) - &
                             actual_forces_(selfindex, i)) * &
                             dforces_dparameters(&
                             selfindex)%twodarray(i, j) / num_atoms
@@ -414,9 +424,8 @@
                     inputs_(p) = 0.0d0
                 end do
                 inputs_(3 * (selfindex - 1) + i) = 1.0d0
-                force = get_force_(num_inputs, inputs, inputs_, &
-                        num_parameters, parameters)
-                amp_forces(selfindex, i) = force
+                amp_forces(selfindex, i) = get_force_(num_inputs, &
+                inputs, inputs_, num_parameters, parameters)
             end do
         else
             ! neighborindices list is generated.
@@ -472,7 +481,8 @@
 
  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-      ! calculates denergy_dparameters in the atom-centered mode.
+      ! calculates analytical denergy_dparameters in
+      ! the atom-centered mode.
       subroutine get_denergy_dparameters(image_no)
 
       do index = 1, num_atoms
@@ -499,6 +509,28 @@
       end do
 
       end subroutine get_denergy_dparameters
+
+ !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      ! calculates numerical denergy_dparameters in the
+      ! atom-centered mode.
+      subroutine get_numerical_denergy_dparameters(image_no)
+
+      double precision:: eplus, eminus
+      
+      do j = 1, num_parameters
+          parameters(j) = parameters(j) + d
+          call get_energy(image_no)
+          eplus = amp_energy
+          parameters(j) = parameters(j) - 2.0d0 * d
+          call get_energy(image_no)
+          eminus = amp_energy
+          denergy_dparameters(j) = (eplus - eminus) / (2.0d0 * d)
+          parameters(j) = parameters(j) + d
+      end do
+      call get_energy(image_no)
+
+      end subroutine get_numerical_denergy_dparameters
 
  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -576,6 +608,49 @@
       end if
 
       end subroutine get_dforces_dparameters
+
+ !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      ! calculates numerical dforces_dparameters in the
+      ! atom-centered mode.
+      subroutine get_numerical_dforces_dparameters(image_no)
+
+      double precision, allocatable:: fplus(:, :), fminus(:, :)
+      
+      do j = 1, num_parameters
+          parameters(j) = parameters(j) + d
+          deallocate(amp_forces)
+          call get_forces(image_no)
+		  allocate(fplus(num_atoms, 3))
+		  do selfindex = 1, num_atoms
+			do i = 1, 3
+				fplus(selfindex, i) = amp_forces(selfindex, i)
+			end do
+		  end do
+          parameters(j) = parameters(j) - 2.0d0 * d
+          deallocate(amp_forces)
+          call get_forces(image_no)
+		  allocate(fminus(num_atoms, 3))
+		  do selfindex = 1, num_atoms
+			do i = 1, 3
+				fminus(selfindex, i) = amp_forces(selfindex, i)
+			end do
+		  end do
+          do selfindex = 1, num_atoms
+              do i = 1, 3
+                  dforces_dparameters(selfindex)%twodarray(i, j) = &
+                  (fplus(selfindex, i) - fminus(selfindex, i)) / &
+                  (2.0d0 * d)
+              end do
+          end do
+          parameters(j) = parameters(j) + d
+          deallocate(fplus)
+          deallocate(fminus)
+      end do
+      deallocate(amp_forces)
+      call get_forces(image_no)
+
+      end subroutine get_numerical_dforces_dparameters
 
  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 

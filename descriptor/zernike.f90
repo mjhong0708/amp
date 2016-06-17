@@ -6,23 +6,23 @@
 							home, p, q, fac_length, factorial, &
 							norm_prime)
           implicit none
-          integer :: n, l
-          integer :: indexx, p, q, n_length, fac_length
-          integer, dimension(n_length) :: n_indices, numbers, g_numbers
-          double precision, dimension(n_length, 3) :: rs
-          double precision, dimension(3) :: home
-          double precision, dimension(fac_length) :: factorial
-          double precision :: cutoff
-          complex*16 :: norm_prime
-!f2py     intent(in) :: n, l, n_indices, numbers, g_numbers, rs
-!f2py     intent(in) :: home, indexx, p, q, cutoff, n_length, fac_length
-!f2py     intent(out) :: norm_prime
-          integer :: m
-          complex*16 :: c_nlm, c_nlm_prime, z_nlm_, z_nlm, &
+          integer::  n, l
+          integer::  indexx, p, q, n_length, fac_length
+          integer, dimension(n_length)::  n_indices, numbers, g_numbers
+          double precision, dimension(n_length, 3)::  rs
+          double precision, dimension(3)::  home
+          double precision, dimension(fac_length)::  factorial
+          double precision::  cutoff
+          complex*16::  norm_prime
+!f2py     intent(in)::  n, l, n_indices, numbers, g_numbers, rs
+!f2py     intent(in)::  home, indexx, p, q, cutoff, n_length, fac_length
+!f2py     intent(out)::  norm_prime
+          integer::  m
+          complex*16::  c_nlm, c_nlm_prime, z_nlm_, z_nlm, &
           z_nlm_prime, z_nlm_prime_
-          integer :: n_index, n_symbol, iter
-          double precision, dimension(3) :: neighbor
-          double precision :: x, y, z, rho
+          integer::  n_index, n_symbol, iter
+          double precision, dimension(3)::  neighbor
+          double precision::  x, y, z, rho
 
           norm_prime = (0.0d0, 0.0d0)
           do m = 0, l
@@ -80,7 +80,7 @@
 
 		function cutoff_fxn(r, cutoff)
 		  implicit none
-		  double precision :: r, cutoff, cutoff_fxn, pi
+		  double precision::  r, cutoff, cutoff_fxn, pi
           if (r > cutoff) then
 			cutoff_fxn = 0.0d0
           else
@@ -91,7 +91,7 @@
       
 		function cutoff_fxn_prime(r, cutoff)
 		  implicit none
-		  double precision :: r, cutoff, cutoff_fxn_prime, pi
+		  double precision::  r, cutoff, cutoff_fxn_prime, pi
 		  if (r > cutoff) then
 			cutoff_fxn_prime = 0.0d0
           else
@@ -102,9 +102,9 @@
 
 		function der_position(mm, nn, Rm, Rn, ll, ii)
 		  implicit none
-		  integer :: mm, nn, ll, ii, xyz
-          double precision, dimension(3) :: Rm, Rn, Rmn_
-          double precision :: der_position, Rmn
+		  integer::  mm, nn, ll, ii, xyz
+          double precision, dimension(3)::  Rm, Rn, Rmn_
+          double precision::  der_position, Rmn
           do xyz = 1, 3
 			Rmn_(xyz) = Rm(xyz) - Rn(xyz)
           end do
@@ -120,8 +120,8 @@
 
 		function kronecker(i, j)
 		  implicit none
-		  integer :: i, j
-		  integer :: kronecker
+		  integer::  i, j
+		  integer::  kronecker
 		  if (i == j) then
 			kronecker = 1
 		  else
@@ -134,15 +134,15 @@
 	  subroutine calculate_z(n, l, m, x, y, z, factorial, length, &
 	  output)
 		  implicit none
-		  integer :: n, l, m, length
-		  double precision :: x, y, z
-          double precision, dimension(length) :: factorial
-		  complex*16 :: output, ii, term4, term6
-!f2py     intent(in) :: n, l, m, x, y, z, factorial, length
-!f2py     intent(out) :: output
-		  integer :: k, nu, alpha, beta, eta, u, mu, r, s, t
-		  double precision :: term1, term2, q, b1, b2, term3
-		  double precision :: term5, b5, b6, b7, b8, pi
+		  integer::  n, l, m, length
+		  double precision::  x, y, z
+          double precision, dimension(length)::  factorial
+		  complex*16::  output, ii, term4, term6
+!f2py     intent(in)::  n, l, m, x, y, z, factorial, length
+!f2py     intent(out)::  output
+		  integer::  k, nu, alpha, beta, eta, u, mu, r, s, t
+		  double precision::  term1, term2, q, b1, b2, term3
+		  double precision::  term5, b5, b6, b7, b8, pi
 
 		  pi = 4.0d0 * datan(1.0d0)
 
@@ -197,15 +197,15 @@
 	  subroutine calculate_z_prime(n, l, m, x, y, z, p, factorial, &
 									length, output)
 		  implicit none
-		  integer :: n, l, m, length, p
-		  double precision :: x, y, z
-          double precision, dimension(length) :: factorial
-		  complex*16 :: output, ii, coefficient, term4, term6
-!f2py     intent(in) :: n, l, m, x, y, z, factorial, p, length
-!f2py     intent(out) :: output
-		  integer :: k, nu, alpha, beta, eta, u, mu, r, s, t
-		  double precision :: term1, term2, q, b1, b2, term3
-		  double precision :: term5, b3, b4, b5, b6, pi
+		  integer::  n, l, m, length, p
+		  double precision::  x, y, z
+          double precision, dimension(length)::  factorial
+		  complex*16::  output, ii, coefficient, term4, term6
+!f2py     intent(in)::  n, l, m, x, y, z, factorial, p, length
+!f2py     intent(out)::  output
+		  integer::  k, nu, alpha, beta, eta, u, mu, r, s, t
+		  double precision::  term1, term2, q, b1, b2, term3
+		  double precision::  term5, b3, b4, b5, b6, pi
 
 		  pi = 4.0d0 * datan(1.0d0)
 
@@ -274,11 +274,11 @@
 
 	  subroutine calculate_q(nu, k, l, factorial, length, output)
 		  implicit none
-		  integer :: nu, k, l, length
-          double precision, dimension(length) :: factorial
-		  double precision :: output, b1, b2, b3, b4
-!f2py     intent(in) :: nu, k, l, factorial
-!f2py     intent(out) :: output
+		  integer::  nu, k, l, length
+          double precision, dimension(length)::  factorial
+		  double precision::  output, b1, b2, b3, b4
+!f2py     intent(in)::  nu, k, l, factorial
+!f2py     intent(out)::  output
 
 		  call binomial(float(k), float(nu), factorial, length, b1)
 		  call binomial(float(2 * k), float(k), factorial, length, b2)
@@ -293,12 +293,12 @@
 
 	  subroutine binomial(n, k, factorial, length, output)
 		  implicit none
-		  real(4) :: n, k
-          integer :: length
-          double precision, dimension(length) :: factorial
-		  double precision :: output
-!f2py     intent(in) :: n, k, factorial, length
-!f2py     intent(out) :: output
+		  real(4)::  n, k
+          integer::  length
+          double precision, dimension(length)::  factorial
+		  double precision::  output
+!f2py     intent(in)::  n, k, factorial, length
+!f2py     intent(out)::  output
         output = factorial(INT(2 * n) + 1) / &
         factorial(INT(2 * k) + 1) / &
         factorial(INT(2 * (n - k)) + 1)

@@ -407,7 +407,8 @@ class LossFunction:
                                      num_neighbors,
                                      raveled_neighborlists,
                                      raveled_fingerprintprimes,
-                                     self._model)
+                                     self._model,
+                                     self.d)
 
                 (loss, dloss_dparameters, energy_loss, force_loss,
                  energy_maxresid, force_maxresid) = \
@@ -429,7 +430,9 @@ class LossFunction:
             # Subdivide tasks.
             keys = make_sublists(self.images.keys(), len(processes))
 
-            args = {'task': 'f', 'complete_output': complete_output}
+            args = {'task': 'f',
+                    'complete_output': complete_output,
+                    'd': self.d}
 
             results = self.process_parallels(parametervector,
                                              server,
@@ -541,7 +544,8 @@ class LossFunction:
                                          num_neighbors,
                                          raveled_neighborlists,
                                          raveled_fingerprintprimes,
-                                         self._model)
+                                         self._model,
+                                         self.d)
 
                     (loss, dloss_dparameters, energy_loss, force_loss,
                      energy_maxresid, force_maxresid) = \
@@ -563,7 +567,9 @@ class LossFunction:
                 # Subdivide tasks.
                 keys = make_sublists(self.images.keys(), len(processes))
 
-                args = {'task': 'fprime', 'complete_output': complete_output}
+                args = {'task': 'fprime',
+                        'complete_output': complete_output,
+                        'd': self.d}
 
                 results = self.process_parallels(parametervector,
                                                  server,
@@ -959,7 +965,8 @@ def send_data_to_fortran(_fmodules,
                          num_neighbors,
                          raveled_neighborlists,
                          raveled_fingerprintprimes,
-                         model):
+                         model,
+                         d):
     """
     Function that sends images data to fortran code. Is used just once on each
     core.
@@ -980,6 +987,11 @@ def send_data_to_fortran(_fmodules,
     _fmodules.model_props.force_coefficient = force_coefficient
     _fmodules.model_props.train_forces = train_forces
     _fmodules.model_props.mode_signal = mode_signal
+    if d is None:
+        _fmodules.model_props.numericprime = False
+    else:
+        _fmodules.model_props.numericprime = True
+        _fmodules.model_props.d = d
 
     if model.parameters.mode == 'atom-centered':
         fprange = model.parameters.fprange

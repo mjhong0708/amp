@@ -12,7 +12,7 @@
       double precision, allocatable::max_fingerprints(:, :)
       integer, allocatable:: no_layers_of_elements(:)
       integer, allocatable:: no_nodes_of_elements(:)
-      integer :: activation_signal
+      integer:: activation_signal
       
       type:: real_two_d_array
         sequence
@@ -39,15 +39,15 @@
       parameters)
       implicit none
       
-      integer :: num_inputs, num_parameters
-      double precision :: inputs(num_inputs)
-      double precision :: parameters(num_parameters)
-      double precision :: get_image_energy
+      integer:: num_inputs, num_parameters
+      double precision:: inputs(num_inputs)
+      double precision:: parameters(num_parameters)
+      double precision:: get_image_energy
    
       integer:: p, m, n, layer
       integer:: l, j, num_rows, num_cols, q
-      integer, allocatable :: hiddensizes(:)
-      double precision, allocatable :: net(:)
+      integer, allocatable:: hiddensizes(:)
+      double precision, allocatable:: net(:)
       type(real_one_d_array), allocatable:: o(:), ohat(:)
       type(real_two_d_array), allocatable:: weights(:)
       double precision:: intercept
@@ -147,20 +147,20 @@
       num_parameters, parameters)
       implicit none
       
-      integer :: symbol, num_parameters, &
+      integer:: symbol, num_parameters, &
       len_of_fingerprint, num_elements
-      double precision :: fingerprint(len_of_fingerprint)
-      integer :: elements_numbers(num_elements)
-      double precision :: parameters(num_parameters)
-      double precision :: get_atomic_energy
+      double precision:: fingerprint(len_of_fingerprint)
+      integer:: elements_numbers(num_elements)
+      double precision:: parameters(num_parameters)
+      double precision:: get_atomic_energy
    
       integer:: p, element, m, n, layer
       integer:: k, l, j, num_rows, num_cols, q
-      integer, allocatable :: hiddensizes(:)
-      double precision, allocatable :: net(:)
+      integer, allocatable:: hiddensizes(:)
+      double precision, allocatable:: net(:)
       type(real_one_d_array), allocatable:: o(:), ohat(:)
       type(element_parameters):: unraveled_parameters(num_elements)
-      double precision :: fingerprint_(len_of_fingerprint)
+      double precision:: fingerprint_(len_of_fingerprint)
 
       ! scaling fingerprints
       do element = 1, num_elements
@@ -297,17 +297,17 @@
       num_parameters, parameters)
       implicit none
       
-      integer :: num_inputs, num_parameters
-      double precision :: inputs(num_inputs)
-      double precision :: inputs_(num_inputs)
-      double precision :: parameters(num_parameters)
-      double precision :: get_force_
+      integer:: num_inputs, num_parameters
+      double precision:: inputs(num_inputs)
+      double precision:: inputs_(num_inputs)
+      double precision:: parameters(num_parameters)
+      double precision:: get_force_
    
       double precision, allocatable:: temp(:)
       integer:: p, q, m, n, nn, layer
       integer:: l, j, num_rows, num_cols
-      integer, allocatable :: hiddensizes(:)
-      double precision, allocatable :: net(:)
+      integer, allocatable:: hiddensizes(:)
+      double precision, allocatable:: net(:)
       type(real_one_d_array), allocatable:: o(:), ohat(:)
       type(real_one_d_array), allocatable:: doutputs_dinputs(:)
       type(real_two_d_array), allocatable:: weights(:)
@@ -408,7 +408,9 @@
           deallocate(temp)
       end do
 
-      get_force_ = - slope * doutputs_dinputs(nn + 2)%onedarray(1)
+      get_force_ = slope * doutputs_dinputs(nn + 2)%onedarray(1)
+      ! force is multiplied by -1, because it is -dE/dx and not dE/dx.
+      get_force_ = -1.0d0 * get_force_
 !     deallocating neural network
       deallocate(hiddensizes)
       do p = 1, size(o)
@@ -439,24 +441,24 @@
       num_parameters, parameters)
       implicit none
       
-      integer :: symbol, len_of_fingerprint, num_parameters
-      integer :: num_elements
-      double precision :: fingerprint(len_of_fingerprint)
-      double precision :: fingerprintprime(len_of_fingerprint)
-      integer :: elements_numbers(num_elements)
-      double precision :: parameters(num_parameters)
-      double precision :: get_force
+      integer:: symbol, len_of_fingerprint, num_parameters
+      integer:: num_elements
+      double precision:: fingerprint(len_of_fingerprint)
+      double precision:: fingerprintprime(len_of_fingerprint)
+      integer:: elements_numbers(num_elements)
+      double precision:: parameters(num_parameters)
+      double precision:: get_force
    
       double precision, allocatable:: temp(:)
       integer:: p, q, element, m, n, nn, layer
       integer:: k, l, j, num_rows, num_cols
-      integer, allocatable :: hiddensizes(:)
-      double precision, allocatable :: net(:)
+      integer, allocatable:: hiddensizes(:)
+      double precision, allocatable:: net(:)
       type(real_one_d_array), allocatable:: o(:), ohat(:)
       type(real_one_d_array), allocatable:: doutputs_dinputs(:)
       type(element_parameters):: unraveled_parameters(num_elements)
-      double precision :: fingerprint_(len_of_fingerprint)
-      double precision :: fingerprintprime_(len_of_fingerprint)
+      double precision:: fingerprint_(len_of_fingerprint)
+      double precision:: fingerprintprime_(len_of_fingerprint)
 
       ! scaling fingerprints
       do element = 1, num_elements
@@ -614,8 +616,10 @@
           deallocate(temp)
       end do
 
-      get_force = - unraveled_parameters(element)%slope * &
+      get_force = unraveled_parameters(element)%slope * &
       doutputs_dinputs(nn + 2)%onedarray(1)
+      ! force is multiplied by -1, because it is -dE/dx and not dE/dx.
+      get_force = -1.0d0 * get_force
 !     deallocating neural network
       deallocate(hiddensizes)
       do p = 1, size(o)
@@ -647,13 +651,13 @@
       
       integer:: num_inputs, num_parameters    
       double precision:: get_denergy_dparameters_(num_parameters)
-      double precision :: parameters(num_parameters)
-      double precision :: inputs(num_inputs)
+      double precision:: parameters(num_parameters)
+      double precision:: inputs(num_inputs)
       
       integer:: m, n, j, l, layer, p, q, nn, num_cols, num_rows
       double precision:: temp1, temp2
-      integer, allocatable :: hiddensizes(:)
-      double precision, allocatable :: net(:)
+      integer, allocatable:: hiddensizes(:)
+      double precision, allocatable:: net(:)
       type(real_one_d_array), allocatable:: o(:), ohat(:)
       type(real_one_d_array), allocatable:: delta(:), D(:)
       type(real_two_d_array), allocatable:: weights(:)
@@ -850,21 +854,21 @@
       integer:: num_parameters, num_elements   
       integer:: symbol, len_of_fingerprint
       double precision:: get_datomicenergy_dparameters(num_parameters)
-      double precision :: parameters(num_parameters)
-      double precision :: fingerprint(len_of_fingerprint)
-      integer :: elements_numbers(num_elements)
+      double precision:: parameters(num_parameters)
+      double precision:: fingerprint(len_of_fingerprint)
+      integer:: elements_numbers(num_elements)
       
       integer:: element, m, n, j, k, l, layer, p, q, nn, num_cols
       integer:: num_rows
       double precision:: temp1, temp2
-      integer, allocatable :: hiddensizes(:)
-      double precision, allocatable :: net(:)
+      integer, allocatable:: hiddensizes(:)
+      double precision, allocatable:: net(:)
       type(real_one_d_array), allocatable:: o(:), ohat(:)
       type(real_one_d_array), allocatable:: delta(:), D(:)
       type(element_parameters):: unraveled_parameters(num_elements)
       type(element_parameters):: &
       unraveled_daenergy_dparameters(num_elements)
-      double precision :: fingerprint_(len_of_fingerprint)
+      double precision:: fingerprint_(len_of_fingerprint)
 
       ! scaling fingerprints
       do element = 1, num_elements
@@ -1111,15 +1115,15 @@
       
       integer:: num_inputs, num_parameters    
       double precision:: get_dforce_dparameters_(num_parameters)
-      double precision :: parameters(num_parameters)
-      double precision :: inputs(num_inputs)
-      double precision :: inputs_(num_inputs)
+      double precision:: parameters(num_parameters)
+      double precision:: inputs(num_inputs)
+      double precision:: inputs_(num_inputs)
 
       integer:: m, n, j, l, layer, p, q, nn, num_cols
       integer:: num_rows
       double precision:: temp1, temp2
-      integer, allocatable :: hiddensizes(:)
-      double precision, allocatable :: net(:)
+      integer, allocatable:: hiddensizes(:)
+      double precision, allocatable:: net(:)
       type(real_one_d_array), allocatable:: o(:), ohat(:)
       type(real_one_d_array), allocatable:: delta(:), D(:)
       type(real_one_d_array), allocatable:: doutputs_dinputs(:)
@@ -1339,6 +1343,8 @@
       end do
       
       dforce_dslope = doutputs_dinputs(nn + 2)%onedarray(1)
+      ! force is multiplied by -1, because it is -dE/dx and not dE/dx.
+      dforce_dslope = -1.0d0 * dforce_dslope
       do layer = 1, nn + 1
           allocate(dohat_dinputs(&
           size(doutputs_dinputs(layer)%onedarray) + 1))
@@ -1368,6 +1374,10 @@
               do q = 1, size(delta(layer)%onedarray)
               unraveled_dforce_dweights(layer)%twodarray(p, q) = &
               slope * doutput_dinputsdweights(p, q)
+              ! force is multiplied by -1, because it is -dE/dx and
+              ! not dE/dx.
+			  unraveled_dforce_dweights(layer)%twodarray(p, q) = &
+			  -1.0d0 * unraveled_dforce_dweights(layer)%twodarray(p, q)
               end do
           end do
           deallocate(dohat_dinputs)
@@ -1441,19 +1451,19 @@
       num_parameters, parameters)
       implicit none
       
-      integer :: symbol, len_of_fingerprint
-      integer :: num_parameters, num_elements
-      double precision :: fingerprint(len_of_fingerprint)
-      double precision :: fingerprintprime(len_of_fingerprint)
-      integer :: elements_numbers(num_elements)
-      double precision :: parameters(num_parameters)
+      integer:: symbol, len_of_fingerprint
+      integer:: num_parameters, num_elements
+      double precision:: fingerprint(len_of_fingerprint)
+      double precision:: fingerprintprime(len_of_fingerprint)
+      integer:: elements_numbers(num_elements)
+      double precision:: parameters(num_parameters)
       double precision:: get_dforce_dparameters(num_parameters)
 
       integer:: element, m, n, j, k, l, layer, p, q, nn, num_cols
       integer:: num_rows
       double precision:: temp1, temp2
-      integer, allocatable :: hiddensizes(:)
-      double precision, allocatable :: net(:)
+      integer, allocatable:: hiddensizes(:)
+      double precision, allocatable:: net(:)
       type(real_one_d_array), allocatable:: o(:), ohat(:)
       type(real_one_d_array), allocatable:: delta(:), D(:)
       type(real_one_d_array), allocatable:: doutputs_dinputs(:)
@@ -1467,8 +1477,8 @@
       type(element_parameters):: unraveled_parameters(num_elements)
       type(element_parameters):: &
       unraveled_dforce_dparameters(num_elements)
-      double precision :: fingerprint_(len_of_fingerprint)
-      double precision :: fingerprintprime_(len_of_fingerprint)
+      double precision:: fingerprint_(len_of_fingerprint)
+      double precision:: fingerprintprime_(len_of_fingerprint)
 
       ! scaling fingerprints
       do element = 1, num_elements
@@ -1753,6 +1763,9 @@
       
       unraveled_dforce_dparameters(element)%slope = &
       doutputs_dinputs(nn + 2)%onedarray(1)
+      ! force is multiplied by -1, because it is -dE/dx and not dE/dx.
+	  unraveled_dforce_dparameters(element)%slope = &
+	  -1.0d0 * unraveled_dforce_dparameters(element)%slope
       do layer = 1, nn + 1
           allocate(dohat_dinputs(&
           size(doutputs_dinputs(layer)%onedarray) + 1))
@@ -1784,6 +1797,12 @@
               layer)%twodarray(p, q) = &
               unraveled_parameters(element)%slope * &
               doutput_dinputsdweights(p, q)
+              ! force is multiplied by -1, because it is -dE/dx and
+              ! not dE/dx.
+	          unraveled_dforce_dparameters(element)%weights(&
+              layer)%twodarray(p, q) = &
+              -1.0d0 * unraveled_dforce_dparameters(element)%weights(&
+              layer)%twodarray(p, q)
               end do
           end do
           deallocate(dohat_dinputs)

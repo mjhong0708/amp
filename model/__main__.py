@@ -41,19 +41,24 @@ if purpose == 'calculate_loss_function':
     fortran = socket.recv_pyobj()
     socket.send_pyobj(msg('<request>', 'modelstring'))
     modelstring = socket.recv_pyobj()
-    d = string2dict(modelstring)
-    Model = importhelper(d.pop('importname'))
-    log(str(d))
-    model = Model(fortran=fortran, **d)
+    dictionary = string2dict(modelstring)
+    Model = importhelper(dictionary.pop('importname'))
+    log(str(dictionary))
+    model = Model(fortran=fortran, **dictionary)
     model.log = log
     log('model set up.')
 
+    socket.send_pyobj(msg('<request>', 'args'))
+    args = socket.recv_pyobj()
+    d = args['d']
     socket.send_pyobj(msg('<request>', 'lossfunctionstring'))
     lossfunctionstring = socket.recv_pyobj()
-    d = string2dict(lossfunctionstring)
-    LossFunction = importhelper(d.pop('importname'))
+    dictionary = string2dict(lossfunctionstring)
+    log(str(dictionary))
+    LossFunction = importhelper(dictionary.pop('importname'))
     lossfunction = LossFunction(cores=1,
-                                raise_ConvergenceOccurred=False, **d)
+                                raise_ConvergenceOccurred=False,
+                                d=d, **dictionary)
     log('loss function set up.')
 
     images = None
@@ -140,7 +145,8 @@ if purpose == 'calculate_loss_function':
                              num_neighbors,
                              raveled_neighborlists,
                              raveled_fingerprintprimes,
-                             model)
+                             model,
+                             lossfunction.d)
         log('data sent to fmodules.')
 
     if model.fortran:
