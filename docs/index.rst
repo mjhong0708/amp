@@ -13,7 +13,14 @@ and is released under the GNU General Public License.
 This is a relatively new project, so things are constantly changing!
 Please see the project's `git repository <https://bitbucket.org/andrewpeterson/amp>`_ for the latest version and news.
 
-(Note that Amp is built off of our previous project, Neural. You may still find Neural at our `bitbucket page <https://bitbucket.org/andrewpeterson/neural>`_.)
+You can read about Amp in the below paper; if you find Amp useful, we would appreciate if you cite this work.
+
+    Khorshidi & Peterson, "Amp: A modular approach to machine learning in atomistic simulations", *Computer Physics Communications*, 2016. |amp_paper|
+
+
+.. |amp_paper| raw:: html
+
+   <a href="http://dx.doi.org/10.1016/j.cpc.2016.05.010" target="_blank">[DOI:10.1016/j.cpc.2016.05.010] </a>
 
 **Table of Contents**:
 
