@@ -842,14 +842,14 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !     Returns derivative of energy w.r.t. parameters in the
 !     atom-centered mode.         
-      function get_denergy_dparameters(symbol, len_of_fingerprint, &
-      fingerprint, num_elements, elements_numbers, num_parameters, &
-      parameters)
+      function get_datomicenergy_dparameters(symbol, &
+      len_of_fingerprint, fingerprint, num_elements, &
+      elements_numbers, num_parameters, parameters)
       implicit none
       
       integer:: num_parameters, num_elements   
       integer:: symbol, len_of_fingerprint
-      double precision:: get_denergy_dparameters(num_parameters)
+      double precision:: get_datomicenergy_dparameters(num_parameters)
       double precision :: parameters(num_parameters)
       double precision :: fingerprint(len_of_fingerprint)
       integer :: elements_numbers(num_elements)
@@ -863,7 +863,7 @@
       type(real_one_d_array), allocatable:: delta(:), D(:)
       type(element_parameters):: unraveled_parameters(num_elements)
       type(element_parameters):: &
-      unraveled_denergy_dparameters(num_elements)
+      unraveled_daenergy_dparameters(num_elements)
       double precision :: fingerprint_(len_of_fingerprint)
 
       ! scaling fingerprints
@@ -917,13 +917,13 @@
       end do
 
       do element = 1, num_elements
-        unraveled_denergy_dparameters(element)%intercept = 0.d0
-        unraveled_denergy_dparameters(element)%slope = 0.d0
+        unraveled_daenergy_dparameters(element)%intercept = 0.d0
+        unraveled_daenergy_dparameters(element)%slope = 0.d0
       end do
       k = 0
       l = 0
       do element = 1, num_elements
-        allocate(unraveled_denergy_dparameters(element)%weights(&
+        allocate(unraveled_daenergy_dparameters(element)%weights(&
         no_layers_of_elements(element)-1))
         if (element > 1) then
             k = k + no_layers_of_elements(element - 1)
@@ -931,11 +931,11 @@
         do j = 1, no_layers_of_elements(element) - 1
             num_rows = no_nodes_of_elements(k + j) + 1
             num_cols = no_nodes_of_elements(k + j + 1)
-            allocate(unraveled_denergy_dparameters(&
+            allocate(unraveled_daenergy_dparameters(&
             element)%weights(j)%twodarray(num_rows, num_cols))
             do p = 1, num_rows
                 do q = 1, num_cols
-                    unraveled_denergy_dparameters(&
+                    unraveled_daenergy_dparameters(&
                     element)%weights(j)%twodarray(p, q) = 0.0d0
                 end do
             end do
@@ -1033,13 +1033,13 @@
           end do
       end do
     
-      unraveled_denergy_dparameters(element)%intercept = 1.0d0
-      unraveled_denergy_dparameters(element)%slope = &
+      unraveled_daenergy_dparameters(element)%intercept = 1.0d0
+      unraveled_daenergy_dparameters(element)%slope = &
       o(nn + 2)%onedarray(1)
       do layer = 1, nn + 1
           do p = 1, size(ohat(layer)%onedarray)
               do q = 1, size(delta(layer)%onedarray)
-                  unraveled_denergy_dparameters(element)%weights(&
+                  unraveled_daenergy_dparameters(element)%weights(&
                   layer)%twodarray(p, q) = &
                   unraveled_parameters(element)%slope * &
                   ohat(layer)%onedarray(p) * delta(layer)%onedarray(q) 
@@ -1078,9 +1078,9 @@
             num_cols = no_nodes_of_elements(k + j + 1)
             do p = 1, num_rows
                 do q = 1, num_cols
-                    get_denergy_dparameters(&
+                    get_datomicenergy_dparameters(&
                     l + (p - 1) * num_cols + q) = &
-                    unraveled_denergy_dparameters(&
+                    unraveled_daenergy_dparameters(&
                     element)%weights(j)%twodarray(p, q)
                 end do
             end do
@@ -1088,21 +1088,21 @@
         end do
       end do
       do element = 1, num_elements
-        get_denergy_dparameters(l + 2 *  element - 1) = &
-        unraveled_denergy_dparameters(element)%intercept
-        get_denergy_dparameters(l + 2 * element) = &
-        unraveled_denergy_dparameters(element)%slope
+        get_datomicenergy_dparameters(l + 2 *  element - 1) = &
+        unraveled_daenergy_dparameters(element)%intercept
+        get_datomicenergy_dparameters(l + 2 * element) = &
+        unraveled_daenergy_dparameters(element)%slope
       end do
 
 !     deallocating derived-type variables 
       do element = 1, num_elements
         deallocate(unraveled_parameters(element)%weights)
-        deallocate(unraveled_denergy_dparameters(element)%weights)
+        deallocate(unraveled_daenergy_dparameters(element)%weights)
       end do
  
-      end function get_denergy_dparameters
+      end function get_datomicenergy_dparameters
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !     Returns derivative of force w.r.t. parameters in the 
 !     image-centered mode.   
       function get_dforce_dparameters_(num_inputs, inputs, &
@@ -1466,7 +1466,7 @@
       double precision, allocatable:: temp5(:), temp6(:)
       type(element_parameters):: unraveled_parameters(num_elements)
       type(element_parameters):: &
-      unraveled_denergy_dparameters(num_elements)
+      unraveled_dforce_dparameters(num_elements)
       double precision :: fingerprint_(len_of_fingerprint)
       double precision :: fingerprintprime_(len_of_fingerprint)
 
@@ -1534,13 +1534,13 @@
       end do
       
       do element = 1, num_elements
-        unraveled_denergy_dparameters(element)%intercept = 0.d0
-        unraveled_denergy_dparameters(element)%slope = 0.d0
+        unraveled_dforce_dparameters(element)%intercept = 0.d0
+        unraveled_dforce_dparameters(element)%slope = 0.d0
       end do
       k = 0
       l = 0
       do element = 1, num_elements
-        allocate(unraveled_denergy_dparameters(element)%weights(&
+        allocate(unraveled_dforce_dparameters(element)%weights(&
         no_layers_of_elements(element)-1))
         if (element > 1) then
             k = k + no_layers_of_elements(element - 1)
@@ -1548,11 +1548,11 @@
         do j = 1, no_layers_of_elements(element) - 1
             num_rows = no_nodes_of_elements(k + j) + 1
             num_cols = no_nodes_of_elements(k + j + 1)
-            allocate(unraveled_denergy_dparameters(&
+            allocate(unraveled_dforce_dparameters(&
             element)%weights(j)%twodarray(num_rows, num_cols))
             do p = 1, num_rows
                 do q = 1, num_cols
-                    unraveled_denergy_dparameters(&
+                    unraveled_dforce_dparameters(&
                     element)%weights(j)%twodarray(p, q) = 0.0d0
                 end do
             end do
@@ -1751,7 +1751,7 @@
           deallocate(temp6)
       end do
       
-      unraveled_denergy_dparameters(element)%slope = &
+      unraveled_dforce_dparameters(element)%slope = &
       doutputs_dinputs(nn + 2)%onedarray(1)
       do layer = 1, nn + 1
           allocate(dohat_dinputs(&
@@ -1780,7 +1780,7 @@
           end do 
           do p = 1, size(ohat(layer)%onedarray)
               do q = 1, size(delta(layer)%onedarray)
-              unraveled_denergy_dparameters(element)%weights(&
+              unraveled_dforce_dparameters(element)%weights(&
               layer)%twodarray(p, q) = &
               unraveled_parameters(element)%slope * &
               doutput_dinputsdweights(p, q)
@@ -1834,7 +1834,7 @@
                 do q = 1, num_cols
                     get_dforce_dparameters(&
                     l + (p - 1) * num_cols + q) = &
-                    unraveled_denergy_dparameters(&
+                    unraveled_dforce_dparameters(&
                     element)%weights(j)%twodarray(p, q)
                 end do
             end do
@@ -1843,15 +1843,15 @@
       end do
       do element = 1, num_elements
         get_dforce_dparameters(l + 2 *  element - 1) = &
-        unraveled_denergy_dparameters(element)%intercept
+        unraveled_dforce_dparameters(element)%intercept
         get_dforce_dparameters(l + 2 * element) = &
-        unraveled_denergy_dparameters(element)%slope
+        unraveled_dforce_dparameters(element)%slope
       end do
 
 !     deallocating derived-type variables      
       do element = 1, num_elements
         deallocate(unraveled_parameters(element)%weights)
-        deallocate(unraveled_denergy_dparameters(element)%weights)
+        deallocate(unraveled_dforce_dparameters(element)%weights)
       end do
       
       end function get_dforce_dparameters

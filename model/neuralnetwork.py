@@ -297,7 +297,7 @@ class NeuralNetwork(Model):
 
         return force
 
-    def get_dEnergy_dParameters(self, afp, index=None, symbol=None):
+    def get_dAtomicEnergy_dParameters(self, afp, index=None, symbol=None):
         """
         Returns the derivative of energy square error with respect to
         variables.
@@ -323,23 +323,23 @@ class NeuralNetwork(Model):
                 self.W[elm][_ + 1] = np.delete(weight[_ + 1], -1, 0)
         W = self.W[symbol]
 
-        dEnergy_dParameters = np.zeros(self.ravel.count)
-        dEnergy_dWeights, dEnergy_dScalings = \
-            self.ravel.to_dicts(dEnergy_dParameters)
+        dAtomicEnergy_dParameters = np.zeros(self.ravel.count)
+        dAtomicEnergy_dWeights, dAtomicEnergy_dScalings = \
+            self.ravel.to_dicts(dAtomicEnergy_dParameters)
 
         outputs = calculate_nodal_outputs(self.parameters, afp, symbol,)
         ohat, D, delta = calculate_ohat_D_delta(self.parameters, outputs, W)
 
-        dEnergy_dScalings[symbol]['intercept'] = 1.
-        dEnergy_dScalings[symbol]['slope'] = float(outputs[len(outputs) - 1])
+        dAtomicEnergy_dScalings[symbol]['intercept'] = 1.
+        dAtomicEnergy_dScalings[symbol]['slope'] = float(outputs[len(outputs) - 1])
         for k in xrange(1, len(outputs)):
-            dEnergy_dWeights[symbol][k] = float(scaling['slope']) * \
+            dAtomicEnergy_dWeights[symbol][k] = float(scaling['slope']) * \
                 np.dot(np.matrix(ohat[k - 1]).T, np.matrix(delta[k]).T)
 
-        dEnergy_dParameters = \
-            self.ravel.to_vector(dEnergy_dWeights, dEnergy_dScalings)
+        dAtomicEnergy_dParameters = \
+            self.ravel.to_vector(dAtomicEnergy_dWeights, dAtomicEnergy_dScalings)
 
-        return dEnergy_dParameters
+        return dAtomicEnergy_dParameters
 
     def get_dForce_dParameters(self, afp, derafp,
                                direction,

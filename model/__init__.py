@@ -6,7 +6,7 @@ from ..utilities import (Logger, ConvergenceOccurred, make_sublists, now,
 import warnings
 try:
     from .. import fmodules
-    fmodules_version = 6
+    fmodules_version = 7
     wrong_version = fmodules.check_version(version=fmodules_version)
     if wrong_version:
         raise RuntimeError('fortran modules are not updated. Recompile'
@@ -51,8 +51,8 @@ class Model(object):
             raise NotImplementedError('This needs to be coded.')
         elif self.parameters.mode == 'atom-centered':
             energy = 0.0
-            for index, (symbol, atomicfingerprint) in enumerate(fingerprints):
-                atom_energy = self.get_atomic_energy(afp=atomicfingerprint,
+            for index, (symbol, afp) in enumerate(fingerprints):
+                atom_energy = self.get_atomic_energy(afp=afp,
                                                      index=index,
                                                      symbol=symbol)
                 energy += atom_energy
@@ -77,7 +77,53 @@ class Model(object):
                                         nsymbol=nsymbol,
                                         direction=i,)
                 forces[selfindex][i] += dforce
-            return forces
+        return forces
+
+    def get_dEnergy_dParameters(self, fingerprints):
+        """Returns a list of floats corresponding to the derivative of
+        model-predicted energy of an image with respect to model parameters.
+        """
+
+        if self.parameters.mode == 'image-centered':
+            raise NotImplementedError('This needs to be coded.')
+        elif self.parameters.mode == 'atom-centered':
+            denergy_dparameters = None
+            for index, (symbol, afp) in enumerate(fingerprints):
+                temp = self.get_dAtomicEnergy_dParameters(afp=afp,
+                                                          index=index,
+                                                          symbol=symbol)
+                if denergy_dparameters is None:
+                    denergy_dparameters = temp
+                else:
+                    denergy_dparameters += temp
+        return denergy_dparameters
+
+    def get_dForces_dParameters(self, fingerprints, fingerprintprimes):
+        """Returns an array of floats corresponding to the derivative of
+        model-predicted atomic forces of an image with respect to model
+        parameters.
+        """
+
+        if self.parameters.mode == 'image-centered':
+            raise NotImplementedError('This needs to be coded.')
+        elif self.parameters.mode == 'atom-centered':
+            selfindices = set([key[0] for key in fingerprintprimes.keys()])
+            dforces_dparameters = {(selfindex, i): None
+                                   for selfindex in selfindices
+                                   for i in range(3)}
+            for (selfindex, selfsymbol, nindex, nsymbol, i), derafp in \
+                    fingerprintprimes.iteritems():
+                afp = fingerprints[nindex][1]
+                temp = self.get_dForce_dParameters(afp=afp,
+                                                   derafp=derafp,
+                                                   direction=i,
+                                                   nindex=nindex,
+                                                   nsymbol=nsymbol,)
+                if dforces_dparameters[(selfindex, i)] is None:
+                    dforces_dparameters[(selfindex, i)] = temp
+                else:
+                    dforces_dparameters[(selfindex, i)] += temp
+        return dforces_dparameters
 
 
 class LossFunction:
@@ -167,7 +213,6 @@ class LossFunction:
             workercommand = ('python -m %s %%s %s' %
                              (module, serversocket))
 
-
             # Create processes over SSH.
             # 'processes' contains links to the actual processes;
             # 'threads' is only used here to start all the SSH connections
@@ -210,8 +255,8 @@ class LossFunction:
                 ('Step', 'Time', 'EnergyLoss', 'MaxResid',
                  'ForceLoss', 'MaxResid'))
             log('%5s %19s %12s %12s %12s %12s' %
-                ('='*5, '='*19, '='*12, '='*12,
-                 '='*12, '='*12))
+                ('=' * 5, '=' * 19, '=' * 12, '=' * 12,
+                 '=' * 12, '=' * 12))
 
         self._initialized = True
 
@@ -516,31 +561,27 @@ class LossFunction:
                 if self._model.parameters.mode == 'image-centered':
                     raise NotImplementedError('This needs to be coded.')
                 elif self._model.parameters.mode == 'atom-centered':
-                    for atom in image:
-                        symbol = atom.symbol
-                        index = atom.index
-                        afp = self.fingerprints[hash][index][1]
-                        temp = self._model.get_dEnergy_dParameters(afp,
-                                                                   index,
-                                                                   symbol)
-                        if dloss_dparameters is None:
-                            dloss_dparameters = \
-                                p.energy_coefficient * 2. * \
-                                (amp_energy - actual_energy) * temp / \
-                                (no_of_atoms ** 2.)
-                        else:
-                            dloss_dparameters += \
-                                p.energy_coefficient * 2. * \
-                                (amp_energy - actual_energy) * temp / \
-                                (no_of_atoms ** 2.)
+                    denergy_dparameters = \
+                        self._model.get_dEnergy_dParameters(
+                            self.fingerprints[hash])
+                    if dloss_dparameters is None:
+                        dloss_dparameters = p.energy_coefficient * 2. * \
+                            (amp_energy - actual_energy) * \
+                            denergy_dparameters / \
+                            (no_of_atoms ** 2.)
+                    else:
+                        dloss_dparameters += p.energy_coefficient * 2. * \
+                            (amp_energy - actual_energy) * \
+                            denergy_dparameters / \
+                            (no_of_atoms ** 2.)
 
             if p.force_coefficient != 0.:
                 amp_forces = \
                     self._model.get_forces(self.fingerprints[hash],
                                            self.fingerprintprimes[hash])
                 actual_forces = image.get_forces(apply_constraint=False)
-                for i in xrange(3):
-                    for index in xrange(no_of_atoms):
+                for index in xrange(no_of_atoms):
+                    for i in xrange(3):
                         force_resid = abs(amp_forces[index][i] -
                                           actual_forces[index][i])
                         if force_resid > force_maxresid:
@@ -555,23 +596,18 @@ class LossFunction:
                     if self._model.parameters.mode == 'image-centered':
                         raise NotImplementedError('This needs to be coded.')
                     elif self._model.parameters.mode == 'atom-centered':
-                        for key, derafp in \
-                                self.fingerprintprimes[hash].iteritems():
-                            (selfindex, selfsymbol, nindex, nsymbol, i) = key
-                            afp = self.fingerprints[hash][nindex][1]
-                            temp = \
-                                self._model.get_dForce_dParameters(
-                                    afp=afp,
-                                    derafp=derafp,
-                                    direction=i,
-                                    nindex=nindex,
-                                    nsymbol=nsymbol,)
-                            dloss_dparameters += p.force_coefficient * \
-                                (2.0 / 3.0) * \
-                                (- amp_forces[selfindex][i] +
-                                 actual_forces[selfindex][i]) * \
-                                temp \
-                                / no_of_atoms
+                        dforces_dparameters = \
+                            self._model.get_dForces_dParameters(
+                                self.fingerprints[hash],
+                                self.fingerprintprimes[hash])
+                        for selfindex in range(no_of_atoms):
+                            for i in range(3):
+                                dloss_dparameters += p.force_coefficient * \
+                                    (2.0 / 3.0) * \
+                                    (- amp_forces[selfindex][i] +
+                                     actual_forces[selfindex][i]) * \
+                                    dforces_dparameters[(selfindex, i)] \
+                                    / no_of_atoms
 
         loss = p.energy_coefficient * energyloss + \
             p.force_coefficient * forceloss
