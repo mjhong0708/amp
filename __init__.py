@@ -182,6 +182,10 @@ class Amp(Calculator, object):
                     not os.path.isdir(self.directory)):
                 os.makedirs(self.directory)
 
+        log = Logger(make_filename(self.label, '-log.txt'))
+        self.log = log
+        self._printheader(log)
+
     def calculate(self, atoms, properties, system_changes):
         """
         Calculation of the energy of system and forces of all atoms.
