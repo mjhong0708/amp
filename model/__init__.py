@@ -349,9 +349,11 @@ class LossFunction:
         self._initialize()
 
         if self._cores == 1:
-            self._model.vector = parametervector
 
             if self._model.fortran:
+
+                self._model.vector = parametervector
+
                 num_images = len(self.images)
                 energy_coefficient = self.parameters.energy_coefficient
                 force_coefficient = self.parameters.force_coefficient
@@ -422,7 +424,9 @@ class LossFunction:
             else:
                 loss, dloss_dparameters, energy_loss, force_loss, \
                     energy_maxresid, force_maxresid = \
-                    self.calculate_loss(complete_output=True, d=self.d)
+                    self.calculate_loss(parametervector,
+                                        complete_output=True,
+                                        d=self.d)
         else:
             server = self._sessions['master']
             processes = self._sessions['workers']
@@ -484,9 +488,10 @@ class LossFunction:
 
             if self._cores == 1:
 
-                self._model.vector = parametervector
-
                 if self._model.fortran:
+
+                    self._model.vector = parametervector
+
                     num_images = len(self.images)
                     mode = self._model.parameters.mode
                     energy_coefficient = self.parameters.energy_coefficient
@@ -559,7 +564,9 @@ class LossFunction:
                 else:
                     loss, dloss_dparameters, energy_loss, force_loss, \
                         energy_maxresid, force_maxresid = \
-                        self.calculate_loss(complete_output=True, d=self.d)
+                        self.calculate_loss(parametervector,
+                                            complete_output=True,
+                                            d=self.d)
             else:
                 server = self._sessions['master']
                 processes = self._sessions['workers']
@@ -598,10 +605,11 @@ class LossFunction:
                     'energy_maxresid': self.energy_maxresid,
                     'force_maxresid': self.force_maxresid, }
 
-    def calculate_loss(self, complete_output, d):
+    def calculate_loss(self, parametervector, complete_output, d):
         """Method that calculates the loss, derivative of the loss with respect
         to parameters (if requested), and max_residual.
         """
+        self._model.vector = parametervector
         p = self.parameters
         energyloss = 0.
         forceloss = 0.
