@@ -201,13 +201,13 @@
                       Rj(xyz) = neighborpositions(j, xyz)
                       Rij_vector(xyz) = Rj(xyz) - ri(xyz)
                     end do
-                    Rij = sqrt(dot_product(Rij_vector, Rij_vector))
-                    term1 = - 2.0d0 * g_eta * Rij * & 
-                    cutoff_fxn(Rij, rc) / (rc ** 2.0d0) + &
-                    cutoff_fxn_prime(Rij, rc)
                     dRijdRml = &
                      dRij_dRml(i, neighborindices(j), ri, Rj, m, l)
                     if (dRijdRml /= 0.0d0) then
+					  Rij = sqrt(dot_product(Rij_vector, Rij_vector))
+                      term1 = - 2.0d0 * g_eta * Rij * & 
+                      cutoff_fxn(Rij, rc) / (rc ** 2.0d0) + &
+                      cutoff_fxn_prime(Rij, rc)
                       ridge = ridge + exp(- g_eta * (Rij**2.0d0) / &
                       (rc ** 2.0d0)) * term1 * dRijdRml
                     end if

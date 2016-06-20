@@ -813,11 +813,11 @@ def calculate_G2_prime(neighborindices, neighborsymbols, neighborpositions,
             Rj = neighborpositions[count]
             j = neighborindices[count]
             if symbol == G_element:
-                Rij = np.linalg.norm(Rj - Ri)
-                term1 = (-2. * eta * Rij * cutoff_fxn(Rij) / (Rc ** 2.) +
-                         cutoff_fxn.prime(Rij))
                 dRijdRml = dRij_dRml(i, j, Ri, Rj, m, l)
                 if dRijdRml != 0:
+                    Rij = np.linalg.norm(Rj - Ri)
+                    term1 = (-2. * eta * Rij * cutoff_fxn(Rij) / (Rc ** 2.) +
+                             cutoff_fxn.prime(Rij))
                     ridge += np.exp(- eta * (Rij ** 2.) / (Rc ** 2.)) * \
                         term1 * dRijdRml
     return ridge
