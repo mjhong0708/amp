@@ -67,7 +67,7 @@ class tfAmpNN:
                  elementFingerprintLengths,
                  hiddenlayers=(5, 5),
                  activation='relu',
-                 keep_prob=0.5,
+                 keep_prob=1.,
                  RMSEtarget=1e-2,
                  maxTrainingEpochs=10000,
                  batchsize=20,
@@ -419,8 +419,11 @@ class tfAmpNN:
 
                     # Print the loss function every 100 evals.
                     if (self.miniBatch)and(icount % 100 == 0):
+                    	feed_keepprob_save=feedinput[self.keep_prob_in]
+                    	feedinput[self.keep_prob_in]=1.
                         log('batch RMSE(energy)=%1.3e, # Epochs=%d' % (self.loss.eval(
                             feed_dict=feedinput) * self.parameters['energyProdScale'], icount))
+                        feedinput[self.keep_prob_in]=feed_keepprob_save
                     icount += 1
 
                 # Every 10 epochs, report the RMSE on the entire training set
@@ -433,7 +436,7 @@ class tfAmpNN:
                                                     atomsIndsReverse,
                                                     len(keylist),
                                                     trainingrate,
-                                                    keepprob,
+                                                    1.,
                                                     natoms,
                                                     forcesExp=forces,
                                                     energycoefficient=energy_coefficient,
