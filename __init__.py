@@ -6,6 +6,7 @@ import tempfile
 import platform
 from getpass import getuser
 from socket import gethostname
+import subprocess
 
 import ase
 from ase.calculators.calculator import Calculator, Parameters
@@ -19,6 +20,18 @@ from .utilities import make_filename
 from .utilities import hash_images
 from .utilities import Logger, string2dict, logo, now, assign_cores
 from .utilities import TrainingConvergenceError
+
+import warnings
+try:
+    from . import fmodules
+    fmodules_version = 7
+    wrong_version = fmodules.check_version(version=fmodules_version)
+    if wrong_version:
+        raise RuntimeError('fortran modules are not updated. Recompile'
+                           'with f2py as described in the README. '
+                           'Correct version is %i.' % fmodules_version)
+except ImportError:
+    warnings.warn('Did not find fortran modules.')
 
 
 class Amp(Calculator, object):
@@ -35,9 +48,6 @@ class Amp(Calculator, object):
                        more information see docstring for the class
                        NeuralNetwork.
     :type regression: object
-
-    :param load: Path for loading an existing parameters of Amp calculator.
-    :type load: str
 
     :param label: Default prefix/location used for all files.
     :type label: str
@@ -114,9 +124,12 @@ class Amp(Calculator, object):
         If using a home-rolled descriptor or model, also supply
         uninstantiated classes to those models, as in Model=MyModel.
 
-        Any additional keyword arguments (such as fortran=True) can be
+        Any additional keyword arguments (such as label or dblabel) can be
         fed through to Amp.
         """
+        if not os.path.exists(filename):
+            filename += '.amp'
+
         with open(filename) as f:
             text = f.read()
 
@@ -169,6 +182,10 @@ class Amp(Calculator, object):
                     not os.path.isdir(self.directory)):
                 os.makedirs(self.directory)
 
+        log = Logger(make_filename(self.label, '-log.txt'))
+        self.log = log
+        self._printheader(log)
+
     def calculate(self, atoms, properties, system_changes):
         """
         Calculation of the energy of system and forces of all atoms.
@@ -178,30 +195,30 @@ class Amp(Calculator, object):
         Calculator.calculate(self, atoms, properties, system_changes)
 
         log = self.log
-        log('Amp calculator started.')
+        log('Calculation requested.')
 
         images = hash_images([self.atoms])
         key = images.keys()[0]
 
         if properties == ['energy']:
+            log('Calculating potential energy...', tic='pot-energy')
             self.descriptor.calculate_fingerprints(images=images,
                                                    log=log,
                                                    calculate_derivatives=False)
             energy = self.model.get_energy(self.descriptor.fingerprints[key])
             self.results['energy'] = energy
+            log('...potential energy calculated.', toc='pot-energy')
 
         if properties == ['forces']:
+            log('Calculating forces...', tic='forces')
             self.descriptor.calculate_fingerprints(images=images,
                                                    log=log,
                                                    calculate_derivatives=True)
-            # for calculating forces, energies should be calculated first,
-            # at least for neural networks
-            energy = self.model.get_energy(self.descriptor.fingerprints[key])
-            self.results['energy'] = energy
             forces = \
                 self.model.get_forces(self.descriptor.fingerprints[key],
                                       self.descriptor.fingerprintprimes[key])
             self.results['forces'] = forces
+            log('...forces calculated.', toc='forces')
 
     def train(self,
               images,
@@ -225,21 +242,20 @@ class Amp(Calculator, object):
 
         log = self.log
         log('Amp training started. ' + now() + '\n')
-
-        log('Hashing training images.')
-        images = hash_images(images, log=log)
-
         log('Descriptor: %s' % self.descriptor.__class__.__name__)
         log('Model: %s' % self.model.__class__.__name__)
+
+        images = hash_images(images, log=log)
 
         log('\nDescriptor\n==========')
         # Derivatives of fingerprints need to be calculated if train_forces is
         # True.
         calculate_derivatives = train_forces
-        self.descriptor.calculate_fingerprints(images=images,
-                                               cores=self.cores,
-                                               log=log,
-                                               calculate_derivatives=calculate_derivatives)
+        self.descriptor.calculate_fingerprints(
+                images=images,
+                cores=self.cores,
+                log=log,
+                calculate_derivatives=calculate_derivatives)
 
         log('\nModel fitting\n=============')
         result = self.model.fit(trainingimages=images,
@@ -255,6 +271,8 @@ class Amp(Calculator, object):
             filename = make_filename(self.label, '-untrained-parameters.amp')
         filename = self.save(filename, overwrite)
         log('Parameters saved in file "%s".' % filename)
+        log("This file can be opened with `calc = Amp.load('%s')`" %
+            filename)
         if result is False:
             raise TrainingConvergenceError('Amp did not converge upon '
                                            'training. See log file for'
@@ -294,6 +312,9 @@ class Amp(Calculator, object):
         log(' PI Website: http://brown.edu/go/catalyst')
         log(' Official repository: http://bitbucket.org/andrewpeterson/amp')
         log(' Official documentation: http://amp.readthedocs.org/')
+        log(' Citation:')
+        log('  Khorshidi & Peterson, Computer Physics Communications')
+        log('  doi:10.1016/j.cpc.2016.05.010 (2016)')
         log('=' * 70)
         log('User: %s' % getuser())
         log('Hostname: %s' % gethostname())
@@ -301,10 +322,14 @@ class Amp(Calculator, object):
         uname = platform.uname()
         log('Architecture: %s' % uname[4])
         log('PID: %s' % os.getpid())
-        log('Version: %s' % 'NOT NUMBERED YET.')  # FIXME/ap. Look at GPAW
+        log('Amp version: %s' % 'NOT NUMBERED YET.')  # FIXME/ap. Look at GPAW
+        ampdirectory = os.path.dirname(os.path.abspath(__file__))
+        log('Amp directory: %s' % ampdirectory)
+        commithash, commitdate = get_git_commit(ampdirectory)
+        log(' Last commit: %s' % commithash)
+        log(' Last commit date: %s' % commitdate)
         log('Python: v{0}.{1}.{2}: %s'.format(*sys.version_info[:3]) %
             sys.executable)
-        log('Amp: %s' % os.path.dirname(os.path.abspath(__file__)))
         log('ASE v%s: %s' % (aseversion, os.path.dirname(ase.__file__)))
         log('NumPy v%s: %s' %
             (np.version.version, os.path.dirname(np.__file__)))
@@ -362,3 +387,20 @@ def importhelper(importname):
             importname)
 
     return Module
+
+
+def get_git_commit(ampdirectory):
+    """Attempts to get the last git commit from the amp directory."""
+    pwd = os.getcwd()
+    os.chdir(ampdirectory)
+    try:
+        with open(os.devnull, 'w') as devnull:
+            output = subprocess.check_output(['git', 'log', '-1',
+                                              '--pretty=%H\t%ci'],
+                                             stderr=devnull)
+    except:
+        output = 'unknown hash\tunknown date'
+    output = output.strip()
+    commithash, commitdate = output.split('\t')
+    os.chdir(pwd)
+    return commithash, commitdate

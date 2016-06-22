@@ -5,6 +5,7 @@ from ase.calculators.calculator import Parameters
 from ..regression import Regressor
 from ..model import LossFunction, calculate_fingerprints_range
 from ..model import Model
+from ..utilities import Logger, hash_images
 
 
 class NeuralNetwork(Model):
@@ -68,7 +69,7 @@ class NeuralNetwork(Model):
 
     def __init__(self, hiddenlayers=(5, 5), activation='tanh', weights=None,
                  scalings=None, fprange=None, regressor=None, mode=None,
-                 lossfunction=None, version=None):
+                 lossfunction=None, version=None, fortran=True):
 
         # Version check, particularly if restarting.
         compatibleversions = ['2015.12', ]
@@ -103,15 +104,21 @@ class NeuralNetwork(Model):
         self.regressor = regressor
         self.parent = None  # Can hold a reference to main Amp instance.
         self.lossfunction = lossfunction
+        self.fortran = fortran
 
     def fit(self,
             trainingimages,
             descriptor,
             log,
-            cores,):
+            cores,
+            only_setup=False,
+            ):
         """Fit the model parameters such that the fingerprints can be used to
         describe the energies in trainingimages. log is the logging object.
         descriptor is a descriptor object, as would be in calc.descriptor.
+
+        only_setup is primarily for debugging. It initializes all variables
+        but skips the last line of starting the regressor.
         """
 
         # Set all parameters and report to logfile.
@@ -131,10 +138,11 @@ class NeuralNetwork(Model):
             p.mode = descriptor.parameters.mode
         else:
             assert p.mode == descriptor.parameters.mode
-        log(' Regression in %s mode.' % p.mode)
+        log('Regression in %s mode.' % p.mode)
 
         if 'fprange' not in p or p.fprange is None:
-            log('Calculating new fingerprint range.')
+            log('Calculating new fingerprint range; this range is part '
+                'of the model.')
             p.fprange = calculate_fingerprints_range(descriptor,
                                                      trainingimages)
 
@@ -148,7 +156,7 @@ class NeuralNetwork(Model):
         if p.mode == 'image-centered':
             log(' %s' % str(p.hiddenlayers))
         elif p.mode == 'atom-centered':
-            for item in p.hiddenlayers.items():
+            for item in p.hiddenlayers.iteritems():
                 log(' %2s: %s' % item)
 
         if p.weights is None:
@@ -171,13 +179,8 @@ class NeuralNetwork(Model):
         else:
             log('Initial scalings already present.')
 
-        # self.W dictionary initiated.
-        self.W = {}
-        for elm in p.weights.keys():
-            self.W[elm] = {}
-            weight = p.weights[elm]
-            for _ in xrange(len(weight)):
-                self.W[elm][_ + 1] = np.delete(weight[_ + 1], -1, 0)
+        if only_setup:
+            return
 
         # Regress the model.
         result = self.regressor.regress(model=self, log=log)
@@ -190,19 +193,19 @@ class NeuralNetwork(Model):
         regression."""
         if self.parameters['weights'] is None:
             return None
+        p = self.parameters
         if not hasattr(self, 'ravel'):
-            p = self.parameters
             self.ravel = Raveler(p.weights, p.scalings)
         return self.ravel.to_vector(weights=p.weights, scalings=p.scalings)
 
     @vector.setter
     def vector(self, vector):
+        p = self.parameters
         if not hasattr(self, 'ravel'):
-            p = self.parameters
             self.ravel = Raveler(p.weights, p.scalings)
         weights, scalings = self.ravel.to_dicts(vector)
-        self.parameters['weights'] = weights
-        self.parameters['scalings'] = scalings
+        p['weights'] = weights
+        p['scalings'] = scalings
 
     def get_loss(self, vector):
         """
@@ -252,6 +255,8 @@ class NeuralNetwork(Model):
 
         :returns: float -- energy
         """
+        assert self.parameters.mode == 'atom-centered', \
+            'get_atomic_energy should only be called in atom-centered mode.'
 
         scaling = self.parameters.scalings[symbol]
         outputs = calculate_nodal_outputs(self.parameters, afp, symbol,)
@@ -261,9 +266,9 @@ class NeuralNetwork(Model):
 
         return atomic_amp_energy
 
-    def get_atomic_force(self, afp, derafp,
-                         direction,
-                         nindex=None, nsymbol=None,):
+    def get_force(self, afp, derafp,
+                  direction,
+                  nindex=None, nsymbol=None,):
         """
         Given derivative of input to the neural network, derivative of output
         (which corresponds to forces) is calculated.
@@ -287,12 +292,14 @@ class NeuralNetwork(Model):
         dOutputs_dInputs = calculate_dOutputs_dInputs(self.parameters, derafp,
                                                       outputs, nsymbol,)
 
-        force = float(-(scaling['slope'] *
-                        dOutputs_dInputs[len(dOutputs_dInputs) - 1][0]))
+        force = float((scaling['slope'] *
+                       dOutputs_dInputs[len(dOutputs_dInputs) - 1][0]))
+        # force is multiplied by -1, because it is -dE/dx and not dE/dx.
+        force *= -1.
 
         return force
 
-    def get_dEnergy_dParameters(self, afp, index=None, symbol=None):
+    def get_dAtomicEnergy_dParameters(self, afp, index=None, symbol=None):
         """
         Returns the derivative of energy square error with respect to
         variables.
@@ -307,26 +314,36 @@ class NeuralNetwork(Model):
         :returns: list of float -- the value of the derivative of energy square
                                    error with respect to variables.
         """
-        scaling = self.parameters.scalings[symbol]
+        p = self.parameters
+        scaling = p.scalings[symbol]
+        # self.W dictionary initiated.
+        self.W = {}
+        for elm in p.weights.keys():
+            self.W[elm] = {}
+            weight = p.weights[elm]
+            for _ in xrange(len(weight)):
+                self.W[elm][_ + 1] = np.delete(weight[_ + 1], -1, 0)
         W = self.W[symbol]
 
-        dEnergy_dParameters = np.zeros(self.ravel.count)
-        dEnergy_dWeights, dEnergy_dScalings = \
-            self.ravel.to_dicts(dEnergy_dParameters)
+        dAtomicEnergy_dParameters = np.zeros(self.ravel.count)
+        dAtomicEnergy_dWeights, dAtomicEnergy_dScalings = \
+            self.ravel.to_dicts(dAtomicEnergy_dParameters)
 
         outputs = calculate_nodal_outputs(self.parameters, afp, symbol,)
         ohat, D, delta = calculate_ohat_D_delta(self.parameters, outputs, W)
 
-        dEnergy_dScalings[symbol]['intercept'] = 1.
-        dEnergy_dScalings[symbol]['slope'] = float(outputs[len(outputs) - 1])
+        dAtomicEnergy_dScalings[symbol]['intercept'] = 1.
+        dAtomicEnergy_dScalings[symbol][
+            'slope'] = float(outputs[len(outputs) - 1])
         for k in xrange(1, len(outputs)):
-            dEnergy_dWeights[symbol][k] = float(scaling['slope']) * \
+            dAtomicEnergy_dWeights[symbol][k] = float(scaling['slope']) * \
                 np.dot(np.matrix(ohat[k - 1]).T, np.matrix(delta[k]).T)
 
-        dEnergy_dParameters = \
-            self.ravel.to_vector(dEnergy_dWeights, dEnergy_dScalings)
+        dAtomicEnergy_dParameters = \
+            self.ravel.to_vector(
+                dAtomicEnergy_dWeights, dAtomicEnergy_dScalings)
 
-        return dEnergy_dParameters
+        return dAtomicEnergy_dParameters
 
     def get_dForce_dParameters(self, afp, derafp,
                                direction,
@@ -349,6 +366,13 @@ class NeuralNetwork(Model):
         p = self.parameters
         scaling = p.scalings[nsymbol]
         activation = p.activation
+        # self.W dictionary initiated.
+        self.W = {}
+        for elm in p.weights.keys():
+            self.W[elm] = {}
+            weight = p.weights[elm]
+            for _ in xrange(len(weight)):
+                self.W[elm][_ + 1] = np.delete(weight[_ + 1], -1, 0)
         W = self.W[nsymbol]
 
         dForce_dParameters = np.zeros(self.ravel.count)
@@ -410,6 +434,9 @@ class NeuralNetwork(Model):
         dForce_dScalings[nsymbol]['slope'] = dOutputs_dInputs[N + 1][0]
         dForce_dParameters = self.ravel.to_vector(dForce_dWeights,
                                                   dForce_dScalings)
+        # force is multiplied by -1, because it is -dE/dx and not dE/dx.
+        dForce_dParameters *= -1.
+
         return dForce_dParameters
 
 # Auxiliary functions #########################################################
@@ -440,9 +467,10 @@ def calculate_nodal_outputs(parameters, afp, symbol,):
     fprange = parameters.fprange[symbol]
     # Scale the fingerprints to be in [-1, 1] range.
     for _ in xrange(np.shape(_afp)[0]):
-        if (fprange[_, 1] - fprange[_, 0]) > (10.**(-8.)):
-            _afp[_] = -1.0 + 2.0 * ((_afp[_] - fprange[_, 0]) /
-                                    (fprange[_, 1] - fprange[_, 0]))
+        if (fprange[_][1] - fprange[_][0]) > (10.**(-8.)):
+            _afp[_] = -1.0 + 2.0 * ((_afp[_] - fprange[_][0]) /
+                                    (fprange[_][1] - fprange[_][0]))
+
     # Calculate node values.
     o = {}  # node values
     layer = 1  # input layer
@@ -515,40 +543,42 @@ def calculate_dOutputs_dInputs(parameters, derafp, outputs, nsymbol,):
     fprange = parameters.fprange[nsymbol]
     # Scaling derivative of fingerprints.
     for _ in xrange(len(_derafp)):
-        if (fprange[_, 1] - fprange[_, 0]) > (10.**(-8.)):
-            _derafp[_] = 2.0 * (_derafp[_] / (fprange[_, 1] - fprange[_, 0]))
+        if (fprange[_][1] - fprange[_][0]) > (10.**(-8.)):
+            _derafp[_] = 2.0 * (_derafp[_] / (fprange[_][1] - fprange[_][0]))
 
-    der_o = {}  # node values
-    der_o[0] = _derafp
+    dOutputs_dInputs = {}  # node values
+    dOutputs_dInputs[0] = _derafp
     layer = 0  # input layer
     for hiddenlayer in hiddenlayers[0:]:
         layer += 1
-        temp = np.dot(np.matrix(der_o[layer - 1]),
+        temp = np.dot(np.matrix(dOutputs_dInputs[layer - 1]),
                       np.delete(weight[layer], -1, 0))
-        der_o[layer] = [None] * np.size(outputs[layer])
+        dOutputs_dInputs[layer] = [None] * np.size(outputs[layer])
         bound = np.size(outputs[layer])
         for j in xrange(bound):
             if activation == 'linear':  # linear function
-                der_o[layer][j] = float(temp[0, j])
+                dOutputs_dInputs[layer][j] = float(temp[0, j])
             elif activation == 'sigmoid':  # sigmoid function
-                der_o[layer][j] = float(temp[0, j]) * \
+                dOutputs_dInputs[layer][j] = float(temp[0, j]) * \
                     float(outputs[layer][0, j] * (1. - outputs[layer][0, j]))
             elif activation == 'tanh':  # tanh function
-                der_o[layer][j] = float(temp[0, j]) * \
+                dOutputs_dInputs[layer][j] = float(temp[0, j]) * \
                     float(1. - outputs[layer][0, j] * outputs[layer][0, j])
     layer += 1  # output layer
-    temp = np.dot(np.matrix(der_o[layer - 1]),
+    temp = np.dot(np.matrix(dOutputs_dInputs[layer - 1]),
                   np.delete(weight[layer], -1, 0))
     if activation == 'linear':  # linear function
-        der_o[layer] = float(temp)
+        dOutputs_dInputs[layer] = float(temp)
     elif activation == 'sigmoid':  # sigmoid function
-        der_o[layer] = float(outputs[layer] * (1. - outputs[layer]) * temp)
+        dOutputs_dInputs[layer] = \
+            float(outputs[layer] * (1. - outputs[layer]) * temp)
     elif activation == 'tanh':  # tanh function
-        der_o[layer] = float((1. - outputs[layer] * outputs[layer]) * temp)
+        dOutputs_dInputs[layer] = \
+            float((1. - outputs[layer] * outputs[layer]) * temp)
 
-    der_o[layer] = [der_o[layer]]
+    dOutputs_dInputs[layer] = [dOutputs_dInputs[layer]]
 
-    return der_o
+    return dOutputs_dInputs
 
 
 def calculate_ohat_D_delta(parameters, outputs, W):
@@ -759,9 +789,9 @@ def get_random_scalings(images, activation, elements=None):
     no_of_images = len(hashs)
 
     max_act_energy = max(image.get_potential_energy(apply_constraint=False)
-                         for hash, image in images.items())
+                         for hash, image in images.iteritems())
     min_act_energy = min(image.get_potential_energy(apply_constraint=False)
-                         for hash, image in images.items())
+                         for hash, image in images.iteritems())
 
     for count in xrange(no_of_images):
         hash = hashs[count]
@@ -883,7 +913,7 @@ class Raveler:
             matrix = vector[count:count + k['size']]
             matrix = matrix.flatten()
             matrix = np.matrix(matrix.reshape(k['shape']))
-            weights[k['key1']][k['key2']] = matrix
+            weights[k['key1']][k['key2']] = matrix.tolist()
             count += k['size']
         for k in sorted(self.scalingskeys):
             if k['key1'] not in scalings.keys():
@@ -891,3 +921,114 @@ class Raveler:
             scalings[k['key1']][k['key2']] = vector[count]
             count += 1
         return weights, scalings
+
+# Analysis tools ##############################################################
+
+
+class NodePlot:
+
+    """Creates plots to visualize the output of the nodes in the neural
+    networks.
+
+    initialize with a calculator that has parameters; e.g. a trained
+    calculator or else one in which fit has been called with the setup_only
+    flag turned on.
+
+    Call with the 'plot' method, which takes as argment a list of images
+    """
+
+    def __init__(self, calc):
+        self.calc = calc
+        self.data = {}  # For accumulating the data.
+        # Local imports; these are not package-wide dependencies.
+        from matplotlib import pyplot
+        from matplotlib.backends.backend_pdf import PdfPages
+        self.pyplot = pyplot
+        self.PdfPages = PdfPages
+
+    def plot(self, images, filename='nodeplot.pdf'):
+        """ Creates a plot of the output of each node, as a violin plot.
+        """
+        calc = self.calc
+        data = {}
+        log = Logger('develop.log')
+        images = hash_images(images, log=log)
+        calc.descriptor.calculate_fingerprints(images=images,
+                                               cores=1,
+                                               log=log,
+                                               calculate_derivatives=False)
+        for hash, image in images.iteritems():
+            fingerprints = calc.descriptor.fingerprints[hash]
+            for fp in fingerprints:
+                outputs = calculate_nodal_outputs(calc.model.parameters,
+                                                  afp=fp[1],
+                                                  symbol=fp[0])
+                self._accumulate(symbol=fp[0], output=outputs)
+
+        self._finalize_table()
+
+        with self.PdfPages(filename) as pdf:
+            for symbol, data in self.data.iteritems():
+                fig = self._makefig(symbol)
+                pdf.savefig(fig)
+                self.pyplot.close(fig)
+
+    def _makefig(self, symbol, save=False):
+        """Makes a figure for one element."""
+
+        fig = self.pyplot.figure(figsize=(8.5, 11.0))
+        lm = 0.1
+        rm = 0.05
+        bm = 0.05
+        tm = 0.05
+        vg = 0.05
+        numplots = 1 + self.data[symbol]['header'][-1][0]
+        axwidth = 1. - lm - rm
+        axheight = (1. - bm - tm - (numplots - 1) * vg) / numplots
+
+        d = self.data[symbol]
+        for layer in range(1 + d['header'][-1][0]):
+            ax = fig.add_axes((lm,
+                               1. - tm - axheight - (axheight + vg) * layer,
+                               axwidth, axheight))
+            indices = [_ for _, label in enumerate(d['header'])
+                       if label[0] == layer]
+            sub = d['table'][:, indices]
+            ax.violinplot(dataset=sub, positions=range(len(indices)))
+            ax.set_ylim(-1.2, 1.2)
+            ax.set_xlim(-0.5, len(indices) - 0.5)
+            ax.set_ylabel('Layer %i' % layer)
+        ax.set_xlabel('node')
+        fig.text(0.5, 1. - 0.5 * tm, 'Node outputs for %s' % symbol,
+                 ha='center', va='center')
+
+        if save:
+            fig.savefig(save)
+        return fig
+
+    def _accumulate(self, symbol, output):
+        """Accumulates the data for the symbol."""
+        data = self.data
+        layerkeys = output.keys()  # Correspond to layers.
+        layerkeys.sort()
+        if symbol not in data:
+            # Create headers, structure.
+            data[symbol] = {'header': [],
+                            'table': []}
+            for layerkey in layerkeys:
+                v = output[layerkey]
+                v = v.reshape(v.size).tolist()
+                data[symbol]['header'].extend([(layerkey, _) for _ in
+                                              range(len(v))])
+        # Add as a row to data table.
+        row = []
+        for layerkey in layerkeys:
+            v = output[layerkey]
+            v = v.reshape(v.size).tolist()
+            row.extend(v)
+        data[symbol]['table'].append(row)
+
+    def _finalize_table(self):
+        """Converts the data table into a numpy array."""
+        for symbol in self.data:
+            self.data[symbol]['table'] = np.array(self.data[symbol]['table'])

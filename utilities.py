@@ -8,6 +8,8 @@ from ase import io as aseio
 from ase.parallel import paropen
 import shelve
 from datetime import datetime
+from threading import Thread
+from getpass import getuser
 
 
 # Parallel processing ########################################################
@@ -18,10 +20,14 @@ def assign_cores(cores, log=None):
     log = Logger(None) if log is None else log
 
     def fail(q):
-        msg = ('Auto core detection not set up for %s. You are invited to '
-               ' submit a patch to return a dictionary of the form '
-               '{nodename: ncores} for this batching system. The environment'
-               ' contents were dumped.')
+        msg = ('Auto core detection is either not set up or not working for'
+               ' your version of %s. You are invited to submit a patch to '
+               'return a dictionary of the form {nodename: ncores} for this'
+               ' batching system. The environment contents were dumped to '
+               'the log file.')
+        log('Environment dump:')
+        for key, value in os.environ.iteritems():
+            log('%s: %s' % (key, value))
         raise NotImplementedError(msg % q)
 
     def success(q, cores, log):
@@ -48,9 +54,9 @@ def assign_cores(cores, log=None):
 
     if 'SLURM_NODELIST' in os.environ.keys():
         q = 'SLURM'
-        nnodes = os.environ['SLURM_NNODES']
+        nnodes = int(os.environ['SLURM_NNODES'])
         nodes = os.environ['SLURM_NODELIST']
-        taskspernode = os.environ['SLURM_TASKS_PER_NODE']
+        taskspernode = int(os.environ['SLURM_TASKS_PER_NODE'])
         if nnodes == 1:
             cores = {nodes: taskspernode}
         else:
@@ -101,6 +107,31 @@ def make_sublists(masterlist, n):
     for sublist_length in sublist_lengths:
         sublists.append([masterlist.pop() for _ in xrange(sublist_length)])
     return sublists
+
+
+class EstablishSSH(Thread):
+    """A thread to start a new SSH session. Starting via threads allows all
+    sessions to start simultaneously, rather than waiting on one another.
+    Access its created session with self.ssh.
+    """
+
+    def __init__(self, process_id, workerhostname, workercommand, log):
+        self._process_id = process_id
+        self._workerhostname = workerhostname
+        self._workercommand = workercommand
+        self._log = log
+        Thread.__init__(self)
+
+    def run(self):
+        pxssh = importer('pxssh')
+        ssh = pxssh.pxssh()
+        ssh.login(self._workerhostname, getuser())
+        ssh.sendline(self._workercommand % self._process_id)
+        ssh.expect('<amp-connect>')
+        ssh.expect('<stderr>')
+        self._log('  Session %i (%s): %s' %
+                  (self._process_id, self._workerhostname, ssh.before.strip()))
+        self.ssh = ssh
 
 
 # Data and logging ###########################################################
@@ -163,7 +194,6 @@ class Data:
         else:
             import zmq
             from socket import gethostname
-            from getpass import getuser
             pxssh = importer('pxssh')
             log(' Parallel processing.')
             module = self.calc.__module__
@@ -180,29 +210,24 @@ class Data:
 
             workercommand = 'python -m %s %%s %s' % (module, serversocket)
 
-            def establish_ssh(process_id):
-                """Uses pxssh to establish a SSH connections and get the
-                command running. process_id is an assigned unique identifier
-                for each process. When the process starts, it needs to send
-                <amp-connect>, followed by the location of its standard error,
-                followed by <stderr>. Then it should communicate via zmq.
-                """
-                ssh = pxssh.pxssh()
-                ssh.login(workerhostname, getuser())
-                ssh.sendline(workercommand % process_id)
-                ssh.expect('<amp-connect>')
-                ssh.expect('<stderr>')
-                log('  Session %i (%s): %s' %
-                    (process_id, workerhostname, ssh.before.strip()))
-                return ssh
-
             # Create processes over SSH.
+            # 'processes' contains links to the actual processes;
+            # 'threads' is only used here to start all the SSH connections
+            # simultaneously.
             log(' Establishing worker sessions.')
             processes = []
+            threads = []  # Only used to start processes.
             for workerhostname, nprocesses in cores.iteritems():
-                n = len(processes)
-                processes.extend([establish_ssh(_ + n) for _ in
-                                  range(nprocesses)])
+                for pid in range(len(threads), len(threads) + nprocesses):
+                    threads.append(EstablishSSH(pid,
+                                                workerhostname,
+                                                workercommand, log))
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+            for thread in threads:
+                processes.append(thread.ssh)
 
             # All incoming requests will be dictionaries with three keys.
             # d['id']: process id number, assigned when process created above.
@@ -284,6 +309,7 @@ class Logger:
             self.file = None
             return
         if isinstance(file, str):
+            self.filename = file
             file = paropen(file, 'a')
         self.file = file
         self.tics = {}
@@ -300,7 +326,7 @@ class Logger:
         if label:
             self.tics[label] = time.time()
         else:
-            self.tic = time.time()
+            self._tic = time.time()
 
     def __call__(self, message, toc=None, tic=False):
         """
@@ -321,11 +347,13 @@ class Logger:
         dt = ''
         if toc:
             if toc is True:
-                tic = self.tic
+                tic = self._tic
             else:
                 tic = self.tics[toc]
             dt = (time.time() - tic) / 60.
             dt = ' %.1f min.' % dt
+        if self.file.closed:
+            self.file = paropen(self.filename, 'a')
         self.file.write(message + dt + '\n')
         self.file.flush()
         if tic:
@@ -420,7 +448,7 @@ def hash_images(images, log=None, ordered=False):
                     ' Was this expected? Hash: %s' % hash)
             dict_images[hash] = image
         log(' %i unique images after hashing.' % len(dict_images))
-        log(' ...hashing completed.', toc='hash')
+        log('...hashing completed.', toc='hash')
         return dict_images
 
 

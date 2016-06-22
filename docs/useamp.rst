@@ -65,7 +65,7 @@ To change how the code manages the regression process, you can use the `Regresso
 Parallel processing
 ----------------------------------
 
-Most tasks in Amp are "emarrassingly parallel" and thus you should see a performance boost by specfying more cores.
+Most tasks in Amp are "embarrassingly parallel" and thus you should see a performance boost by specifying more cores.
 Our standard parallel processing approach requires the modules pxssh (part of Pexpect, establish SSH connections) and ZMQ (to pass messages between processes).
 The code will try to automatically guess the parallel configuration from the environment variables that your batching system produces, using the function `amp.utilities.assign_cores`.
 (We only use SLURM on your system, so we welcome patches to get this utility working on other systems!)
@@ -145,11 +145,14 @@ Note that most of the lines of code below are either making the atoms or making 
      ax.bar(range(len(fp[1])), fp[1])
      ax.set_title(title)
      ax.set_ylim(0., 2.)
+     ax.set_xlabel('fingerprint')
+     ax.set_ylabel('value')
      fig.savefig(name)
  
  for index, hash in enumerate(images.keys()):
      barplot(hash, 'bplot-%02i.png' % index,
-             '%.2f$\\times$' % displacements[index])
+             '%.2f$\\times$ equilibrium O-H bondlength'
+             % displacements[index])
  
  # For fun, make an animated gif.
  import os
@@ -158,3 +161,7 @@ Note that most of the lines of code below are either making the atoms or making 
             ' '.join(filenames))
  os.system(command)
 
+
+.. image:: _static/animation.gif
+   :scale: 80 %
+   :align: center
