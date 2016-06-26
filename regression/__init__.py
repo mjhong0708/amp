@@ -26,6 +26,11 @@ class Regressor:
         if optimizer is None:
             from scipy.optimize import fmin_bfgs as optimizer
             optimizer_kwargs = {'gtol': 1e-500}
+            # input argument for complete_output
+            if lossprime:
+                optimizer_kwargs['args'] = (True,)
+            else:
+                optimizer_kwargs['args'] = (False,)
         if optimizer_kwargs is None:
             optimizer_kwargs = {}
         self.optimizer = optimizer
@@ -51,13 +56,16 @@ class Regressor:
                                **self.optimizer_kwargs)
             else:
                 self.optimizer(model.get_loss, x0, **self.optimizer_kwargs)
+
         except ConvergenceOccurred:
             log('...optimization successful.', toc='opt')
             return True
         else:
             log('...optimization unsuccessful.', toc='opt')
-            max_lossprime = max(abs(max(model.lossfunction.dloss_dparameters)),
-                                abs(min(model.lossfunction.dloss_dparameters)))
-            log('...maximum absolute value of loss prime: %.3e'
-                % max_lossprime)
+            if self.lossprime:
+                max_lossprime = \
+                    max(abs(max(model.lossfunction.dloss_dparameters)),
+                        abs(min(model.lossfunction.dloss_dparameters)))
+                log('...maximum absolute value of loss prime: %.3e'
+                    % max_lossprime)
             return False

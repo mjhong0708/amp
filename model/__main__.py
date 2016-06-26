@@ -166,6 +166,8 @@ if purpose == 'calculate_loss_function':
             # or having a thread for each process?
             pass
         else:
+            socket.send_pyobj(msg('<request>', 'args'))
+            args = socket.recv_pyobj()
             if model.fortran:
                 # AKh: Right now, for each optimizer call, this function is
                 # called. This is not needed. We already have fprime and
@@ -178,7 +180,7 @@ if purpose == 'calculate_loss_function':
                     fmodules.calculate_f_and_fprime(
                     parameters=parameters,
                     num_parameters=len(parameters),
-                    complete_output=True)
+                    complete_output=args['complete_output'])
                 output = {'loss': loss,
                           'dloss_dparameters': dloss_dparameters,
                           'energy_loss': energy_loss,
@@ -186,16 +188,14 @@ if purpose == 'calculate_loss_function':
                           'energy_maxresid': energy_maxresid,
                           'force_maxresid': force_maxresid, }
             else:
-                socket.send_pyobj(msg('<request>', 'args'))
-                args = socket.recv_pyobj()
                 if args['task'] == 'f':
                     output = \
                         lossfunction.f(parameters,
-                                       complete_output=True)
+                                       complete_output=args['complete_output'])
                 elif args['task'] == 'fprime':
                     output = \
                         lossfunction.fprime(parameters,
-                                            complete_output=True)
+                                            complete_output=args['complete_output'])
 
             socket.send_pyobj(msg('<result>', output))
             socket.recv_string()

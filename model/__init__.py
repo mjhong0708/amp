@@ -337,7 +337,7 @@ class LossFunction:
             _.logout()
         del self._sessions['workers']
 
-    def f(self, parametervector, complete_output=False):
+    def f(self, parametervector, complete_output):
         """Returns the current value of the loss function for a given set of
         parameters, or, if the energy is less than the energy_tol raises a
         ConvergenceException.
@@ -417,7 +417,7 @@ class LossFunction:
                     fmodules.calculate_f_and_fprime(
                     parameters=parametervector,
                     num_parameters=len(parametervector),
-                    complete_output=True)
+                    complete_output=complete_output)
 
                 fmodules.deallocate_variables()
 
@@ -425,7 +425,7 @@ class LossFunction:
                 loss, dloss_dparameters, energy_loss, force_loss, \
                     energy_maxresid, force_maxresid = \
                     self.calculate_loss(parametervector,
-                                        complete_output=True,
+                                        complete_output=complete_output,
                                         d=self.d)
         else:
             server = self._sessions['master']
@@ -473,7 +473,7 @@ class LossFunction:
                     'energy_maxresid': self.energy_maxresid,
                     'force_maxresid': self.force_maxresid, }
 
-    def fprime(self, parametervector, complete_output=False):
+    def fprime(self, parametervector, complete_output):
         """Returns the current value of the loss function for a given set of
         parameters, or, if the energy is less than the energy_tol raises a
         ConvergenceException.
@@ -557,7 +557,7 @@ class LossFunction:
                         fmodules.calculate_f_and_fprime(
                         parameters=parametervector,
                         num_parameters=len(parametervector),
-                        complete_output=True)
+                        complete_output=complete_output)
 
                     fmodules.deallocate_variables()
 
@@ -565,7 +565,7 @@ class LossFunction:
                     loss, dloss_dparameters, energy_loss, force_loss, \
                         energy_maxresid, force_maxresid = \
                         self.calculate_loss(parametervector,
-                                            complete_output=True,
+                                            complete_output=complete_output,
                                             d=self.d)
             else:
                 server = self._sessions['master']
