@@ -173,7 +173,7 @@ if purpose == 'calculate_loss_function':
             if args['complete_output'] is None:
                 complete_output = True
             else:
-                complete_output = complete_output
+                complete_output = args['complete_output']
             if model.fortran:
                 # AKh: Right now, for each optimizer call, this function is
                 # called. This is not needed. We already have fprime and
