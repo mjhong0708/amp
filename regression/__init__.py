@@ -28,7 +28,7 @@ class Regressor:
             optimizer_kwargs = {'gtol': 1e-500}
             # input argument for complete_output
             if lossprime:
-                optimizer_kwargs['args'] = (True,)
+                optimizer_kwargs['args'] = (None,)
             else:
                 optimizer_kwargs['args'] = (False,)
         if optimizer_kwargs is None:

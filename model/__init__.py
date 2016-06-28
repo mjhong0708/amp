@@ -346,6 +346,13 @@ class LossFunction:
         Can return more information like max_residual if complete_output
         is True.
         """
+        # complete_output = None is only used by the optimizer with
+        # lossprime=True calling this function
+        if complete_output is None:
+            _complete_output = True
+        else:
+            _complete_output = complete_output
+
         self._initialize()
 
         if self._cores == 1:
@@ -417,7 +424,7 @@ class LossFunction:
                     fmodules.calculate_f_and_fprime(
                     parameters=parametervector,
                     num_parameters=len(parametervector),
-                    complete_output=complete_output)
+                    complete_output=_complete_output)
 
                 fmodules.deallocate_variables()
 
@@ -425,7 +432,7 @@ class LossFunction:
                 loss, dloss_dparameters, energy_loss, force_loss, \
                     energy_maxresid, force_maxresid = \
                     self.calculate_loss(parametervector,
-                                        complete_output=complete_output,
+                                        complete_output=_complete_output,
                                         d=self.d)
         else:
             server = self._sessions['master']
@@ -435,7 +442,7 @@ class LossFunction:
             keys = make_sublists(self.images.keys(), len(processes))
 
             args = {'task': 'f',
-                    'complete_output': complete_output,
+                    'complete_output': _complete_output,
                     'd': self.d}
 
             results = self.process_parallels(parametervector,
@@ -463,15 +470,15 @@ class LossFunction:
             loss, dloss_dparameters, \
             energy_loss, force_loss, energy_maxresid, force_maxresid
 
-        if complete_output is False:
-            return self.loss
-        else:
+        if complete_output is True:
             return {'loss': self.loss,
                     'dloss_dparameters': self.dloss_dparameters,
                     'energy_loss': self.energy_loss,
                     'force_loss': self.force_loss,
                     'energy_maxresid': self.energy_maxresid,
                     'force_maxresid': self.force_maxresid, }
+        else:
+            return self.loss
 
     def fprime(self, parametervector, complete_output):
         """Returns the current value of the loss function for a given set of
@@ -482,6 +489,13 @@ class LossFunction:
         Can return more information like max_residual if complete_output
         is True.
         """
+        # complete_output = None is only used by the optimizer with
+        # lossprime=True calling this function
+        if complete_output is None:
+            _complete_output = True
+        else:
+            _complete_output = complete_output
+
         if self._step == 0:
 
             self._initialize()
@@ -557,7 +571,7 @@ class LossFunction:
                         fmodules.calculate_f_and_fprime(
                         parameters=parametervector,
                         num_parameters=len(parametervector),
-                        complete_output=complete_output)
+                        complete_output=_complete_output)
 
                     fmodules.deallocate_variables()
 
@@ -565,7 +579,7 @@ class LossFunction:
                     loss, dloss_dparameters, energy_loss, force_loss, \
                         energy_maxresid, force_maxresid = \
                         self.calculate_loss(parametervector,
-                                            complete_output=complete_output,
+                                            complete_output=_complete_output,
                                             d=self.d)
             else:
                 server = self._sessions['master']
@@ -575,7 +589,7 @@ class LossFunction:
                 keys = make_sublists(self.images.keys(), len(processes))
 
                 args = {'task': 'fprime',
-                        'complete_output': complete_output,
+                        'complete_output': _complete_output,
                         'd': self.d}
 
                 results = self.process_parallels(parametervector,
@@ -595,15 +609,15 @@ class LossFunction:
                 loss, dloss_dparameters, energy_loss, force_loss, \
                 energy_maxresid, force_maxresid
 
-        if complete_output is False:
-            return self.dloss_dparameters
-        else:
+        if complete_output is True:
             return {'loss': self.loss,
                     'dloss_dparameters': self.dloss_dparameters,
                     'energy_loss': self.energy_loss,
                     'force_loss': self.force_loss,
                     'energy_maxresid': self.energy_maxresid,
                     'force_maxresid': self.force_maxresid, }
+        else:
+            return self.dloss_dparameters
 
     def calculate_loss(self, parametervector, complete_output, d):
         """Method that calculates the loss, derivative of the loss with respect

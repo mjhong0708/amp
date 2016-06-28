@@ -168,6 +168,12 @@ if purpose == 'calculate_loss_function':
         else:
             socket.send_pyobj(msg('<request>', 'args'))
             args = socket.recv_pyobj()
+            # args['complete_output'] = None is only used by the optimizer with
+            # lossprime=True
+            if args['complete_output'] is None:
+                complete_output = True
+            else:
+                complete_output = complete_output
             if model.fortran:
                 # AKh: Right now, for each optimizer call, this function is
                 # called. This is not needed. We already have fprime and
@@ -180,7 +186,7 @@ if purpose == 'calculate_loss_function':
                     fmodules.calculate_f_and_fprime(
                     parameters=parameters,
                     num_parameters=len(parameters),
-                    complete_output=args['complete_output'])
+                    complete_output=complete_output)
                 output = {'loss': loss,
                           'dloss_dparameters': dloss_dparameters,
                           'energy_loss': energy_loss,
@@ -191,11 +197,11 @@ if purpose == 'calculate_loss_function':
                 if args['task'] == 'f':
                     output = \
                         lossfunction.f(parameters,
-                                       complete_output=args['complete_output'])
+                                       complete_output=complete_output)
                 elif args['task'] == 'fprime':
                     output = \
                         lossfunction.fprime(parameters,
-                                            complete_output=args['complete_output'])
+                                            complete_output=complete_output)
 
             socket.send_pyobj(msg('<result>', output))
             socket.recv_string()
