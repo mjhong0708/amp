@@ -616,8 +616,8 @@ def perturb_parameters(filename, images, d=0.0001, overwrite=False, **kwargs):
     vector = calc.model.vector.copy()
 
     # FIXME: AKh: Should read from filename, after it is saved.
-    lossfunction = LossFunction(energy_coefficient=0.0,
-                                force_coefficient=1.0,
+    lossfunction = LossFunction(energy_coefficient=1.0,
+                                force_coefficient=0.05,
                                 cores=calc.cores,
                                 )
     calc.model.lossfunction = lossfunction
