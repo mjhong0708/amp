@@ -682,6 +682,18 @@ def perturb_parameters(filename, images, d=0.0001, overwrite=False, **kwargs):
             ax.plot(allparameters[count],
                     alllosses[count],
                     marker='o', linestyle='--', color='b',)
+
+            xmin = allparameters[count][0] - \
+                0.1 * (allparameters[count][-1] - allparameters[count][0])
+            xmax = allparameters[count][-1] + \
+                0.1 * (allparameters[count][-1] - allparameters[count][0])
+            ymin = min(alllosses[count]) - \
+                0.1 * (max(alllosses[count]) - min(alllosses[count]))
+            ymax = max(alllosses[count]) + \
+                0.1 * (max(alllosses[count]) - min(alllosses[count]))
+            ax.set_xlim([xmin, xmax])
+            ax.set_ylim([ymin, ymax])
+
             ax.set_xlabel('parameter no %i' % count)
             ax.set_ylabel('loss function')
             pdf.savefig(fig)
