@@ -17,22 +17,43 @@ class Regressor:
 
     """
 
-    def __init__(self, optimizer=None, optimizer_kwargs=None, lossprime=True):
+    def __init__(self, optimizer='L-BFGS-B', optimizer_kwargs=None,
+                 lossprime=True):
         """optimizer can be specified; it should behave like a
         scipy.optimize optimizer. That is, it should take as its first two
         arguments the function to be optimized and the initial guess of the
         optimal paramters. Additional keyword arguments can be fed through
         the optimizer_kwargs dictionary."""
-        if optimizer is None:
+
+        if optimizer == 'L-BFGS-B':
+            from scipy.optimize import fmin_l_bfgs_b as optimizer
+            optimizer_kwargs = {'factr': 1e+02,
+                                'pgtol': 1e-08,
+                                'maxls': 2000, }
+        elif optimizer == 'BFGS':
             from scipy.optimize import fmin_bfgs as optimizer
-            optimizer_kwargs = {'gtol': 1e-500}
-            # input argument for complete_output
-            if lossprime:
-                optimizer_kwargs['args'] = (None,)
-            else:
-                optimizer_kwargs['args'] = (False,)
+            optimizer_kwargs = {'gtol': 1e-15, }
+        elif optimizer == 'TNC':
+            from scipy.optimize import fmin_tnc as optimizer
+            optimizer_kwargs = {'ftol': 0.,
+                                'xtol': 0.,
+                                'pgtol': 1e-08,
+                                'maxfun': 1000000, }
+        elif optimizer == 'NCG':
+            from scipy.optimize import fmin_ncg as optimizer
+            optimizer_kwargs = {'avextol': 1e-15, }
+
         if optimizer_kwargs is None:
             optimizer_kwargs = {}
+        # input argument for complete_output
+        if lossprime:
+            # True is reserved, instead by using None, fprime method in
+            # model/__init__.py can know that the call is coming from the
+            # optimizer, and returns dloss_dparameters alone and not
+            # complete_output.
+            optimizer_kwargs['args'] = (None,)
+        else:
+            optimizer_kwargs['args'] = (False,)
         self.optimizer = optimizer
         self.optimizer_kwargs = optimizer_kwargs
         self.lossprime = lossprime
