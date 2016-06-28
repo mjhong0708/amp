@@ -78,6 +78,7 @@ def assign_cores(cores, log=None):
 
 
 class MessageDictionary:
+
     """Standard container for all messages (typically requests, via
     zmq.context.socket.send_pyobj) sent from the workers to the master.
     This returns a simple dictionary. This is roughly email format.
@@ -102,7 +103,8 @@ def make_sublists(masterlist, n):
     the masterlist (to save some memory)."""
     np.random.shuffle(masterlist)
     N = len(masterlist)
-    sublist_lengths = [N//n if _ >= (N % n) else N//n + 1 for _ in range(n)]
+    sublist_lengths = [
+        N // n if _ >= (N % n) else N // n + 1 for _ in range(n)]
     sublists = []
     for sublist_length in sublist_lengths:
         sublists.append([masterlist.pop() for _ in xrange(sublist_length)])
@@ -110,6 +112,7 @@ def make_sublists(masterlist, n):
 
 
 class EstablishSSH(Thread):
+
     """A thread to start a new SSH session. Starting via threads allows all
     sessions to start simultaneously, rather than waiting on one another.
     Access its created session with self.ssh.
@@ -137,6 +140,7 @@ class EstablishSSH(Thread):
 # Data and logging ###########################################################
 
 class Data:
+
     """
     Serves as a container (dictionary-like) for (key, value) pairs that
     also serves to calculate them.
@@ -496,26 +500,31 @@ def randomize_images(images, fraction=0.8):
 
 
 class FingerprintsError(Exception):
+
     """ Error in case functional form of fingerprints has changed."""
     pass
 
 
 class ConvergenceOccurred(Exception):
+
     """ Kludge to decide when scipy's optimizers are complete."""
     pass
 
 
 class TrainingConvergenceError(Exception):
+
     """Error to be raised if training does not converge."""
     pass
 
 
 class ExtrapolateError(Exception):
+
     """Error class in the case of extrapolation."""
     pass
 
 
 class UntrainedError(Exception):
+
     """Error class in the case of unsuccessful training."""
     pass
 
@@ -571,3 +580,112 @@ def importer(modulename):
             except ImportError:
                 raise ImportError('pexpect not found!')
         return pxssh
+
+
+def perturb_parameters(filename, images, d=0.0001, overwrite=False, **kwargs):
+    """Returns the plot of loss function in terms of perturbed parameters.
+    Takes the name of ".amp" file and images. Any other keyword taken by the
+    Amp calculator can be fed to this class also.
+    """
+
+    from . import Amp
+    from amp.descriptor.gaussian import Gaussian
+    from amp.model.neuralnetwork import NeuralNetwork
+    from amp.model import LossFunction
+
+    calc = Amp(descriptor=Gaussian(),
+               model=NeuralNetwork(),
+               **kwargs)
+    calc = calc.load(filename=filename)
+
+    filename = make_filename(calc.label, '-perturbed-parameters.pdf')
+    if (not overwrite) and os.path.exists(filename):
+        raise IOError('File exists: %s.\nIf you want to overwrite,'
+                      ' set overwrite=True or manually delete.' % filename)
+
+    images = hash_images(images)
+
+    # FIXME: AKh: Should read from filename, after it is saved.
+    train_forces = True
+    calculate_derivatives = train_forces
+    calc.descriptor.calculate_fingerprints(images=images,
+                                           cores=calc.cores,
+                                           log=calc.log,
+                                           calculate_derivatives=calculate_derivatives)
+
+    vector = calc.model.vector.copy()
+
+    # FIXME: AKh: Should read from filename, after it is saved.
+    lossfunction = LossFunction(energy_coefficient=0.0,
+                                force_coefficient=1.0,
+                                cores=calc.cores,
+                                )
+    calc.model.lossfunction = lossfunction
+
+    # Set up local loss function.
+    lossfunction.attach_model(calc.model,
+                              fingerprints=calc.descriptor.fingerprints,
+                              fingerprintprimes=calc.descriptor.fingerprintprimes,
+                              images=images)
+
+    originalloss = calc.model.get_loss(vector,
+                                       complete_output=False)
+
+    calc.log('\n Perturbing parameters...', tic='perturb')
+
+    allparameters = []
+    alllosses = []
+    num_parameters = len(vector)
+
+    for count in range(num_parameters):
+        calc.log('parameter %i out of %i' % (count + 1, num_parameters))
+        parameters = []
+        losses = []
+        # parameter is perturbed -d and loss function calculated.
+        vector[count] -= d
+        parameters.append(vector[count])
+        perturbedloss = calc.model.get_loss(vector, complete_output=False)
+        losses.append(perturbedloss)
+
+        vector[count] += d
+        parameters.append(vector[count])
+        losses.append(originalloss)
+        # parameter is perturbed +d and loss function calculated.
+        vector[count] += d
+        parameters.append(vector[count])
+        perturbedloss = calc.model.get_loss(vector, complete_output=False)
+        losses.append(perturbedloss)
+
+        allparameters.append(parameters)
+        alllosses.append(losses)
+        # returning back to the original value.
+        vector[count] -= d
+
+    calc.log('...parameters perturbed and loss functions calculated',
+             toc='perturb')
+
+    calc.log('Plotting loss function vs perturbed parameters...',
+             tic='plot')
+
+    import matplotlib
+    matplotlib.use('Agg')
+    from matplotlib import rcParams
+    from matplotlib import pyplot
+    from matplotlib.backends.backend_pdf import PdfPages
+    rcParams.update({'figure.autolayout': True})
+
+    with PdfPages(filename) as pdf:
+        count = 0
+        for parameter in vector:
+            fig = pyplot.figure()
+            ax = fig.add_subplot(111)
+            ax.plot(allparameters[count],
+                    alllosses[count],
+                    marker='o', linestyle='--', color='b',)
+            ax.set_xlabel('parameter no %i' % count)
+            ax.set_ylabel('loss function')
+            pdf.savefig(fig)
+            pyplot.close(fig)
+            count += 1
+
+    calc.log(' ...loss functions plotted.', toc='plot')
