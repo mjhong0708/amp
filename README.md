@@ -62,11 +62,11 @@ by something like:
 
 $ cd ../
 
-$ f2py -c -m fmodules model.f90 descriptor/gaussian.f90 model/neuralnetwork.f90
+$ f2py -c -m fmodules model.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90
 
 or on a Windows machine by:
 
-$ f2py -c -m fmodules model.f90 descriptor/gaussian.f90 model/neuralnetwork.f90 --fcompiler=gnu95 --compiler=mingw32
+$ f2py -c -m fmodules model.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90 --fcompiler=gnu95 --compiler=mingw32
 
 If the version of fmodules.f90 is not updated, an exception
 will be raised which tells user which version number should be
