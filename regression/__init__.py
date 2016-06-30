@@ -28,8 +28,12 @@ class Regressor:
         if optimizer == 'L-BFGS-B':
             from scipy.optimize import fmin_l_bfgs_b as optimizer
             optimizer_kwargs = {'factr': 1e+02,
-                                'pgtol': 1e-08,
-                                'maxls': 2000, }
+                                'pgtol': 1e-08, }
+            import scipy
+            from distutils.version import StrictVersion
+            if StrictVersion(scipy.__version__) >= StrictVersion('0.17.0'):
+                optimizer_kwargs['maxls'] = 2000
+
         elif optimizer == 'BFGS':
             from scipy.optimize import fmin_bfgs as optimizer
             optimizer_kwargs = {'gtol': 1e-15, }
