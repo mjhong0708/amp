@@ -457,6 +457,11 @@ class LossFunction:
             energy_maxresid = results['energy_maxresid']
             force_maxresid = results['force_maxresid']
 
+        self.loss, self.dloss_dparameters, self.energy_loss, self.force_loss, \
+            self.energy_maxresid, self.force_maxresid = \
+            loss, dloss_dparameters, \
+            energy_loss, force_loss, energy_maxresid, force_maxresid
+
         if self.raise_ConvergenceOccurred:
             converged = self.check_convergence(energy_loss, force_loss,
                                                energy_maxresid, force_maxresid)
@@ -464,11 +469,6 @@ class LossFunction:
                 self._model.vector = parametervector
                 self._cleanup()
                 raise ConvergenceOccurred()
-
-        self.loss, self.dloss_dparameters, self.energy_loss, self.force_loss, \
-            self.energy_maxresid, self.force_maxresid = \
-            loss, dloss_dparameters, \
-            energy_loss, force_loss, energy_maxresid, force_maxresid
 
         if complete_output is True:
             return {'loss': self.loss,
