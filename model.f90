@@ -255,7 +255,7 @@
                     do i = 1, 3
                         force_resid = &
                         ABS(amp_forces(selfindex, i) - &
-                        actual_forces(selfindex, i))
+                        actual_forces_(selfindex, i))
                         if (force_resid .GT. force_maxresid) then
                             force_maxresid = force_resid
                         end if
