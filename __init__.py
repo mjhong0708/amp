@@ -241,7 +241,7 @@ class Amp(Calculator, object):
         """
 
         log = self.log
-        log('Amp training started. ' + now() + '\n')
+        log('\nAmp training started. ' + now() + '\n')
         log('Descriptor: %s' % self.descriptor.__class__.__name__)
         log('Model: %s' % self.model.__class__.__name__)
 

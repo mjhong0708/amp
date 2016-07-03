@@ -206,7 +206,7 @@ class LossFunction:
 
     def __init__(self, energy_coefficient=1.0, force_coefficient=0.04,
                  convergence=None, cores=None,
-                 raise_ConvergenceOccurred=True, d=None):
+                 raise_ConvergenceOccurred=True, log_losses=True, d=None):
         p = self.parameters = Parameters(
             {'importname': '.model.LossFunction'})
         # 'dict' creates a copy; otherwise mutable in class.
@@ -217,6 +217,7 @@ class LossFunction:
         p['energy_coefficient'] = energy_coefficient
         p['force_coefficient'] = force_coefficient
         self.raise_ConvergenceOccurred = raise_ConvergenceOccurred
+        self.log_losses = log_losses
         self.d = d
         self._step = 0
         self._initialized = False
@@ -292,28 +293,31 @@ class LossFunction:
             self._sessions = {'master': server,
                               'workers': processes}
 
-        p = self.parameters
-        convergence = p['convergence']
-        log(' Loss function convergence criteria:')
-        log('  energy_rmse: ' + str(convergence['energy_rmse']))
-        log('  energy_maxresid: ' + str(convergence['energy_maxresid']))
-        log('  force_rmse: ' + str(convergence['force_rmse']))
-        log('  force_maxresid: ' + str(convergence['force_maxresid']))
-        log('\n')
-        if (convergence['force_rmse'] is None) and \
-                (convergence['force_maxresid'] is None):
-            log('\n  %12s  %12s' % ('EnergyLoss', 'MaxResid'))
-            log('  %12s  %12s' % ('==========', '========'))
-        else:
-            log('%5s %19s %12s %12s %12s %12s' %
-                ('', '', '', 'Energy',
-                 '', 'Force'))
-            log('%5s %19s %12s %12s %12s %12s' %
-                ('Step', 'Time', 'EnergyLoss', 'MaxResid',
-                 'ForceLoss', 'MaxResid'))
-            log('%5s %19s %12s %12s %12s %12s' %
-                ('=' * 5, '=' * 19, '=' * 12, '=' * 12,
-                 '=' * 12, '=' * 12))
+        if self.log_losses:
+            p = self.parameters
+            convergence = p['convergence']
+            log(' Loss function convergence criteria:')
+            log('  energy_rmse: ' + str(convergence['energy_rmse']))
+            log('  energy_maxresid: ' + str(convergence['energy_maxresid']))
+            log('  force_rmse: ' + str(convergence['force_rmse']))
+            log('  force_maxresid: ' + str(convergence['force_maxresid']))
+            log('\n')
+            if (convergence['force_rmse'] is None) and \
+                    (convergence['force_maxresid'] is None):
+                header = '  %12s  %12s'
+                log(header % ('EnergyLoss', 'MaxResid'))
+                log(header % ('==========', '========'))
+            else:
+                header = '%5s %19s %12s %12s %12s %12s'
+                log(header %
+                    ('', '', '', 'Energy',
+                     '', 'Force'))
+                log(header %
+                    ('Step', 'Time', 'EnergyLoss', 'MaxResid',
+                     'ForceLoss', 'MaxResid'))
+                log(header %
+                    ('=' * 5, '=' * 19, '=' * 12, '=' * 12,
+                     '=' * 12, '=' * 12))
 
         self._initialized = True
 
@@ -336,6 +340,7 @@ class LossFunction:
         for _ in self._sessions['workers']:
             _.logout()
         del self._sessions['workers']
+        self._initialized = False
 
     def f(self, parametervector, complete_output):
         """Returns the current value of the loss function for a given set of
@@ -799,24 +804,27 @@ class LossFunction:
                 if force_maxresid > p.convergence['force_maxresid']:
                     force_maxresid_converged = False
 
-            log('%5i %19s %10.4e %1s %10.4e %1s %10.4e %1s %10.4e %1s' %
-                (self._step, now(), energy_rmse,
-                 'C' if energy_rmse_converged else '',
-                 energy_maxresid,
-                 'C' if energy_maxresid_converged else '',
-                 force_rmse,
-                 'C' if force_rmse_converged else '',
-                 force_maxresid,
-                 'C' if force_maxresid_converged else ''))
+            if self.log_losses:
+                log('%5i %19s %10.4e %1s %10.4e %1s %10.4e %1s %10.4e %1s' %
+                    (self._step, now(), energy_rmse,
+                     'C' if energy_rmse_converged else '',
+                     energy_maxresid,
+                     'C' if energy_maxresid_converged else '',
+                     force_rmse,
+                     'C' if force_rmse_converged else '',
+                     force_maxresid,
+                     'C' if force_maxresid_converged else ''))
+
             self._step += 1
             return energy_rmse_converged and energy_maxresid_converged and \
                 force_rmse_converged and force_maxresid_converged
         else:
-            log(' %5i  %19s %12.4e %1s %12.4e %1s' %
-                (self._step, now(), energy_rmse,
-                 'C' if energy_rmse_converged else '',
-                 energy_maxresid,
-                 'C' if energy_maxresid_converged else ''))
+            if self.log_losses:
+                log(' %5i  %19s %12.4e %1s %12.4e %1s' %
+                    (self._step, now(), energy_rmse,
+                     'C' if energy_rmse_converged else '',
+                     energy_maxresid,
+                     'C' if energy_maxresid_converged else ''))
             self._step += 1
             return energy_rmse_converged and energy_maxresid_converged
 
