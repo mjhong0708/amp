@@ -13,6 +13,7 @@ from amp import Amp
 from amp.descriptor.gaussian import Gaussian
 from amp.model.neuralnetwork import NeuralNetwork
 from amp.model import LossFunction
+from amp.regression import Regressor
 
 # Making the list of images
 
@@ -537,6 +538,8 @@ def test():
                    'force_rmse': 10.**10.,
                    'force_maxresid': 10.**10., }
 
+    regressor = Regressor(optimizer='BFGS')
+
     count = 0
     for fortran in [False, True]:
         for cores in range(1, 2):
@@ -549,7 +552,8 @@ def test():
                                            weights=weights,
                                            scalings=scalings,
                                            activation=activation,
-                                           fprange=fingerprints_range,),
+                                           fprange=fingerprints_range,
+                                           regressor=regressor,),
                        label=label,
                        cores=1)
 

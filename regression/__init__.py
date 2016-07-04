@@ -47,17 +47,6 @@ class Regressor:
             from scipy.optimize import fmin_ncg as optimizer
             optimizer_kwargs = {'avextol': 1e-15, }
 
-        if optimizer_kwargs is None:
-            optimizer_kwargs = {}
-        # input argument for complete_output
-        if lossprime:
-            # True is reserved, instead by using None, fprime method in
-            # model/__init__.py can know that the call is coming from the
-            # optimizer, and returns dloss_dparameters alone and not
-            # complete_output.
-            optimizer_kwargs['args'] = (None,)
-        else:
-            optimizer_kwargs['args'] = (False,)
         self.optimizer = optimizer
         self.optimizer_kwargs = optimizer_kwargs
         self.lossprime = lossprime

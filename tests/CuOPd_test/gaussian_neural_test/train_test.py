@@ -16,6 +16,7 @@ from amp import Amp
 from amp.descriptor.gaussian import Gaussian
 from amp.model.neuralnetwork import NeuralNetwork
 from amp.model import LossFunction
+from amp.regression import Regressor
 
 
 # The test function for non-periodic systems
@@ -24,6 +25,8 @@ convergence = {'energy_rmse': 10.**10.,
                'energy_maxresid': 10.**10.,
                'force_rmse': 10.**10.,
                'force_maxresid': 10.**10., }
+
+regressor = Regressor(optimizer='BFGS')
 
 
 def non_periodic_0th_bfgs_step_test():
@@ -188,6 +191,7 @@ def non_periodic_0th_bfgs_step_test():
                                            weights=weights,
                                            scalings=scalings,
                                            activation='sigmoid',
+                                           regressor=regressor,
                                            fortran=fortran,),
                        label=label,
                        dblabel=label,
@@ -230,6 +234,7 @@ def non_periodic_0th_bfgs_step_test():
                                            weights=weights,
                                            scalings=scalings,
                                            activation='sigmoid',
+                                           regressor=regressor,
                                            fortran=fortran,),
                        label=secondlabel,
                        dblabel=dblabel,
@@ -395,6 +400,7 @@ def periodic_0th_bfgs_step_test():
                                            weights=weights,
                                            scalings=scalings,
                                            activation='tanh',
+                                           regressor=regressor,
                                            fortran=fortran,),
                        label=label,
                        dblabel=label,
@@ -429,6 +435,7 @@ def periodic_0th_bfgs_step_test():
                                            weights=weights,
                                            scalings=scalings,
                                            activation='tanh',
+                                           regressor=regressor,
                                            fortran=fortran,),
                        label=secondlabel,
                        dblabel=dblabel,

@@ -1,14 +1,14 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-!     Fortran Version = 7
+!     Fortran Version = 8
       subroutine check_version(version, warning) 
       implicit none
     
       integer::  version, warning
 !f2py         intent(in)::  version
 !f2py         intent(out)::  warning
-      if (version .NE. 7) then
+      if (version .NE. 8) then
           warning = 1
       else
           warning = 0
@@ -70,8 +70,8 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !     subroutine that calculates the loss function and its prime
-      subroutine calculate_f_and_fprime(parameters, num_parameters, &
-      complete_output, loss, dloss_dparameters, energyloss, forceloss, &
+      subroutine calculate_loss(parameters, num_parameters, &
+      lossprime, loss, dloss_dparameters, energyloss, forceloss, &
       energy_maxresid, force_maxresid)
 
       use images_props
@@ -83,12 +83,12 @@
 
       integer:: num_parameters
       double precision:: parameters(num_parameters)
-      logical:: complete_output
+      logical:: lossprime
       double precision:: loss, energyloss, forceloss
       double precision:: energy_maxresid, force_maxresid
       double precision:: dloss_dparameters(num_parameters)
 !f2py         intent(in):: parameters, num_parameters
-!f2py         intent(in):: complete_output
+!f2py         intent(in):: lossprime
 !f2py         intent(out):: loss, energyloss, forceloss
 !f2py         intent(out):: energy_maxresid, force_maxresid
 !f2py         intent(out):: dloss_dparameters
@@ -206,7 +206,7 @@
         end if
         ! calculates energyloss
         energyloss = energyloss + residual_per_atom ** 2.0d0
-        if (complete_output .EQV. .TRUE.) then
+        if (lossprime .EQV. .TRUE.) then
             ! calculates denergy_dparameters
             if (mode_signal == 1) then ! image-centered mode
                 denergy_dparameters = &
@@ -249,18 +249,19 @@
                     actual_forces_(selfindex, i)) ** 2.0d0 / num_atoms
                 end do
             end do
-            if (complete_output .EQV. .TRUE.) then
-                ! calculates force_maxresid
-                do selfindex = 1, num_atoms
-                    do i = 1, 3
-                        force_resid = &
-                        ABS(amp_forces(selfindex, i) - &
-                        actual_forces_(selfindex, i))
-                        if (force_resid .GT. force_maxresid) then
-                            force_maxresid = force_resid
-                        end if
-                    end do
+
+            ! calculates force_maxresid
+            do selfindex = 1, num_atoms
+                do i = 1, 3
+                    force_resid = &
+                    ABS(amp_forces(selfindex, i) - &
+                    actual_forces_(selfindex, i))
+                    if (force_resid .GT. force_maxresid) then
+                        force_maxresid = force_resid
+                    end if
                 end do
+            end do
+            if (lossprime .EQV. .TRUE.) then
                 allocate(dforces_dparameters(num_atoms))
 				do selfindex = 1, num_atoms
 					allocate(dforces_dparameters(&
@@ -826,7 +827,7 @@
  
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       
-      end subroutine calculate_f_and_fprime
+      end subroutine calculate_loss
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

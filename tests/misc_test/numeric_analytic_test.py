@@ -15,6 +15,7 @@ from amp import Amp
 from amp.descriptor.gaussian import Gaussian
 from amp.model.neuralnetwork import NeuralNetwork
 from amp.model import LossFunction
+from amp.regression import Regressor
 
 
 def generate_data(count):
@@ -42,9 +43,11 @@ def generate_data(count):
 
 def test():
     images = generate_data(2)
+    regressor = Regressor(optimizer='BFGS')
 
     calc = Amp(descriptor=Gaussian(),
-               model=NeuralNetwork(hiddenlayers=(3, 3)),
+               model=NeuralNetwork(hiddenlayers=(3, 3),
+                                   regressor=regressor,),
                cores=1)
 
     step = 0

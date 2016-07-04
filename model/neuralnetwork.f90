@@ -53,7 +53,7 @@
       double precision:: intercept
       double precision:: slope
 
-!     changing the form of variables from vector into derived-types 
+!     changing the form of parameters from vector into derived-types 
       l = 0
       allocate(weights(no_layers_of_elements(1)-1))
       do j = 1, no_layers_of_elements(1) - 1
@@ -131,7 +131,7 @@
       end do
       deallocate(ohat)
       
-!     deallocating derived type variables
+!     deallocating derived type parameters
       do p = 1, size(weights)
           deallocate(weights(p)%twodarray)
       end do
@@ -182,7 +182,7 @@
         endif
       end do
 
-!     changing the form of variables from vector into derived-types 
+!     changing the form of parameters from vector into derived-types 
       k = 0
       l = 0
       do element = 1, num_elements
@@ -284,7 +284,7 @@
       end do
       deallocate(ohat)
 
-!      deallocating derived type variables
+!      deallocating derived type parameters
       do element = 1, num_elements
         deallocate(unraveled_parameters(element)%weights)
       end do
@@ -314,7 +314,7 @@
       double precision:: intercept
       double precision:: slope
 
-!     changing the form of variables to derived-types
+!     changing the form of parameters to derived-types
       l = 0
       allocate(weights(no_layers_of_elements(1)-1))
       do j = 1, no_layers_of_elements(1) - 1
@@ -426,7 +426,7 @@
       end do
       deallocate(doutputs_dinputs)
 
-!     deallocating derived type variables 
+!     deallocating derived type parameters 
       do p = 1, size(weights)
           deallocate(weights(p)%twodarray)
       end do
@@ -493,7 +493,7 @@
         endif
       end do
 
-!     changing the form of variables to derived-types
+!     changing the form of parameters to derived-types
       k = 0
       l = 0
       do element = 1, num_elements
@@ -635,7 +635,7 @@
       end do
       deallocate(doutputs_dinputs)
 
-!     deallocating derived type variables 
+!     deallocating derived type parameters 
       do element = 1, num_elements
         deallocate(unraveled_parameters(element)%weights)
       end do
@@ -668,7 +668,7 @@
       double precision:: denergy_dintercept
       double precision:: denergy_dslope
 
-!     changing the form of variables from vector into derived-types
+!     changing the form of parameters from vector into derived-types
       l = 0
       allocate(weights(no_layers_of_elements(1)-1))
       do j = 1, no_layers_of_elements(1) - 1
@@ -831,7 +831,7 @@
       get_denergy_dparameters_(l + 1) = denergy_dintercept
       get_denergy_dparameters_(l + 2) = denergy_dslope
 
-!     deallocating derived-type variables 
+!     deallocating derived-type parameters 
       do p = 1, size(weights)
           deallocate(weights(p)%twodarray)
       end do
@@ -890,7 +890,7 @@
         endif
       end do
 
-!     changing the form of variables to derived types
+!     changing the form of parameters to derived types
       k = 0
       l = 0
       do element = 1, num_elements
@@ -1098,7 +1098,7 @@
         unraveled_daenergy_dparameters(element)%slope
       end do
 
-!     deallocating derived-type variables 
+!     deallocating derived-type parameters 
       do element = 1, num_elements
         deallocate(unraveled_parameters(element)%weights)
         deallocate(unraveled_daenergy_dparameters(element)%weights)
@@ -1141,7 +1141,7 @@
       double precision:: dforce_dintercept
       double precision:: dforce_dslope
 
-!     changing the form of variables from vector into derived-types 
+!     changing the form of parameters from vector into derived-types 
       l = 0
       allocate(weights(no_layers_of_elements(1)-1))
       do j = 1, no_layers_of_elements(1) - 1
@@ -1431,7 +1431,7 @@
       get_dforce_dparameters_(l + 1) = dforce_dintercept
       get_dforce_dparameters_(l + 2) = dforce_dslope
 
-!     deallocating derived-type variables      
+!     deallocating derived-type parameters      
       do p = 1, size(weights)
           deallocate(weights(p)%twodarray)
       end do
@@ -1513,7 +1513,7 @@
         endif
       end do
 
-!     changing the form of variables from vector into derived-types 
+!     changing the form of parameters from vector into derived-types 
       k = 0
       l = 0
       do element = 1, num_elements
@@ -1867,7 +1867,7 @@
         unraveled_dforce_dparameters(element)%slope
       end do
 
-!     deallocating derived-type variables      
+!     deallocating derived-type parameters      
       do element = 1, num_elements
         deallocate(unraveled_parameters(element)%weights)
         deallocate(unraveled_dforce_dparameters(element)%weights)

@@ -24,7 +24,7 @@ from .utilities import TrainingConvergenceError
 import warnings
 try:
     from . import fmodules
-    fmodules_version = 7
+    fmodules_version = 8
     wrong_version = fmodules.check_version(version=fmodules_version)
     if wrong_version:
         raise RuntimeError('fortran modules are not updated. Recompile'
