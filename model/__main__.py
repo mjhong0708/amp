@@ -189,7 +189,7 @@ if purpose == 'calculate_loss_function':
                           'force_maxresid': force_maxresid, }
             else:
                 output = lossfunction.get_loss(parameters,
-                                       lossprime=lossprime)
+                                               lossprime=lossprime)
 
             socket.send_pyobj(msg('<result>', output))
             socket.recv_string()
