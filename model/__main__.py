@@ -94,6 +94,7 @@ if purpose == 'calculate_loss_function':
         mode = model.parameters.mode
         energy_coefficient = lossfunction.parameters.energy_coefficient
         force_coefficient = lossfunction.parameters.force_coefficient
+        overfit = lossfunction.parameters.overfit
         if force_coefficient == 0.:
             train_forces = False
         else:
@@ -133,6 +134,7 @@ if purpose == 'calculate_loss_function':
         send_data_to_fortran(fmodules,
                              energy_coefficient,
                              force_coefficient,
+                             overfit,
                              train_forces,
                              num_atoms,
                              num_images,
