@@ -205,7 +205,7 @@ class LossFunction:
                           }
 
     def __init__(self, energy_coefficient=1.0, force_coefficient=0.04,
-                 convergence=None, cores=None,
+                 convergence=None, cores=None, overfit=0.,
                  raise_ConvergenceOccurred=True, log_losses=True, d=None):
         p = self.parameters = Parameters(
             {'importname': '.model.LossFunction'})
@@ -216,6 +216,7 @@ class LossFunction:
                 p['convergence'][key] = value
         p['energy_coefficient'] = energy_coefficient
         p['force_coefficient'] = force_coefficient
+        p['overfit'] = overfit
         self.raise_ConvergenceOccurred = raise_ConvergenceOccurred
         self.log_losses = log_losses
         self.d = d
@@ -333,6 +334,7 @@ class LossFunction:
         p = self.parameters
         energy_coefficient = p.energy_coefficient
         force_coefficient = p.force_coefficient
+        overfit = p.overfit
         if force_coefficient == 0.:
             train_forces = False
         else:
@@ -369,6 +371,7 @@ class LossFunction:
         send_data_to_fortran(fmodules,
                              energy_coefficient,
                              force_coefficient,
+                             overfit,
                              train_forces,
                              num_atoms,
                              num_images,
@@ -460,7 +463,7 @@ class LossFunction:
             self.dloss_dparameters = dloss_dparameters
 
         if self.raise_ConvergenceOccurred:
-            converged = self.check_convergence(energy_loss, force_loss,
+            converged = self.check_convergence(loss, energy_loss, force_loss,
                                                energy_maxresid, force_maxresid)
             if converged:
                 self._model.vector = parametervector
@@ -559,6 +562,18 @@ class LossFunction:
             p.force_coefficient * forceloss
         dloss_dparameters = np.array(dloss_dparameters)
 
+        # if overfit coefficient is more than zero, overfit contribution to
+        # loss and dloss_dparameters is also added.
+        if p.overfit > 0.:
+            overfitloss = 0.
+            for component in parametervector:
+                overfitloss += component ** 2.
+            overfitloss *= p.overfit
+            loss += overfitloss
+            doverfitloss_dparameters = \
+                2 * p.overfit * np.array(parametervector)
+            dloss_dparameters += doverfitloss_dparameters
+
         return loss, dloss_dparameters, energyloss, forceloss, \
             energy_maxresid, force_maxresid
 
@@ -622,13 +637,11 @@ class LossFunction:
                 finished[int(message['id'])] = True
         return results
 
-    def check_convergence(self, energy_loss, force_loss,
+    def check_convergence(self, loss, energy_loss, force_loss,
                           energy_maxresid, force_maxresid):
         """Checks to see whether convergence is met; if it is, raises
         ConvergenceException to stop the optimizer."""
         p = self.parameters
-        loss = p.energy_coefficient * energy_loss + \
-            p.force_coefficient * force_loss
         energy_rmse_converged = True
         log = self._model.log
         if p.convergence['energy_rmse'] is not None:
@@ -639,7 +652,7 @@ class LossFunction:
         if p.convergence['energy_maxresid'] is not None:
             if energy_maxresid > p.convergence['energy_maxresid']:
                 energy_maxresid_converged = False
-        if self.parameters.force_coefficient != 0.:
+        if p.force_coefficient != 0.:
             force_rmse_converged = True
             if p.convergence['force_rmse'] is not None:
                 force_rmse = np.sqrt(force_loss / len(self.images))
@@ -829,6 +842,7 @@ def ravel_data(train_forces,
 def send_data_to_fortran(_fmodules,
                          energy_coefficient,
                          force_coefficient,
+                         overfit,
                          train_forces,
                          num_atoms,
                          num_images,
@@ -861,6 +875,7 @@ def send_data_to_fortran(_fmodules,
 
     _fmodules.model_props.energy_coefficient = energy_coefficient
     _fmodules.model_props.force_coefficient = force_coefficient
+    _fmodules.model_props.overfit = overfit
     _fmodules.model_props.train_forces = train_forces
     _fmodules.model_props.mode_signal = mode_signal
     if d is None:

@@ -39,6 +39,7 @@
       logical:: train_forces
       double precision:: energy_coefficient
       double precision:: force_coefficient
+      double precision:: overfit
       logical:: numericprime
       double precision:: d      
       
@@ -134,11 +135,13 @@
       unraveled_atomic_numbers(:)
       double precision:: amp_energy, actual_energy, atom_energy
       double precision:: residual_per_atom, dforce, force_resid
+      double precision:: overfitloss
       integer:: i, index, j, p, k, q, l, m, &
       len_of_fingerprint, symbol, element, image_no, num_inputs
       double precision:: denergy_dparameters(num_parameters)
       double precision:: daenergy_dparameters(num_parameters)
       double precision:: dforce_dparameters(num_parameters)
+      double precision:: doverfitloss_dparameters(num_parameters)
       type(real_two_d_array), allocatable:: dforces_dparameters(:)
       type(image_forces), allocatable:: unraveled_actual_forces(:)
       type(embedded_integer_one_one_d_array), allocatable:: &
@@ -305,6 +308,24 @@
       end do
       loss = energy_coefficient * energyloss + &
              force_coefficient * forceloss
+
+      ! if overfit coefficient is more than zero, overfit
+      ! contribution to loss and dloss_dparameters is also added.
+      if (overfit .GT. 0.0d0) then
+          overfitloss = 0.0d0
+          do j = 1, num_parameters
+              overfitloss = overfitloss + &
+              parameters(j) ** 2.0d0
+          end do
+          overfitloss = overfit * overfitloss
+          loss = loss + overfitloss
+          do j = 1, num_parameters
+		      doverfitloss_dparameters(j) = &
+              2.0d0 * overfit * parameters(j)
+              dloss_dparameters(j) = dloss_dparameters(j) + &
+              doverfitloss_dparameters(j)
+          end do
+      end if
 
 !     deallocations for all images
       if (mode_signal == 1) then
