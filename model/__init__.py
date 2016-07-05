@@ -303,6 +303,10 @@ class LossFunction:
             log('  energy_maxresid: ' + str(convergence['energy_maxresid']))
             log('  force_rmse: ' + str(convergence['force_rmse']))
             log('  force_maxresid: ' + str(convergence['force_maxresid']))
+            log(' Loss function set-up:')
+            log('  energy_coefficient: ' + str(p.energy_coefficient))
+            log('  force_coefficient: ' + str(p.force_coefficient))
+            log('  overfit: ' + str(p.overfit))
             log('\n')
             if (convergence['force_rmse'] is None) and \
                     (convergence['force_maxresid'] is None):
@@ -439,8 +443,7 @@ class LossFunction:
             # Subdivide tasks.
             keys = make_sublists(self.images.keys(), len(processes))
 
-            args = {'task': 'f',
-                    'lossprime': lossprime,
+            args = {'lossprime': lossprime,
                     'd': self.d}
 
             results = self.process_parallels(parametervector,
