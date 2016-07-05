@@ -221,6 +221,7 @@ class LossFunction:
         self.d = d
         self._step = 0
         self._initialized = False
+        self._data_sent = False
         self._cores = cores
 
     def attach_model(self, model, fingerprints=None,
@@ -321,6 +322,69 @@ class LossFunction:
 
         self._initialized = True
 
+    def _send_data_to_fortran(self,):
+        """Procedures to be run in fortran mode for a single requested core
+        only. Also just on the first call for sending data to fortran modules.
+        """
+        if self._data_sent is True:
+            return
+
+        num_images = len(self.images)
+        p = self.parameters
+        energy_coefficient = p.energy_coefficient
+        force_coefficient = p.force_coefficient
+        if force_coefficient == 0.:
+            train_forces = False
+        else:
+            train_forces = True
+        mode = self._model.parameters.mode
+        # FIXME: Should be corrected for image-centered:
+        if mode == 'atom-centered':
+            num_atoms = None
+
+        (actual_energies, actual_forces, elements, atomic_positions,
+         num_images_atoms, atomic_numbers, raveled_fingerprints, num_neighbors,
+         raveled_neighborlists, raveled_fingerprintprimes) = (None,) * 10
+
+        value = ravel_data(train_forces,
+                           mode,
+                           self.images,
+                           self.fingerprints,
+                           self.fingerprintprimes,)
+
+        if mode == 'image-centered':
+            if not train_forces:
+                (actual_energies, atomic_positions) = value
+            else:
+                (actual_energies, actual_forces, atomic_positions) = value
+        else:
+            if not train_forces:
+                (actual_energies, elements, num_images_atoms,
+                 atomic_numbers, raveled_fingerprints) = value
+            else:
+                (actual_energies, actual_forces, elements, num_images_atoms,
+                 atomic_numbers, raveled_fingerprints, num_neighbors,
+                 raveled_neighborlists, raveled_fingerprintprimes) = value
+
+        send_data_to_fortran(fmodules,
+                             energy_coefficient,
+                             force_coefficient,
+                             train_forces,
+                             num_atoms,
+                             num_images,
+                             actual_energies,
+                             actual_forces,
+                             atomic_positions,
+                             num_images_atoms,
+                             atomic_numbers,
+                             raveled_fingerprints,
+                             num_neighbors,
+                             raveled_neighborlists,
+                             raveled_fingerprintprimes,
+                             self._model,
+                             self.d)
+        self._data_sent = True
+
     def _cleanup(self):
         """Closes SSH sessions."""
         self._initialized = False
@@ -351,78 +415,15 @@ class LossFunction:
         self._initialize()
 
         if self._cores == 1:
-
             if self._model.fortran:
-
                 self._model.vector = parametervector
-
-                num_images = len(self.images)
-                energy_coefficient = self.parameters.energy_coefficient
-                force_coefficient = self.parameters.force_coefficient
-                if force_coefficient == 0.:
-                    train_forces = False
-                else:
-                    train_forces = True
-                mode = self._model.parameters.mode
-                # FIXME: Should be corrected for image-centered:
-                if mode == 'atom-centered':
-                    num_atoms = None
-
-                (actual_energies, actual_forces, elements, atomic_positions,
-                 num_images_atoms, atomic_numbers, raveled_fingerprints,
-                 num_neighbors, raveled_neighborlists,
-                 raveled_fingerprintprimes) = (None,) * 10
-
-                value = ravel_data(train_forces,
-                                   mode,
-                                   self.images,
-                                   self.fingerprints,
-                                   self.fingerprintprimes,)
-
-                if mode == 'image-centered':
-                    if not train_forces:
-                        (actual_energies, atomic_positions) = value
-                    else:
-                        (actual_energies, actual_forces,
-                         atomic_positions) = value
-                else:
-                    if not train_forces:
-                        (actual_energies, elements, num_images_atoms,
-                         atomic_numbers, raveled_fingerprints) = value
-                    else:
-                        (actual_energies, actual_forces, elements,
-                         num_images_atoms, atomic_numbers,
-                         raveled_fingerprints, num_neighbors,
-                         raveled_neighborlists,
-                         raveled_fingerprintprimes) = value
-
-                send_data_to_fortran(fmodules,
-                                     energy_coefficient,
-                                     force_coefficient,
-                                     train_forces,
-                                     num_atoms,
-                                     num_images,
-                                     actual_energies,
-                                     actual_forces,
-                                     atomic_positions,
-                                     num_images_atoms,
-                                     atomic_numbers,
-                                     raveled_fingerprints,
-                                     num_neighbors,
-                                     raveled_neighborlists,
-                                     raveled_fingerprintprimes,
-                                     self._model,
-                                     self.d)
-
+                self._send_data_to_fortran()
                 (loss, dloss_dparameters, energy_loss, force_loss,
                  energy_maxresid, force_maxresid) = \
                     fmodules.calculate_loss(parameters=parametervector,
                                             num_parameters=len(
                                                 parametervector),
                                             lossprime=lossprime)
-
-                fmodules.deallocate_variables()
-
             else:
                 loss, dloss_dparameters, energy_loss, force_loss, \
                     energy_maxresid, force_maxresid = \
