@@ -701,3 +701,357 @@ def perturb_parameters(filename, images, d=0.0001, overwrite=False, **kwargs):
             count += 1
 
     calc.log(' ...loss functions plotted.', toc='plot')
+
+
+# Amp Simulated Annealer ######################################################
+
+import copy
+import math
+import random
+import signal
+import pickle
+
+
+class Annealer(object):
+
+    """
+    Inspired by the simulated annealing implementation of
+    Richard J. Wagner <wagnerr@umich.edu> and
+    Matthew T. Perry <perrygeo@gmail.com> at
+    https://github.com/perrygeo/simanneal.
+
+    Performs simulated annealing by calling functions to calculate loss and
+    make moves on a state.  The temperature schedule for annealing may be
+    provided manually or estimated automatically.
+
+    Can be used by something like:
+
+    >>> from amp import Amp
+    >>> from amp.descriptor.gaussian import Gaussian
+    >>> from amp.model.neuralnetwork import NeuralNetwork
+    >>> calc = Amp(descriptor=Gaussian(), model=NeuralNetwork())
+
+    which will initialize tha calc object as usual, and then
+
+    >>> from amp.utilities import Annealer
+    >>> Annealer(calc=calc, images=images)
+
+    which will perform simulated annealing global search in parameters space,
+    and finally
+
+    >>> calc.train(images=images)
+
+    for gradient descent optimization.
+    """
+
+    Tmax = 20.0             # Max (starting) temperature
+    Tmin = 2.5              # Min (ending) temperature
+    steps = 10000           # Number of iterations
+    updates = steps / 200   # Number of updates (an update prints to log)
+    copy_strategy = 'copy'
+    user_exit = False
+    save_state_on_exit = False
+
+    def __init__(self, calc, images,
+                 Tmax=None, Tmin=None, steps=None, updates=None):
+        if Tmax is not None:
+            self.Tmax = Tmax
+        if Tmin is not None:
+            self.Tmin = Tmin
+        if steps is not None:
+            self.steps = steps
+        if updates is not None:
+            self.updates = updates
+        self.calc = calc
+
+        self.calc.log('\nAmp simulated annealer started. ' + now() + '\n')
+        self.calc.log('Descriptor: %s' %
+                      self.calc.descriptor.__class__.__name__)
+        self.calc.log('Model: %s' % self.calc.model.__class__.__name__)
+
+        images = hash_images(images, log=self.calc.log)
+
+        self.calc.log('\nDescriptor\n==========')
+        # Derivatives of fingerprints need to be calculated if train_forces is
+        # True.
+        calculate_derivatives = True
+        self.calc.descriptor.calculate_fingerprints(images=images,
+                                                    cores=self.calc.cores,
+                                                    log=self.calc.log,
+                                                    calculate_derivatives=calculate_derivatives)
+        # Setting up calc.model.vector()
+        self.calc.model.fit(images,
+                            self.calc.descriptor,
+                            self.calc.log,
+                            self.calc.cores,
+                            only_setup=True,
+                            )
+        # Truning off ConvergenceOccured exception and log_losses
+        initial_raise_ConvergenceOccurred = \
+            self.calc.model.lossfunction.raise_ConvergenceOccurred
+        initial_log_losses = self.calc.model.lossfunction.log_losses
+        self.calc.model.lossfunction.log_losses = False
+        self.calc.model.lossfunction.raise_ConvergenceOccurred = False
+        initial_state = self.calc.model.vector.copy()
+        self.state = self.copy_state(initial_state)
+
+        signal.signal(signal.SIGINT, self.set_user_exit)
+        self.calc.log('\nAnnealing\n=========\n')
+        bestState, bestLoss = self.anneal()
+        # Taking the best state
+        self.calc.model.vector = np.array(bestState)
+        # Returning back the changed arguments
+        self.calc.model.lossfunction.log_losses = initial_log_losses
+        self.calc.model.lossfunction.raise_ConvergenceOccurred = \
+            initial_raise_ConvergenceOccurred
+        # cleaning up sessions
+        self.calc.model.lossfunction._step = 0
+        self.calc.model.lossfunction._cleanup()
+        calc = self.calc
+
+    @staticmethod
+    def round_figures(x, n):
+        """Returns x rounded to n significant figures."""
+        return round(x, int(n - math.ceil(math.log10(abs(x)))))
+
+    @staticmethod
+    def time_string(seconds):
+        """Returns time in seconds as a string formatted HHHH:MM:SS."""
+        s = int(round(seconds))  # round to nearest second
+        h, s = divmod(s, 3600)   # get hours and remainder
+        m, s = divmod(s, 60)     # split remainder into minutes and seconds
+        return '%4i:%02i:%02i' % (h, m, s)
+
+    def save_state(self, fname=None):
+        """Saves state"""
+        if not fname:
+            date = datetime.datetime.now().isoformat().split(".")[0]
+            fname = date + "_loss_" + str(self.get_loss()) + ".state"
+        print("Saving state to: %s" % fname)
+        with open(fname, "w") as fh:
+            pickle.dump(self.state, fh)
+
+    def move(self, state):
+        """Create a state change"""
+        move_step = np.random.rand(len(state)) * 2. - 1.
+        move_step *= 0.0005
+        for _ in range(len(state)):
+            state[_] = state[_] * (1 + move_step[_])
+        return state
+
+    def get_loss(self, state):
+        """Calculate state's loss"""
+        lossfxn = \
+            self.calc.model.lossfunction.get_loss(np.array(state),
+                                                  lossprime=False,)['loss']
+        return lossfxn
+
+    def set_user_exit(self, signum, frame):
+        """Raises the user_exit flag, further iterations are stopped
+        """
+        self.user_exit = True
+
+    def set_schedule(self, schedule):
+        """Takes the output from `auto` and sets the attributes
+        """
+        self.Tmax = schedule['tmax']
+        self.Tmin = schedule['tmin']
+        self.steps = int(schedule['steps'])
+
+    def copy_state(self, state):
+        """Returns an exact copy of the provided state
+        Implemented according to self.copy_strategy, one of
+
+        * deepcopy : use copy.deepcopy (slow but reliable)
+        * slice: use list slices (faster but only works if state is list-like)
+        * method: use the state's copy() method
+        """
+        if self.copy_strategy == 'deepcopy':
+            return copy.deepcopy(state)
+        elif self.copy_strategy == 'slice':
+            return state[:]
+        elif self.copy_strategy == 'copy':
+            return state.copy()
+
+    def update(self, step, T, L, acceptance, improvement):
+        """Prints the current temperature, loss, acceptance rate,
+        improvement rate, elapsed time, and remaining time.
+
+        The acceptance rate indicates the percentage of moves since the last
+        update that were accepted by the Metropolis algorithm.  It includes
+        moves that decreased the loss, moves that left the loss
+        unchanged, and moves that increased the loss yet were reached by
+        thermal excitation.
+
+        The improvement rate indicates the percentage of moves since the
+        last update that strictly decreased the loss.  At high
+        temperatures it will include both moves that improved the overall
+        state and moves that simply undid previously accepted moves that
+        increased the loss by thermal excititation.  At low temperatures
+        it will tend toward zero as the moves that can decrease the loss
+        are exhausted and moves that would increase the loss are no longer
+        thermally accessible."""
+
+        elapsed = time.time() - self.start
+        if step == 0:
+            self.calc.log('\n')
+            header = ' %5s %12s %12s %7s %7s %10s %10s'
+            self.calc.log(header % ('Step', 'Temperature', 'Loss (SSD)',
+                                    'Accept', 'Improve', 'Elapsed',
+                                    'Remaining'))
+            self.calc.log(header % ('=' * 5, '=' * 12, '=' * 12,
+                                    '=' * 7, '=' * 7, '=' * 10,
+                                    '=' * 10,))
+            self.calc.log(' %5i %12.2e %12.4e                   %s            '
+                          % (step, T, L, self.time_string(elapsed)))
+        else:
+            remain = (self.steps - step) * (elapsed / step)
+            self.calc.log(' %5i %12.2e %12.4e %7.2f%% %7.2f%% %s %s' %
+                          (step, T, L, 100.0 * acceptance, 100.0 * improvement,
+                           self.time_string(
+                               elapsed), self.time_string(remain))),
+
+    def anneal(self):
+        """Minimizes the loss of a system by simulated annealing.
+
+        Parameters
+        state : an initial arrangement of the system
+
+        Returns
+        (state, loss): the best state and loss found.
+        """
+        step = 0
+        self.start = time.time()
+
+        # Precompute factor for exponential cooling from Tmax to Tmin
+        if self.Tmin <= 0.0:
+            raise Exception('Exponential cooling requires a minimum "\
+                "temperature greater than zero.')
+        Tfactor = -math.log(self.Tmax / self.Tmin)
+
+        # Note initial state
+        T = self.Tmax
+        L = self.get_loss(self.state)
+        prevState = self.copy_state(self.state)
+        prevLoss = L
+        bestState = self.copy_state(self.state)
+        bestLoss = L
+        trials, accepts, improves = 0, 0, 0
+        if self.updates > 0:
+            updateWavelength = self.steps / self.updates
+            self.update(step, T, L, None, None)
+
+        # Attempt moves to new states
+        while step < (self.steps - 1) and not self.user_exit:
+            step += 1
+            T = self.Tmax * math.exp(Tfactor * step / self.steps)
+            self.state = self.move(self.state)
+            L = self.get_loss(self.state)
+            dL = L - prevLoss
+            trials += 1
+            if dL > 0.0 and math.exp(-dL / T) < random.random():
+                # Restore previous state
+                self.state = self.copy_state(prevState)
+                L = prevLoss
+            else:
+                # Accept new state and compare to best state
+                accepts += 1
+                if dL < 0.0:
+                    improves += 1
+                prevState = self.copy_state(self.state)
+                prevLoss = L
+                if L < bestLoss:
+                    bestState = self.copy_state(self.state)
+                    bestLoss = L
+            if self.updates > 1:
+                if step // updateWavelength > (step - 1) // updateWavelength:
+                    self.update(
+                        step, T, L, accepts / trials, improves / trials)
+                    trials, accepts, improves = 0, 0, 0
+
+        # line break after progress output
+        print('')
+
+        self.state = self.copy_state(bestState)
+        if self.save_state_on_exit:
+            self.save_state()
+        # Return best state and loss
+        return bestState, bestLoss
+
+    def auto(self, minutes, steps=2000):
+        """Minimizes the loss of a system by simulated annealing with
+        automatic selection of the temperature schedule.
+
+        Keyword arguments:
+        state -- an initial arrangement of the system
+        minutes -- time to spend annealing (after exploring temperatures)
+        steps -- number of steps to spend on each stage of exploration
+
+        Returns the best state and loss found."""
+
+        def run(T, steps):
+            """Anneals a system at constant temperature and returns the state,
+            loss, rate of acceptance, and rate of improvement."""
+            L = self.get_loss()
+            prevState = self.copy_state(self.state)
+            prevLoss = L
+            accepts, improves = 0, 0
+            for step in range(steps):
+                self.move()
+                L = self.get_loss()
+                dL = L - prevLoss
+                if dL > 0.0 and math.exp(-dL / T) < random.random():
+                    self.state = self.copy_state(prevState)
+                    L = prevLoss
+                else:
+                    accepts += 1
+                    if dL < 0.0:
+                        improves += 1
+                    prevState = self.copy_state(self.state)
+                    prevLoss = L
+            return L, float(accepts) / steps, float(improves) / steps
+
+        step = 0
+        self.start = time.time()
+
+        # Attempting automatic simulated anneal...
+        # Find an initial guess for temperature
+        T = 0.0
+        L = self.get_loss()
+        self.update(step, T, L, None, None)
+        while T == 0.0:
+            step += 1
+            self.move()
+            T = abs(self.get_loss() - L)
+
+        # Search for Tmax - a temperature that gives 98% acceptance
+        L, acceptance, improvement = run(T, steps)
+
+        step += steps
+        while acceptance > 0.98:
+            T = self.round_figures(T / 1.5, 2)
+            L, acceptance, improvement = run(T, steps)
+            step += steps
+            self.update(step, T, L, acceptance, improvement)
+        while acceptance < 0.98:
+            T = self.round_figures(T * 1.5, 2)
+            L, acceptance, improvement = run(T, steps)
+            step += steps
+            self.update(step, T, L, acceptance, improvement)
+        Tmax = T
+
+        # Search for Tmin - a temperature that gives 0% improvement
+        while improvement > 0.0:
+            T = self.round_figures(T / 1.5, 2)
+            L, acceptance, improvement = run(T, steps)
+            step += steps
+            self.update(step, T, L, acceptance, improvement)
+        Tmin = T
+
+        # Calculate anneal duration
+        elapsed = time.time() - self.start
+        duration = self.round_figures(int(60.0 * minutes * step / elapsed), 2)
+
+        print('')  # New line after auto() output
+        # Don't perform anneal, just return params
+        return {'tmax': Tmax, 'tmin': Tmin, 'steps': duration}
