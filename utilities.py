@@ -228,6 +228,7 @@ class Data:
                                                 workercommand, log))
             for thread in threads:
                 thread.start()
+                time.sleep(0.5)
             for thread in threads:
                 thread.join()
             for thread in threads:
