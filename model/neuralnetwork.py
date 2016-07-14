@@ -213,7 +213,7 @@ class NeuralNetwork(Model):
         Takes one and only one input, a vector of parameters.
         Returns one output, the value of the loss (cost) function.
         """
-        return self.lossfunction.f(vector)
+        return self.lossfunction.get_loss(vector, lossprime=False)['loss']
 
     def get_lossprime(self, vector):
         """
@@ -222,7 +222,8 @@ class NeuralNetwork(Model):
         Returns one output, the value of the derivative of the loss function
         with respect to model parameters.
         """
-        return self.lossfunction.fprime(vector)
+        return self.lossfunction.get_loss(vector,
+                                          lossprime=True)['dloss_dparameters']
 
     @property
     def lossfunction(self):

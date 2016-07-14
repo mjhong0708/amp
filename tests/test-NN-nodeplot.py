@@ -39,7 +39,7 @@ def generate_data(count):
     return images
 
 
-def train_test(images, setup_only=False):
+def train_data(images, setup_only=False):
     label = 'nodeplot_test/calc'
     train_images = images
 
@@ -72,7 +72,7 @@ def train_test(images, setup_only=False):
 
 def test_nodeplot():
     images = generate_data(2)
-    calc = train_test(images, setup_only=True)
+    calc = train_data(images, setup_only=True)
     nodeplot = NodePlot(calc)
     nodeplot.plot(images, filename='nodeplottest.pdf')
 

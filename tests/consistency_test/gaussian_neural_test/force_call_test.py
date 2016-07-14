@@ -1,47 +1,49 @@
 """
 This script creates a list of three images. It then calculates behler-neural
-scheme cost function, energy per atom RMSE and force RMSE of different
-combinations of images with and without fortran modules on different number of
-cores, and check consistency between them.
+scheme forces and energies of different combinations of them with and without
+fortran modules, and check consistency between them.
 
 """
 
+#
+
 import numpy as np
 from ase import Atoms
-from ase.calculators.emt import EMT
 from amp import Amp
 from amp.descriptor.gaussian import Gaussian
 from amp.model.neuralnetwork import NeuralNetwork
-from amp.model import LossFunction
-from amp.regression import Regressor
 
+#
 # Making the list of images
 
 
 def make_images():
     """Makes test images."""
 
-    images = [Atoms(symbols='Pd3O2',
+    images = [Atoms(symbols='Pd4O2',
                     pbc=np.array([True,  True, False], dtype=bool),
                     cell=np.array(
                         [[7.78,   0.,   0.],
                          [0.,   5.50129076,   0.],
                             [0.,   0.,  15.37532269]]),
                     positions=np.array(
-                        [[3.89,  0.,  8.37532269],
+                        [[0.,  0.,  8.37532269],
+                            [3.89,  0.,  8.37532269],
                             [0.,  2.75064538,  8.37532269],
                             [3.89,  2.75064538,  8.37532269],
                             [5.835,  1.37532269,  8.5],
                             [5.835,  7.12596807,  8.]])),
-              Atoms(symbols='Pd3O2',
+              Atoms(symbols='Pd4O2',
                     pbc=np.array([True,  True, False], dtype=bool),
                     cell=np.array(
                         [[7.78,   0.,   0.],
                          [0.,   5.50129076,   0.],
                             [0.,   0.,  15.37532269]]),
                     positions=np.array(
-                        [[3.88430768e+00,   5.28005966e-03,
-                          8.36678641e+00],
+                        [[8.43409903e-03,  -4.40430259e-03,
+                          8.37107726e+00],
+                            [3.88430768e+00,   5.28005966e-03,
+                                8.36678641e+00],
                             [-1.01122240e-02,   2.74577426e+00,
                                 8.37861758e+00],
                             [3.88251383e+00,   2.74138906e+00,
@@ -50,15 +52,17 @@ def make_images():
                                 8.97714483e+00],
                             [5.83355445e+00,   7.53318593e+00,
                              8.50142020e+00]])),
-              Atoms(symbols='Pd3O2',
+              Atoms(symbols='Pd4O2',
                     pbc=np.array([True,  True, False], dtype=bool),
                     cell=np.array(
                         [[7.78,   0.,   0.],
                          [0.,   5.50129076,   0.],
                             [0.,   0.,  15.37532269]]),
                     positions=np.array(
-                        [[3.87691266e+00,   9.29708987e-03,
-                          8.35604207e+00],
+                        [[1.84507759e-02,  -9.96620379e-03,
+                          8.36465110e+00],
+                            [3.87691266e+00,   9.29708987e-03,
+                                8.35604207e+00],
                             [-1.29700138e-02,   2.74373753e+00,
                                 8.37941484e+00],
                             [3.86813484e+00,   2.73488653e+00,
@@ -68,17 +72,13 @@ def make_images():
                             [5.83223956e+00,   8.23855393e+00,
                              9.18295137e+00]]))]
 
-    for atoms in images:
-        atoms.set_calculator(EMT())
-        atoms.get_potential_energy(apply_constraint=False)
-        atoms.get_forces(apply_constraint=False)
-
     return images
 
-
+#
 # Parameters
-cutoff = 5.5
-activation = 'sigmoid'
+
+cutoff = 6.5
+activation = 'tanh'
 hiddenlayers = {'O': (5, 5), 'Pd': (5, 5)}
 
 Gs = {'O': [{'eta': 0.05, 'type': 'G2', 'element': 'O'},
@@ -192,92 +192,70 @@ Gs = {'O': [{'eta': 0.05, 'type': 'G2', 'element': 'O'},
               "gamma": -1.0,
               "eta": 0.005}]}
 
-fingerprints_range = {"O": np.array([[0.9576297744816821, 0.9781635537721822],
-                                     [1.5965219624007356, 2.029991552829194],
-                                     [0.6490867939769083, 0.9554902891920712],
-                                     [0.8835113617162015, 1.385491645778086],
-                                     [0.45757754941615236, 0.9354370590550468],
-                                     [0.5038098795235629, 0.9704216656880006],
-                                     [0.24776862922895004, 0.8975120854112218],
-                                     [0.1778411370477522, 0.5033369040695346],
-                                     [0.04756795975972335, 0.7929693614866126],
-                                     [0.010678411893107285,
-                                         0.08274205794992942],
-                                     [0.0032126590280589355,
-                                         0.6450875782155161],
-                                     [0.00014810311804588016,
-                                         0.004685139865518786],
-                                     [1.4684356130451328e-05,
-                                         0.42691677760826546],
-                                     [3.687931521390313e-08,
-                                         1.5871730901594423e-05],
-                                     [0.03019875732248386,
-                                         0.20698709522424386],
-                                     [3.363261257762341, 5.363914410336563],
-                                     [2.262959763053792, 3.99309008637724],
-                                     [0.43931018496430263, 0.6100947886487761],
-                                     [3.048864359631384, 3.906027779282084],
-                                     [2.4759824537761026, 4.32175703694348],
-                                     [0.0014242919510283594,
-                                         0.0662909452084825],
-                                     [2.1248328227888496, 4.238756592436429],
-                                     [1.4573759593003581, 2.815733155339926],
-                                     [0.2986140349485413, 0.5813203232773206],
-                                     [1.746995212759835, 2.3899513815298894],
-                                     [1.5256310348626507, 3.1071875821187103],
-                                     [3.1682461497983404e-06,
-                                         0.006799486167343933],
-                                     [1.1510284000759108, 3.1879752591881956],
-                                     [0.8406198864990045, 1.7423917588951667],
-                                     [0.1379710925632159, 0.5277787358337935],
-                                     [0.6114872725198919, 1.340305590989966],
-                                     [0.7164066603703434,
-                                      2.0891604176934395]]),
-                      "Pd": np.array([[1.154607323053423, 1.3305487045981295],
-                                      [0.551759102399155, 1.3713637661332694],
-                                      [0.6469877982543076, 0.9038561263894056],
-                                      [0.1836383922219796, 0.7510644180086835],
-                                      [0.3706404542226067, 0.6308010197966096],
-                                      [0.061908829417001224,
-                                          0.42094513726712196],
-                                      [0.13355181104922664,
-                                          0.3205532867729253],
-                                      [0.0076308937151500725,
-                                          0.14249172183309694],
-                                      [0.009302322319625642,
-                                          0.048059061272533475],
-                                      [1.785148490055681e-05,
-                                          0.006770671357855657],
-                                      [0.00014511169324163886,
-                                          0.0025160536892603904],
-                                      [8.04287954299944e-10,
-                                          4.599501555987974e-05],
-                                      [3.686778281930424e-08,
-                                          8.524742995946123e-06],
-                                      [1.6422373031638726e-18,
-                                          2.1846879428444836e-09],
-                                      [1.7383991321368732, 2.9347075860454988],
-                                      [4.544797763122505, 7.28152322128857],
-                                      [0.979596152457089, 1.9620028955131916],
-                                      [0.49196325681052067,
-                                          1.0767938436994269],
-                                      [3.139828490686222, 4.524661360317331],
-                                      [1.23826020263128, 2.4316125030019147],
-                                      [1.4012907765627602, 2.476988108604277],
-                                      [3.4081270882827277, 6.0197611413153655],
-                                      [0.4897744167832538, 1.6851590166945567],
-                                      [0.15650247391327193,
-                                          0.6306691375027177],
-                                      [2.2224602701293357, 3.262899280344123],
-                                      [0.9717045670826352, 1.815787153995498],
-                                      [0.9659634528285561, 2.163669429908823],
-                                      [2.3741505301983685, 4.8131425542358715],
-                                      [0.12244182821265122, 1.357426673243403],
-                                      [0.0326810274613218,
-                                          0.22677866750542988],
-                                      [1.4047756390099746, 2.37308600253783],
-                                      [0.8248597322302271,
-                                       1.3563088031163417]])}
+fingerprints_range = {"O": [[1.2034320541645842, 1.2325033032109112],
+                            [6.126415779807456, 6.978993471872114],
+                            [0.9968712422847974, 1.0238339591857768],
+                            [3.8381486000216656, 4.6059867092450295],
+                            [0.895627825206874, 0.9671954702902308],
+                            [2.583663009213816, 3.2975746566094606],
+                            [0.7964913272920149, 0.9263856740488036],
+                            [1.3358420027866575, 1.987698731796872],
+                            [0.6086945405610695, 0.8469928578399282],
+                            [0.2529142293461268, 0.7771634549572402],
+                            [0.3914378098148111, 0.7306361163848886],
+                            [0.020116896658220102, 0.35759863784953067],
+                            [0.16188160578588526, 0.5436809953654286],
+                            [0.00018177869062004963, 0.12577780799256955],
+                            [2.9283890234835495, 2.960848034649544],
+                            [30.849062520667466, 34.34079115772228],
+                            [74.38292698900159, 81.77213709053859],
+                            [1.6948136646289693, 1.803559109943061],
+                            [20.032647223918715, 25.204662559464523],
+                            [46.30668067734771, 58.99262463422656],
+                            [2.37554239540103, 2.7402971203873707],
+                            [21.915472638677855, 25.585727302527907],
+                            [54.57445823130601, 61.34907477324089],
+                            [1.109508025380456, 1.6154672068468818],
+                            [11.916848644888729, 17.04495978743268],
+                            [27.88887260037905, 39.18415587653102],
+                            [1.8928302257282086, 2.5827385383035284],
+                            [14.565545948279196, 17.941552668205755],
+                            [36.94672253980532, 42.672289485060745],
+                            [0.6553641770222022, 1.4212816597490932],
+                            [6.00446500499159, 10.95563925572871],
+                            [15.456097104319266, 24.846009591495683]],
+                      "Pd": [[0.8893801678132963, 2.186742268993366],
+                             [5.681935730435191, 5.801357868163544],
+                             [0.28325235730086895, 1.7195167772827762],
+                             [3.319274384132528, 3.4278827090091513],
+                             [0.08915750058756017, 1.5653576140941878],
+                             [2.053165118375831, 2.1493466057807606],
+                             [0.009285644347874652, 1.3396267483639697],
+                             [0.8813449647319378, 0.949755776664418],
+                             [1.4022708468796206e-05, 0.8694356341233072],
+                             [0.08961848129998626, 0.10519747021560875],
+                             [2.5350651988745783e-10, 0.4474694168207284],
+                             [0.002199096348873827, 0.002942664869970825],
+                             [1.3547037121993997e-19, 0.13803579787982578],
+                             [1.3829812001140997e-06, 2.3283471452833342e-06],
+                             [2.245260381205755, 6.506711057752208],
+                             [30.80688145836148, 46.62802877467697],
+                             [63.159691665137835, 63.42318872782115],
+                             [1.4470182218367846, 3.5407788975262466],
+                             [16.920091949041364, 27.974461180856085],
+                             [43.372163387951744, 45.106267442742194],
+                             [2.1007039650495236, 5.235507846017004],
+                             [24.98117242089699, 38.28678610359639],
+                             [47.903805932396644, 48.16729306561395],
+                             [0.8039272162816901, 2.5404648021947756],
+                             [11.094382911576862, 19.43921017240714],
+                             [28.14489163971961, 29.853649179126506],
+                             [2.0677437396917027, 3.980577524358615],
+                             [18.507476335936385, 30.408978128204563],
+                             [33.915660566694726, 34.201570710274964],
+                             [0.2569160731561561, 1.5411619576089908],
+                             [4.8043897598894185, 13.387133883397796],
+                             [17.225764659147405, 18.83859512207448]]}
 
 weights = {"O": {1: np.matrix([[0.00036942165470836563, 0.022852891328080965,
                                 -0.007763989520407272, 0.0017904084613678817,
@@ -525,79 +503,58 @@ scalings = {"O": {"intercept": 4.2468934359280288,
             "Pd": {"intercept": 4.2468934359280288,
                    "slope": 3.1965614888424687}}
 
+#
+# Testing pure-python and fortran versions of gaussian-neural force call
 
-# Testing pure-python and fortran versions of Gaussian-Neural on different
-# number of processes and different number of images
 
 def test():
 
     images = make_images()
 
-    convergence = {'energy_rmse': 10.**10.,
-                   'energy_maxresid': 10.**10.,
-                   'force_rmse': 10.**10.,
-                   'force_maxresid': 10.**10., }
-
-    regressor = Regressor(optimizer='BFGS')
-
-    count = 0
     for fortran in [False, True]:
-        for cores in range(1, 2):
-            string = 'consistgauss/%s-%i'
-            label = string % (fortran, cores)
-            calc = Amp(descriptor=Gaussian(cutoff=cutoff,
-                                           Gs=Gs,
-                                           fortran=fortran,),
-                       model=NeuralNetwork(hiddenlayers=hiddenlayers,
-                                           weights=weights,
-                                           scalings=scalings,
-                                           activation=activation,
-                                           fprange=fingerprints_range,
-                                           regressor=regressor,),
-                       label=label,
-                       cores=1)
+        label = 'forcecall/%s' % fortran
+        calc = Amp(descriptor=Gaussian(cutoff=cutoff,
+                                       Gs=Gs,
+                                       fortran=fortran,),
+                   model=NeuralNetwork(hiddenlayers=hiddenlayers,
+                                       weights=weights,
+                                       scalings=scalings,
+                                       activation=activation,
+                                       mode='atom-centered',
+                                       fprange=fingerprints_range,
+                                       fortran=fortran,),
+                   label=label,)
 
-            lossfunction = LossFunction(convergence=convergence)
-            calc.model.lossfunction = lossfunction
-            calc.train(images=images,)
+        if fortran is False:
+            reference_energies = [calc.get_potential_energy(image)
+                                  for image in images]
+        else:
+            predicted_energies = [calc.get_potential_energy(image)
+                                  for image in images]
+            for image_no in range(len(predicted_energies)):
+                assert (abs(predicted_energies[image_no] -
+                            reference_energies[image_no]) < 10.**(-5.)), \
+                    'Calculated energy value of image %i by \
+                    fortran version is not consistent with the \
+                    value of python version.' % (image_no + 1)
 
-            if count == 0:
-                ref_loss = calc.model.lossfunction.loss
-                ref_energy_loss = calc.model.lossfunction.energy_loss
-                ref_force_loss = calc.model.lossfunction.force_loss
-                ref_dloss_dparameters = \
-                    calc.model.lossfunction.dloss_dparameters
-            else:
-                assert (abs(calc.model.lossfunction.loss -
-                            ref_loss) < 10.**(-10.)), \
-                    '''Loss function value for %r fortran, and %i cores is
-                not consistent with the value of python version
-                on single core.''' % (fortran, cores)
+        if fortran is False:
+            reference_forces = [calc.get_forces(image) for image in images]
+        else:
+            predicted_forces = [calc.get_forces(image) for image in images]
 
-                assert (abs(calc.model.lossfunction.energy_loss -
-                            ref_energy_loss) <
-                        10.**(-9.)), \
-                    '''Energy rmse value for %r fortran, and %i cores is not
-                consistent with the value of python version on
-                single core.''' % (fortran, cores)
+            for image_no in range(len(predicted_forces)):
+                for index in range(np.shape(predicted_forces[image_no])[0]):
+                    for k in range(np.shape(predicted_forces[image_no])[1]):
+                        assert (abs(predicted_forces[image_no][index][k] -
+                                    reference_forces[image_no][index][k]) <
+                                10.**(-5.)), \
+                            'Calculated %i force of atom %i of \
+                            image %i by fortran version is not  \
+                            consistent with the value of python \
+                            version.' % (k, index, image_no + 1)
 
-                assert (abs(calc.model.lossfunction.force_loss -
-                            ref_force_loss) <
-                        10.**(-9.)), \
-                    '''Force rmse value for %r fortran, and %i cores is not
-                consistent with the value of python version on
-                single core.''' % (fortran, cores)
-
-                for _ in range(len(ref_dloss_dparameters)):
-                    assert (calc.model.lossfunction.dloss_dparameters[_] -
-                            ref_dloss_dparameters[_] < 10.**(-10.))
-                    '''Derivative of the cost function for %r
-                    fortran, and %i
-                    cores is not consistent with the value of
-                    python version on single
-                    core. ''' % (fortran, cores)
-
-            count = count + 1
+#
 
 if __name__ == '__main__':
     test()

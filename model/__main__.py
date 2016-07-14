@@ -94,6 +94,7 @@ if purpose == 'calculate_loss_function':
         mode = model.parameters.mode
         energy_coefficient = lossfunction.parameters.energy_coefficient
         force_coefficient = lossfunction.parameters.force_coefficient
+        overfit = lossfunction.parameters.overfit
         if force_coefficient == 0.:
             train_forces = False
         else:
@@ -133,6 +134,7 @@ if purpose == 'calculate_loss_function':
         send_data_to_fortran(fmodules,
                              energy_coefficient,
                              force_coefficient,
+                             overfit,
                              train_forces,
                              num_atoms,
                              num_images,
@@ -166,6 +168,9 @@ if purpose == 'calculate_loss_function':
             # or having a thread for each process?
             pass
         else:
+            socket.send_pyobj(msg('<request>', 'args'))
+            args = socket.recv_pyobj()
+            lossprime = args['lossprime']
             if model.fortran:
                 # AKh: Right now, for each optimizer call, this function is
                 # called. This is not needed. We already have fprime and
@@ -175,10 +180,9 @@ if purpose == 'calculate_loss_function':
                 # and is fine there.
                 (loss, dloss_dparameters, energy_loss, force_loss,
                  energy_maxresid, force_maxresid) = \
-                    fmodules.calculate_f_and_fprime(
-                    parameters=parameters,
-                    num_parameters=len(parameters),
-                    complete_output=True)
+                    fmodules.calculate_loss(parameters=parameters,
+                                            num_parameters=len(parameters),
+                                            lossprime=lossprime)
                 output = {'loss': loss,
                           'dloss_dparameters': dloss_dparameters,
                           'energy_loss': energy_loss,
@@ -186,16 +190,8 @@ if purpose == 'calculate_loss_function':
                           'energy_maxresid': energy_maxresid,
                           'force_maxresid': force_maxresid, }
             else:
-                socket.send_pyobj(msg('<request>', 'args'))
-                args = socket.recv_pyobj()
-                if args['task'] == 'f':
-                    output = \
-                        lossfunction.f(parameters,
-                                       complete_output=True)
-                elif args['task'] == 'fprime':
-                    output = \
-                        lossfunction.fprime(parameters,
-                                            complete_output=True)
+                output = lossfunction.get_loss(parameters,
+                                               lossprime=lossprime)
 
             socket.send_pyobj(msg('<result>', output))
             socket.recv_string()

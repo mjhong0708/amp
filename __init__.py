@@ -24,7 +24,7 @@ from .utilities import TrainingConvergenceError
 import warnings
 try:
     from . import fmodules
-    fmodules_version = 7
+    fmodules_version = 8
     wrong_version = fmodules.check_version(version=fmodules_version)
     if wrong_version:
         raise RuntimeError('fortran modules are not updated. Recompile'
@@ -241,7 +241,7 @@ class Amp(Calculator, object):
         """
 
         log = self.log
-        log('Amp training started. ' + now() + '\n')
+        log('\nAmp training started. ' + now() + '\n')
         log('Descriptor: %s' % self.descriptor.__class__.__name__)
         log('Model: %s' % self.model.__class__.__name__)
 

@@ -17,17 +17,36 @@ class Regressor:
 
     """
 
-    def __init__(self, optimizer=None, optimizer_kwargs=None, lossprime=True):
+    def __init__(self, optimizer='L-BFGS-B', optimizer_kwargs=None,
+                 lossprime=True):
         """optimizer can be specified; it should behave like a
         scipy.optimize optimizer. That is, it should take as its first two
         arguments the function to be optimized and the initial guess of the
         optimal paramters. Additional keyword arguments can be fed through
         the optimizer_kwargs dictionary."""
-        if optimizer is None:
+
+        if optimizer == 'L-BFGS-B':
+            from scipy.optimize import fmin_l_bfgs_b as optimizer
+            optimizer_kwargs = {'factr': 1e+02,
+                                'pgtol': 1e-08, }
+            import scipy
+            from distutils.version import StrictVersion
+            if StrictVersion(scipy.__version__) >= StrictVersion('0.17.0'):
+                optimizer_kwargs['maxls'] = 2000
+
+        elif optimizer == 'BFGS':
             from scipy.optimize import fmin_bfgs as optimizer
-            optimizer_kwargs = {'gtol': 1e-500}
-        if optimizer_kwargs is None:
-            optimizer_kwargs = {}
+            optimizer_kwargs = {'gtol': 1e-15, }
+        elif optimizer == 'TNC':
+            from scipy.optimize import fmin_tnc as optimizer
+            optimizer_kwargs = {'ftol': 0.,
+                                'xtol': 0.,
+                                'pgtol': 1e-08,
+                                'maxfun': 1000000, }
+        elif optimizer == 'NCG':
+            from scipy.optimize import fmin_ncg as optimizer
+            optimizer_kwargs = {'avextol': 1e-15, }
+
         self.optimizer = optimizer
         self.optimizer_kwargs = optimizer_kwargs
         self.lossprime = lossprime
@@ -51,13 +70,16 @@ class Regressor:
                                **self.optimizer_kwargs)
             else:
                 self.optimizer(model.get_loss, x0, **self.optimizer_kwargs)
+
         except ConvergenceOccurred:
             log('...optimization successful.', toc='opt')
             return True
         else:
             log('...optimization unsuccessful.', toc='opt')
-            max_lossprime = max(abs(max(model.lossfunction.dloss_dparameters)),
-                                abs(min(model.lossfunction.dloss_dparameters)))
-            log('...maximum absolute value of loss prime: %.3e'
-                % max_lossprime)
+            if self.lossprime:
+                max_lossprime = \
+                    max(abs(max(model.lossfunction.dloss_dparameters)),
+                        abs(min(model.lossfunction.dloss_dparameters)))
+                log('...maximum absolute value of loss prime: %.3e'
+                    % max_lossprime)
             return False

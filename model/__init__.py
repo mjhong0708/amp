@@ -205,8 +205,8 @@ class LossFunction:
                           }
 
     def __init__(self, energy_coefficient=1.0, force_coefficient=0.04,
-                 convergence=None, cores=None,
-                 raise_ConvergenceOccurred=True, d=None):
+                 convergence=None, cores=None, overfit=0.,
+                 raise_ConvergenceOccurred=True, log_losses=True, d=None):
         p = self.parameters = Parameters(
             {'importname': '.model.LossFunction'})
         # 'dict' creates a copy; otherwise mutable in class.
@@ -216,10 +216,13 @@ class LossFunction:
                 p['convergence'][key] = value
         p['energy_coefficient'] = energy_coefficient
         p['force_coefficient'] = force_coefficient
+        p['overfit'] = overfit
         self.raise_ConvergenceOccurred = raise_ConvergenceOccurred
+        self.log_losses = log_losses
         self.d = d
         self._step = 0
         self._initialized = False
+        self._data_sent = False
         self._cores = cores
 
     def attach_model(self, model, fingerprints=None,
@@ -292,33 +295,106 @@ class LossFunction:
             self._sessions = {'master': server,
                               'workers': processes}
 
-        p = self.parameters
-        convergence = p['convergence']
-        log(' Loss function convergence criteria:')
-        log('  energy_rmse: ' + str(convergence['energy_rmse']))
-        log('  energy_maxresid: ' + str(convergence['energy_maxresid']))
-        log('  force_rmse: ' + str(convergence['force_rmse']))
-        log('  force_maxresid: ' + str(convergence['force_maxresid']))
-        log('\n')
-        if (convergence['force_rmse'] is None) and \
-                (convergence['force_maxresid'] is None):
-            log('\n  %12s  %12s' % ('EnergyLoss', 'MaxResid'))
-            log('  %12s  %12s' % ('==========', '========'))
-        else:
-            log('%5s %19s %12s %12s %12s %12s' %
-                ('', '', '', 'Energy',
-                 '', 'Force'))
-            log('%5s %19s %12s %12s %12s %12s' %
-                ('Step', 'Time', 'EnergyLoss', 'MaxResid',
-                 'ForceLoss', 'MaxResid'))
-            log('%5s %19s %12s %12s %12s %12s' %
-                ('=' * 5, '=' * 19, '=' * 12, '=' * 12,
-                 '=' * 12, '=' * 12))
+        if self.log_losses:
+            p = self.parameters
+            convergence = p['convergence']
+            log(' Loss function convergence criteria:')
+            log('  energy_rmse: ' + str(convergence['energy_rmse']))
+            log('  energy_maxresid: ' + str(convergence['energy_maxresid']))
+            log('  force_rmse: ' + str(convergence['force_rmse']))
+            log('  force_maxresid: ' + str(convergence['force_maxresid']))
+            log(' Loss function set-up:')
+            log('  energy_coefficient: ' + str(p.energy_coefficient))
+            log('  force_coefficient: ' + str(p.force_coefficient))
+            log('  overfit: ' + str(p.overfit))
+            log('\n')
+            if (convergence['force_rmse'] is None) and \
+                    (convergence['force_maxresid'] is None):
+                header = '  %12s  %12s'
+                log(header % ('EnergyRMSE', 'MaxResid'))
+                log(header % ('==========', '========'))
+            else:
+                header = '%5s %19s %12s %12s %12s %12s %12s'
+                log(header %
+                    ('', '', '', '', 'Energy',
+                     '', 'Force'))
+                log(header %
+                    ('Step', 'Time', 'Loss (SSD)', 'EnergyRMSE', 'MaxResid',
+                     'ForceRMSE', 'MaxResid'))
+                log(header %
+                    ('=' * 5, '=' * 19, '=' * 12, '=' * 12, '=' * 12,
+                     '=' * 12, '=' * 12))
 
         self._initialized = True
 
+    def _send_data_to_fortran(self,):
+        """Procedures to be run in fortran mode for a single requested core
+        only. Also just on the first call for sending data to fortran modules.
+        """
+        if self._data_sent is True:
+            return
+
+        num_images = len(self.images)
+        p = self.parameters
+        energy_coefficient = p.energy_coefficient
+        force_coefficient = p.force_coefficient
+        overfit = p.overfit
+        if force_coefficient == 0.:
+            train_forces = False
+        else:
+            train_forces = True
+        mode = self._model.parameters.mode
+        # FIXME: Should be corrected for image-centered:
+        if mode == 'atom-centered':
+            num_atoms = None
+
+        (actual_energies, actual_forces, elements, atomic_positions,
+         num_images_atoms, atomic_numbers, raveled_fingerprints, num_neighbors,
+         raveled_neighborlists, raveled_fingerprintprimes) = (None,) * 10
+
+        value = ravel_data(train_forces,
+                           mode,
+                           self.images,
+                           self.fingerprints,
+                           self.fingerprintprimes,)
+
+        if mode == 'image-centered':
+            if not train_forces:
+                (actual_energies, atomic_positions) = value
+            else:
+                (actual_energies, actual_forces, atomic_positions) = value
+        else:
+            if not train_forces:
+                (actual_energies, elements, num_images_atoms,
+                 atomic_numbers, raveled_fingerprints) = value
+            else:
+                (actual_energies, actual_forces, elements, num_images_atoms,
+                 atomic_numbers, raveled_fingerprints, num_neighbors,
+                 raveled_neighborlists, raveled_fingerprintprimes) = value
+
+        send_data_to_fortran(fmodules,
+                             energy_coefficient,
+                             force_coefficient,
+                             overfit,
+                             train_forces,
+                             num_atoms,
+                             num_images,
+                             actual_energies,
+                             actual_forces,
+                             atomic_positions,
+                             num_images_atoms,
+                             atomic_numbers,
+                             raveled_fingerprints,
+                             num_neighbors,
+                             raveled_neighborlists,
+                             raveled_fingerprintprimes,
+                             self._model,
+                             self.d)
+        self._data_sent = True
+
     def _cleanup(self):
         """Closes SSH sessions."""
+        self._initialized = False
         if not hasattr(self, '_sessions'):
             return
         server = self._sessions['master']
@@ -337,96 +413,29 @@ class LossFunction:
             _.logout()
         del self._sessions['workers']
 
-    def f(self, parametervector, complete_output=False):
+    def get_loss(self, parametervector, lossprime):
         """Returns the current value of the loss function for a given set of
         parameters, or, if the energy is less than the energy_tol raises a
         ConvergenceException.
-
-        By default only returns the loss function (needed for optimizers).
-        Can return more information like max_residual if complete_output
-        is True.
         """
+
         self._initialize()
 
         if self._cores == 1:
-
             if self._model.fortran:
-
                 self._model.vector = parametervector
-
-                num_images = len(self.images)
-                energy_coefficient = self.parameters.energy_coefficient
-                force_coefficient = self.parameters.force_coefficient
-                if force_coefficient == 0.:
-                    train_forces = False
-                else:
-                    train_forces = True
-                mode = self._model.parameters.mode
-                # FIXME: Should be corrected for image-centered:
-                if mode == 'atom-centered':
-                    num_atoms = None
-
-                (actual_energies, actual_forces, elements, atomic_positions,
-                 num_images_atoms, atomic_numbers, raveled_fingerprints,
-                 num_neighbors, raveled_neighborlists,
-                 raveled_fingerprintprimes) = (None,) * 10
-
-                value = ravel_data(train_forces,
-                                   mode,
-                                   self.images,
-                                   self.fingerprints,
-                                   self.fingerprintprimes,)
-
-                if mode == 'image-centered':
-                    if not train_forces:
-                        (actual_energies, atomic_positions) = value
-                    else:
-                        (actual_energies, actual_forces,
-                         atomic_positions) = value
-                else:
-                    if not train_forces:
-                        (actual_energies, elements, num_images_atoms,
-                         atomic_numbers, raveled_fingerprints) = value
-                    else:
-                        (actual_energies, actual_forces, elements,
-                         num_images_atoms, atomic_numbers,
-                         raveled_fingerprints, num_neighbors,
-                         raveled_neighborlists,
-                         raveled_fingerprintprimes) = value
-
-                send_data_to_fortran(fmodules,
-                                     energy_coefficient,
-                                     force_coefficient,
-                                     train_forces,
-                                     num_atoms,
-                                     num_images,
-                                     actual_energies,
-                                     actual_forces,
-                                     atomic_positions,
-                                     num_images_atoms,
-                                     atomic_numbers,
-                                     raveled_fingerprints,
-                                     num_neighbors,
-                                     raveled_neighborlists,
-                                     raveled_fingerprintprimes,
-                                     self._model,
-                                     self.d)
-
+                self._send_data_to_fortran()
                 (loss, dloss_dparameters, energy_loss, force_loss,
                  energy_maxresid, force_maxresid) = \
-                    fmodules.calculate_f_and_fprime(
-                    parameters=parametervector,
-                    num_parameters=len(parametervector),
-                    complete_output=True)
-
-                fmodules.deallocate_variables()
-
+                    fmodules.calculate_loss(parameters=parametervector,
+                                            num_parameters=len(
+                                                parametervector),
+                                            lossprime=lossprime)
             else:
                 loss, dloss_dparameters, energy_loss, force_loss, \
                     energy_maxresid, force_maxresid = \
                     self.calculate_loss(parametervector,
-                                        complete_output=True,
-                                        d=self.d)
+                                        lossprime=lossprime)
         else:
             server = self._sessions['master']
             processes = self._sessions['workers']
@@ -434,8 +443,7 @@ class LossFunction:
             # Subdivide tasks.
             keys = make_sublists(self.images.keys(), len(processes))
 
-            args = {'task': 'f',
-                    'complete_output': complete_output,
+            args = {'lossprime': lossprime,
                     'd': self.d}
 
             results = self.process_parallels(parametervector,
@@ -450,162 +458,29 @@ class LossFunction:
             energy_maxresid = results['energy_maxresid']
             force_maxresid = results['force_maxresid']
 
+        self.loss, self.energy_loss, self.force_loss, \
+            self.energy_maxresid, self.force_maxresid = \
+            loss, energy_loss, force_loss, energy_maxresid, force_maxresid
+
+        if lossprime:
+            self.dloss_dparameters = dloss_dparameters
+
         if self.raise_ConvergenceOccurred:
-            converged = self.check_convergence(energy_loss, force_loss,
+            converged = self.check_convergence(loss, energy_loss, force_loss,
                                                energy_maxresid, force_maxresid)
             if converged:
                 self._model.vector = parametervector
                 self._cleanup()
                 raise ConvergenceOccurred()
 
-        self.loss, self.dloss_dparameters, self.energy_loss, self.force_loss, \
-            self.energy_maxresid, self.force_maxresid = \
-            loss, dloss_dparameters, \
-            energy_loss, force_loss, energy_maxresid, force_maxresid
+        return {'loss': self.loss,
+                'dloss_dparameters': self.dloss_dparameters if lossprime is True else dloss_dparameters,
+                'energy_loss': self.energy_loss,
+                'force_loss': self.force_loss,
+                'energy_maxresid': self.energy_maxresid,
+                'force_maxresid': self.force_maxresid, }
 
-        if complete_output is False:
-            return self.loss
-        else:
-            return {'loss': self.loss,
-                    'dloss_dparameters': self.dloss_dparameters,
-                    'energy_loss': self.energy_loss,
-                    'force_loss': self.force_loss,
-                    'energy_maxresid': self.energy_maxresid,
-                    'force_maxresid': self.force_maxresid, }
-
-    def fprime(self, parametervector, complete_output=False):
-        """Returns the current value of the loss function for a given set of
-        parameters, or, if the energy is less than the energy_tol raises a
-        ConvergenceException.
-
-        By default only returns the loss function (needed for optimizers).
-        Can return more information like max_residual if complete_output
-        is True.
-        """
-        if self._step == 0:
-
-            self._initialize()
-
-            if self._cores == 1:
-
-                if self._model.fortran:
-
-                    self._model.vector = parametervector
-
-                    num_images = len(self.images)
-                    mode = self._model.parameters.mode
-                    energy_coefficient = self.parameters.energy_coefficient
-                    force_coefficient = self.parameters.force_coefficient
-                    if force_coefficient == 0.:
-                        train_forces = False
-                    else:
-                        train_forces = True
-                    # FIXME: Should be corrected for image-centered:
-                    if mode == 'atom-centered':
-                        num_atoms = None
-
-                    (actual_energies, actual_forces, elements,
-                     atomic_positions, num_images_atoms, atomic_numbers,
-                     raveled_fingerprints, num_neighbors,
-                     raveled_neighborlists,
-                     raveled_fingerprintprimes) = (None,) * 10
-
-                    value = ravel_data(train_forces,
-                                       mode,
-                                       self.images,
-                                       self.fingerprints,
-                                       self.fingerprintprimes,)
-
-                    if mode == 'image-centered':
-                        if not train_forces:
-                            (actual_energies, atomic_positions) = value
-                        else:
-                            (actual_energies, actual_forces,
-                             atomic_positions) = value
-                    else:
-                        if not train_forces:
-                            (actual_energies, elements, num_images_atoms,
-                             atomic_numbers,
-                             raveled_fingerprints) = value
-                        else:
-                            (actual_energies, actual_forces, elements,
-                             num_images_atoms, atomic_numbers,
-                             raveled_fingerprints, num_neighbors,
-                             raveled_neighborlists,
-                             raveled_fingerprintprimes) = value
-
-                    send_data_to_fortran(fmodules,
-                                         energy_coefficient,
-                                         force_coefficient,
-                                         train_forces,
-                                         num_atoms,
-                                         num_images,
-                                         actual_energies,
-                                         actual_forces,
-                                         atomic_positions,
-                                         num_images_atoms,
-                                         atomic_numbers,
-                                         raveled_fingerprints,
-                                         num_neighbors,
-                                         raveled_neighborlists,
-                                         raveled_fingerprintprimes,
-                                         self._model,
-                                         self.d)
-
-                    (loss, dloss_dparameters, energy_loss, force_loss,
-                     energy_maxresid, force_maxresid) = \
-                        fmodules.calculate_f_and_fprime(
-                        parameters=parametervector,
-                        num_parameters=len(parametervector),
-                        complete_output=True)
-
-                    fmodules.deallocate_variables()
-
-                else:
-                    loss, dloss_dparameters, energy_loss, force_loss, \
-                        energy_maxresid, force_maxresid = \
-                        self.calculate_loss(parametervector,
-                                            complete_output=True,
-                                            d=self.d)
-            else:
-                server = self._sessions['master']
-                processes = self._sessions['workers']
-
-                # Subdivide tasks.
-                keys = make_sublists(self.images.keys(), len(processes))
-
-                args = {'task': 'fprime',
-                        'complete_output': complete_output,
-                        'd': self.d}
-
-                results = self.process_parallels(parametervector,
-                                                 server,
-                                                 processes,
-                                                 keys,
-                                                 args=args)
-                loss = results['loss']
-                dloss_dparameters = results['dloss_dparameters']
-                energy_loss = results['energy_loss']
-                force_loss = results['force_loss']
-                energy_maxresid = results['energy_maxresid']
-                force_maxresid = results['force_maxresid']
-
-            self.loss, self.dloss_dparameters, self.energy_loss, \
-                self.force_loss, self.energy_maxresid, self.force_maxresid = \
-                loss, dloss_dparameters, energy_loss, force_loss, \
-                energy_maxresid, force_maxresid
-
-        if complete_output is False:
-            return self.dloss_dparameters
-        else:
-            return {'loss': self.loss,
-                    'dloss_dparameters': self.dloss_dparameters,
-                    'energy_loss': self.energy_loss,
-                    'force_loss': self.force_loss,
-                    'energy_maxresid': self.energy_maxresid,
-                    'force_maxresid': self.force_maxresid, }
-
-    def calculate_loss(self, parametervector, complete_output, d):
+    def calculate_loss(self, parametervector, lossprime):
         """Method that calculates the loss, derivative of the loss with respect
         to parameters (if requested), and max_residual.
         """
@@ -615,7 +490,7 @@ class LossFunction:
         forceloss = 0.
         energy_maxresid = 0.
         force_maxresid = 0.
-        dloss_dparameters = None
+        dloss_dparameters = np.array([0.] * len(parametervector))
         for hash, image in self.images.iteritems():
             no_of_atoms = len(image)
             amp_energy = self._model.get_energy(self.fingerprints[hash])
@@ -627,29 +502,23 @@ class LossFunction:
             energyloss += residual_per_atom**2
 
             # Calculates derivative of the loss function with respect to
-            # parameters if complete_output is true
-            if complete_output:
+            # parameters if lossprime is true
+            if lossprime:
                 if self._model.parameters.mode == 'image-centered':
                     raise NotImplementedError('This needs to be coded.')
                 elif self._model.parameters.mode == 'atom-centered':
-                    if d is None:
+                    if self.d is None:
                         denergy_dparameters = \
                             self._model.get_dEnergy_dParameters(
                                 self.fingerprints[hash])
                     else:
                         denergy_dparameters = \
                             self._model.get_numerical_dEnergy_dParameters(
-                                self.fingerprints[hash], d=d)
-                    if dloss_dparameters is None:
-                        dloss_dparameters = p.energy_coefficient * 2. * \
-                            (amp_energy - actual_energy) * \
-                            denergy_dparameters / \
-                            (no_of_atoms ** 2.)
-                    else:
-                        dloss_dparameters += p.energy_coefficient * 2. * \
-                            (amp_energy - actual_energy) * \
-                            denergy_dparameters / \
-                            (no_of_atoms ** 2.)
+                                self.fingerprints[hash], d=self.d)
+                    dloss_dparameters += p.energy_coefficient * 2. * \
+                        (amp_energy - actual_energy) * \
+                        denergy_dparameters / \
+                        (no_of_atoms ** 2.)
 
             if p.force_coefficient != 0.:
                 amp_forces = \
@@ -667,12 +536,12 @@ class LossFunction:
                                          actual_forces[index][i]) ** 2. / \
                             no_of_atoms
                 # Calculates derivative of the loss function with respect to
-                # parameters if complete_output is true
-                if complete_output:
+                # parameters if lossprime is true
+                if lossprime:
                     if self._model.parameters.mode == 'image-centered':
                         raise NotImplementedError('This needs to be coded.')
                     elif self._model.parameters.mode == 'atom-centered':
-                        if d is None:
+                        if self.d is None:
                             dforces_dparameters = \
                                 self._model.get_dForces_dParameters(
                                     self.fingerprints[hash],
@@ -682,7 +551,7 @@ class LossFunction:
                                 self._model.get_numerical_dForces_dParameters(
                                     self.fingerprints[hash],
                                     self.fingerprintprimes[hash],
-                                    d=d)
+                                    d=self.d)
                         for selfindex in range(no_of_atoms):
                             for i in range(3):
                                 dloss_dparameters += p.force_coefficient * \
@@ -695,6 +564,18 @@ class LossFunction:
         loss = p.energy_coefficient * energyloss + \
             p.force_coefficient * forceloss
         dloss_dparameters = np.array(dloss_dparameters)
+
+        # if overfit coefficient is more than zero, overfit contribution to
+        # loss and dloss_dparameters is also added.
+        if p.overfit > 0.:
+            overfitloss = 0.
+            for component in parametervector:
+                overfitloss += component ** 2.
+            overfitloss *= p.overfit
+            loss += overfitloss
+            doverfitloss_dparameters = \
+                2 * p.overfit * np.array(parametervector)
+            dloss_dparameters += doverfitloss_dparameters
 
         return loss, dloss_dparameters, energyloss, forceloss, \
             energy_maxresid, force_maxresid
@@ -759,7 +640,7 @@ class LossFunction:
                 finished[int(message['id'])] = True
         return results
 
-    def check_convergence(self, energy_loss, force_loss,
+    def check_convergence(self, loss, energy_loss, force_loss,
                           energy_maxresid, force_maxresid):
         """Checks to see whether convergence is met; if it is, raises
         ConvergenceException to stop the optimizer."""
@@ -774,7 +655,7 @@ class LossFunction:
         if p.convergence['energy_maxresid'] is not None:
             if energy_maxresid > p.convergence['energy_maxresid']:
                 energy_maxresid_converged = False
-        if self.parameters.force_coefficient != 0.:
+        if p.force_coefficient != 0.:
             force_rmse_converged = True
             if p.convergence['force_rmse'] is not None:
                 force_rmse = np.sqrt(force_loss / len(self.images))
@@ -785,24 +666,27 @@ class LossFunction:
                 if force_maxresid > p.convergence['force_maxresid']:
                     force_maxresid_converged = False
 
-            log('%5i %19s %10.4e %1s %10.4e %1s %10.4e %1s %10.4e %1s' %
-                (self._step, now(), energy_rmse,
-                 'C' if energy_rmse_converged else '',
-                 energy_maxresid,
-                 'C' if energy_maxresid_converged else '',
-                 force_rmse,
-                 'C' if force_rmse_converged else '',
-                 force_maxresid,
-                 'C' if force_maxresid_converged else ''))
+            if self.log_losses:
+                log('%5i %19s %12.4e %10.4e %1s %10.4e %1s %10.4e %1s %10.4e %1s' %
+                    (self._step, now(), loss, energy_rmse,
+                     'C' if energy_rmse_converged else '',
+                     energy_maxresid,
+                     'C' if energy_maxresid_converged else '',
+                     force_rmse,
+                     'C' if force_rmse_converged else '',
+                     force_maxresid,
+                     'C' if force_maxresid_converged else ''))
+
             self._step += 1
             return energy_rmse_converged and energy_maxresid_converged and \
                 force_rmse_converged and force_maxresid_converged
         else:
-            log(' %5i  %19s %12.4e %1s %12.4e %1s' %
-                (self._step, now(), energy_rmse,
-                 'C' if energy_rmse_converged else '',
-                 energy_maxresid,
-                 'C' if energy_maxresid_converged else ''))
+            if self.log_losses:
+                log(' %5i  %19s %12.4e %12.4e %1s %12.4e %1s' %
+                    (self._step, now(), loss, energy_rmse,
+                     'C' if energy_rmse_converged else '',
+                     energy_maxresid,
+                     'C' if energy_maxresid_converged else ''))
             self._step += 1
             return energy_rmse_converged and energy_maxresid_converged
 
@@ -961,6 +845,7 @@ def ravel_data(train_forces,
 def send_data_to_fortran(_fmodules,
                          energy_coefficient,
                          force_coefficient,
+                         overfit,
                          train_forces,
                          num_atoms,
                          num_images,
@@ -993,6 +878,7 @@ def send_data_to_fortran(_fmodules,
 
     _fmodules.model_props.energy_coefficient = energy_coefficient
     _fmodules.model_props.force_coefficient = force_coefficient
+    _fmodules.model_props.overfit = overfit
     _fmodules.model_props.train_forces = train_forces
     _fmodules.model_props.mode_signal = mode_signal
     if d is None:
