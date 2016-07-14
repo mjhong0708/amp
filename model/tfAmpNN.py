@@ -17,7 +17,8 @@ import string
 import sklearn.linear_model
 import pickle
 import uuid
-
+#from  tensorflow.contrib.opt.python.training import external_optimizer
+from  tensorflow.contrib.opt import ScipyOptimizerInterface
 class tfAmpNN:
     """
     TensorFlow-based Neural Network model. (Google's machine-learning
@@ -81,6 +82,7 @@ class tfAmpNN:
                  energy_coefficient=1.0,
                  force_coefficient=0.04,
                  scikit_model=None,
+                 optimizer='ADAM'
                 ):
 
 
@@ -140,6 +142,8 @@ class tfAmpNN:
             if prop not in self.parameters:
                 self.parameters[prop] = None
 
+        #optimizer can be 'ADAM' or 'l-BFGS-b'
+        self.optimizationMethod=optimizer
         self.maxAtomsForces = maxAtomsForces
 
     def constructModel(self):
@@ -348,6 +352,7 @@ class tfAmpNN:
         self.parameters['energyMeanScale'] = np.mean(energies)
         energies = energies - self.parameters['energyMeanScale']
         self.parameters['energyProdScale'] = np.mean(np.abs(energies))
+        self.parameters['energyProdScale']=1.
         energies = energies / self.parameters['energyProdScale']
         self.parameters['elementFPScales'] = {}
         for element in self.elements:
@@ -361,14 +366,22 @@ class tfAmpNN:
             if force_coefficient is not None:
                 forces = map(lambda x: images[x].get_forces(
                     apply_constraint=False), keylist)
+                forces = np.zeros((len(keylist), self.maxAtomsForces, 3))
+                for i in range(len(keylist)):
+                    atoms = images[keylist[i]]
+                    forces[i, 0:len(atoms), :] = atoms.get_forces(
+                    apply_constraint=False)
+                forces = forces / self.parameters['energyProdScale']
             else:
                 forces = 0.
-        forces = np.zeros((len(keylist), self.maxAtomsForces, 3))
-        for i in range(len(keylist)):
-            atoms = images[keylist[i]]
-            forces[i, 0:len(atoms), :] = atoms.get_forces(
-                apply_constraint=False)
-        forces = forces / self.parameters['energyProdScale']
+        else:
+            forces=0.
+        #forces = np.zeros((len(keylist), self.maxAtomsForces, 3))
+        #for i in range(len(keylist)):
+        #    atoms = images[keylist[i]]
+        #    forces[i, 0:len(atoms), :] = atoms.get_forces(
+        #        apply_constraint=False)
+        #forces = forces / self.parameters['energyProdScale']
         if not(self.miniBatch):
             batchsize = len(keylist)
 
@@ -455,9 +468,52 @@ class tfAmpNN:
                 icount_global += 1
             return RMSE_total
 
-        # train the model
-        RMSE = trainmodel(self.RMSEtarget, self.initialTrainingRate,
+        def trainmodelBFGS(targetRMSE,maxEpochs):
+            curinds=range(len(keylist))
+            feedinput = self.generateFeedInput(curinds,
+                                                           energies,
+                                                           atomArraysAll,
+                                                           atomArraysAllDerivs,
+                                                           nAtomsDict,
+                                                           atomsIndsReverse,
+                                                           batchsize,
+                                                           1.,
+                                                           1.,
+                                                           natoms,
+                                                           forcesExp=forces,
+                                                           energycoefficient=energy_coefficient,
+                                                           forcecoefficient=force_coefficient)
+            extOpt=ScipyOptimizerInterface(self.loss,method='l-BFGS-b',options={'maxiter':maxEpochs,'disp':True})
+            extOpt.minimize(self.sess,feed_dict=feedinput)
+            feedin = self.generateFeedInput(range(len(keylist)),
+                                                    energies,
+                                                    atomArraysAll,
+                                                    atomArraysAllDerivs,
+                                                    nAtomsDict,
+                                                    atomsIndsReverse,
+                                                    len(keylist),
+                                                    1.,
+                                                    1.,
+                                                    natoms,
+                                                    forcesExp=forces,
+                                                    energycoefficient=energy_coefficient,
+                                                    forcecoefficient=force_coefficient)
+            RMSE = self.sess.run(self.loss, feed_dict=feedin) * self.parameters['energyProdScale']
+            if force_coefficient > 1.e-5:
+                RMSE_total = self.sess.run(self.totalloss,feed_dict=feedin) * self.parameters['energyProdScale']
+                log('combined loss function (energy+force)=%1.3f' %
+                                  (RMSE_total))
+            else:
+                RMSE_total = RMSE
+            return RMSE_total
+
+        if self.optimizationMethod=='l-BFGS-b':
+            RMSE = trainmodelBFGS(self.RMSEtarget,self.maxTrainingEpochs)
+        elif self.optimizationMethod=='ADAM':
+            RMSE = trainmodel(self.RMSEtarget, self.initialTrainingRate,
                           self.keep_prob, self.maxTrainingEpochs)
+        else:
+            log('uknown optimizer!')
         if RMSE < self.RMSEtarget:
             return True
         else:
