@@ -78,7 +78,7 @@ class tfAmpNN:
                  saveVariableName=None,
                  parameters=None,
                  sess=None,
-                 maxAtomsForces=0,
+                 maxAtomsForces=50,
                  energy_coefficient=1.0,
                  force_coefficient=0.04,
                  scikit_model=None,
@@ -362,10 +362,10 @@ class tfAmpNN:
                 self.parameters['elementFPScales'][element] = np.max(
                     np.max(np.abs(atomArraysAll[element])))
 
-        if self.maxAtomsForces == 0:
+        if self.maxAtomsForces >0:
             if force_coefficient is not None:
-                forces = map(lambda x: images[x].get_forces(
-                    apply_constraint=False), keylist)
+                #forces = map(lambda x: images[x].get_forces(
+                #    apply_constraint=False), keylist)
                 forces = np.zeros((len(keylist), self.maxAtomsForces, 3))
                 for i in range(len(keylist)):
                     atoms = images[keylist[i]]
@@ -483,7 +483,12 @@ class tfAmpNN:
                                                            forcesExp=forces,
                                                            energycoefficient=energy_coefficient,
                                                            forcecoefficient=force_coefficient)
-            extOpt=ScipyOptimizerInterface(self.loss,method='l-BFGS-b',options={'maxiter':maxEpochs,'disp':True})
+
+            if (force_coefficient < 1.e-5):
+                curloss=self.loss
+            else:
+                curloss=self.totalloss
+            extOpt=ScipyOptimizerInterface(curloss,method='l-BFGS-b',options={'maxiter':maxEpochs,'disp':True})
             extOpt.minimize(self.sess,feed_dict=feedinput)
             feedin = self.generateFeedInput(range(len(keylist)),
                                                     energies,
