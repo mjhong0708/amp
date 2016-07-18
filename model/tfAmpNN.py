@@ -85,7 +85,7 @@ class tfAmpNN:
                  force_coefficient=0.04,
                  scikit_model=None,
                  convergenceCriteria=None,
-                 optimizer='ADAM'
+                 optimizationMethod='ADAM'
                 ):
         
         self.parameters = {} if parameters is None else parameters
@@ -153,7 +153,7 @@ class tfAmpNN:
         
 
         #optimizer can be 'ADAM' or 'l-BFGS-b'
-        self.optimizationMethod=optimizer
+        self.optimizationMethod=optimizationMethod
         self.maxAtomsForces = maxAtomsForces
 
     def constructModel(self):
@@ -327,7 +327,7 @@ class tfAmpNN:
         # this.
 
         self.log=log
-        tempconvergence=self.parameters['convergence']
+        tempconvergence=self.parameters['convergence'].copy()
         if self.parameters['force_coefficient']<1e-5:
             tempconvergence['force_rmse']=None
             tempconvergence['force_maxresid']=None
@@ -463,7 +463,8 @@ class tfAmpNN:
 
                 # Every 10 epochs, report the RMSE on the entire training set
                 if icount_global % 10 == 0:
-                    feedin = self.generateFeedInput(range(len(keylist)),
+                    if self.miniBatch:
+                        feedinput = self.generateFeedInput(range(len(keylist)),
                                                     energies,
                                                     atomArraysAll,
                                                     atomArraysAllDerivs,
@@ -477,19 +478,19 @@ class tfAmpNN:
                                                     energycoefficient=self.parameters['energy_coefficient'],
                                                     forcecoefficient=self.parameters['force_coefficient'])
                     if self.parameters['force_coefficient'] > 1.e-5:
-                        converged=lf.check_convergence(self.sess.run(self.loss,feed_dict=feedin),
-                                         self.sess.run(self.energy_loss,feed_dict=feedin),
-                                         self.sess.run(self.force_loss,feed_dict=feedin),
-                                         self.sess.run(self.energy_maxresid,feed_dict=feedin),
-                                         self.sess.run(self.force_maxresid,feed_dict=feedin))
+                        converged=lf.check_convergence(self.sess.run(self.loss,feed_dict=feedinput),
+                                         self.sess.run(self.energy_loss,feed_dict=feedinput),
+                                         self.sess.run(self.force_loss,feed_dict=feedinput),
+                                         self.sess.run(self.energy_maxresid,feed_dict=feedinput),
+                                         self.sess.run(self.force_maxresid,feed_dict=feedinput))
                         if converged:
                             raise ConvergenceOccurred()
 
                     else:
-                        converged=lf.check_convergence(self.sess.run(self.energy_loss,feed_dict=feedin),
-                                         self.sess.run(self.energy_loss,feed_dict=feedin),
+                        converged=lf.check_convergence(self.sess.run(self.energy_loss,feed_dict=feedinput),
+                                         self.sess.run(self.energy_loss,feed_dict=feedinput),
                                          0.,
-                                         self.sess.run(self.energy_maxresid,feed_dict=feedin),
+                                         self.sess.run(self.energy_maxresid,feed_dict=feedinput),
                                          0.)
                         if converged:
                             raise ConvergenceOccurred()
