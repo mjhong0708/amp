@@ -250,7 +250,7 @@ class tfAmpNN:
         self.force_maxresid=tf.reduce_max(tf.abs(tf.sub(self.forces_in, self.forces)))
         
         # Define the training step for force training.
-        self.loss = self.parameters['force_coefficient'] *self.force_loss + self.parameters['energy_coefficient']*self.energy_loss
+        self.loss = self.forcecoefficient*self.force_loss + self.energycoefficient*self.energy_loss
         self.train_step = tf.train.AdamOptimizer(
             self.learningrate, beta1=0.9).minimize(self.energy_loss)
         self.train_step_forces = tf.train.AdamOptimizer(
