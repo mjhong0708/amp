@@ -219,13 +219,13 @@ class tfAmpNN:
         ytot = outdict[keylist[0]]
         for i in range(1, len(keylist)):
             ytot = ytot + outdict[keylist[i]]
-        self.energy = ytot
+        self.energy = ytot*self.energyProdScale
 
         # The total force is the sum of the forces over each atom type.
         Ftot = forcedict[keylist[0]]
         for i in range(1, len(keylist)):
             Ftot = Ftot + forcedict[keylist[i]]
-        self.forces = -Ftot
+        self.forces = -Ftot*self.energyProdScale
 
         # Define output nodes for the energy of a configuration, a loss
         # function, and the loss per atom (which is what we usually track)
@@ -236,14 +236,14 @@ class tfAmpNN:
         
         #loss function, as included in model/__init__.py
         self.energy_loss = tf.reduce_sum(
-            tf.square(tf.div(tf.sub(self.energy, self.y_), self.nAtoms_in)))*self.energyProdScale**2.
+            tf.square(tf.div(tf.sub(self.energy, self.y_), self.nAtoms_in)))
         # Define the training step for energy training.
         
 
         #self.loss_forces = self.forcecoefficient * \
         #    tf.sqrt(tf.reduce_mean(tf.square(tf.sub(self.forces_in, self.forces))))
         #force loss function, as included in model/__init__.py
-        self.force_loss= tf.reduce_sum(tf.div(tf.reduce_sum(tf.square(tf.sub(self.forces_in, self.forces)),2)/3.,self.nAtoms_in))*self.energyProdScale**2.
+        self.force_loss= tf.reduce_sum(tf.div(tf.reduce_mean(tf.square(tf.sub(self.forces_in, self.forces)),2),self.nAtoms_in))
             
         #Define max residuals
         self.energy_maxresid=tf.reduce_max(tf.abs(tf.div(tf.sub(self.energy, self.y_), self.nAtoms_in))) 
@@ -382,7 +382,7 @@ class tfAmpNN:
         self.parameters['energyMeanScale'] = np.mean(energies)
         energies = energies - self.parameters['energyMeanScale']
         self.parameters['energyProdScale'] = np.mean(np.abs(energies))
-        energies = energies / self.parameters['energyProdScale']
+        #energies = energies / self.parameters['energyProdScale']
         self.parameters['elementFPScales'] = {}
         for element in self.elements:
             if len(atomArraysAll[element]) == 0:
@@ -402,7 +402,7 @@ class tfAmpNN:
                     atoms = images[keylist[i]]
                     forces[i, 0:len(atoms), :] = atoms.get_forces(
                     apply_constraint=False)
-                forces = forces / self.parameters['energyProdScale']
+                #forces = forces / self.parameters['energyProdScale']
             else:
                 forces = 0.
         else:
@@ -599,8 +599,7 @@ class tfAmpNN:
         if tilederivs == []:
             tilederivs = [1, 1, 1, 1]
         feedinput[self.tileDerivs] = tilederivs
-        energies = np.array(self.energy.eval(feed_dict=feedinput)) * self.parameters[
-            'energyProdScale'] + self.parameters['energyMeanScale']
+        energies = np.array(self.energy.eval(feed_dict=feedinput)) + self.parameters['energyMeanScale']
 
         # Add in the per-atom base energy.
         natomsArray = np.zeros((len(hashs), len(self.elements)))
@@ -611,7 +610,7 @@ class tfAmpNN:
         energies = energies + self.linearmodel.predict(natomsArray)
         if forces:
             force = self.forces.eval(
-                feed_dict=feedinput) * self.parameters['energyProdScale']
+                feed_dict=feedinput) 
         else:
             force = []
         return energies, force
