@@ -390,6 +390,8 @@ class tfAmpNN:
             else:
                 self.parameters['elementFPScales'][element] = np.max(
                     np.max(np.abs(atomArraysAll[element])))
+        for key in self.parameters['elementFPScales']:
+            self.parameters['elementFPScales'][key]=1
 
         if self.maxAtomsForces >0:
             if self.parameters['force_coefficient'] is not None:
