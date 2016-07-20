@@ -17,7 +17,11 @@ import string
 import sklearn.linear_model
 import pickle
 import uuid
-
+import time
+from amp.model import LossFunction
+from ..utilities import now,ConvergenceOccurred
+#from  tensorflow.contrib.opt.python.training import external_optimizer
+from  tensorflow.contrib.opt import ScipyOptimizerInterface
 class tfAmpNN:
     """
     TensorFlow-based Neural Network model. (Google's machine-learning
@@ -68,7 +72,6 @@ class tfAmpNN:
                  hiddenlayers=(5, 5),
                  activation='relu',
                  keep_prob=1.,
-                 RMSEtarget=1e-2,
                  maxTrainingEpochs=10000,
                  batchsize=20,
                  initialTrainingRate=1e-4,
@@ -77,18 +80,32 @@ class tfAmpNN:
                  saveVariableName=None,
                  parameters=None,
                  sess=None,
-                 maxAtomsForces=0,
+                 maxAtomsForces=50,
                  energy_coefficient=1.0,
                  force_coefficient=0.04,
                  scikit_model=None,
+                 convergenceCriteria=None,
+                 optimizationMethod='ADAM'
                 ):
-
-
+        
+        self.parameters = {} if parameters is None else parameters
+        for prop in ['elementFPScales', 'energyMeanScale', 'energyProdScale',
+                     'energyPerElement']:
+            if prop not in self.parameters:
+                self.parameters[prop] = None
+        if convergenceCriteria is None:
+            self.parameters['convergence']={'energy_rmse': 0.001,
+                                          'energy_maxresid': None,
+                                          'force_rmse': 0.005,
+                                          'force_maxresid': None}
+        else:
+            self.parameters['convergence']=convergenceCriteria
+            
         if scikit_model is not None:
             self.linearmodel = pickle.loads(scikit_model)
 
-        self.energy_coefficient = energy_coefficient
-        self.force_coefficient = force_coefficient
+        self.parameters['energy_coefficient'] = energy_coefficient
+        self.parameters['force_coefficient'] = force_coefficient
 
         self.hiddenlayers = hiddenlayers
         if isinstance(activation, basestring):
@@ -129,17 +146,14 @@ class tfAmpNN:
             self.saver.restore(self.sess, 'tfAmpNN-checkpoint-restore')
         else:
             self.initializeVariables()
-        self.RMSEtarget = RMSEtarget
         self.maxTrainingEpochs = maxTrainingEpochs
         self.batchsize = batchsize
         self.initialTrainingRate = initialTrainingRate
         self.miniBatch = miniBatch
-        self.parameters = {} if parameters is None else parameters
-        for prop in ['elementFPScales', 'energyMeanScale', 'energyProdScale',
-                     'energyPerElement']:
-            if prop not in self.parameters:
-                self.parameters[prop] = None
+        
 
+        #optimizer can be 'ADAM' or 'l-BFGS-b'
+        self.optimizationMethod=optimizationMethod
         self.maxAtomsForces = maxAtomsForces
 
     def constructModel(self):
@@ -161,6 +175,7 @@ class tfAmpNN:
         self.tileDerivs = tf.placeholder("int32", shape=[4])
         self.tensordict = tensordict
         self.maskdict = maskdict
+        self.energyProdScale=tf.placeholder("float")
         self.tensorDerivDict = tensorDerivDict
 
         # y_ is the input energy for each configuration.
@@ -214,22 +229,32 @@ class tfAmpNN:
 
         # Define output nodes for the energy of a configuration, a loss
         # function, and the loss per atom (which is what we usually track)
-        self.loss = tf.sqrt(tf.reduce_mean(
-            tf.square(tf.sub(self.energy, self.y_))))
-        self.lossPerAtom = tf.sqrt(tf.reduce_mean(
-            tf.square(tf.div(tf.sub(self.energy, self.y_), self.nAtoms_in))))
-
+        #self.loss = tf.sqrt(tf.reduce_sum(
+        #    tf.square(tf.sub(self.energy, self.y_))))
+        #self.lossPerAtom = tf.reduce_sum(
+        #    tf.square(tf.div(tf.sub(self.energy, self.y_), self.nAtoms_in)))
+        
+        #loss function, as included in model/__init__.py
+        self.energy_loss = tf.reduce_sum(
+            tf.square(tf.div(tf.sub(self.energy, self.y_), self.nAtoms_in)))*self.energyProdScale**2.
         # Define the training step for energy training.
-        self.train_step = tf.train.AdamOptimizer(
-            self.learningrate, beta1=0.9).minimize(self.loss)
+        
 
-        self.loss_forces = self.forcecoefficient * \
-            tf.sqrt(tf.reduce_mean(tf.square(tf.sub(self.forces_in, self.forces))))
-
+        #self.loss_forces = self.forcecoefficient * \
+        #    tf.sqrt(tf.reduce_mean(tf.square(tf.sub(self.forces_in, self.forces))))
+        #force loss function, as included in model/__init__.py
+        self.force_loss= tf.reduce_sum(tf.div(tf.reduce_sum(tf.square(tf.sub(self.forces_in, self.forces)),2)/3.,self.nAtoms_in))*self.energyProdScale**2.
+            
+        #Define max residuals
+        self.energy_maxresid=tf.reduce_max(tf.abs(tf.div(tf.sub(self.energy, self.y_), self.nAtoms_in))) 
+        self.force_maxresid=tf.reduce_max(tf.abs(tf.sub(self.forces_in, self.forces)))
+        
         # Define the training step for force training.
-        self.totalloss = self.loss_forces + self.loss
+        self.loss = self.forcecoefficient*self.force_loss + self.energycoefficient*self.energy_loss
+        self.train_step = tf.train.AdamOptimizer(
+            self.learningrate, beta1=0.9).minimize(self.energy_loss)
         self.train_step_forces = tf.train.AdamOptimizer(
-            self.learningrate, beta1=0.9).minimize(self.totalloss)
+            self.learningrate, beta1=0.9).minimize(self.loss)
 
     def initializeVariables(self):
         """Resets all of the variables in the current tensorflow model."""
@@ -286,6 +311,7 @@ class tfAmpNN:
             feedinput[self.forces_in] = forcesExp[curinds]
             feedinput[self.forcecoefficient] = forcecoefficient
             feedinput[self.energycoefficient] = energycoefficient
+        feedinput[self.energyProdScale]=self.parameters['energyProdScale']
         return feedinput
 
     def fit(self, trainingimages, descriptor, cores=1, log=None,
@@ -299,16 +325,24 @@ class tfAmpNN:
         # initialization variables. This doesn't catch if the user sends
         # train_forces=False in Amp.train, but an issue is filed to fix
         # this.
-        energy_coefficient = self.energy_coefficient
-        force_coefficient = self.force_coefficient
+
+        self.log=log
+        tempconvergence=self.parameters['convergence'].copy()
+        if self.parameters['force_coefficient']<1e-5:
+            tempconvergence['force_rmse']=None
+            tempconvergence['force_maxresid']=None
+        lf=LossFunction(convergence=tempconvergence,energy_coefficient=self.parameters['energy_coefficient'],force_coefficient=self.parameters['force_coefficient'],cores=1)
+        if self.parameters['force_coefficient']>1e-5:
+            lf.attach_model(self,images=trainingimages,fingerprints=descriptor.fingerprints,fingerprintprimes=descriptor.fingerprintprimes)
+        else:
+            lf.attach_model(self,images=trainingimages,fingerprints=descriptor.fingerprints)
+        lf._initialize()
         # Inputs:
         # trainingimages:
         batchsize = self.batchsize
-        if force_coefficient == 0.:
-            log('Training the Tensorflow network without forces!')
+        if self.parameters['force_coefficient'] == 0.:
             fingerprintDerDB = None
         else:
-            log('Training the Tensorflow network w/ Forces!')
             fingerprintDerDB = descriptor.fingerprintprimes
         images = trainingimages
         keylist = images.keys()
@@ -356,31 +390,36 @@ class tfAmpNN:
             else:
                 self.parameters['elementFPScales'][element] = np.max(
                     np.max(np.abs(atomArraysAll[element])))
+        for key in self.parameters['elementFPScales']:
+            self.parameters['elementFPScales'][key]=1
 
-        if self.maxAtomsForces == 0:
-            if force_coefficient is not None:
-                forces = map(lambda x: images[x].get_forces(
-                    apply_constraint=False), keylist)
+        if self.maxAtomsForces >0:
+            if self.parameters['force_coefficient'] is not None:
+                #forces = map(lambda x: images[x].get_forces(
+                #    apply_constraint=False), keylist)
+                forces = np.zeros((len(keylist), self.maxAtomsForces, 3))
+                for i in range(len(keylist)):
+                    atoms = images[keylist[i]]
+                    forces[i, 0:len(atoms), :] = atoms.get_forces(
+                    apply_constraint=False)
+                forces = forces / self.parameters['energyProdScale']
             else:
                 forces = 0.
-        forces = np.zeros((len(keylist), self.maxAtomsForces, 3))
-        for i in range(len(keylist)):
-            atoms = images[keylist[i]]
-            forces[i, 0:len(atoms), :] = atoms.get_forces(
-                apply_constraint=False)
-        forces = forces / self.parameters['energyProdScale']
+        else:
+            forces=0.
+
         if not(self.miniBatch):
             batchsize = len(keylist)
 
-        def trainmodel(targetRMSE, trainingrate, keepprob, maxepochs):
+        
+        def trainmodel(trainingrate, keepprob, maxepochs):
             icount = 1
             icount_global = 1
             indlist = np.arange(len(keylist))
-            RMSE_total = targetRMSE + 1.
 
             # continue taking training steps as long as we haven't hit the RMSE
             # minimum of the max number of epochs
-            while (RMSE_total > targetRMSE) & (icount < maxepochs):
+            while  (icount < maxepochs):
 
                 # if we're in minibatch mode, shuffle the index list
                 if self.miniBatch:
@@ -407,11 +446,11 @@ class tfAmpNN:
                                                            keepprob,
                                                            natoms,
                                                            forcesExp=forces,
-                                                           energycoefficient=energy_coefficient,
-                                                           forcecoefficient=force_coefficient)
+                                                           energycoefficient=self.parameters['energy_coefficient'],
+                                                           forcecoefficient=self.parameters['force_coefficient'])
 
                     # run a training step with the inputs.
-                    if (force_coefficient < 1.e-5):
+                    if (self.parameters['force_coefficient'] < 1.e-5):
                         self.sess.run(self.train_step, feed_dict=feedinput)
                     else:
                         self.sess.run(self.train_step_forces,
@@ -421,14 +460,13 @@ class tfAmpNN:
                     if (self.miniBatch)and(icount % 100 == 0):
                     	feed_keepprob_save=feedinput[self.keep_prob_in]
                     	feedinput[self.keep_prob_in]=1.
-                        log('batch RMSE(energy)=%1.3e, # Epochs=%d' % (self.loss.eval(
-                            feed_dict=feedinput) * self.parameters['energyProdScale'], icount))
                         feedinput[self.keep_prob_in]=feed_keepprob_save
                     icount += 1
 
                 # Every 10 epochs, report the RMSE on the entire training set
                 if icount_global % 10 == 0:
-                    feedin = self.generateFeedInput(range(len(keylist)),
+                    if self.miniBatch:
+                        feedinput = self.generateFeedInput(range(len(keylist)),
                                                     energies,
                                                     atomArraysAll,
                                                     atomArraysAllDerivs,
@@ -439,30 +477,82 @@ class tfAmpNN:
                                                     1.,
                                                     natoms,
                                                     forcesExp=forces,
-                                                    energycoefficient=energy_coefficient,
-                                                    forcecoefficient=force_coefficient)
-                    RMSE = self.loss.eval(
-                        feed_dict=feedin) * self.parameters['energyProdScale']
-                    log('%10i: global RMSE=%1.3f' % (icount, RMSE))
-                    if force_coefficient > 1.e-5:
-                        RMSE_total = self.totalloss.eval(
-                            feed_dict=feedin) * self.parameters['energyProdScale']
-                        log('combined loss function (energy+force)=%1.3f' %
-                            (RMSE_total))
+                                                    energycoefficient=self.parameters['energy_coefficient'],
+                                                    forcecoefficient=self.parameters['force_coefficient'])
+                    if self.parameters['force_coefficient'] > 1.e-5:
+                        converged=lf.check_convergence(self.sess.run(self.loss,feed_dict=feedinput),
+                                         self.sess.run(self.energy_loss,feed_dict=feedinput),
+                                         self.sess.run(self.force_loss,feed_dict=feedinput),
+                                         self.sess.run(self.energy_maxresid,feed_dict=feedinput),
+                                         self.sess.run(self.force_maxresid,feed_dict=feedinput))
+                        if converged:
+                            raise ConvergenceOccurred()
+
                     else:
-                        RMSE_total = RMSE
-
+                        converged=lf.check_convergence(self.sess.run(self.energy_loss,feed_dict=feedinput),
+                                         self.sess.run(self.energy_loss,feed_dict=feedinput),
+                                         0.,
+                                         self.sess.run(self.energy_maxresid,feed_dict=feedinput),
+                                         0.)
+                        if converged:
+                            raise ConvergenceOccurred()
                 icount_global += 1
-            return RMSE_total
+            return
 
-        # train the model
-        RMSE = trainmodel(self.RMSEtarget, self.initialTrainingRate,
+        def trainmodelBFGS(maxEpochs):
+            curinds=range(len(keylist))
+            feedinput = self.generateFeedInput(curinds,
+                                                           energies,
+                                                           atomArraysAll,
+                                                           atomArraysAllDerivs,
+                                                           nAtomsDict,
+                                                           atomsIndsReverse,
+                                                           batchsize,
+                                                           1.,
+                                                           1.,
+                                                           natoms,
+                                                           forcesExp=forces,
+                                                           energycoefficient=self.parameters['energy_coefficient'],
+                                                           forcecoefficient=self.parameters['force_coefficient'])
+
+            def step_callbackfun_forces(x):
+                converged=lf.check_convergence(varlist[0](x),varlist[1](x),varlist[2](x),varlist[3](x),varlist[4](x))
+                if converged:
+                    raise ConvergenceOccurred()
+                    
+            def step_callbackfun_noforces(x):
+                converged=lf.check_convergence(varlist[1](x),varlist[1](x),0.,varlist[3](x),0.)
+                if converged:
+                    raise ConvergenceOccurred()
+                
+            if (self.parameters['force_coefficient'] < 1.e-5):
+                step_callbackfun=step_callbackfun_noforces
+                curloss=self.energy_loss
+            else:
+                step_callbackfun=step_callbackfun_forces
+                curloss=self.loss
+            extOpt=ScipyOptimizerInterface(curloss,method='l-BFGS-b',options={'maxiter':maxEpochs,'ftol':1.e-10,'gtol':1.e-10,'factr':1.e4})
+            varlist=[]
+            for var in [self.loss,self.energy_loss,self.force_loss,self.energy_maxresid,self.force_maxresid]:
+                varlist.append(extOpt._make_eval_func(var, self.sess, feedinput, []))
+
+            extOpt.minimize(self.sess,feed_dict=feedinput,step_callback=step_callbackfun)
+                
+            return 
+
+        try:        
+            if self.optimizationMethod=='l-BFGS-b':
+                trainmodelBFGS(self.maxTrainingEpochs)
+            elif self.optimizationMethod=='ADAM':
+                trainmodel(self.initialTrainingRate,
                           self.keep_prob, self.maxTrainingEpochs)
-        if RMSE < self.RMSEtarget:
+            else:
+                log('uknown optimizer!')
+        except ConvergenceOccurred:
             return True
-        else:
-            return False
+        return False
 
+               
     def get_energy_list(self, hashs, fingerprintDB, fingerprintDerDB=None, keep_prob=1., forces=False):
         """Methods to get the energy and forces for a set of
         configurations."""
@@ -548,7 +638,6 @@ class tfAmpNN:
         params['hiddenlayers'] = self.hiddenlayers
         params['keep_prob'] = self.keep_prob
         params['elementFingerprintLengths'] = self.elementFingerprintLengths
-        params['RMSEtarget'] = self.RMSEtarget
         params['batchsize'] = self.batchsize
         params['maxTrainingEpochs'] = self.maxTrainingEpochs
         params['initialTrainingRate'] = self.initialTrainingRate
