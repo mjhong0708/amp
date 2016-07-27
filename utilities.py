@@ -4,6 +4,11 @@ import numpy as np
 import hashlib
 import time
 import os
+import copy
+import math
+import random
+import signal
+import pickle
 from ase import io as aseio
 from ase.parallel import paropen
 from ase.db import connect
@@ -440,7 +445,7 @@ def hash_images(images, log=None, ordered=False):
                 images = io.Trajectory(images, 'r')
             elif extension == '.db':
                 images = [row.toatoms() for row in
-                        connect(images, 'db').select(None)]
+                          connect(images, 'db').select(None)]
 
         # images converted to dictionary form; key is hash of image.
         log('Hashing images...', tic='hash')
@@ -611,10 +616,11 @@ def perturb_parameters(filename, images, d=0.0001, overwrite=False, **kwargs):
     # FIXME: AKh: Should read from filename, after it is saved.
     train_forces = True
     calculate_derivatives = train_forces
-    calc.descriptor.calculate_fingerprints(images=images,
-                                           cores=calc.cores,
-                                           log=calc.log,
-                                           calculate_derivatives=calculate_derivatives)
+    calc.descriptor.calculate_fingerprints(
+            images=images,
+            cores=calc.cores,
+            log=calc.log,
+            calculate_derivatives=calculate_derivatives)
 
     vector = calc.model.vector.copy()
 
@@ -626,10 +632,11 @@ def perturb_parameters(filename, images, d=0.0001, overwrite=False, **kwargs):
     calc.model.lossfunction = lossfunction
 
     # Set up local loss function.
-    lossfunction.attach_model(calc.model,
-                              fingerprints=calc.descriptor.fingerprints,
-                              fingerprintprimes=calc.descriptor.fingerprintprimes,
-                              images=images)
+    lossfunction.attach_model(
+            calc.model,
+            fingerprints=calc.descriptor.fingerprints,
+            fingerprintprimes=calc.descriptor.fingerprintprimes,
+            images=images)
 
     originalloss = calc.model.get_loss(vector,
                                        complete_output=False)
@@ -708,12 +715,6 @@ def perturb_parameters(filename, images, d=0.0001, overwrite=False, **kwargs):
 
 # Amp Simulated Annealer ######################################################
 
-import copy
-import math
-import random
-import signal
-import pickle
-
 
 class Annealer(object):
 
@@ -778,10 +779,11 @@ class Annealer(object):
         # Derivatives of fingerprints need to be calculated if train_forces is
         # True.
         calculate_derivatives = True
-        self.calc.descriptor.calculate_fingerprints(images=images,
-                                                    cores=self.calc.cores,
-                                                    log=self.calc.log,
-                                                    calculate_derivatives=calculate_derivatives)
+        self.calc.descriptor.calculate_fingerprints(
+                images=images,
+                cores=self.calc.cores,
+                log=self.calc.log,
+                calculate_derivatives=calculate_derivatives)
         # Setting up calc.model.vector()
         self.calc.model.fit(images,
                             self.calc.descriptor,
