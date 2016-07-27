@@ -6,6 +6,7 @@ import time
 import os
 from ase import io as aseio
 from ase.parallel import paropen
+from ase.db import connect
 import shelve
 from datetime import datetime
 from threading import Thread
@@ -438,7 +439,8 @@ def hash_images(images, log=None, ordered=False):
             if extension == '.traj':
                 images = io.Trajectory(images, 'r')
             elif extension == '.db':
-                images = io.read(images)
+                images = [row.toatoms() for row in
+                        connect(images, 'db').select(None)]
 
         # images converted to dictionary form; key is hash of image.
         log('Hashing images...', tic='hash')
