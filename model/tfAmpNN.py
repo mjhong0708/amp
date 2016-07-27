@@ -373,7 +373,7 @@ class tfAmpNN:
         # simple model to help normalize the energies by guessing a per-atom
         # energy.  This is helpful to removing the large electronic energy
         # associate for each element, making it easier to regress later
-        if self.linearmodel is None:
+        if self.linearmodel is None and not self.parameters['applyLinearModel']:
             model_ransac = sklearn.linear_model.RANSACRegressor(
                  sklearn.linear_model.LinearRegression(), residual_threshold=outlier_energy, min_samples=0.1)
             model_ransac.fit(natomsArray, energies)
