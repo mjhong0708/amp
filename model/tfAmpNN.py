@@ -85,7 +85,10 @@ class tfAmpNN:
                  force_coefficient=0.04,
                  scikit_model=None,
                  convergenceCriteria=None,
-                 optimizationMethod='ADAM'
+                 optimizationMethod='ADAM',
+                 input_keep_prob=0.8,
+                 ADAM_optimizer_params={'beta1':0.9},
+                 applyLinearModel=True,
                 ):
         
         self.parameters = {} if parameters is None else parameters
@@ -103,10 +106,12 @@ class tfAmpNN:
             
         if scikit_model is not None:
             self.linearmodel = pickle.loads(scikit_model)
-
+        else:
+            self.linearmodel=None
+        self.parameters['applyLinearModel']=applyLinearModel
         self.parameters['energy_coefficient'] = energy_coefficient
         self.parameters['force_coefficient'] = force_coefficient
-
+        self.parameters['ADAM_optimizer_params']=ADAM_optimizer_params
         self.hiddenlayers = hiddenlayers
         if isinstance(activation, basestring):
             self.activationName = activation
@@ -115,6 +120,7 @@ class tfAmpNN:
             self.activation = activation
             self.activationName = activation.__name__
         self.keep_prob = keep_prob
+        self.input_keep_prob=input_keep_prob
         self.elements = elementFingerprintLengths.keys()
         self.elements.sort()
         if saveVariableName is None:
@@ -180,7 +186,7 @@ class tfAmpNN:
 
         # y_ is the input energy for each configuration.
         self.y_ = tf.placeholder("float", shape=[None, 1])
-
+        self.input_keep_prob_in=tf.placeholder("float")
         self.keep_prob_in = tf.placeholder("float")
         self.nAtoms_in = tf.placeholder("float", shape=[None, 1])
         self.batchsizeInput = tf.placeholder("int32")
@@ -201,6 +207,7 @@ class tfAmpNN:
             outdict[element], forcedict[element] = model(tensordict[element],
                                                          indsdict[element],
                                                          self.keep_prob_in,
+							 self.input_keep_prob_in,
                                                          self.batchsizeInput,
                                                          networkListToUse,
                                                          self.activation,
@@ -252,9 +259,9 @@ class tfAmpNN:
         # Define the training step for force training.
         self.loss = self.forcecoefficient*self.force_loss + self.energycoefficient*self.energy_loss
         self.train_step = tf.train.AdamOptimizer(
-            self.learningrate, beta1=0.9).minimize(self.energy_loss)
+            self.learningrate, **self.parameters['ADAM_optimizer_params']).minimize(self.energy_loss)
         self.train_step_forces = tf.train.AdamOptimizer(
-            self.learningrate, beta1=0.9).minimize(self.loss)
+            self.learningrate, **self.parameters['ADAM_optimizer_params']).minimize(self.loss)
 
     def initializeVariables(self):
         """Resets all of the variables in the current tensorflow model."""
@@ -268,7 +275,7 @@ class tfAmpNN:
                           atomsIndsReverse,
                           batchsize,
                           trainingrate,
-                          keepprob, natoms,
+                          keepprob, inputkeepprob,natoms,
                           forcesExp=0.,
                           forces=False,
                           energycoefficient=1.,
@@ -306,6 +313,7 @@ class tfAmpNN:
         feedinput[self.batchsizeInput] = batchsize
         feedinput[self.learningrate] = trainingrate
         feedinput[self.keep_prob_in] = keepprob
+        feedinput[self.input_keep_prob_in] = inputkeepprob
         feedinput[self.nAtoms_in] = natoms[curinds]
         if forcecoefficient > 1.e-5:
             feedinput[self.forces_in] = forcesExp[curinds]
@@ -331,10 +339,13 @@ class tfAmpNN:
         if self.parameters['force_coefficient']<1e-5:
             tempconvergence['force_rmse']=None
             tempconvergence['force_maxresid']=None
-        lf=LossFunction(convergence=tempconvergence,energy_coefficient=self.parameters['energy_coefficient'],force_coefficient=self.parameters['force_coefficient'],cores=1)
+        
+        
         if self.parameters['force_coefficient']>1e-5:
+            lf=LossFunction(convergence=tempconvergence,energy_coefficient=self.parameters['energy_coefficient'],force_coefficient=self.parameters['force_coefficient'],cores=1)
             lf.attach_model(self,images=trainingimages,fingerprints=descriptor.fingerprints,fingerprintprimes=descriptor.fingerprintprimes)
         else:
+            lf=LossFunction(convergence=tempconvergence,energy_coefficient=self.parameters['energy_coefficient'],force_coefficient=0.,cores=1)
             lf.attach_model(self,images=trainingimages,fingerprints=descriptor.fingerprints)
         lf._initialize()
         # Inputs:
@@ -362,20 +373,23 @@ class tfAmpNN:
         # simple model to help normalize the energies by guessing a per-atom
         # energy.  This is helpful to removing the large electronic energy
         # associate for each element, making it easier to regress later
-        model_ransac = sklearn.linear_model.RANSACRegressor(
-            sklearn.linear_model.LinearRegression(), residual_threshold=outlier_energy, min_samples=0.1)
-        model_ransac.fit(natomsArray, energies)
-        energies = energies - model_ransac.predict(natomsArray)
-        self.linearmodel = model_ransac
-        newkeylist = []
-        newenergies = []
-        for i in range(len(keylist)):
-            if model_ransac.inlier_mask_[i] == True:
-                newkeylist.append(keylist[i])
-                newenergies.append(energies[i])
+        if self.linearmodel is None:
+            model_ransac = sklearn.linear_model.RANSACRegressor(
+                 sklearn.linear_model.LinearRegression(), residual_threshold=outlier_energy, min_samples=0.1)
+            model_ransac.fit(natomsArray, energies)
+            self.linearmodel = model_ransac
+        if self.parameters['applyLinearModel']:
+            energies = energies - self.linearmodel.predict(natomsArray)
 
-        keylist = newkeylist
-        energies = np.array(newenergies)
+        #newkeylist = []
+        #newenergies = []
+        #for i in range(len(keylist)):
+        #    if self.linearmodel.inlier_mask_[i] == True:
+        #        newkeylist.append(keylist[i])
+        #        newenergies.append(energies[i])
+        
+        #keylist = newkeylist
+        #energies = np.array(newenergies)
         atomArraysAll, nAtomsDict, atomsIndsReverse, natoms, atomArraysAllDerivs = generateTensorFlowArrays(
             fingerprintDB, self.elements, keylist, fingerprintDerDB, self.maxAtomsForces)
 
@@ -412,7 +426,7 @@ class tfAmpNN:
             batchsize = len(keylist)
 
         
-        def trainmodel(trainingrate, keepprob, maxepochs):
+        def trainmodel(trainingrate, keepprob, inputkeepprob,maxepochs):
             icount = 1
             icount_global = 1
             indlist = np.arange(len(keylist))
@@ -443,7 +457,7 @@ class tfAmpNN:
                                                            atomsIndsReverse,
                                                            batchsize,
                                                            trainingrate,
-                                                           keepprob,
+                                                           keepprob,inputkeepprob,
                                                            natoms,
                                                            forcesExp=forces,
                                                            energycoefficient=self.parameters['energy_coefficient'],
@@ -457,10 +471,11 @@ class tfAmpNN:
                                       feed_dict=feedinput)
 
                     # Print the loss function every 100 evals.
-                    if (self.miniBatch)and(icount % 100 == 0):
-                    	feed_keepprob_save=feedinput[self.keep_prob_in]
-                    	feedinput[self.keep_prob_in]=1.
-                        feedinput[self.keep_prob_in]=feed_keepprob_save
+                    #if (self.miniBatch)and(icount % 100 == 0):
+                    #	feed_keepprob_save=feedinput[self.keep_prob_in]
+                    #	feed_keepprob_save_input=feedinput[self.input_keep_prob_in]
+                    #	feedinput[self.keep_prob_in]=1.
+                    #    feedinput[self.keep_prob_in]=feed_keepprob_save
                     icount += 1
 
                 # Every 10 epochs, report the RMSE on the entire training set
@@ -474,11 +489,15 @@ class tfAmpNN:
                                                     atomsIndsReverse,
                                                     len(keylist),
                                                     trainingrate,
-                                                    1.,
+                                                    1.,1.,
                                                     natoms,
                                                     forcesExp=forces,
                                                     energycoefficient=self.parameters['energy_coefficient'],
                                                     forcecoefficient=self.parameters['force_coefficient'])
+                    feed_keepprob_save=feedinput[self.keep_prob_in]
+                    feed_keepprob_save_input=feedinput[self.input_keep_prob_in]
+                    feedinput[self.keep_prob_in]=1.
+                    feedinput[self.input_keep_prob_in]=1.
                     if self.parameters['force_coefficient'] > 1.e-5:
                         converged=lf.check_convergence(self.sess.run(self.loss,feed_dict=feedinput),
                                          self.sess.run(self.energy_loss,feed_dict=feedinput),
@@ -487,7 +506,6 @@ class tfAmpNN:
                                          self.sess.run(self.force_maxresid,feed_dict=feedinput))
                         if converged:
                             raise ConvergenceOccurred()
-
                     else:
                         converged=lf.check_convergence(self.sess.run(self.energy_loss,feed_dict=feedinput),
                                          self.sess.run(self.energy_loss,feed_dict=feedinput),
@@ -496,6 +514,8 @@ class tfAmpNN:
                                          0.)
                         if converged:
                             raise ConvergenceOccurred()
+                    feedinput[self.keep_prob_in]=keepprob
+                    feedinput[self.input_keep_prob_in]=inputkeepprob
                 icount_global += 1
             return
 
@@ -508,6 +528,7 @@ class tfAmpNN:
                                                            nAtomsDict,
                                                            atomsIndsReverse,
                                                            batchsize,
+                                                           1.,
                                                            1.,
                                                            1.,
                                                            natoms,
@@ -545,7 +566,7 @@ class tfAmpNN:
                 trainmodelBFGS(self.maxTrainingEpochs)
             elif self.optimizationMethod=='ADAM':
                 trainmodel(self.initialTrainingRate,
-                          self.keep_prob, self.maxTrainingEpochs)
+                          self.keep_prob, self.input_keep_prob,self.maxTrainingEpochs)
             else:
                 log('uknown optimizer!')
         except ConvergenceOccurred:
@@ -553,7 +574,7 @@ class tfAmpNN:
         return False
 
                
-    def get_energy_list(self, hashs, fingerprintDB, fingerprintDerDB=None, keep_prob=1., forces=False):
+    def get_energy_list(self, hashs, fingerprintDB, fingerprintDerDB=None, keep_prob=1., input_keep_prob=1.,forces=False):
         """Methods to get the energy and forces for a set of
         configurations."""
 
@@ -596,6 +617,8 @@ class tfAmpNN:
         feedinput[self.batchsizeInput] = len(hashs)
         feedinput[self.nAtoms_in] = natoms[curinds]
         feedinput[self.keep_prob_in] = keep_prob
+        feedinput[self.input_keep_prob_in] = input_keep_prob
+        feedinput[self.energyProdScale]=self.parameters['energyProdScale']
         if tilederivs == []:
             tilederivs = [1, 1, 1, 1]
         feedinput[self.tileDerivs] = tilederivs
@@ -606,8 +629,8 @@ class tfAmpNN:
         for i in range(len(hashs)):
             for j in range(len(self.elements)):
                 natomsArray[i][j] = nAtomsDict[self.elements[j]][i]
-
-        energies = energies + self.linearmodel.predict(natomsArray)
+        if self.parameters['applyLinearModel']:
+            energies = energies + self.linearmodel.predict(natomsArray)
         if forces:
             force = self.forces.eval(
                 feed_dict=feedinput) 
@@ -636,6 +659,7 @@ class tfAmpNN:
 
         params['hiddenlayers'] = self.hiddenlayers
         params['keep_prob'] = self.keep_prob
+        params['input_keep_prob'] = self.input_keep_prob
         params['elementFingerprintLengths'] = self.elementFingerprintLengths
         params['batchsize'] = self.batchsize
         params['maxTrainingEpochs'] = self.maxTrainingEpochs
@@ -658,7 +682,7 @@ class tfAmpNN:
         return str(params)
 
 
-def model(x, segmentinds, keep_prob, batchsize, neuronList, activationType,
+def model(x, segmentinds, keep_prob, input_keep_prob,batchsize, neuronList, activationType,
           fplength, mask, name, dxdxik, tilederiv,element):
     """Generates a multilayer neural network with variable number
     of neurons, so that we have a template for each atom's NN."""
@@ -667,8 +691,9 @@ def model(x, segmentinds, keep_prob, batchsize, neuronList, activationType,
     # Pass  the input tensors through the first soft-plus layer
     W_fc = weight_variable([fplength, nNeurons], name=name+element)
     b_fc = bias_variable([nNeurons], name=name)
-    h_fc = activationType(tf.matmul(x, W_fc) + b_fc)
-    #h_fc = tf.nn.dropout(activationType(tf.matmul(x, W_fc) + b_fc),keep_prob)
+    input_dropout=tf.nn.dropout(x,input_keep_prob)
+    #h_fc = activationType(tf.matmul(x, W_fc) + b_fc)
+    h_fc = tf.nn.dropout(activationType(tf.matmul(input_dropout, W_fc) + b_fc),keep_prob)
 
     if len(neuronList) > 1:
         for i in range(1, len(neuronList)):
