@@ -138,26 +138,28 @@ class tfAmpNN:
         for element in self.elements:
             self.elementFingerprintLengths[element] = elementFingerprintLengths[element]
         
-        self.constructModel()
+        
         if sess is None:
-            self.sess = tf.Session()
+            self.sess = tf.InteractiveSession()
         else:
             self.sess = sess
-        self.saver = tf.train.Saver(tf.trainable_variables())
 
-        if tfVars is not None:
-            trainable_vars = tf.trainable_variables()
-            all_vars = tf.all_variables()
-            untrainable_vars = []
-            for var in all_vars:
-                if var not in trainable_vars:
-                    untrainable_vars.append(var)
-            self.sess.run(tf.initialize_variables(untrainable_vars))
-            with open('tfAmpNN-checkpoint-restore', 'w') as fhandle:
-                fhandle.write(tfVars)
-            self.saver.restore(self.sess, 'tfAmpNN-checkpoint-restore')
-        else:
-            self.initializeVariables()
+        with self.sess.as_default():
+            self.constructModel()
+            self.saver = tf.train.Saver(tf.trainable_variables())
+            if tfVars is not None:
+                trainable_vars = tf.trainable_variables()
+                all_vars = tf.all_variables()
+                untrainable_vars = []
+                for var in all_vars:
+                    if var not in trainable_vars:
+                        untrainable_vars.append(var)
+                tf.initialize_variables(untrainable_vars)
+                with open('tfAmpNN-checkpoint-restore', 'w') as fhandle:
+                    fhandle.write(tfVars)
+                self.saver.restore(self.sess, 'tfAmpNN-checkpoint-restore')
+            else:
+                self.initializeVariables()
         self.maxTrainingEpochs = maxTrainingEpochs
         self.batchsize = batchsize
         self.initialTrainingRate = initialTrainingRate
@@ -701,11 +703,11 @@ def model(x, segmentinds, keep_prob, input_keep_prob,batchsize, neuronList, acti
           fplength, mask, name, dxdxik, tilederiv,element):
     """Generates a multilayer neural network with variable number
     of neurons, so that we have a template for each atom's NN."""
-
+    namefun=lambda x: '%s_%s_'%(name,element)+x
     nNeurons = neuronList[0]
     # Pass  the input tensors through the first soft-plus layer
-    W_fc = weight_variable([fplength, nNeurons], name=name+element)
-    b_fc = bias_variable([nNeurons], name=name)
+    W_fc = weight_variable([fplength, nNeurons], name=namefun('Wfc0'))
+    b_fc = bias_variable([nNeurons], name=namefun('bfc0'))
     input_dropout=tf.nn.dropout(x,input_keep_prob)
     #h_fc = activationType(tf.matmul(x, W_fc) + b_fc)
     h_fc = tf.nn.dropout(activationType(tf.matmul(input_dropout, W_fc) + b_fc),keep_prob)
@@ -714,13 +716,13 @@ def model(x, segmentinds, keep_prob, input_keep_prob,batchsize, neuronList, acti
         for i in range(1, len(neuronList)):
             nNeurons = neuronList[i]
             nNeuronsOld = neuronList[i - 1]
-            W_fc = weight_variable([nNeuronsOld, nNeurons], name=name)
-            b_fc = bias_variable([nNeurons], name=name)
+            W_fc = weight_variable([nNeuronsOld, nNeurons], name=namefun('Wfc%d'%i))
+            b_fc = bias_variable([nNeurons], name=namefun('bfc%d'%i))
             h_fc = tf.nn.dropout(activationType(
                 tf.matmul(h_fc, W_fc) + b_fc), keep_prob)
 
-    W_fc_out = weight_variable([neuronList[-1], 1], name=name)
-    b_fc_out = bias_variable([1], name=name)
+    W_fc_out = weight_variable([neuronList[-1], 1], name=namefun('Wfcout'))
+    b_fc_out = bias_variable([1], name=namefun('bfcout'))
     y_out = tf.matmul(h_fc, W_fc_out) + b_fc_out
 
     # Sum the predicted energy for each molecule
