@@ -96,7 +96,9 @@ class tfAmpNN:
                      'energyPerElement']:
             if prop not in self.parameters:
                 self.parameters[prop] = None
-        if convergenceCriteria is None:
+        if 'convergence' in self.parameters:
+            1
+        elif convergenceCriteria is None:
             self.parameters['convergence']={'energy_rmse': 0.001,
                                           'energy_maxresid': None,
                                           'force_rmse': 0.005,
@@ -108,10 +110,14 @@ class tfAmpNN:
             self.linearmodel = pickle.loads(scikit_model)
         else:
             self.linearmodel=None
-        self.parameters['applyLinearModel']=applyLinearModel
-        self.parameters['energy_coefficient'] = energy_coefficient
-        self.parameters['force_coefficient'] = force_coefficient
-        self.parameters['ADAM_optimizer_params']=ADAM_optimizer_params
+        if 'applyLinearMode' not in self.parameters:
+            self.parameters['applyLinearModel']=applyLinearModel
+        if 'energy_coefficient' not in self.parameters:
+            self.parameters['energy_coefficient']=energy_coefficient
+        if 'force_coefficient' not in self.parameters:
+            self.parameters['force_coefficient']=energy_coefficient
+        if 'ADAM_optimizer_params' not in self.parameters:
+            self.parameters['ADAM_optimizer_params']=ADAM_optimizer_params
         self.hiddenlayers = hiddenlayers
         if isinstance(activation, basestring):
             self.activationName = activation
@@ -134,7 +140,7 @@ class tfAmpNN:
         
         self.constructModel()
         if sess is None:
-            self.sess = tf.InteractiveSession()
+            self.sess = tf.Session()
         else:
             self.sess = sess
         self.saver = tf.train.Saver(tf.trainable_variables())
@@ -251,17 +257,21 @@ class tfAmpNN:
         #    tf.sqrt(tf.reduce_mean(tf.square(tf.sub(self.forces_in, self.forces))))
         #force loss function, as included in model/__init__.py
         self.force_loss= tf.reduce_sum(tf.div(tf.reduce_mean(tf.square(tf.sub(self.forces_in, self.forces)),2),self.nAtoms_in))
-            
+        #self.force_loss= tf.reduce_sum(tf.div(tf.reduce_mean(tf.div(tf.square(tf.sub(self.forces_in, self.forces)),tf.square(self.forces_in)+0.005**2.),2),self.nAtoms_in))
+        
+         #self.loss_forces_relative = self.forcecoefficient * tf.sqrt(tf.reduce_mean(tf.square(tf.div(tf.sub(self.forces_in, self.forces),self.forces_in+0.0001))))
+
         #Define max residuals
         self.energy_maxresid=tf.reduce_max(tf.abs(tf.div(tf.sub(self.energy, self.y_), self.nAtoms_in))) 
         self.force_maxresid=tf.reduce_max(tf.abs(tf.sub(self.forces_in, self.forces)))
         
         # Define the training step for force training.
         self.loss = self.forcecoefficient*self.force_loss + self.energycoefficient*self.energy_loss
-        self.train_step = tf.train.AdamOptimizer(
-            self.learningrate, **self.parameters['ADAM_optimizer_params']).minimize(self.energy_loss)
-        self.train_step_forces = tf.train.AdamOptimizer(
-            self.learningrate, **self.parameters['ADAM_optimizer_params']).minimize(self.loss)
+        
+        self.train_step = tf.train.AdamOptimizer(self.learningrate, **self.parameters['ADAM_optimizer_params']).minimize(self.energy_loss)
+        self.train_step_forces = tf.train.AdamOptimizer(self.learningrate, **self.parameters['ADAM_optimizer_params']).minimize(self.loss)
+            #self.loss_relative = self.forcecoefficient*self.loss_forces_relative + self.energycoefficient*self.energy_loss
+            #self.train_step_forces = tf.train.AdamOptimizer(self.learningrate, **self.parameters['ADAM_optimizer_params']).minimize(self.loss_relative)
 
     def initializeVariables(self):
         """Resets all of the variables in the current tensorflow model."""
@@ -430,6 +440,7 @@ class tfAmpNN:
             icount = 1
             icount_global = 1
             indlist = np.arange(len(keylist))
+            converge_save=[]
 
             # continue taking training steps as long as we haven't hit the RMSE
             # minimum of the max number of epochs
@@ -499,11 +510,15 @@ class tfAmpNN:
                     feedinput[self.keep_prob_in]=1.
                     feedinput[self.input_keep_prob_in]=1.
                     if self.parameters['force_coefficient'] > 1.e-5:
-                        converged=lf.check_convergence(self.sess.run(self.loss,feed_dict=feedinput),
+                        converge_save.append([self.sess.run(self.loss,feed_dict=feedinput),
                                          self.sess.run(self.energy_loss,feed_dict=feedinput),
                                          self.sess.run(self.force_loss,feed_dict=feedinput),
                                          self.sess.run(self.energy_maxresid,feed_dict=feedinput),
-                                         self.sess.run(self.force_maxresid,feed_dict=feedinput))
+                                         self.sess.run(self.force_maxresid,feed_dict=feedinput)])
+                        if len(converge_save)>10:
+                            converge_save.pop(0)
+                        convergence_vals=np.mean(converge_save,0)
+                        converged=lf.check_convergence(*convergence_vals)
                         if converged:
                             raise ConvergenceOccurred()
                     else:
@@ -622,7 +637,7 @@ class tfAmpNN:
         if tilederivs == []:
             tilederivs = [1, 1, 1, 1]
         feedinput[self.tileDerivs] = tilederivs
-        energies = np.array(self.energy.eval(feed_dict=feedinput)) + self.parameters['energyMeanScale']
+        energies = np.array(self.sess.run(self.energy,feed_dict=feedinput)) + self.parameters['energyMeanScale']
 
         # Add in the per-atom base energy.
         natomsArray = np.zeros((len(hashs), len(self.elements)))
@@ -632,7 +647,7 @@ class tfAmpNN:
         if self.parameters['applyLinearModel']:
             energies = energies + self.linearmodel.predict(natomsArray)
         if forces:
-            force = self.forces.eval(
+            force = self.sess.run(self.forces,
                 feed_dict=feedinput) 
         else:
             force = []
@@ -667,8 +682,9 @@ class tfAmpNN:
         params['activation'] = self.activationName
         params['saveVariableName'] = self.saveVariableName
         params['parameters'] = self.parameters
-
         params['miniBatch'] = self.miniBatch
+        params['maxAtomsForces']=self.maxAtomsForces
+        params['optimizationMethod']=self.optimizationMethod
 
         # Create a string format of the tensorflow variables.
         self.saver.save(self.sess, 'tfAmpNN-checkpoint')
@@ -680,7 +696,6 @@ class tfAmpNN:
         params['scikit_model'] = pickle.dumps(self.linearmodel)
 
         return str(params)
-
 
 def model(x, segmentinds, keep_prob, input_keep_prob,batchsize, neuronList, activationType,
           fplength, mask, name, dxdxik, tilederiv,element):
