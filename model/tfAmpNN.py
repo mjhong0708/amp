@@ -146,7 +146,9 @@ class tfAmpNN:
 
         with self.sess.as_default():
             self.constructModel()
-            self.saver = tf.train.Saver(tf.trainable_variables())
+            trainvarlist=tf.trainable_variables()
+            trainvarlist=[a for a in trainvarlist if a.name[:8]==self.saveVariableName]
+            self.saver = tf.train.Saver(trainvarlist)
             if tfVars is not None:
                 trainable_vars = tf.trainable_variables()
                 all_vars = tf.all_variables()
@@ -180,25 +182,25 @@ class tfAmpNN:
         tensorDerivDict = {}
         for element in self.elements:
             tensordict[element] = tf.placeholder(
-                "float", shape=[None, self.elementFingerprintLengths[element]])
+                "float", shape=[None, self.elementFingerprintLengths[element]],name='tensor_%s'%element)
             tensorDerivDict[element] = tf.placeholder("float",
-                                                      shape=[None, None, 3, self.elementFingerprintLengths[element]])
-            indsdict[element] = tf.placeholder("int64", shape=[None])
-            maskdict[element] = tf.placeholder("float", shape=[None, 1])
+                                                      shape=[None, None, 3, self.elementFingerprintLengths[element]],name='tensorderiv_%s'%element)
+            indsdict[element] = tf.placeholder("int64", shape=[None],name='indsdict_%s'%element)
+            maskdict[element] = tf.placeholder("float", shape=[None, 1],name='maskdict_%s'%element)
         self.indsdict = indsdict
-        self.tileDerivs = tf.placeholder("int32", shape=[4])
+        self.tileDerivs = tf.placeholder("int32", shape=[4],name='tileDerivs')
         self.tensordict = tensordict
         self.maskdict = maskdict
-        self.energyProdScale=tf.placeholder("float")
+        self.energyProdScale=tf.placeholder("float",name='energyProdScale')
         self.tensorDerivDict = tensorDerivDict
 
         # y_ is the input energy for each configuration.
-        self.y_ = tf.placeholder("float", shape=[None, 1])
-        self.input_keep_prob_in=tf.placeholder("float")
-        self.keep_prob_in = tf.placeholder("float")
-        self.nAtoms_in = tf.placeholder("float", shape=[None, 1])
-        self.batchsizeInput = tf.placeholder("int32")
-        self.learningrate = tf.placeholder("float")
+        self.y_ = tf.placeholder("float", shape=[None, 1],name='y_')
+        self.input_keep_prob_in=tf.placeholder("float",name='input_kee_prob_in')
+        self.keep_prob_in = tf.placeholder("float",name='keep_prob_in')
+        self.nAtoms_in = tf.placeholder("float", shape=[None, 1],name='nAtoms_in')
+        self.batchsizeInput = tf.placeholder("int32",name='batchsizeInput')
+        self.learningrate = tf.placeholder("float",name='learningrate')
         self.forces_in = tf.placeholder(
             "float", shape=[None, None, 3], name='forces_in')
         self.energycoefficient = tf.placeholder("float")
@@ -320,6 +322,8 @@ class tfAmpNN:
                     (1, self.elementFingerprintLengths[element]))
                 feedinput[self.indsdict[element]] = [0]
                 feedinput[self.maskdict[element]] = np.zeros((batchsize, 1))
+                feedinput[self.tensorDerivDict[element]] = np.zeros(
+                                                                (1, 1, 3, self.elementFingerprintLengths[element]))
         feedinput[self.tileDerivs] = tilederivs
         feedinput[self.y_] = energies[curinds]
         feedinput[self.batchsizeInput] = batchsize
@@ -687,6 +691,7 @@ class tfAmpNN:
         params['miniBatch'] = self.miniBatch
         params['maxAtomsForces']=self.maxAtomsForces
         params['optimizationMethod']=self.optimizationMethod
+        params['applyLinearModel']=self.parameters['applyLinearModel']
 
         # Create a string format of the tensorflow variables.
         self.saver.save(self.sess, 'tfAmpNN-checkpoint')
