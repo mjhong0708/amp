@@ -466,12 +466,19 @@ class LossFunction:
             self.dloss_dparameters = dloss_dparameters
 
         if self.raise_ConvergenceOccurred:
-            converged = self.check_convergence(loss, energy_loss, force_loss,
-                                               energy_maxresid, force_maxresid)
-            if converged:
-                self._model.vector = parametervector
-                self._cleanup()
-                raise ConvergenceOccurred()
+            # Only during calculation of loss function (and not lossprime)
+            # convergence is checked and values are printed out in the log
+            # file.
+            if lossprime is False:
+                converged = self.check_convergence(loss,
+                                                   energy_loss,
+                                                   force_loss,
+                                                   energy_maxresid,
+                                                   force_maxresid)
+                if converged:
+                    self._model.vector = parametervector
+                    self._cleanup()
+                    raise ConvergenceOccurred()
 
         return {'loss': self.loss,
                 'dloss_dparameters': self.dloss_dparameters if lossprime is True else dloss_dparameters,

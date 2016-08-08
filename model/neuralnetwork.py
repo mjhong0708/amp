@@ -5,7 +5,7 @@ from ase.calculators.calculator import Parameters
 from ..regression import Regressor
 from ..model import LossFunction, calculate_fingerprints_range
 from ..model import Model
-from ..utilities import Logger, hash_images
+from ..utilities import Logger, hash_images, make_filename
 
 
 class NeuralNetwork(Model):
@@ -183,6 +183,7 @@ class NeuralNetwork(Model):
             return
 
         # Regress the model.
+        self.step = -1
         result = self.regressor.regress(model=self, log=log)
         return result  # True / False
 
@@ -213,6 +214,14 @@ class NeuralNetwork(Model):
         Takes one and only one input, a vector of parameters.
         Returns one output, the value of the loss (cost) function.
         """
+        print "self.step =", self.step
+        if self.step % 2 == 0:
+            print "inside step =", self.step
+            self.parent.log('Saving checkpoint data.')
+            filename = make_filename(self.parent.label,
+                                     '-parameters-checkpoint.amp')
+            filename = self.parent.save(filename, overwrite=True)
+        self.step += 1
         return self.lossfunction.get_loss(vector, lossprime=False)['loss']
 
     def get_lossprime(self, vector):
