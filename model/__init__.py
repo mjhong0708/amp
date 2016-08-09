@@ -310,9 +310,13 @@ class LossFunction:
             log('\n')
             if (convergence['force_rmse'] is None) and \
                     (convergence['force_maxresid'] is None):
-                header = '  %12s  %12s'
-                log(header % ('EnergyRMSE', 'MaxResid'))
-                log(header % ('==========', '========'))
+                header = '%5s %19s %12s %12s %12s'
+                log(header %
+                    ('', '', '', '', 'Energy'))
+                log(header %
+                    ('Step', 'Time', 'Loss (SSD)', 'EnergyRMSE', 'MaxResid'))
+                log(header %
+                    ('=' * 5, '=' * 19, '=' * 12, '=' * 12, '=' * 12))
             else:
                 header = '%5s %19s %12s %12s %12s %12s %12s'
                 log(header %
@@ -689,7 +693,7 @@ class LossFunction:
                 force_rmse_converged and force_maxresid_converged
         else:
             if self.log_losses:
-                log(' %5i  %19s %12.4e %12.4e %1s %12.4e %1s' %
+                log('%5i %19s %12.4e %10.4e %1s %10.4e %1s' %
                     (self._step, now(), loss, energy_rmse,
                      'C' if energy_rmse_converged else '',
                      energy_maxresid,
