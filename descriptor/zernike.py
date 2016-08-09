@@ -300,10 +300,11 @@ class FingerprintCalculator:
         home = self.atoms[index].position
         cutoff = self.globals.cutoff
         cutofffn = self.globals.cutofffn
+        print "cutofffn =", cutofffn
 
-        if cutofffn is 'Cosine':
+        if cutofffn == 'Cosine':
             cutoff_fxn = Cosine(cutoff)
-        elif cutofffn is 'Polynomial':
+        elif cutofffn == 'Polynomial':
             cutoff_fxn = Polynomial(cutoff)
 
         fingerprint = []
@@ -383,7 +384,7 @@ class FingerprintPrimeCalculator:
                                    'Gs': Gs,
                                    'nmax': nmax})
         self.keyed = Parameters({'neighborlist': neighborlist})
-        self.parallel_command = 'calculate_fingerprint_prime'
+        self.parallel_command = 'calculate_fingerprint_primes'
         self.fortran = fortran
 
         try:  # for scipy v <= 0.90
@@ -812,6 +813,7 @@ if __name__ == "__main__":
     import zmq
     from ..utilities import MessageDictionary
 
+    fortran = False if fmodules is None else True
     hostsocket = sys.argv[-1]
     proc_id = sys.argv[-2]
     msg = MessageDictionary(proc_id)
@@ -866,7 +868,8 @@ if __name__ == "__main__":
         socket.send_pyobj(msg('<request>', 'images'))
         images = socket.recv_pyobj()
 
-        calc = FingerprintCalculator(neighborlist, Gs, nmax, cutoff, cutofffn)
+        calc = FingerprintCalculator(neighborlist, Gs, nmax,
+                                     cutoff, cutofffn, fortran)
         result = {}
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.
@@ -894,7 +897,8 @@ if __name__ == "__main__":
         socket.send_pyobj(msg('<request>', 'images'))
         images = socket.recv_pyobj()
 
-        calc = FingerprintPrimeCalculator(neighborlist, Gs, cutoff, cutofffn)
+        calc = FingerprintPrimeCalculator(neighborlist, Gs, nmax,
+                                          cutoff, cutofffn, fortran)
         result = {}
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.
