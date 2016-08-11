@@ -115,7 +115,7 @@ class tfAmpNN:
         if 'energy_coefficient' not in self.parameters:
             self.parameters['energy_coefficient']=energy_coefficient
         if 'force_coefficient' not in self.parameters:
-            self.parameters['force_coefficient']=energy_coefficient
+            self.parameters['force_coefficient']=force_coefficient
         if 'ADAM_optimizer_params' not in self.parameters:
             self.parameters['ADAM_optimizer_params']=ADAM_optimizer_params
         self.hiddenlayers = hiddenlayers
@@ -150,23 +150,30 @@ class tfAmpNN:
             trainvarlist=[a for a in trainvarlist if a.name[:8]==self.saveVariableName]
             self.saver = tf.train.Saver(trainvarlist)
             if tfVars is not None:
-                trainable_vars = tf.trainable_variables()
-                all_vars = tf.all_variables()
-                untrainable_vars = []
-                for var in all_vars:
-                    if var not in trainable_vars:
-                        untrainable_vars.append(var)
-                tf.initialize_variables(untrainable_vars)
+                self.initializeVariables()
+                #trainable_vars = tf.trainable_variables()
+                #all_vars = tf.all_variables()
+                #untrainable_vars = []
+                #for var in all_vars:
+                #    if var not in trainable_vars:
+                #        untrainable_vars.append(var)
+                #    varnamesplit=var.name.split('_')
+                #beta_accumulators=self.adam_optimizer_instance._get_beta_accumulators()
+                #for var in beta_accumulators:
+                #    untrainable_vars.append(var)
+                #    if len(varnamesplit)>0 and varnamesplit[1]=='power' and (varnamesplit[0]=='beta1' or varnamesplit[0]=='beta2'):
+                #        untrainable_vars.append(var)
+                #    #re-initialize the ADAM ops
                 with open('tfAmpNN-checkpoint-restore', 'w') as fhandle:
                     fhandle.write(tfVars)
                 self.saver.restore(self.sess, 'tfAmpNN-checkpoint-restore')
+                #self.sess.run(tf.initialize_variables(untrainable_vars))
             else:
                 self.initializeVariables()
         self.maxTrainingEpochs = maxTrainingEpochs
         self.batchsize = batchsize
         self.initialTrainingRate = initialTrainingRate
         self.miniBatch = miniBatch
-        
 
         #optimizer can be 'ADAM' or 'l-BFGS-b'
         self.optimizationMethod=optimizationMethod
@@ -271,9 +278,9 @@ class tfAmpNN:
         
         # Define the training step for force training.
         self.loss = self.forcecoefficient*self.force_loss + self.energycoefficient*self.energy_loss
-        
-        self.train_step = tf.train.AdamOptimizer(self.learningrate, **self.parameters['ADAM_optimizer_params']).minimize(self.energy_loss)
-        self.train_step_forces = tf.train.AdamOptimizer(self.learningrate, **self.parameters['ADAM_optimizer_params']).minimize(self.loss)
+        self.adam_optimizer_instance= tf.train.AdamOptimizer(self.learningrate, **self.parameters['ADAM_optimizer_params'])
+        self.train_step = self.adam_optimizer_instance.minimize(self.energy_loss)
+        self.train_step_forces =self.adam_optimizer_instance.minimize(self.loss)
             #self.loss_relative = self.forcecoefficient*self.loss_forces_relative + self.energycoefficient*self.energy_loss
             #self.train_step_forces = tf.train.AdamOptimizer(self.learningrate, **self.parameters['ADAM_optimizer_params']).minimize(self.loss_relative)
 
