@@ -268,9 +268,13 @@ class tfAmpNN:
         #    tf.sqrt(tf.reduce_mean(tf.square(tf.sub(self.forces_in, self.forces))))
         #force loss function, as included in model/__init__.py
         self.force_loss= tf.reduce_sum(tf.div(tf.reduce_mean(tf.square(tf.sub(self.forces_in, self.forces)),2),self.nAtoms_in))
-        #self.force_loss= tf.reduce_sum(tf.div(tf.reduce_mean(tf.div(tf.square(tf.sub(self.forces_in, self.forces)),tf.square(self.forces_in)+0.005**2.),2),self.nAtoms_in))
+        relativeA=0.5
+        self.force_loss= tf.reduce_sum(
+			    tf.div(
+                                tf.reduce_mean(
+                                    tf.div(
+                                        tf.square(tf.sub(self.forces_in, self.forces)),tf.square(self.forces_in)+relativeA**2.)*relativeA**2.,2),self.nAtoms_in))
         
-         #self.loss_forces_relative = self.forcecoefficient * tf.sqrt(tf.reduce_mean(tf.square(tf.div(tf.sub(self.forces_in, self.forces),self.forces_in+0.0001))))
 
         #Define max residuals
         self.energy_maxresid=tf.reduce_max(tf.abs(tf.div(tf.sub(self.energy, self.y_), self.nAtoms_in))) 
@@ -281,8 +285,10 @@ class tfAmpNN:
         self.adam_optimizer_instance= tf.train.AdamOptimizer(self.learningrate, **self.parameters['ADAM_optimizer_params'])
         self.train_step = self.adam_optimizer_instance.minimize(self.energy_loss)
         self.train_step_forces =self.adam_optimizer_instance.minimize(self.loss)
-            #self.loss_relative = self.forcecoefficient*self.loss_forces_relative + self.energycoefficient*self.energy_loss
-            #self.train_step_forces = tf.train.AdamOptimizer(self.learningrate, **self.parameters['ADAM_optimizer_params']).minimize(self.loss_relative)
+        #self.loss_forces_relative = self.forcecoefficient * tf.sqrt(tf.reduce_mean(tf.square(tf.div(tf.sub(self.forces_in, self.forces),self.forces_in+0.0001))))
+        #self.force_loss_relative= tf.reduce_sum(tf.div(tf.reduce_mean(tf.div(tf.square(tf.sub(self.forces_in, self.forces)),tf.square(self.forces_in)+0.005**2.),2),self.nAtoms_in))
+        #self.loss_relative = self.forcecoefficient*self.loss_forces_relative + self.energycoefficient*self.energy_loss
+        #self.train_step_forces = tf.adam_optimizer_instance.minimize(self.loss_relative)
 
     def initializeVariables(self):
         """Resets all of the variables in the current tensorflow model."""
