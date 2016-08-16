@@ -88,6 +88,7 @@ class tfAmpNN:
                  optimizationMethod='ADAM',
                  input_keep_prob=0.8,
                  ADAM_optimizer_params={'beta1':0.9},
+                 regularization_strength=None,
                  applyLinearModel=True,
                 ):
         
@@ -118,6 +119,8 @@ class tfAmpNN:
             self.parameters['force_coefficient']=force_coefficient
         if 'ADAM_optimizer_params' not in self.parameters:
             self.parameters['ADAM_optimizer_params']=ADAM_optimizer_params
+        if 'regularization_strength' not in self.parameters:
+            self.parameters['regularization_strength']=regularization_strength
         self.hiddenlayers = hiddenlayers
         if isinstance(activation, basestring):
             self.activationName = activation
@@ -216,12 +219,13 @@ class tfAmpNN:
         # Generate a multilayer neural network for each element type.
         outdict = {}
         forcedict = {}
+        l2_regularization_dict={}
         for element in self.elements:
             if isinstance(self.hiddenlayers, dict):
                 networkListToUse = self.hiddenlayers[element]
             else:
                 networkListToUse = self.hiddenlayers
-            outdict[element], forcedict[element] = model(tensordict[element],
+            outdict[element], forcedict[element],l2_regularization_dict[element] = model(tensordict[element],
                                                          indsdict[element],
                                                          self.keep_prob_in,
 							 self.input_keep_prob_in,
@@ -250,7 +254,10 @@ class tfAmpNN:
         for i in range(1, len(keylist)):
             Ftot = Ftot + forcedict[keylist[i]]
         self.forces = -Ftot*self.energyProdScale
-
+        
+        l2_regularization =l2_regularization_dict[keylist[0]]
+        for i in range(1, len(keylist)):
+            l2_regularization = l2_regularization + l2_regularization_dict[keylist[i]]
         # Define output nodes for the energy of a configuration, a loss
         # function, and the loss per atom (which is what we usually track)
         #self.loss = tf.sqrt(tf.reduce_sum(
@@ -281,9 +288,15 @@ class tfAmpNN:
         self.force_maxresid=tf.reduce_max(tf.abs(tf.sub(self.forces_in, self.forces)))
         
         # Define the training step for force training.
-        self.loss = self.forcecoefficient*self.force_loss + self.energycoefficient*self.energy_loss
+        if self.parameters['regularization_strength'] is not None:
+            self.loss = self.forcecoefficient*self.force_loss + self.energycoefficient*self.energy_loss+self.parameters['regularization_strength']*l2_regularization
+            self.energy_loss_regularized=self.energy_loss+self.parameters['regularization_strength']*l2_regularization
+        else:
+            self.loss = self.forcecoefficient*self.force_loss + self.energycoefficient*self.energy_loss
+            self.energy_loss_regularized=self.energy_loss
+        
         self.adam_optimizer_instance= tf.train.AdamOptimizer(self.learningrate, **self.parameters['ADAM_optimizer_params'])
-        self.train_step = self.adam_optimizer_instance.minimize(self.energy_loss)
+        self.train_step = self.adam_optimizer_instance.minimize(self.energy_loss_regularized)
         self.train_step_forces =self.adam_optimizer_instance.minimize(self.loss)
         #self.loss_forces_relative = self.forcecoefficient * tf.sqrt(tf.reduce_mean(tf.square(tf.div(tf.sub(self.forces_in, self.forces),self.forces_in+0.0001))))
         #self.force_loss_relative= tf.reduce_sum(tf.div(tf.reduce_mean(tf.div(tf.square(tf.sub(self.forces_in, self.forces)),tf.square(self.forces_in)+0.005**2.),2),self.nAtoms_in))
@@ -729,7 +742,8 @@ def model(x, segmentinds, keep_prob, input_keep_prob,batchsize, neuronList, acti
     input_dropout=tf.nn.dropout(x,input_keep_prob)
     #h_fc = activationType(tf.matmul(x, W_fc) + b_fc)
     h_fc = tf.nn.dropout(activationType(tf.matmul(input_dropout, W_fc) + b_fc),keep_prob)
-
+    #l2_regularization=tf.reduce_sum(tf.square(W_fc))+tf.reduce_sum(tf.square(b_fc))
+    l2_regularization=tf.reduce_sum(tf.square(W_fc))
     if len(neuronList) > 1:
         for i in range(1, len(neuronList)):
             nNeurons = neuronList[i]
@@ -738,10 +752,14 @@ def model(x, segmentinds, keep_prob, input_keep_prob,batchsize, neuronList, acti
             b_fc = bias_variable([nNeurons], name=namefun('bfc%d'%i))
             h_fc = tf.nn.dropout(activationType(
                 tf.matmul(h_fc, W_fc) + b_fc), keep_prob)
+            l2_regularization+=tf.reduce_sum(tf.square(W_fc))+tf.reduce_sum(tf.square(b_fc))
+            #l2_regularization+=tf.reduce_sum(tf.square(W_fc))
 
     W_fc_out = weight_variable([neuronList[-1], 1], name=namefun('Wfcout'))
     b_fc_out = bias_variable([1], name=namefun('bfcout'))
     y_out = tf.matmul(h_fc, W_fc_out) + b_fc_out
+    l2_regularization+=tf.reduce_sum(tf.square(W_fc_out))+tf.reduce_sum(tf.square(b_fc_out))
+    #l2_regularization+=tf.reduce_sum(tf.square(W_fc_out)))
 
     # Sum the predicted energy for each molecule
     reducedSum = tf.unsorted_segment_sum(y_out, segmentinds, batchsize)
@@ -754,7 +772,7 @@ def model(x, segmentinds, keep_prob, input_keep_prob,batchsize, neuronList, acti
     dEdxikReduce = tf.reduce_sum(dEdxik, 3)
     dEdxik_reduced = tf.unsorted_segment_sum(
         dEdxikReduce, segmentinds, batchsize)
-    return tf.mul(reducedSum, mask), dEdxik_reduced
+    return tf.mul(reducedSum, mask), dEdxik_reduced,l2_regularization
 
 
 def weight_variable(shape, name, stddev=0.1):
