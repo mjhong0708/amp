@@ -400,7 +400,7 @@ class tfAmpNN:
         images = trainingimages
         keylist = images.keys()
         fingerprintDB = descriptor.fingerprints
-
+        self.parameters['numTrainingImages']=len(keylist)
         self.maxAtomsForces = np.max(map(lambda x: len(images[x]), keylist))
         atomArraysAll, nAtomsDict, atomsIndsReverse, natoms, atomArraysAllDerivs = generateTensorFlowArrays(
             fingerprintDB, self.elements, keylist, fingerprintDerDB, self.maxAtomsForces)
@@ -691,6 +691,20 @@ class tfAmpNN:
         key = '1'
         energies, forces = self.get_energy_list([key], {key: fingerprint})
         return energies[0]
+
+    def getVariance(self,fingerprint,nSamples=10,l=1.):
+        key = '1'
+        energies=[]
+        for i in range(nSamples):
+            energies.append(self.get_energy_list([key], {key: fingerprint},keep_prob=self.keep_prob)[0])
+        if 'regularization_strength' in self.parameters and self.parameters['regularization_strength'] is not None:
+            tau=l**2.*self.keep_prob/(2*self.parameters['numTrainingImages']*self.parameters['regularization_strength'])
+            var=np.var(energies)+tau**-1.
+        else:
+            tau=1
+            var=np.var(energies)
+        #print('var: %f, tau=%f'%(var,tau))
+        return var
 
     def get_forces(self, fingerprint, derfingerprint):
     # get_forces function still needs to be implemented.  Can't do this
