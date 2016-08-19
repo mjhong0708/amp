@@ -621,7 +621,7 @@ class tfAmpNN:
         return False
 
                
-    def get_energy_list(self, hashs, fingerprintDB, fingerprintDerDB=None, keep_prob=1., input_keep_prob=1.,forces=False):
+    def get_energy_list(self, hashs, fingerprintDB, fingerprintDerDB=None, keep_prob=1., input_keep_prob=1.,forces=False,nsamples=1):
         """Methods to get the energy and forces for a set of
         configurations."""
 
@@ -669,15 +669,28 @@ class tfAmpNN:
         if tilederivs == []:
             tilederivs = [1, 1, 1, 1]
         feedinput[self.tileDerivs] = tilederivs
-        energies = np.array(self.sess.run(self.energy,feed_dict=feedinput)) + self.parameters['energyMeanScale']
-
-        # Add in the per-atom base energy.
-        natomsArray = np.zeros((len(hashs), len(self.elements)))
-        for i in range(len(hashs)):
-            for j in range(len(self.elements)):
-                natomsArray[i][j] = nAtomsDict[self.elements[j]][i]
-        if self.parameters['applyLinearModel']:
-            energies = energies + self.linearmodel.predict(natomsArray)
+        if nsamples==1:
+            energies = np.array(self.sess.run(self.energy,feed_dict=feedinput)) + self.parameters['energyMeanScale']
+            # Add in the per-atom base energy.
+            natomsArray = np.zeros((len(hashs), len(self.elements)))
+            for i in range(len(hashs)):
+                for j in range(len(self.elements)):
+                    natomsArray[i][j] = nAtomsDict[self.elements[j]][i]
+            if self.parameters['applyLinearModel']:
+                energies = energies + self.linearmodel.predict(natomsArray)
+        else:
+            energysave=[]
+            # Add in the per-atom base energy.
+            natomsArray = np.zeros((len(hashs), len(self.elements)))
+            for i in range(len(hashs)):
+                for j in range(len(self.elements)):
+                    natomsArray[i][j] = nAtomsDict[self.elements[j]][i]
+            for samplenum in range(nsamples):
+                energies = np.array(self.sess.run(self.energy,feed_dict=feedinput)) + self.parameters['energyMeanScale']
+                if self.parameters['applyLinearModel']:
+                    energies = energies + self.linearmodel.predict(natomsArray)
+                energysave.append(map(lambda x: x[0],energies))
+            energies=np.array(energysave)
         if forces:
             force = self.sess.run(self.forces,
                 feed_dict=feedinput) 
@@ -694,16 +707,16 @@ class tfAmpNN:
 
     def getVariance(self,fingerprint,nSamples=10,l=1.):
         key = '1'
-        energies=[]
-        for i in range(nSamples):
-            energies.append(self.get_energy_list([key], {key: fingerprint},keep_prob=self.keep_prob)[0])
+        #energies=[]
+        #for i in range(nSamples):
+        #    energies.append(self.get_energy_list([key], {key: fingerprint},keep_prob=self.keep_prob)[0])
+        energies,force=self.get_energy_list([key], {key: fingerprint},keep_prob=self.keep_prob,nsamples=nSamples)
         if 'regularization_strength' in self.parameters and self.parameters['regularization_strength'] is not None:
             tau=l**2.*self.keep_prob/(2*self.parameters['numTrainingImages']*self.parameters['regularization_strength'])
             var=np.var(energies)+tau**-1.
         else:
             tau=1
             var=np.var(energies)
-        #print('var: %f, tau=%f'%(var,tau))
         return var
 
     def get_forces(self, fingerprint, derfingerprint):
