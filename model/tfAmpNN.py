@@ -547,7 +547,7 @@ class tfAmpNN:
                                          self.sess.run(self.force_loss,feed_dict=feedinput),
                                          self.sess.run(self.energy_maxresid,feed_dict=feedinput),
                                          self.sess.run(self.force_maxresid,feed_dict=feedinput)])
-                        if len(converge_save)>10:
+                        if len(converge_save)>2:
                             converge_save.pop(0)
                         convergence_vals=np.mean(converge_save,0)
                         converged=lf.check_convergence(*convergence_vals)
@@ -678,8 +678,14 @@ class tfAmpNN:
                     natomsArray[i][j] = nAtomsDict[self.elements[j]][i]
             if self.parameters['applyLinearModel']:
                 energies = energies + self.linearmodel.predict(natomsArray)
+            if forces:
+                force = self.sess.run(self.forces,
+                    feed_dict=feedinput)
+            else:
+                force=[]
         else:
             energysave=[]
+            forcesave=[]
             # Add in the per-atom base energy.
             natomsArray = np.zeros((len(hashs), len(self.elements)))
             for i in range(len(hashs)):
@@ -690,12 +696,14 @@ class tfAmpNN:
                 if self.parameters['applyLinearModel']:
                     energies = energies + self.linearmodel.predict(natomsArray)
                 energysave.append(map(lambda x: x[0],energies))
+                if forces:
+                    force = self.sess.run(self.forces,
+                        feed_dict=feedinput)
+                    forcesave.append(force)
             energies=np.array(energysave)
-        if forces:
-            force = self.sess.run(self.forces,
-                feed_dict=feedinput) 
-        else:
-            force = []
+            force=np.array(forcesave)
+            #else:
+            #    force = []
         return energies, force
 
     def get_energy(self, fingerprint):
@@ -714,6 +722,7 @@ class tfAmpNN:
         if 'regularization_strength' in self.parameters and self.parameters['regularization_strength'] is not None:
             tau=l**2.*self.keep_prob/(2*self.parameters['numTrainingImages']*self.parameters['regularization_strength'])
             var=np.var(energies)+tau**-1.
+            #forcevar=np.var(forces,)
         else:
             tau=1
             var=np.var(energies)
