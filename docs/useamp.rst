@@ -78,6 +78,8 @@ For parallel operation, cores should be a dictionary where the keys are the host
    cores = {'node241': 16,
             'node242': 16}
 
+For this to work, you need to be able to freely SSH between nodes on your system; this is true even if you are running within only a single node. Typically, this means that once you are logged in to your cluster you have public/private keys in use to ssh between nodes. If you can run `ssh localhost` without it asking you for a password, this is likely to work for you.
+
 ----------------------------------
 Advanced use
 ----------------------------------
