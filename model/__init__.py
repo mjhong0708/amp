@@ -625,8 +625,11 @@ class LossFunction:
                     server.send_pyobj({k: self.fingerprints[k] for k in
                                        keys[int(message['id'])]})
                 elif request == 'fingerprintprimes':
-                    server.send_pyobj({k: self.fingerprintprimes[k] for k in
-                                       keys[int(message['id'])]})
+                    if self.fingerprintprimes is not None:
+                        server.send_pyobj({k: self.fingerprintprimes[k] for k in
+                                           keys[int(message['id'])]})
+                    else:
+                        server.send_pyobj(None)
                 elif request == 'args':
                     server.send_pyobj(args)
                 elif request == 'parameters':
