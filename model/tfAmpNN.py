@@ -142,18 +142,21 @@ class tfAmpNN:
             self.elementFingerprintLengths[element] = elementFingerprintLengths[element]
         
         
-        if sess is None:
-            self.sess = tf.InteractiveSession()
-        else:
-            self.sess = sess
 
-        with self.sess.as_default():
-            self.constructModel()
+        self.graph=tf.Graph()
+        with self.graph.as_default():
+            if sess is None:
+                self.sess = tf.InteractiveSession()
+            else:
+                self.sess = sess
+
+            self.constructModel(self.sess,self.graph)
             trainvarlist=tf.trainable_variables()
             trainvarlist=[a for a in trainvarlist if a.name[:8]==self.saveVariableName]
             self.saver = tf.train.Saver(trainvarlist)
             if tfVars is not None:
-                self.initializeVariables()
+                #self.initializeVariables()
+                self.sess.run(tf.initialize_all_variables())
                 #trainable_vars = tf.trainable_variables()
                 #all_vars = tf.all_variables()
                 #untrainable_vars = []
@@ -172,7 +175,8 @@ class tfAmpNN:
                 self.saver.restore(self.sess, 'tfAmpNN-checkpoint-restore')
                 #self.sess.run(tf.initialize_variables(untrainable_vars))
             else:
-                self.initializeVariables()
+                self.sess.run(tf.initialize_all_variables())
+                #self.initializeVariables()
         self.maxTrainingEpochs = maxTrainingEpochs
         self.batchsize = batchsize
         self.initialTrainingRate = initialTrainingRate
@@ -182,126 +186,127 @@ class tfAmpNN:
         self.optimizationMethod=optimizationMethod
         self.maxAtomsForces = maxAtomsForces
 
-    def constructModel(self):
+    def constructModel(self,sess,graph):
         """Sets up the tensorflow neural networks for each atom type."""
 
+        with sess.as_default(),graph.as_default():
         # Make tensorflow inputs for each element.
-        tensordict = {}
-        indsdict = {}
-        maskdict = {}
-        tensorDerivDict = {}
-        for element in self.elements:
-            tensordict[element] = tf.placeholder(
-                "float", shape=[None, self.elementFingerprintLengths[element]],name='tensor_%s'%element)
-            tensorDerivDict[element] = tf.placeholder("float",
-                                                      shape=[None, None, 3, self.elementFingerprintLengths[element]],name='tensorderiv_%s'%element)
-            indsdict[element] = tf.placeholder("int64", shape=[None],name='indsdict_%s'%element)
-            maskdict[element] = tf.placeholder("float", shape=[None, 1],name='maskdict_%s'%element)
-        self.indsdict = indsdict
-        self.tileDerivs = tf.placeholder("int32", shape=[4],name='tileDerivs')
-        self.tensordict = tensordict
-        self.maskdict = maskdict
-        self.energyProdScale=tf.placeholder("float",name='energyProdScale')
-        self.tensorDerivDict = tensorDerivDict
+            tensordict = {}
+            indsdict = {}
+            maskdict = {}
+            tensorDerivDict = {}
+            for element in self.elements:
+                tensordict[element] = tf.placeholder(
+                    "float", shape=[None, self.elementFingerprintLengths[element]],name='tensor_%s'%element)
+                tensorDerivDict[element] = tf.placeholder("float",
+                                                       shape=[None, None, 3, self.elementFingerprintLengths[element]],name='tensorderiv_%s'%element)
+                indsdict[element] = tf.placeholder("int64", shape=[None],name='indsdict_%s'%element)
+                maskdict[element] = tf.placeholder("float", shape=[None, 1],name='maskdict_%s'%element)
+            self.indsdict = indsdict
+            self.tileDerivs = tf.placeholder("int32", shape=[4],name='tileDerivs')
+            self.tensordict = tensordict
+            self.maskdict = maskdict
+            self.energyProdScale=tf.placeholder("float",name='energyProdScale')
+            self.tensorDerivDict = tensorDerivDict
 
         # y_ is the input energy for each configuration.
-        self.y_ = tf.placeholder("float", shape=[None, 1],name='y_')
-        self.input_keep_prob_in=tf.placeholder("float",name='input_kee_prob_in')
-        self.keep_prob_in = tf.placeholder("float",name='keep_prob_in')
-        self.nAtoms_in = tf.placeholder("float", shape=[None, 1],name='nAtoms_in')
-        self.batchsizeInput = tf.placeholder("int32",name='batchsizeInput')
-        self.learningrate = tf.placeholder("float",name='learningrate')
-        self.forces_in = tf.placeholder(
+            self.y_ = tf.placeholder("float", shape=[None, 1],name='y_')
+            self.input_keep_prob_in=tf.placeholder("float",name='input_kee_prob_in')
+            self.keep_prob_in = tf.placeholder("float",name='keep_prob_in')
+            self.nAtoms_in = tf.placeholder("float", shape=[None, 1],name='nAtoms_in')
+            self.batchsizeInput = tf.placeholder("int32",name='batchsizeInput')
+            self.learningrate = tf.placeholder("float",name='learningrate')
+            self.forces_in = tf.placeholder(
             "float", shape=[None, None, 3], name='forces_in')
-        self.energycoefficient = tf.placeholder("float")
-        self.forcecoefficient = tf.placeholder("float")
+            self.energycoefficient = tf.placeholder("float")
+            self.forcecoefficient = tf.placeholder("float")
 
         # Generate a multilayer neural network for each element type.
-        outdict = {}
-        forcedict = {}
-        l2_regularization_dict={}
-        for element in self.elements:
-            if isinstance(self.hiddenlayers, dict):
-                networkListToUse = self.hiddenlayers[element]
+            outdict = {}
+            forcedict = {}
+            l2_regularization_dict={}
+            for element in self.elements:
+                if isinstance(self.hiddenlayers, dict):
+                    networkListToUse = self.hiddenlayers[element]
+                else:
+                    networkListToUse = self.hiddenlayers
+                outdict[element], forcedict[element],l2_regularization_dict[element] = model(tensordict[element],
+                                                             indsdict[element],
+                                                             self.keep_prob_in,
+                                 self.input_keep_prob_in,
+                                                             self.batchsizeInput,
+                                                             networkListToUse,
+                                                             self.activation,
+                                                             self.elementFingerprintLengths[
+                                                                 element],
+                                                             mask=maskdict[
+                                                                 element],
+                                                             name=self.saveVariableName,
+                                                             dxdxik=self.tensorDerivDict[
+                                                                 element],
+                                                             tilederiv=self.tileDerivs,element=element)
+            self.outdict = outdict
+
+            # The total energy is the sum of the energies over each atom type.
+            keylist = self.elements
+            ytot = outdict[keylist[0]]
+            for i in range(1, len(keylist)):
+                ytot = ytot + outdict[keylist[i]]
+            self.energy = ytot*self.energyProdScale
+
+            # The total force is the sum of the forces over each atom type.
+            Ftot = forcedict[keylist[0]]
+            for i in range(1, len(keylist)):
+                Ftot = Ftot + forcedict[keylist[i]]
+            self.forces = -Ftot*self.energyProdScale
+            
+            l2_regularization =l2_regularization_dict[keylist[0]]
+            for i in range(1, len(keylist)):
+                l2_regularization = l2_regularization + l2_regularization_dict[keylist[i]]
+            # Define output nodes for the energy of a configuration, a loss
+            # function, and the loss per atom (which is what we usually track)
+            #self.loss = tf.sqrt(tf.reduce_sum(
+            #    tf.square(tf.sub(self.energy, self.y_))))
+            #self.lossPerAtom = tf.reduce_sum(
+            #    tf.square(tf.div(tf.sub(self.energy, self.y_), self.nAtoms_in)))
+            
+            #loss function, as included in model/__init__.py
+            self.energy_loss = tf.reduce_sum(
+                tf.square(tf.div(tf.sub(self.energy, self.y_), self.nAtoms_in)))
+            # Define the training step for energy training.
+            
+
+            #self.loss_forces = self.forcecoefficient * \
+            #    tf.sqrt(tf.reduce_mean(tf.square(tf.sub(self.forces_in, self.forces))))
+            #force loss function, as included in model/__init__.py
+            self.force_loss= tf.reduce_sum(tf.div(tf.reduce_mean(tf.square(tf.sub(self.forces_in, self.forces)),2),self.nAtoms_in))
+            relativeA=0.5
+            self.force_loss= tf.reduce_sum(
+                    tf.div(
+                                    tf.reduce_mean(
+                                        tf.div(
+                                            tf.square(tf.sub(self.forces_in, self.forces)),tf.square(self.forces_in)+relativeA**2.)*relativeA**2.,2),self.nAtoms_in))
+            
+
+            #Define max residuals
+            self.energy_maxresid=tf.reduce_max(tf.abs(tf.div(tf.sub(self.energy, self.y_), self.nAtoms_in))) 
+            self.force_maxresid=tf.reduce_max(tf.abs(tf.sub(self.forces_in, self.forces)))
+            
+            # Define the training step for force training.
+            if self.parameters['regularization_strength'] is not None:
+                self.loss = self.forcecoefficient*self.force_loss + self.energycoefficient*self.energy_loss+self.parameters['regularization_strength']*l2_regularization
+                self.energy_loss_regularized=self.energy_loss+self.parameters['regularization_strength']*l2_regularization
             else:
-                networkListToUse = self.hiddenlayers
-            outdict[element], forcedict[element],l2_regularization_dict[element] = model(tensordict[element],
-                                                         indsdict[element],
-                                                         self.keep_prob_in,
-							 self.input_keep_prob_in,
-                                                         self.batchsizeInput,
-                                                         networkListToUse,
-                                                         self.activation,
-                                                         self.elementFingerprintLengths[
-                                                             element],
-                                                         mask=maskdict[
-                                                             element],
-                                                         name=self.saveVariableName,
-                                                         dxdxik=self.tensorDerivDict[
-                                                             element],
-                                                         tilederiv=self.tileDerivs,element=element)
-        self.outdict = outdict
-
-        # The total energy is the sum of the energies over each atom type.
-        keylist = self.elements
-        ytot = outdict[keylist[0]]
-        for i in range(1, len(keylist)):
-            ytot = ytot + outdict[keylist[i]]
-        self.energy = ytot*self.energyProdScale
-
-        # The total force is the sum of the forces over each atom type.
-        Ftot = forcedict[keylist[0]]
-        for i in range(1, len(keylist)):
-            Ftot = Ftot + forcedict[keylist[i]]
-        self.forces = -Ftot*self.energyProdScale
-        
-        l2_regularization =l2_regularization_dict[keylist[0]]
-        for i in range(1, len(keylist)):
-            l2_regularization = l2_regularization + l2_regularization_dict[keylist[i]]
-        # Define output nodes for the energy of a configuration, a loss
-        # function, and the loss per atom (which is what we usually track)
-        #self.loss = tf.sqrt(tf.reduce_sum(
-        #    tf.square(tf.sub(self.energy, self.y_))))
-        #self.lossPerAtom = tf.reduce_sum(
-        #    tf.square(tf.div(tf.sub(self.energy, self.y_), self.nAtoms_in)))
-        
-        #loss function, as included in model/__init__.py
-        self.energy_loss = tf.reduce_sum(
-            tf.square(tf.div(tf.sub(self.energy, self.y_), self.nAtoms_in)))
-        # Define the training step for energy training.
-        
-
-        #self.loss_forces = self.forcecoefficient * \
-        #    tf.sqrt(tf.reduce_mean(tf.square(tf.sub(self.forces_in, self.forces))))
-        #force loss function, as included in model/__init__.py
-        self.force_loss= tf.reduce_sum(tf.div(tf.reduce_mean(tf.square(tf.sub(self.forces_in, self.forces)),2),self.nAtoms_in))
-        relativeA=0.5
-        self.force_loss= tf.reduce_sum(
-			    tf.div(
-                                tf.reduce_mean(
-                                    tf.div(
-                                        tf.square(tf.sub(self.forces_in, self.forces)),tf.square(self.forces_in)+relativeA**2.)*relativeA**2.,2),self.nAtoms_in))
-        
-
-        #Define max residuals
-        self.energy_maxresid=tf.reduce_max(tf.abs(tf.div(tf.sub(self.energy, self.y_), self.nAtoms_in))) 
-        self.force_maxresid=tf.reduce_max(tf.abs(tf.sub(self.forces_in, self.forces)))
-        
-        # Define the training step for force training.
-        if self.parameters['regularization_strength'] is not None:
-            self.loss = self.forcecoefficient*self.force_loss + self.energycoefficient*self.energy_loss+self.parameters['regularization_strength']*l2_regularization
-            self.energy_loss_regularized=self.energy_loss+self.parameters['regularization_strength']*l2_regularization
-        else:
-            self.loss = self.forcecoefficient*self.force_loss + self.energycoefficient*self.energy_loss
-            self.energy_loss_regularized=self.energy_loss
-        
-        self.adam_optimizer_instance= tf.train.AdamOptimizer(self.learningrate, **self.parameters['ADAM_optimizer_params'])
-        self.train_step = self.adam_optimizer_instance.minimize(self.energy_loss_regularized)
-        self.train_step_forces =self.adam_optimizer_instance.minimize(self.loss)
-        #self.loss_forces_relative = self.forcecoefficient * tf.sqrt(tf.reduce_mean(tf.square(tf.div(tf.sub(self.forces_in, self.forces),self.forces_in+0.0001))))
-        #self.force_loss_relative= tf.reduce_sum(tf.div(tf.reduce_mean(tf.div(tf.square(tf.sub(self.forces_in, self.forces)),tf.square(self.forces_in)+0.005**2.),2),self.nAtoms_in))
-        #self.loss_relative = self.forcecoefficient*self.loss_forces_relative + self.energycoefficient*self.energy_loss
-        #self.train_step_forces = tf.adam_optimizer_instance.minimize(self.loss_relative)
+                self.loss = self.forcecoefficient*self.force_loss + self.energycoefficient*self.energy_loss
+                self.energy_loss_regularized=self.energy_loss
+            
+            self.adam_optimizer_instance= tf.train.AdamOptimizer(self.learningrate, **self.parameters['ADAM_optimizer_params'])
+            self.train_step = self.adam_optimizer_instance.minimize(self.energy_loss_regularized)
+            self.train_step_forces =self.adam_optimizer_instance.minimize(self.loss)
+            #self.loss_forces_relative = self.forcecoefficient * tf.sqrt(tf.reduce_mean(tf.square(tf.div(tf.sub(self.forces_in, self.forces),self.forces_in+0.0001))))
+            #self.force_loss_relative= tf.reduce_sum(tf.div(tf.reduce_mean(tf.div(tf.square(tf.sub(self.forces_in, self.forces)),tf.square(self.forces_in)+0.005**2.),2),self.nAtoms_in))
+            #self.loss_relative = self.forcecoefficient*self.loss_forces_relative + self.energycoefficient*self.energy_loss
+            #self.train_step_forces = tf.adam_optimizer_instance.minimize(self.loss_relative)
 
     def initializeVariables(self):
         """Resets all of the variables in the current tensorflow model."""
@@ -610,7 +615,8 @@ class tfAmpNN:
 
         try:        
             if self.optimizationMethod=='l-BFGS-b':
-                trainmodelBFGS(self.maxTrainingEpochs)
+                with self.graph.as_default():
+                    trainmodelBFGS(self.maxTrainingEpochs)
             elif self.optimizationMethod=='ADAM':
                 trainmodel(self.initialTrainingRate,
                           self.keep_prob, self.input_keep_prob,self.maxTrainingEpochs)
