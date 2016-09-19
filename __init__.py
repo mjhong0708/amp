@@ -221,7 +221,7 @@ class Amp(Calculator, object):
     def train(self,
               images,
               overwrite=False,
-              train_forces=True
+              train_forces=True,
               ):
         """
         Fits the model to the training images.
@@ -303,7 +303,6 @@ class Amp(Calculator, object):
 
     def _printheader(self, log):
         """Prints header to log file; inspired by that in GPAW."""
-        print_stack()
         log(logo)
         log('Amp: Atomistic Machine-learning Package')
         log('Developed by Andrew Peterson, Alireza Khorshidi, and others,')
