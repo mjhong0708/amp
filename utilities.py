@@ -426,7 +426,11 @@ def hash_images(images, log=None, ordered=False):
     """
     Converts input images -- which may be a list, a trajectory file, or a
     database -- into a dictionary indexed by their hashes. Returns this
-    dictionary. If ordered is True, returns an OrderedDict.
+    dictionary. If ordered is True, returns an OrderedDict. When duplicate
+    images are encountered (based on encountering an identical hash), a
+    warning is written to the logfile. The number of duplicates of each
+    image can be accessed by examinging dict_images.metadata['duplicates'],
+    where dict_images is the returned dictionary.
     """
     if log is None:
         log = Logger(None)
@@ -449,7 +453,9 @@ def hash_images(images, log=None, ordered=False):
 
         # images converted to dictionary form; key is hash of image.
         log('Hashing images...', tic='hash')
-        dict_images = {}
+        dict_images = MetaDict()
+        dict_images.metadata['duplicates'] = {}
+        dup = dict_images.metadata['duplicates']
         if ordered is True:
             from collections import OrderedDict
             dict_images = OrderedDict()
@@ -458,6 +464,10 @@ def hash_images(images, log=None, ordered=False):
             if hash in dict_images.keys():
                 log('Warning: Duplicate image (based on identical hash).'
                     ' Was this expected? Hash: %s' % hash)
+                if hash in dup.keys():
+                    dup[hash] += 1
+                else:
+                    dup[hash] = 2
             dict_images[hash] = image
         log(' %i unique images after hashing.' % len(dict_images))
         log('...hashing completed.', toc='hash')
@@ -1060,3 +1070,9 @@ class Annealer(object):
         print('')  # New line after auto() output
         # Don't perform anneal, just return params
         return {'tmax': Tmax, 'tmin': Tmin, 'steps': duration}
+
+
+class MetaDict(dict):
+    """Dictionary that can also store metadata. Useful for images dictionary
+    so that images can still be iterated by keys."""
+    metadata = {}
