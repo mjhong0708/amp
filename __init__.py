@@ -72,10 +72,8 @@ class Amp(Calculator, object):
                  cores=None, atoms=None):
 
         Calculator.__init__(self, label=label, atoms=atoms)
-
-        log = Logger(make_filename(self.label, '-log.txt'))
-        self.log = log
-        self._printheader(log)
+        # Note self.log is set and self._printheader is called by above
+        # call when it runs self.set_label.
 
         # Note the following are properties: these are setter functions.
         self.descriptor = descriptor
@@ -305,6 +303,7 @@ class Amp(Calculator, object):
 
     def _printheader(self, log):
         """Prints header to log file; inspired by that in GPAW."""
+        print_stack()
         log(logo)
         log('Amp: Atomistic Machine-learning Package')
         log('Developed by Andrew Peterson, Alireza Khorshidi, and others,')
