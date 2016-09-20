@@ -152,7 +152,7 @@ class Amp(Calculator, object):
 
         # Instantiate Amp.
         calc = Cls(descriptor=descriptor, model=model, **kwargs)
-        calc.log('Loaded file: %s' % filename)
+        calc.log('Loaded file: %s' % file)
         return calc
 
     def set(self, **kwargs):
