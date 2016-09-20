@@ -115,21 +115,22 @@ class Amp(Calculator, object):
         self.reset()  # Clears any old calculations.
 
     @classmethod
-    def load(Cls, filename, Descriptor=None, Model=None, **kwargs):
+    def load(Cls, file, Descriptor=None, Model=None, **kwargs):
         """Attempts to load calculators and return a new instance of Amp.
-        Only a filename is required, in typical cases.
+        Only a filename or file-like object is required, in typical cases.
 
         If using a home-rolled descriptor or model, also supply
         uninstantiated classes to those models, as in Model=MyModel.
+        (Not as Model=MyModel()!)
 
         Any additional keyword arguments (such as label or dblabel) can be
         fed through to Amp.
         """
-        if not os.path.exists(filename):
-            filename += '.amp'
-
-        with open(filename) as f:
-            text = f.read()
+        if hasattr(file, 'read'):
+            text = file.read()
+        else:
+            with open(file) as f:
+                text = f.read()
 
         # Unpack parameter dictionaries.
         p = string2dict(text)
