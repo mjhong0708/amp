@@ -182,7 +182,7 @@ class Data:
         the current database."""
         if log is None:
             log = Logger(None)
-        if self.d:
+        if self.d is not None:
             self.d.close()
             self.d = None
         log(' Data stored in file %s.' % self.filename)
