@@ -149,7 +149,8 @@ class EstablishSSH(Thread):
 class SQLiteDB:
     """Replacement to shelve.
     Meant to mimic the same commands as shelve has so it is compatible with
-    Data class. Note this calls yet another class, SQD, below. This could
+    Data class. If sqlitedict is not available, it falls back to shelve.
+    Note this calls yet another class, SQD, below. This could
     be cleaned up a bit.
     """
     def __init__(self, maxretries=100, retrypause=10.0):
@@ -187,7 +188,7 @@ class SQLiteDB:
                                 raise
                         else:
                             success = True
-                def __setitem__(self, key):
+                def __getitem__(self, key):
                     tries = 0
                     success = False
                     while not success:
@@ -238,12 +239,6 @@ class Data:
     >>> keys = data.d.keys()
     >>> values = data.d.values()
     """
-
-    # FIXME/ap sqlitedict probably behaves the same, but supports
-    # multi-thread access.
-
-    # FIXME/ap even better may be mongodb, which is designed to hold
-    # json-like objects and looks like it is gaining popularity
 
     def __init__(self, filename, db=SQLiteDB(), calculator=None):
         self.calc = calculator

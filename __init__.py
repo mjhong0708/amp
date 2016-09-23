@@ -360,7 +360,13 @@ class Amp(Calculator, object):
                 import pexpect
                 log('pxssh (via pexpect v%s): %s' %
                     (pexpect.__version__, pxssh.__file__))
-
+        try:
+            import sqlitedict
+            log('sqlitedict v%s: %s' %
+                (sqlitedict.__version__, os.path.dirname(sqlitedict.__file__)))
+        except ImportError:
+            log('sqlitedict: Not available. Multi-process access to data '
+                '(fingerprints) may crash.')
         log('=' * 70)
 
 
