@@ -2,7 +2,7 @@ import numpy as np
 from numpy import cos, sqrt, exp
 from ase.data import atomic_numbers
 from ase.calculators.calculator import Parameters
-from ase.calculators.neighborlist import NeighborList
+from ase.neighborlist import NeighborList
 from ..utilities import Data, Logger
 from .cutoffs import Cosine, Polynomial
 

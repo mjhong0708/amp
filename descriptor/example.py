@@ -3,7 +3,7 @@ import numpy as np
 
 from ase.data import atomic_numbers
 from ase.calculators.calculator import Parameters
-from ase.calculators.neighborlist import NeighborList
+from ase.neighborlist import NeighborList
 from ..utilities import Data, Logger
 from .cutoffs import Cosine, Polynomial
 
