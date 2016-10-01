@@ -14,7 +14,6 @@ from ase.parallel import paropen
 from ase.db import connect
 import shelve
 from datetime import datetime
-from threading import Thread
 from getpass import getuser
 
 
@@ -117,30 +116,53 @@ def make_sublists(masterlist, n):
     return sublists
 
 
-class EstablishSSH(Thread):
+def establishSSH(process_ids, workerhostname, workercommand, log):
+    """A function to start a new SSH session. Starting via threads allows all
+    sessions to start simultaneously, rather than waiting on one another.
+    Access its created session with self.ssh.
+    """
+    print('Here')
+    pxssh = importer('pxssh')
+    ssh = pxssh.pxssh()
+    ssh.login(workerhostname, getuser())
+    for process_id in process_ids:
+        print(process_id)
+        ssh.sendline(workercommand % process_id)
+        ssh.expect('<amp-connect>')
+        ssh.expect('<stderr>')
+        log('  Session %i (%s): %s' %
+            (process_id, workerhostname, ssh.before.strip()))
+    return ssh
+
+
+class EstablishSSH:
 
     """A thread to start a new SSH session. Starting via threads allows all
     sessions to start simultaneously, rather than waiting on one another.
     Access its created session with self.ssh.
     """
+    #FIXME: Delete after function works correctly.
 
-    def __init__(self, process_id, workerhostname, workercommand, log):
-        self._process_id = process_id
+    def __init__(self, process_ids, workerhostname, workercommand, log):
+        self._process_ids = process_ids
         self._workerhostname = workerhostname
         self._workercommand = workercommand
         self._log = log
-        Thread.__init__(self)
 
     def run(self):
+        print('Here')
         pxssh = importer('pxssh')
         ssh = pxssh.pxssh()
         ssh.login(self._workerhostname, getuser())
-        ssh.sendline(self._workercommand % self._process_id)
-        ssh.expect('<amp-connect>')
-        ssh.expect('<stderr>')
-        self._log('  Session %i (%s): %s' %
-                  (self._process_id, self._workerhostname, ssh.before.strip()))
+        for process_id in self._process_ids:
+            print(process_id)
+            ssh.sendline(self._workercommand % process_id)
+            ssh.expect('<amp-connect>')
+            ssh.expect('<stderr>')
+            self._log('  Session %i (%s): %s' %
+                      (process_id, self._workerhostname, ssh.before.strip()))
         self.ssh = ssh
+        return ssh
 
 
 # Data and logging ###########################################################
@@ -288,43 +310,44 @@ class Data:
             serversocket = '%s:%s' % (serverhostname, port)
             log(' Established server at %s.' % serversocket)
 
-            workercommand = 'python -m %s %%s %s' % (module, serversocket)
+            workercommand = 'python -m %s %%s %s &' % (module, serversocket)
 
             # Create processes over SSH.
             # 'processes' contains links to the actual processes;
             # 'threads' is only used here to start all the SSH connections
             # simultaneously.
+            # FIXME: Change 'processes' to 'connections'.
             log(' Establishing worker sessions.')
-            processes = []
-            threads = []  # Only used to start processes.
+            connections = []
+            pid_count = 0
             for workerhostname, nprocesses in cores.iteritems():
-                for pid in range(len(threads), len(threads) + nprocesses):
-                    threads.append(EstablishSSH(pid,
+                pids = range(pid_count, pid_count + nprocesses)
+                pid_count += nprocesses
+                connections.append(establishSSH(pids,
                                                 workerhostname,
                                                 workercommand, log))
-            for thread in threads:
-                thread.start()
-                time.sleep(0.5)
-            for thread in threads:
-                thread.join()
-            for thread in threads:
-                processes.append(thread.ssh)
+            print(connections)
 
             # All incoming requests will be dictionaries with three keys.
             # d['id']: process id number, assigned when process created above.
             # d['subject']: what the message is asking for / telling you
             # d['data']: optional data passed from the worker.
 
-            keys = make_sublists(calcs_needed, len(processes))
+            keys = make_sublists(calcs_needed, pid_count)
             results = {}
 
             active = 0  # count of processes actively calculating
             log(' Parallel calculations starting...', tic='parallel')
             while True:
+                print('Awaiting new message.')
                 message = server.recv_pyobj()
+                print(' New message: ')
+                print(message)
                 if message['subject'] == '<purpose>':
+                    print('sending purpose')
                     server.send_pyobj(self.calc.parallel_command)
                     active += 1
+                    print('sent')
                 elif message['subject'] == '<request>':
                     request = message['data']  # Variable name.
                     if request == 'images':
