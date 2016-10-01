@@ -121,48 +121,16 @@ def establishSSH(process_ids, workerhostname, workercommand, log):
     sessions to start simultaneously, rather than waiting on one another.
     Access its created session with self.ssh.
     """
-    print('Here')
     pxssh = importer('pxssh')
     ssh = pxssh.pxssh()
     ssh.login(workerhostname, getuser())
     for process_id in process_ids:
-        print(process_id)
         ssh.sendline(workercommand % process_id)
         ssh.expect('<amp-connect>')
         ssh.expect('<stderr>')
         log('  Session %i (%s): %s' %
             (process_id, workerhostname, ssh.before.strip()))
     return ssh
-
-
-class EstablishSSH:
-
-    """A thread to start a new SSH session. Starting via threads allows all
-    sessions to start simultaneously, rather than waiting on one another.
-    Access its created session with self.ssh.
-    """
-    #FIXME: Delete after function works correctly.
-
-    def __init__(self, process_ids, workerhostname, workercommand, log):
-        self._process_ids = process_ids
-        self._workerhostname = workerhostname
-        self._workercommand = workercommand
-        self._log = log
-
-    def run(self):
-        print('Here')
-        pxssh = importer('pxssh')
-        ssh = pxssh.pxssh()
-        ssh.login(self._workerhostname, getuser())
-        for process_id in self._process_ids:
-            print(process_id)
-            ssh.sendline(self._workercommand % process_id)
-            ssh.expect('<amp-connect>')
-            ssh.expect('<stderr>')
-            self._log('  Session %i (%s): %s' %
-                      (process_id, self._workerhostname, ssh.before.strip()))
-        self.ssh = ssh
-        return ssh
 
 
 # Data and logging ###########################################################
@@ -317,6 +285,8 @@ class Data:
             # 'threads' is only used here to start all the SSH connections
             # simultaneously.
             # FIXME: Change 'processes' to 'connections'.
+            # FIXME: This code exists, basically in duplicate in model/__init
+            # can they be consolidated?
             log(' Establishing worker sessions.')
             connections = []
             pid_count = 0
@@ -326,7 +296,6 @@ class Data:
                 connections.append(establishSSH(pids,
                                                 workerhostname,
                                                 workercommand, log))
-            print(connections)
 
             # All incoming requests will be dictionaries with three keys.
             # d['id']: process id number, assigned when process created above.
@@ -339,15 +308,10 @@ class Data:
             active = 0  # count of processes actively calculating
             log(' Parallel calculations starting...', tic='parallel')
             while True:
-                print('Awaiting new message.')
                 message = server.recv_pyobj()
-                print(' New message: ')
-                print(message)
                 if message['subject'] == '<purpose>':
-                    print('sending purpose')
                     server.send_pyobj(self.calc.parallel_command)
                     active += 1
-                    print('sent')
                 elif message['subject'] == '<request>':
                     request = message['data']  # Variable name.
                     if request == 'images':
@@ -366,7 +330,6 @@ class Data:
                         (message['id'], len(result)))
                     results.update(result)
                 elif message['subject'] == '<info>':
-                    print('  %s' % message['data'])
                     server.send_string('meaningless reply')
                 if active == 0:
                     break
