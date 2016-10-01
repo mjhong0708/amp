@@ -214,13 +214,22 @@ class NeuralNetwork(Model):
         Takes one and only one input, a vector of parameters.
         Returns one output, the value of the loss (cost) function.
         """
-        if self.step % 100 == 0:
+        if self.step == 0:
+            self.parent.log('Saving initial parameters.')
+            filename = make_filename(self.parent.label,
+                                     '-initial-parameters.amp')
+            self.parent.save(filename, overwrite=False)
+        elif self.step % 100 == 0:
             self.parent.log('Saving checkpoint data.')
             filename = make_filename(self.parent.label,
                                      '-parameters-checkpoint.amp')
-            filename = self.parent.save(filename, overwrite=True)
+            self.parent.save(filename, overwrite=True)
+
+        loss = self.lossfunction.get_loss(vector, lossprime=False)['loss']
+        if hasattr(self, 'observer'):
+            self.observer(self, vector, loss)
         self.step += 1
-        return self.lossfunction.get_loss(vector, lossprime=False)['loss']
+        return loss
 
     def get_lossprime(self, vector):
         """
