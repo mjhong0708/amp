@@ -2,7 +2,7 @@
 import numpy as np
 from ase.calculators.calculator import Parameters
 from ..utilities import (Logger, ConvergenceOccurred, make_sublists, now,
-                         importer, establishSSH)
+                         importer, start_workers)
 try:
     from .. import fmodules
 except ImportError:
@@ -258,38 +258,12 @@ class LossFunction:
             self.images = self._model.trainingparameters.trainingimages
 
         if self._cores != 1:  # Initialize workers.
-            import zmq
-            from socket import gethostname
-            from getpass import getuser
-            pxssh = importer('pxssh')
-            log(' Parallel processing.')
-            context = zmq.Context()
-            server = context.socket(zmq.REP)
-            serverport = server.bind_to_random_port('tcp://*')
-            serversocket = '%s:%s' % (gethostname(), serverport)
-            log('  Established server at %s' % serversocket)
-
-            module = self.__module__
-            workercommand = ('python -m %s %%s %s &' %
-                             (module, serversocket))
-
-            # Create processes over SSH.
-            # 'processes' contains links to the actual processes;
-            # 'threads' is only used here to start all the SSH connections
-            # simultaneously.
-            log(' Establishing worker sessions.')
-            connections = []
-            pid_count = 0
-            for workerhostname, nprocesses in self._cores.iteritems():
-                pids = range(pid_count, pid_count + nprocesses)
-                pid_count += nprocesses
-                connections.append(establishSSH(pids,
-                                                workerhostname,
-                                                workercommand, log))
-
+            workercommand = 'python -m %s' % self.__module__
+            server, connections, n_pids = start_workers(self._cores,
+                                                        workercommand, log)
             self._sessions = {'master': server,
-                              'connections': connections, # node SSH connections
-                              'n_pids': pid_count} # total no. of workers
+                              'connections': connections,  # SSH's/nodes
+                              'n_pids': n_pids}  # total no. of workers
 
         if self.log_losses:
             p = self.parameters
@@ -394,7 +368,7 @@ class LossFunction:
 
     def _cleanup(self):
         """Closes SSH sessions."""
-        #FIXME/ap: I don't think this is done in the utilities/Data
+        # FIXME/ap: I don't think this is done in the utilities/Data
         # routines. Does it need to be done here? If so, does it need
         # to be done there? I think that when the ssh item is destroyed
         # it automatically closes the connection. It may not properly
@@ -486,7 +460,9 @@ class LossFunction:
                     raise ConvergenceOccurred()
 
         return {'loss': self.loss,
-                'dloss_dparameters': self.dloss_dparameters if lossprime is True else dloss_dparameters,
+                'dloss_dparameters': (self.dloss_dparameters
+                                      if lossprime is True
+                                      else dloss_dparameters),
                 'energy_loss': self.energy_loss,
                 'force_loss': self.force_loss,
                 'energy_maxresid': self.energy_maxresid,
@@ -627,8 +603,8 @@ class LossFunction:
                                        keys[int(message['id'])]})
                 elif request == 'fingerprintprimes':
                     if self.fingerprintprimes is not None:
-                        server.send_pyobj({k: self.fingerprintprimes[k] for k in
-                                           keys[int(message['id'])]})
+                        server.send_pyobj({k: self.fingerprintprimes[k] for k
+                                           in keys[int(message['id'])]})
                     else:
                         server.send_pyobj(None)
                 elif request == 'args':
@@ -682,7 +658,8 @@ class LossFunction:
                     force_maxresid_converged = False
 
             if self.log_losses:
-                log('%5i %19s %12.4e %10.4e %1s %10.4e %1s %10.4e %1s %10.4e %1s' %
+                log('%5i %19s %12.4e %10.4e %1s'
+                    ' %10.4e %1s %10.4e %1s %10.4e %1s' %
                     (self._step, now(), loss, energy_rmse,
                      'C' if energy_rmse_converged else '',
                      energy_maxresid,
