@@ -378,16 +378,14 @@ class LossFunction:
             return
         server = self._sessions['master']
 
-        def process_parallels():
-            finished = np.array([False] * self._sessions['n_pids'])
-            while not finished.all():
-                message = server.recv_pyobj()
-                if (message['subject'] == '<request>' and
-                        message['data'] == 'parameters'):
-                    server.send_pyobj('<stop>')
-                    finished[int(message['id'])] = True
+        finished = np.array([False] * self._sessions['n_pids'])
+        while not finished.all():
+            message = server.recv_pyobj()
+            if (message['subject'] == '<request>' and
+                    message['data'] == 'parameters'):
+                server.send_pyobj('<stop>')
+                finished[int(message['id'])] = True
 
-        process_parallels()
         for _ in self._sessions['connections']:
             _.logout()
         del self._sessions['connections']
