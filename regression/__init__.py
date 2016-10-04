@@ -10,6 +10,13 @@ class Regressor:
     Global optimization conditioners (e.g., simulated annealing, etc.) can
     be built into this class.
 
+    :param optimizer: Either of the scipy optimizers 'L-BFGS-B', 'BFGS', 'TNC',
+                      or 'NCG'.
+    :type optimizer: str
+
+    :param optimizer_kwargs: Optional keywords for the corresponding optimizer.
+    :type optimizer_kwargs: dict
+
     :param lossprime: Decides whether or not the regressor needs to be fed in
                       by gradient of the loss function as well as the loss
                       function itself.
@@ -56,6 +63,12 @@ class Regressor:
         which should return the current value of the loss function
         until convergence has been reached, at which point it should
         raise a amp.utilities.ConvergenceException.
+
+        :param model: Class representing the regression model.
+        :type model: object
+
+        :param log: Name of script to log progress.
+        :type log: str
         """
         # FIXME/ap Optimizer also has space for fprime; needs
         # to be implemented. Especially important not to

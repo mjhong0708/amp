@@ -51,6 +51,9 @@ class Zernike(object):
     :param version: Version of fingerprints.
     :type version: str
 
+    :param mode: Can be either 'atom-centered' or 'image-centered'.
+    :type mode: str
+
     :param fortran: If True, will use fortran modules, if False, will not.
     :type fortran: bool
 
@@ -108,7 +111,31 @@ class Zernike(object):
     def calculate_fingerprints(self, images, cores=1, fortran=None,
                                log=None, calculate_derivatives=False):
         """Calculates the fingerpints of the images, for the ones not already
-        done."""
+        done.
+
+        :param images: List of ASE atoms objects with positions, symbols,
+                       energies, and forces in ASE format. This is the training
+                       set of data. This can also be the path to an ASE
+                       trajectory (.traj) or database (.db) file. Energies can
+                       be obtained from any reference, e.g. DFT calculations.
+        :type images: list or str
+
+        :param cores: Number of cores to parallelize over. If not specified,
+                      attempts to determine from environment.
+        :type cores: int
+
+        :param fortran: If True, allows for extrapolation, if False, does not
+                        allow.
+        :type fortran: bool
+
+        :param log: Write function at which to log data. Note this must be a
+                    callable function.
+        :type log: Logger object
+
+        :param calculate_derivatives: Decides whether or not fingerprintprimes
+                                      should also be calculated.
+        :type calculate_derivatives: bool
+        """
         if fortran is None:
             fortran = self.fortran
         log = Logger(file=None) if log is None else log
@@ -217,6 +244,9 @@ class NeighborlistCalculator:
     """For integration with .utilities.Data
     For each image fed to calculate, a list of neighbors with offset
     distances is returned.
+
+    :param cutoff: Radius above which neighbor interactions are ignored.
+    :type cutoff: float
     """
 
     def __init__(self, cutoff):
@@ -225,6 +255,16 @@ class NeighborlistCalculator:
         self.parallel_command = 'calculate_neighborlists'
 
     def calculate(self, image, key):
+        """For integration with .utilities.Data
+        For each image fed to calculate, a list of neighbors with offset
+        distances is returned.
+
+        :param image: ASE atoms object.
+        :type image: object
+
+        :param key: key of the image after being hashed.
+        :type key: str
+        """
         cutoff = self.globals.cutoff
         n = NeighborList(cutoffs=[cutoff / 2.] * len(image),
                          self_interaction=False,
@@ -259,6 +299,12 @@ class FingerprintCalculator:
 
     def calculate(self, image, key):
         """Makes a list of fingerprints, one per atom, for the fed image.
+
+        :param image: ASE atoms object.
+        :type image: object
+
+        :param key: key of the image after being hashed.
+        :type key: str
         """
         nl = self.keyed.neighborlist[key]
         fingerprints = []
@@ -399,7 +445,14 @@ class FingerprintPrimeCalculator:
 
     def calculate(self, image, key):
         """Makes a list of fingerprint derivatives, one per atom,
-        for the fed image."""
+        for the fed image.
+
+        :param image: ASE atoms object.
+        :type image: object
+
+        :param key: key of the image after being hashed.
+        :type key: str
+        """
         self.atoms = image
         nl = self.keyed.neighborlist[key]
         fingerprintprimes = {}

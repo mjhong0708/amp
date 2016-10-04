@@ -42,12 +42,11 @@ class Amp(Calculator, object):
     :param descriptor: Class representing local atomic environment.
     :type descriptor: object
 
-    :param regression: Class representing the regression method. Can be only
-                       NeuralNetwork for now. Input arguments for NeuralNetwork
-                       are hiddenlayers, activation, weights, and scalings; for
-                       more information see docstring for the class
-                       NeuralNetwork.
-    :type regression: object
+    :param model: Class representing the regression model. Can be only
+                  NeuralNetwork for now. Input arguments for NeuralNetwork
+                  are hiddenlayers, activation, weights, and scalings; for
+                  more information see docstring for the class NeuralNetwork.
+    :type model: object
 
     :param label: Default prefix/location used for all files.
     :type label: str
@@ -64,7 +63,9 @@ class Amp(Calculator, object):
                   if None, will determine from environment
     :type cores: int
 
-    :raises: RuntimeError.
+    :param atoms: ASE atoms objects with positions, symbols, energy,
+                  and forces in ASE format.
+    :type atoms: object
     """
     implemented_properties = ['energy', 'forces']
 
@@ -88,6 +89,11 @@ class Amp(Calculator, object):
 
     @cores.setter
     def cores(self, cores):
+        """
+        :param cores: Number of cores to parallelize over. If not specified,
+                      attempts to determine from environment.
+        :type cores: int
+        """
         self._cores = assign_cores(cores, log=self.log)
 
     @property
@@ -96,6 +102,10 @@ class Amp(Calculator, object):
 
     @descriptor.setter
     def descriptor(self, descriptor):
+        """
+        :param descriptor: Class representing local atomic environment.
+        :type descriptor: object
+        """
         descriptor.parent = self  # gives the descriptor object a reference to
         # the main Amp instance. Then descriptor can pull parameters directly
         # from Amp without needing them to be passed in each method call.
@@ -108,6 +118,10 @@ class Amp(Calculator, object):
 
     @model.setter
     def model(self, model):
+        """
+        :param model: Class representing the regression model.
+        :type model: object
+        """
         model.parent = self  # gives the model object a reference to the main
         # Amp instance. Then model can pull parameters directly from Amp
         # without needing them to be passed in each method call.
@@ -125,6 +139,15 @@ class Amp(Calculator, object):
 
         Any additional keyword arguments (such as label or dblabel) can be
         fed through to Amp.
+
+        :param file: Name of the file to load data from.
+        :type file: str
+
+        :param Descriptor: Class representing local atomic environment.
+        :type Descriptor: object
+
+        :param Model: Class representing the regression model.
+        :type Model: object
         """
         if hasattr(file, 'read'):
             text = file.read()
@@ -234,9 +257,13 @@ class Amp(Calculator, object):
                        be obtained from any reference, e.g. DFT calculations.
         :type images: list or str
 
-        :param overwrite: If a trained output file with the same name exists,
+        :param overwrite: If an output file with the same name exists,
                           overwrite it.
         :type overwrite: bool
+
+        :param train_forces: Determining whether forces are also trained or
+                             not.
+        :type train_forces: bool
         """
 
         log = self.log
@@ -279,7 +306,15 @@ class Amp(Calculator, object):
 
     def save(self, filename, overwrite=False):
         """Saves the calculator in way that it can be re-opened with
-        load."""
+        load.
+
+        :param filename: File object or path to the file to write to.
+        :type filename: str
+
+        :param overwrite: If an output file with the same name exists,
+                          overwrite it.
+        :type overwrite: bool
+        """
         if os.path.exists(filename):
             if overwrite is False:
                 oldfilename = filename
