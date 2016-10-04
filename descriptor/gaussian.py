@@ -976,13 +976,27 @@ if __name__ == "__main__":
     sys.stderr = tempfile.NamedTemporaryFile(mode='w', delete=False,
                                              suffix='.stderr')
     print('stderr written to %s<stderr>' % sys.stderr.name)
+    sys.stderr.write('initiated\n')
+    sys.stderr.flush()
 
     # Establish client session via zmq; find purpose.
     context = zmq.Context()
+    sys.stderr.write('context started\n')
+    sys.stderr.flush()
     socket = context.socket(zmq.REQ)
+    sys.stderr.write('socket started\n')
+    sys.stderr.flush()
     socket.connect('tcp://%s' % hostsocket)
+    sys.stderr.write('connection made\n')
+    sys.stderr.flush()
     socket.send_pyobj(msg('<purpose>'))
+    sys.stderr.write('message sent\n')
+    sys.stderr.flush()
     purpose = socket.recv_pyobj()
+    sys.stderr.write('purpose received\n')
+    sys.stderr.flush()
+    sys.stderr.write('purpose: %s \n' % purpose)
+    sys.stderr.flush()
 
     if purpose == 'calculate_neighborlists':
         # Request variables.

@@ -2,7 +2,7 @@
 import numpy as np
 from ase.calculators.calculator import Parameters
 from ..utilities import (Logger, ConvergenceOccurred, make_sublists, now,
-                         importer, EstablishSSH)
+                         setup_parallel)
 try:
     from .. import fmodules
 except ImportError:
@@ -258,42 +258,12 @@ class LossFunction:
             self.images = self._model.trainingparameters.trainingimages
 
         if self._cores != 1:  # Initialize workers.
-            import zmq
-            from socket import gethostname
-            from getpass import getuser
-            pxssh = importer('pxssh')
-            log(' Parallel processing.')
-            context = zmq.Context()
-            server = context.socket(zmq.REP)
-            serverport = server.bind_to_random_port('tcp://*')
-            serversocket = '%s:%s' % (gethostname(), serverport)
-            log('  Established server at %s' % serversocket)
-
-            module = self.__module__
-            workercommand = ('python -m %s %%s %s' %
-                             (module, serversocket))
-
-            # Create processes over SSH.
-            # 'processes' contains links to the actual processes;
-            # 'threads' is only used here to start all the SSH connections
-            # simultaneously.
-            log(' Establishing worker sessions.')
-            processes = []
-            threads = []  # Only used to start processes.
-            for workerhostname, nprocesses in self._cores.iteritems():
-                for pid in range(len(threads), len(threads) + nprocesses):
-                    threads.append(EstablishSSH(pid,
-                                                workerhostname,
-                                                workercommand, log))
-            for thread in threads:
-                thread.start()
-            for thread in threads:
-                thread.join()
-            for thread in threads:
-                processes.append(thread.ssh)
-
+            workercommand = 'python -m %s' % self.__module__
+            server, connections, n_pids = setup_parallel(self._cores,
+                                                         workercommand, log)
             self._sessions = {'master': server,
-                              'workers': processes}
+                              'connections': connections,  # SSH's/nodes
+                              'n_pids': n_pids}  # total no. of workers
 
         if self.log_losses:
             p = self.parameters
@@ -398,13 +368,18 @@ class LossFunction:
 
     def _cleanup(self):
         """Closes SSH sessions."""
+        # FIXME/ap: I don't think this is done in the utilities/Data
+        # routines. Does it need to be done here? If so, does it need
+        # to be done there? I think that when the ssh item is destroyed
+        # it automatically closes the connection. It may not properly
+        # log out, but I'm not sure that's a problem.
         self._initialized = False
         if not hasattr(self, '_sessions'):
             return
         server = self._sessions['master']
 
         def process_parallels():
-            finished = np.array([False] * len(self._sessions['workers']))
+            finished = np.array([False] * self._sessions['n_pids'])
             while not finished.all():
                 message = server.recv_pyobj()
                 if (message['subject'] == '<request>' and
@@ -413,9 +388,9 @@ class LossFunction:
                     finished[int(message['id'])] = True
 
         process_parallels()
-        for _ in self._sessions['workers']:
+        for _ in self._sessions['connections']:
             _.logout()
-        del self._sessions['workers']
+        del self._sessions['connections']
 
     def get_loss(self, parametervector, lossprime):
         """Returns the current value of the loss function for a given set of
@@ -442,17 +417,17 @@ class LossFunction:
                                         lossprime=lossprime)
         else:
             server = self._sessions['master']
-            processes = self._sessions['workers']
+            n_pids = self._sessions['n_pids']
 
             # Subdivide tasks.
-            keys = make_sublists(self.images.keys(), len(processes))
+            keys = make_sublists(self.images.keys(), n_pids)
 
             args = {'lossprime': lossprime,
                     'd': self.d}
 
             results = self.process_parallels(parametervector,
                                              server,
-                                             processes,
+                                             n_pids,
                                              keys,
                                              args=args)
             loss = results['loss']
@@ -485,7 +460,9 @@ class LossFunction:
                     raise ConvergenceOccurred()
 
         return {'loss': self.loss,
-                'dloss_dparameters': self.dloss_dparameters if lossprime is True else dloss_dparameters,
+                'dloss_dparameters': (self.dloss_dparameters
+                                      if lossprime is True
+                                      else dloss_dparameters),
                 'energy_loss': self.energy_loss,
                 'force_loss': self.force_loss,
                 'energy_maxresid': self.energy_maxresid,
@@ -596,9 +573,9 @@ class LossFunction:
     # d['subject']: what the message is asking for / telling you.
     # d['data']: optional data passed from worker.
 
-    def process_parallels(self, vector, server, processes, keys, args):
+    def process_parallels(self, vector, server, n_pids, keys, args):
         # For each process
-        finished = np.array([False] * len(processes))
+        finished = np.array([False] * n_pids)
         results = {'loss': 0.,
                    'dloss_dparameters': [0.] * len(vector),
                    'energy_loss': 0.,
@@ -626,8 +603,8 @@ class LossFunction:
                                        keys[int(message['id'])]})
                 elif request == 'fingerprintprimes':
                     if self.fingerprintprimes is not None:
-                        server.send_pyobj({k: self.fingerprintprimes[k] for k in
-                                           keys[int(message['id'])]})
+                        server.send_pyobj({k: self.fingerprintprimes[k] for k
+                                           in keys[int(message['id'])]})
                     else:
                         server.send_pyobj(None)
                 elif request == 'args':
@@ -681,7 +658,8 @@ class LossFunction:
                     force_maxresid_converged = False
 
             if self.log_losses:
-                log('%5i %19s %12.4e %10.4e %1s %10.4e %1s %10.4e %1s %10.4e %1s' %
+                log('%5i %19s %12.4e %10.4e %1s'
+                    ' %10.4e %1s %10.4e %1s %10.4e %1s' %
                     (self._step, now(), loss, energy_rmse,
                      'C' if energy_rmse_converged else '',
                      energy_maxresid,

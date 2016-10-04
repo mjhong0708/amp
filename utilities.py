@@ -14,7 +14,6 @@ from ase.parallel import paropen
 from ase.db import connect
 import shelve
 from datetime import datetime
-from threading import Thread
 from getpass import getuser
 
 
@@ -117,30 +116,73 @@ def make_sublists(masterlist, n):
     return sublists
 
 
-class EstablishSSH(Thread):
+def setup_parallel(cores, workercommand, log):
+    """Starts the worker processes and the master to control them.
+    This makes an SSH connection to each node (including the one the master
+    process runs on), then creates the specified number of processes on each
+    node through its SSH connection. Then sets up ZMQ for efficienty
+    communication between the worker processes and the master process.
 
-    """A thread to start a new SSH session. Starting via threads allows all
+    Uses the cores dictionary. log is an Amp logger.
+    module is the name of the module to be called, which is usually
+    given by self.calc.__module, etc.
+    workercommand is stub of the command used to start the servers,
+    typically like "python -m amp.descriptor.gaussian". Appended to
+    this will be " <pid> <serversocket> &" where <pid> is the unique ID
+    assigned to each process and <serversocket> is the address of the
+    server, like 'node321:34292'.
+
+    Returns:
+        the server (a ZMQ socket)
+        the ssh connections (pxssh instances; if these objects are destroyed
+           pxssh will close the sessions)
+        the pid_count, which is the total number of workers started. Each
+           worker can be communicated directly through its PID, an integer
+           between 0 and pid_count
+    """
+    import zmq
+    from socket import gethostname
+
+    log(' Parallel processing.')
+    serverhostname = gethostname()
+
+    # Establish server session.
+    context = zmq.Context()
+    server = context.socket(zmq.REP)
+    port = server.bind_to_random_port('tcp://*')
+    serversocket = '%s:%s' % (serverhostname, port)
+    log(' Established server at %s.' % serversocket)
+
+    workercommand += ' %s ' + serversocket + ' &'
+
+    log(' Establishing worker sessions.')
+    connections = []
+    pid_count = 0
+    for workerhostname, nprocesses in cores.iteritems():
+        pids = range(pid_count, pid_count + nprocesses)
+        pid_count += nprocesses
+        connections.append(start_workers(pids,
+                                         workerhostname,
+                                         workercommand, log))
+
+    return server, connections, pid_count
+
+
+def start_workers(process_ids, workerhostname, workercommand, log):
+    """A function to start a new SSH session. Starting via threads allows all
     sessions to start simultaneously, rather than waiting on one another.
     Access its created session with self.ssh.
     """
-
-    def __init__(self, process_id, workerhostname, workercommand, log):
-        self._process_id = process_id
-        self._workerhostname = workerhostname
-        self._workercommand = workercommand
-        self._log = log
-        Thread.__init__(self)
-
-    def run(self):
-        pxssh = importer('pxssh')
-        ssh = pxssh.pxssh()
-        ssh.login(self._workerhostname, getuser())
-        ssh.sendline(self._workercommand % self._process_id)
+    pxssh = importer('pxssh')
+    ssh = pxssh.pxssh()
+    ssh.login(workerhostname, getuser())
+    for process_id in process_ids:
+        ssh.sendline(workercommand % process_id)
         ssh.expect('<amp-connect>')
         ssh.expect('<stderr>')
-        self._log('  Session %i (%s): %s' %
-                  (self._process_id, self._workerhostname, ssh.before.strip()))
-        self.ssh = ssh
+        log('  Session %i (%s): %s' %
+            (process_id, workerhostname, ssh.before.strip()))
+    return ssh
 
 
 # Data and logging ###########################################################
@@ -168,13 +210,15 @@ class SQLiteDB:
         else:
             from sqlitedict import SqliteDict
             from sqlite3 import OperationalError
-            #self.d = SqliteDict(filename, autocommit=True)
+            # self.d = SqliteDict(filename, autocommit=True)
+
             class SQD(SqliteDict):
                 def __init__(self, filename, autocommit,
                              maxretries, retrypause):
                     self.maxretries = maxretries
                     self.retrypause = retrypause
                     SqliteDict.__init__(self, filename, autocommit=autocommit)
+
                 def __setitem__(self, key, value):
                     tries = 0
                     success = False
@@ -188,6 +232,7 @@ class SQLiteDB:
                                 raise
                         else:
                             success = True
+
                 def __getitem__(self, key):
                     tries = 0
                     success = False
@@ -201,6 +246,7 @@ class SQLiteDB:
                                 raise
                         else:
                             success = True
+
                 def close(self):
                     tries = 0
                     success = False
@@ -216,7 +262,8 @@ class SQLiteDB:
                             success = True
 
             self.d = SQD(filename, autocommit=True,
-                         maxretries=self.maxretries, retrypause=self.retrypause)
+                         maxretries=self.maxretries,
+                         retrypause=self.retrypause)
 
         return self.d
 
@@ -272,51 +319,20 @@ class Data:
             d.close()  # Necessary to get out of write mode and unlock?
             log(' Calculated %i new images.' % len(calcs_needed))
         else:
-            import zmq
-            from socket import gethostname
-            pxssh = importer('pxssh')
-            log(' Parallel processing.')
-            module = self.calc.__module__
+            workercommand = 'python -m %s' % self.calc.__module__
+            server, connections, n_pids = setup_parallel(cores, workercommand,
+                                                         log)
+
             globals = self.calc.globals
             keyed = self.calc.keyed
-            serverhostname = gethostname()
 
-            # Establish server session.
-            context = zmq.Context()
-            server = context.socket(zmq.REP)
-            port = server.bind_to_random_port('tcp://*')
-            serversocket = '%s:%s' % (serverhostname, port)
-            log(' Established server at %s.' % serversocket)
-
-            workercommand = 'python -m %s %%s %s' % (module, serversocket)
-
-            # Create processes over SSH.
-            # 'processes' contains links to the actual processes;
-            # 'threads' is only used here to start all the SSH connections
-            # simultaneously.
-            log(' Establishing worker sessions.')
-            processes = []
-            threads = []  # Only used to start processes.
-            for workerhostname, nprocesses in cores.iteritems():
-                for pid in range(len(threads), len(threads) + nprocesses):
-                    threads.append(EstablishSSH(pid,
-                                                workerhostname,
-                                                workercommand, log))
-            for thread in threads:
-                thread.start()
-                time.sleep(0.5)
-            for thread in threads:
-                thread.join()
-            for thread in threads:
-                processes.append(thread.ssh)
+            keys = make_sublists(calcs_needed, n_pids)
+            results = {}
 
             # All incoming requests will be dictionaries with three keys.
             # d['id']: process id number, assigned when process created above.
             # d['subject']: what the message is asking for / telling you
             # d['data']: optional data passed from the worker.
-
-            keys = make_sublists(calcs_needed, len(processes))
-            results = {}
 
             active = 0  # count of processes actively calculating
             log(' Parallel calculations starting...', tic='parallel')
@@ -343,7 +359,6 @@ class Data:
                         (message['id'], len(result)))
                     results.update(result)
                 elif message['subject'] == '<info>':
-                    print('  %s' % message['data'])
                     server.send_string('meaningless reply')
                 if active == 0:
                     break
