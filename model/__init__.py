@@ -2,7 +2,7 @@
 import numpy as np
 from ase.calculators.calculator import Parameters
 from ..utilities import (Logger, ConvergenceOccurred, make_sublists, now,
-                         importer, start_workers)
+                         setup_parallel)
 try:
     from .. import fmodules
 except ImportError:
@@ -259,8 +259,8 @@ class LossFunction:
 
         if self._cores != 1:  # Initialize workers.
             workercommand = 'python -m %s' % self.__module__
-            server, connections, n_pids = start_workers(self._cores,
-                                                        workercommand, log)
+            server, connections, n_pids = setup_parallel(self._cores,
+                                                         workercommand, log)
             self._sessions = {'master': server,
                               'connections': connections,  # SSH's/nodes
                               'n_pids': n_pids}  # total no. of workers

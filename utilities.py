@@ -116,7 +116,7 @@ def make_sublists(masterlist, n):
     return sublists
 
 
-def start_workers(cores, workercommand, log):
+def setup_parallel(cores, workercommand, log):
     """Starts the worker processes and the master to control them.
     This makes an SSH connection to each node (including the one the master
     process runs on), then creates the specified number of processes on each
@@ -142,10 +142,8 @@ def start_workers(cores, workercommand, log):
     """
     import zmq
     from socket import gethostname
-    pxssh = importer('pxssh')
 
     log(' Parallel processing.')
-    #module = self.calc.__module__
     serverhostname = gethostname()
 
     # Establish server session.
@@ -163,14 +161,14 @@ def start_workers(cores, workercommand, log):
     for workerhostname, nprocesses in cores.iteritems():
         pids = range(pid_count, pid_count + nprocesses)
         pid_count += nprocesses
-        connections.append(establishSSH(pids,
-                                        workerhostname,
-                                        workercommand, log))
+        connections.append(start_workers(pids,
+                                         workerhostname,
+                                         workercommand, log))
 
     return server, connections, pid_count
 
 
-def establishSSH(process_ids, workerhostname, workercommand, log):
+def start_workers(process_ids, workerhostname, workercommand, log):
     """A function to start a new SSH session. Starting via threads allows all
     sessions to start simultaneously, rather than waiting on one another.
     Access its created session with self.ssh.
@@ -185,7 +183,6 @@ def establishSSH(process_ids, workerhostname, workercommand, log):
         log('  Session %i (%s): %s' %
             (process_id, workerhostname, ssh.before.strip()))
     return ssh
-
 
 
 # Data and logging ###########################################################
@@ -323,7 +320,8 @@ class Data:
             log(' Calculated %i new images.' % len(calcs_needed))
         else:
             workercommand = 'python -m %s' % self.calc.__module__
-            server, connections, n_pids = start_workers(cores, workercommand, log)
+            server, connections, n_pids = setup_parallel(cores, workercommand,
+                                                         log)
 
             globals = self.calc.globals
             keyed = self.calc.keyed
