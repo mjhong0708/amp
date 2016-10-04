@@ -27,6 +27,11 @@ class Model(object):
 
     @log.setter
     def log(self, log):
+        """
+        :param log: Write function at which to log data. Note this must be a
+                    callable function.
+        :type log: Logger object
+        """
         self._log = log
 
     def tostring(self):
@@ -37,6 +42,10 @@ class Model(object):
     def get_energy(self, fingerprints):
         """Returns the model-predicted energy for an image, based on its
         fingerprint.
+
+        :param fingerprints: Dictionary with images hashs as keys and the
+                             corresponding fingerprints as values.
+        :type fingerprints: dict
         """
 
         if self.parameters.mode == 'image-centered':
@@ -53,6 +62,15 @@ class Model(object):
     def get_forces(self, fingerprints, fingerprintprimes):
         """Returns the model-predicted forces for an image, based on
         derivatives of fingerprints.
+
+        :param fingerprints: Dictionary with images hashs as keys and the
+                             corresponding fingerprints as values.
+        :type fingerprints: dict
+
+        :param fingerprintprimes: Dictionary with images hashs as keys and the
+                                  corresponding fingerprint derivatives as
+                                  values.
+        :type fingerprintprimes: dict
         """
 
         if self.parameters.mode == 'image-centered':
@@ -74,6 +92,10 @@ class Model(object):
     def get_dEnergy_dParameters(self, fingerprints):
         """Returns a list of floats corresponding to the derivative of
         model-predicted energy of an image with respect to model parameters.
+
+        :param fingerprints: Dictionary with images hashs as keys and the
+                             corresponding fingerprints as values.
+        :type fingerprints: dict
         """
 
         if self.parameters.mode == 'image-centered':
@@ -94,6 +116,13 @@ class Model(object):
         """Evaluates dEnergy_dParameters using finite difference. This will
         trigger two calls to get_energy(), with each parameter perturbed
         plus/minus d.
+
+        :param fingerprints: Dictionary with images hashs as keys and the
+                             corresponding fingerprints as values.
+        :type fingerprints: dict
+
+        :param d: The amount of perturbation in each parameter.
+        :type d: float
         """
 
         if self.parameters.mode == 'image-centered':
@@ -118,6 +147,15 @@ class Model(object):
         """Returns an array of floats corresponding to the derivative of
         model-predicted atomic forces of an image with respect to model
         parameters.
+
+        :param fingerprints: Dictionary with images hashs as keys and the
+                             corresponding fingerprints as values.
+        :type fingerprints: dict
+
+        :param fingerprintprimes: Dictionary with images hashs as keys and the
+                                  corresponding fingerprint derivatives as
+                                  values.
+        :type fingerprintprimes: dict
         """
 
         if self.parameters.mode == 'image-centered':
@@ -146,6 +184,18 @@ class Model(object):
         """Evaluates dForces_dParameters using finite difference. This will
         trigger two calls to get_forces(), with each parameter perturbed
         plus/minus d.
+
+        :param fingerprints: Dictionary with images hashs as keys and the
+                             corresponding fingerprints as values.
+        :type fingerprints: dict
+
+        :param fingerprintprimes: Dictionary with images hashs as keys and the
+                                  corresponding fingerprint derivatives as
+                                  values.
+        :type fingerprintprimes: dict
+
+        :param d: The amount of perturbation in each parameter.
+        :type d: float
         """
 
         if self.parameters.mode == 'image-centered':
@@ -179,7 +229,7 @@ class Model(object):
 
 class LossFunction:
 
-    """Basic cost function, which can be used by the model.get_cost_function
+    """Basic loss function, which can be used by the model.get_loss_function
     method which is required in standard model classes.
     This version is pure python and thus will be slow compared to a
     fortran/parallel implementation.
@@ -191,6 +241,34 @@ class LossFunction:
 
     See self.default_parameters for the default values of parameters
     specified as None.
+
+    :param energy_coefficient: Coefficient of the energy contribution in the
+                              loss function.
+    :type energy_coefficient: float
+
+    :param force_coefficient: Coefficient of the force contribution in the
+                              loss function.
+    :type force_coefficient: float
+
+    :param convergence: Dictionary of keys and values defining convergence.
+                        Keys are 'energy_rmse', 'energy_maxresid',
+                        'force_rmse', and 'force_maxresid'.
+    :type convergence: dict
+
+    :param cores: Can specify cores to use for parallel training;
+                  if None, will determine from environment
+    :type cores: int
+
+    :param overfit: Multiplier of the weights norm penalty term in the loss
+                    function.
+    :type overfit: float
+
+    :param raise_ConvergenceOccurred: If True will raise convergence notice.
+    :type raise_ConvergenceOccurred: bool
+
+    :param log_losses: If True will log the loss function value in the log file
+                       else will not.
+    :type log_losses: bool
 
     :param d: If d is None, both loss function and its gradient are calculated
               analytically. If d is a float, then gradient of the loss function
@@ -229,7 +307,27 @@ class LossFunction:
                      fingerprintprimes=None, images=None):
         """Attach the model to be used to the loss function. fingerprints and
         training images need not be supplied if they are already attached to
-        the model via model.trainingparameters."""
+        the model via model.trainingparameters.
+
+        :param model: Class representing the regression model.
+        :type model: object
+
+        :param fingerprints: Dictionary with images hashs as keys and the
+                             corresponding fingerprints as values.
+        :type fingerprints: dict
+
+        :param fingerprintprimes: Dictionary with images hashs as keys and the
+                                  corresponding fingerprint derivatives as
+                                  values.
+        :type fingerprintprimes: dict
+
+        :param images: List of ASE atoms objects with positions, symbols,
+                       energies, and forces in ASE format. This is the training
+                       set of data. This can also be the path to an ASE
+                       trajectory (.traj) or database (.db) file. Energies can
+                       be obtained from any reference, e.g. DFT calculations.
+        :type images: list or str
+        """
         self._model = model
         self.fingerprints = fingerprints
         self.fingerprintprimes = fingerprintprimes
@@ -394,6 +492,14 @@ class LossFunction:
         """Returns the current value of the loss function for a given set of
         parameters, or, if the energy is less than the energy_tol raises a
         ConvergenceException.
+
+        :param parametervector: Parameters of the regression model in the form
+                                of a list.
+        :type parametervector: list
+
+        :param lossprime: If True, will calculate and return dloss_dparameters,
+                          else will only return zero for dloss_dparameters.
+        :type lossprime: bool
         """
 
         self._initialize()
@@ -469,6 +575,14 @@ class LossFunction:
     def calculate_loss(self, parametervector, lossprime):
         """Method that calculates the loss, derivative of the loss with respect
         to parameters (if requested), and max_residual.
+
+        :param parametervector: Parameters of the regression model in the form
+                                of a list.
+        :type parametervector: list
+
+        :param lossprime: If True, will calculate and return dloss_dparameters,
+                          else will only return zero for dloss_dparameters.
+        :type lossprime: bool
         """
         self._model.vector = parametervector
         p = self.parameters
@@ -572,6 +686,24 @@ class LossFunction:
     # d['data']: optional data passed from worker.
 
     def process_parallels(self, vector, server, n_pids, keys, args):
+        """
+        :param vector: Parameters of the regression model in the form of a
+                       list.
+        :type vector: list
+
+        :param server: Master session of parallel processing.
+        :type server: object
+
+        :param processes: Worker sessions for parallel processing.
+        :type processes: list of objects
+
+        :param keys: List of images keys for worker processes.
+        :type keys: list
+
+        :param args: Dictionary containing arguments of the method to be called
+                     on each worker process.
+        :type args: dict
+        """
         # For each process
         finished = np.array([False] * n_pids)
         results = {'loss': 0.,
@@ -632,7 +764,25 @@ class LossFunction:
     def check_convergence(self, loss, energy_loss, force_loss,
                           energy_maxresid, force_maxresid):
         """Checks to see whether convergence is met; if it is, raises
-        ConvergenceException to stop the optimizer."""
+        ConvergenceException to stop the optimizer.
+
+        :param loss: Value of the loss function.
+        :type loss: float
+
+        :param energy_loss: Value of the energy contribution of the loss
+                            function.
+        :type energy_loss: float
+
+        :param force_loss: Value of the force contribution of the loss
+                            function.
+        :type force_loss: float
+
+        :param energy_maxresid: Maximum energy residual.
+        :type energy_maxresid: float
+
+        :param force_maxresid: Maximum force residual.
+        :type force_maxresid: float
+        """
         p = self.parameters
         energy_rmse_converged = True
         log = self._model.log
@@ -720,6 +870,27 @@ def ravel_data(train_forces,
                fingerprintprimes,):
     """
     Reshapes data of images into lists.
+
+    :param train_forces: Determining whether forces are also trained or not.
+    :type train_forces: bool
+
+    :param mode: Can be either 'atom-centered' or 'image-centered'.
+    :type mode: str
+
+    :param images: List of ASE atoms objects with positions, symbols, energies,
+                   and forces in ASE format. This is the training
+                   set of data. This can also be the path to an ASE
+                   trajectory (.traj) or database (.db) file. Energies can
+                   be obtained from any reference, e.g. DFT calculations.
+    :type images: list or str
+
+    :param fingerprints: Dictionary with images hashs as keys and the
+                         corresponding fingerprints as values.
+    :type fingerprints: dict
+
+    :param fingerprintprimes: Dictionary with images hashs as keys and the
+                              corresponding fingerprint derivatives as values.
+    :type fingerprintprimes: dict
     """
     from ase.data import atomic_numbers as an
 

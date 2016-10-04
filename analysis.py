@@ -13,8 +13,26 @@ rcParams.update({'figure.autolayout': True})
 
 def perturb_parameters(load, images, d=0.0001, overwrite=False, **kwargs):
     """Returns the plot of loss function in terms of perturbed parameters.
-    Takes the name of ".amp" file and images. Any other keyword taken by the
+    Takes the load file and images. Any other keyword taken by the
     Amp calculator can be fed to this class also.
+
+    :param load: Path for loading an existing ".amp" file. Should be fed like
+                 'load="filename.amp"'.
+    :type load: str
+
+    :param images: List of ASE atoms objects with positions, symbols, energies,
+                   and forces in ASE format. This can also be the path to an
+                   ASE trajectory (.traj) or database (.db) file.
+                   Energies can be obtained from any reference, e.g. DFT
+                   calculations.
+    :type images: list or str
+
+    :param d: The amount of perturbation in each parameter.
+    :type d: float
+
+    :param overwrite: If a plot or an script containing values found overwrite
+                      it.
+    :type overwrite: bool
     """
 
     from amp.model import LossFunction
@@ -140,32 +158,41 @@ def plot_parity(load,
     :param load: Path for loading an existing ".amp" file. Should be fed like
                  'load="filename.amp"'.
     :type load: str
+
     :param images: List of ASE atoms objects with positions, symbols, energies,
                    and forces in ASE format. This can also be the path to an
                    ASE trajectory (.traj) or database (.db) file.
                    Energies can be obtained from any reference, e.g. DFT
                    calculations.
     :type images: list or str
+
     :param label: Default prefix/location used for all files.
     :type label: str
+
     :param dblabel: Optional separate prefix/location of database files,
                     including fingerprints, fingerprint primes, and
                     neighborlists, to avoid calculating them. If not supplied,
                     just uses the value from label.
     :type dblabel: str
+
     :param plot_forces: Determines whether or not forces should be plotted as
                         well.
     :type plot_forces: bool
+
     :param plotfile: File for plots.
     :type plotfile: Object
+
     :param color: Plot color.
     :type color: str
+
     :param cores: Can specify cores to use for parallel training;
                   if None, will determine from environment
     :type cores: int
+
     :param overwrite: If a plot or an script containing values found overwrite
                       it.
     :type overwrite: bool
+
     :param returndata: Whether to return a reference to the figures and their
                        data or not.
     :type returndata: bool
@@ -292,38 +319,47 @@ def plot_error(load,
                overwrite=False,
                returndata=False):
     """
-    Makes a parity plot of Amp energies and forces versus real energies and
+    Makes an error plot of Amp energies and forces versus real energies and
     forces.
 
     :param load: Path for loading an existing ".amp" file. Should be fed like
                  'load="filename.amp"'.
     :type load: str
+
     :param images: List of ASE atoms objects with positions, symbols, energies,
                    and forces in ASE format. This can also be the path to an
                    ASE trajectory (.traj) or database (.db) file.
                    Energies can be obtained from any reference, e.g. DFT
                    calculations.
     :type images: list or str
+
     :param label: Default prefix/location used for all files.
     :type label: str
+
     :param dblabel: Optional separate prefix/location of database files,
                     including fingerprints, fingerprint primes, and
                     neighborlists, to avoid calculating them. If not supplied,
                     just uses the value from label.
     :type dblabel: str
+
     :param plot_forces: Determines whether or not forces should be plotted as
                         well.
     :type plot_forces: bool
+
     :param plotfile: File for plots.
     :type plotfile: Object
+
     :param color: Plot color.
     :type color: str
+
     :param cores: Can specify cores to use for parallel training;
                   if None, will determine from environment
     :type cores: int
+
     :param overwrite: If a plot or an script containing values found overwrite
                       it.
     :type overwrite: bool
+
     :param returndata: Whether to return a reference to the figures and their
                        data or not.
     :type returndata: bool
