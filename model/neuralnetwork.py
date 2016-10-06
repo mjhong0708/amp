@@ -1,6 +1,6 @@
 import numpy as np
 from collections import OrderedDict
-
+import os
 from ase.calculators.calculator import Parameters
 from ..regression import Regressor
 from ..model import LossFunction, calculate_fingerprints_range
@@ -271,9 +271,13 @@ class NeuralNetwork(Model):
                                      '-initial-parameters.amp')
             filename = self.parent.save(filename, overwrite=True)
         elif self.step % 100 == 0:
+            path = os.path.join(self.parent.label + '-checkpoints/')
+            if self.step == 100:
+                if not os.path.exists(path):
+                    os.mkdir(path)
             self.parent.log('Saving checkpoint data.')
-            filename = make_filename(self.parent.label,
-                                     '-parameters-checkpoint.amp')
+            filename = make_filename(path,
+                                     'parameters-checkpoint-%d.amp' % self.step)
             filename = self.parent.save(filename, overwrite=True)
         self.step += 1
         return self.lossfunction.get_loss(vector, lossprime=False)['loss']
