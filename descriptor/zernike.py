@@ -3,6 +3,7 @@ from numpy import sqrt
 
 from ase.data import atomic_numbers
 from ase.calculators.calculator import Parameters
+from scipy.special import sph_harm
 from ..utilities import Data, Logger, importer
 from .cutoffs import Cosine, Polynomial
 NeighborList = importer('NeighborList')
