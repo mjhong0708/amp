@@ -670,19 +670,26 @@ o      o   o       o   o
 """
 
 
-def importer(modulename):
+def importer(name):
     """Handles strange import cases, like pxssh which might show
-    up in pexpect or pxssh."""
+    up in eithr the package pexpect or pxssh."""
 
-    if modulename == 'pxssh':
+    if name == 'pxssh':
         try:
             import pxssh
         except ImportError:
             try:
                 from pexpect import pxssh
             except ImportError:
-                raise ImportError('pexpect not found!')
+                raise ImportError('pxssh not found!')
         return pxssh
+    elif name == 'NeighborList':
+        try:
+            from ase.neighborlist import NeighborList
+        except ImportError:
+            # We're on ASE 3.10 or older
+            from ase.calculators.neighborlist import NeighborList
+        return NeighborList
 
 
 # Amp Simulated Annealer ######################################################
