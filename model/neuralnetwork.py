@@ -225,7 +225,7 @@ class NeuralNetwork(Model):
             return
 
         # Regress the model.
-        self.step = -1
+        self.step = 0
         result = self.regressor.regress(model=self, log=log)
         return result  # True / False
 
@@ -266,7 +266,11 @@ class NeuralNetwork(Model):
                        list.
         :type vector: list
         """
-        if self.step % 100 == 0:
+        if self.step == 0:
+            filename = make_filename(self.parent.label,
+                                     '-initial-parameters.amp')
+            filename = self.parent.save(filename, overwrite=True)
+        elif self.step % 100 == 0:
             self.parent.log('Saving checkpoint data.')
             filename = make_filename(self.parent.label,
                                      '-parameters-checkpoint.amp')
