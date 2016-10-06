@@ -346,7 +346,6 @@ class FingerprintCalculator:
         home = self.atoms[index].position
         cutoff = self.globals.cutoff
         cutofffn = self.globals.cutofffn
-        print "cutofffn =", cutofffn
 
         if cutofffn == 'Cosine':
             cutoff_fxn = Cosine(cutoff)
