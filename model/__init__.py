@@ -553,13 +553,13 @@ class LossFunction:
             # convergence is checked and values are printed out in the log
             # file.
             if lossprime is False:
+                self._model.vector = parametervector
                 converged = self.check_convergence(loss,
                                                    energy_loss,
                                                    force_loss,
                                                    energy_maxresid,
                                                    force_maxresid)
                 if converged:
-                    self._model.vector = parametervector
                     self._cleanup()
                     raise ConvergenceOccurred()
 

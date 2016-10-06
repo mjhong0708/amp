@@ -3,10 +3,9 @@ from numpy import sqrt
 
 from ase.data import atomic_numbers
 from ase.calculators.calculator import Parameters
-from ase.neighborlist import NeighborList
-from scipy.special import sph_harm
-from ..utilities import Data, Logger
+from ..utilities import Data, Logger, importer
 from .cutoffs import Cosine, Polynomial
+NeighborList = importer('NeighborList')
 try:
     from .. import fmodules
 except ImportError:

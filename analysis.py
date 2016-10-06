@@ -5,9 +5,9 @@ from .utilities import now, hash_images, make_filename, Logger
 import os
 import numpy as np
 import matplotlib
+matplotlib.use('Agg')
 from matplotlib import rcParams
 from matplotlib import pyplot
-matplotlib.use('Agg')
 rcParams.update({'figure.autolayout': True})
 
 
