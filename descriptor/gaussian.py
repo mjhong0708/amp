@@ -2,7 +2,11 @@ import numpy as np
 
 from ase.data import atomic_numbers
 from ase.calculators.calculator import Parameters
-from ase.neighborlist import NeighborList
+try:
+    from ase.neighborlist import NeighborList
+except ImportError:
+    # We're on ASE 3.10 or older
+    from ase.calculators.neighborlist import NeighborList
 from ..utilities import Data, Logger
 from .cutoffs import Cosine, dict2cutoff
 try:
