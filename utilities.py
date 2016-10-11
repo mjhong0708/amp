@@ -287,7 +287,7 @@ class Data:
     >>> values = data.d.values()
     """
 
-    def __init__(self, filename, db=shelve, calculator=None):
+    def __init__(self, filename, db=SQLiteDB(), calculator=None):
         self.calc = calculator
         self.db = db
         self.filename = filename
