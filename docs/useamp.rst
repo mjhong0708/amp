@@ -78,6 +78,8 @@ For parallel operation, cores should be a dictionary where the keys are the host
    cores = {'node241': 16,
             'node242': 16}
 
+For this to work, you need to be able to freely SSH between nodes on your system; this is true even if you are running within only a single node. Typically, this means that once you are logged in to your cluster you have public/private keys in use to ssh between nodes. If you can run `ssh localhost` without it asking you for a password, this is likely to work for you. This also assumes that your environment is identical each time you SSH into a node; that is, all the packages such as ASE, Amp, ZMQ, etc., are available in the same version. Generally, if you are setting your environment with a .bashrc or .modules file this will work; if you are setting your environment on-the-fly as you submit jobs then you are more likely to encounter problems.
+
 ----------------------------------
 Advanced use
 ----------------------------------
@@ -101,67 +103,3 @@ Under the hood, the train function is pretty simple; it just runs:
 * In the third line, the model (e.g., a neural network) is fit to the data. As it is passed a reference to `self.descriptor`, it has access to the fingerprints as well as the mode. Many options are available to customize this in terms of the loss function, the regression method, etc.
 
 * In the final pair of lines, if the target fit was achieved, the model is saved to disk.
-
-
-----------------------------------
-Example scripts
-----------------------------------
-
-With the modular nature, it's straightforward to analyze how fingerprints change with changes in images.
-The below script makes an animated GIF that shows how a fingerprint about the O atom in water changes as one of the O-H bonds is stretched.
-Note that most of the lines of code below are either making the atoms or making the figure; very little effort is needed to produce the fingerprints themselves---this is done in three lines.
-
-.. code-block:: python
-
- # Make a series of images.
- import numpy as np
- from ase.structure import molecule
- from ase import Atoms
- atoms = molecule('H2O')
- atoms.rotate('y', -np.pi/2.)
- atoms.set_pbc(False)
- displacements = np.linspace(0.9, 8.0, 20)
- vec = atoms[2].position - atoms[0].position
- images = []
- for displacement in displacements:
-     atoms = Atoms(atoms)
-     atoms[2].position = (atoms[0].position + vec * displacement)
-     images.append(atoms)
- 
- # Fingerprint using Amp.
- from amp.utilities import hash_images
- from amp.descriptor.gaussian import Gaussian
- images = hash_images(images, ordered=True)
- descriptor = Gaussian()
- descriptor.calculate_fingerprints(images)
- 
- # Plot the data.
- from matplotlib import pyplot
- 
- def barplot(hash, name, title):
-     """Makes a barplot of the fingerprint about the O atom."""
-     fp = descriptor.fingerprints[hash][0]
-     fig, ax = pyplot.subplots()
-     ax.bar(range(len(fp[1])), fp[1])
-     ax.set_title(title)
-     ax.set_ylim(0., 2.)
-     ax.set_xlabel('fingerprint')
-     ax.set_ylabel('value')
-     fig.savefig(name)
- 
- for index, hash in enumerate(images.keys()):
-     barplot(hash, 'bplot-%02i.png' % index,
-             '%.2f$\\times$ equilibrium O-H bondlength'
-             % displacements[index])
- 
- # For fun, make an animated gif.
- import os
- filenames = ['bplot-%02i.png' % index for index in range(len(images))]
- command = ('convert -delay 100 %s -loop 0 animation.gif' %
-            ' '.join(filenames))
- os.system(command)
-
-
-.. image:: _static/animation.gif
-   :scale: 80 %
-   :align: center

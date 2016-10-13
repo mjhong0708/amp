@@ -31,7 +31,10 @@ You can read about Amp in the below paper; if you find Amp useful, we would appr
    theory.rst
    installation.rst
    useamp.rst
+   examplescripts.rst
    building.rst
+   moredescriptor.rst
+   moremodel.rst
    develop.rst
 
 **List of All Methods**:

@@ -2,9 +2,9 @@ import numpy as np
 
 from ase.data import atomic_numbers
 from ase.calculators.calculator import Parameters
-from ase.calculators.neighborlist import NeighborList
-from ..utilities import Data, Logger
+from ..utilities import Data, Logger, importer
 from .cutoffs import Cosine, dict2cutoff
+NeighborList = importer('NeighborList')
 try:
     from .. import fmodules
 except ImportError:
@@ -52,7 +52,10 @@ class Gaussian(object):
     :param fortran: If True, will use fortran modules, if False, will not.
     :type fortran: bool
 
-    :raises: RuntimeError, TypeError
+    :param mode: Can be either 'atom-centered' or 'image-centered'.
+    :type mode: str
+
+    :raises: RuntimeError
     """
 
     def __init__(self, cutoff=Cosine(6.5), Gs=None, dblabel=None,
@@ -108,7 +111,31 @@ class Gaussian(object):
     def calculate_fingerprints(self, images, cores=1, fortran=None,
                                log=None, calculate_derivatives=False):
         """Calculates the fingerpints of the images, for the ones not already
-        done.  """
+        done.
+
+        :param images: List of ASE atoms objects with positions, symbols,
+                       energies, and forces in ASE format. This is the training
+                       set of data. This can also be the path to an ASE
+                       trajectory (.traj) or database (.db) file. Energies can
+                       be obtained from any reference, e.g. DFT calculations.
+        :type images: list or str
+
+        :param cores: Number of cores to parallelize over. If not specified,
+                      attempts to determine from environment.
+        :type cores: int
+
+        :param fortran: If True, allows for extrapolation, if False, does not
+                        allow.
+        :type fortran: bool
+
+        :param log: Write function at which to log data. Note this must be a
+                    callable function.
+        :type log: Logger object
+
+        :param calculate_derivatives: Decides whether or not fingerprintprimes
+                                      should also be calculated.
+        :type calculate_derivatives: bool
+        """
         if fortran is None:
             fortran = self.fortran
         log = Logger(file=None) if log is None else log
@@ -184,6 +211,9 @@ class NeighborlistCalculator:
     """For integration with .utilities.Data
     For each image fed to calculate, a list of neighbors with offset
     distances is returned.
+
+    :param cutoff: Radius above which neighbor interactions are ignored.
+    :type cutoff: float
     """
 
     def __init__(self, cutoff):
@@ -192,6 +222,16 @@ class NeighborlistCalculator:
         self.parallel_command = 'calculate_neighborlists'
 
     def calculate(self, image, key):
+        """For integration with .utilities.Data
+        For each image fed to calculate, a list of neighbors with offset
+        distances is returned.
+
+        :param image: ASE atoms object.
+        :type image: object
+
+        :param key: key of the image after being hashed.
+        :type key: str
+        """
         cutoff = self.globals.cutoff
         n = NeighborList(cutoffs=[cutoff / 2.] * len(image),
                          self_interaction=False,
@@ -203,7 +243,30 @@ class NeighborlistCalculator:
 
 class FingerprintCalculator:
 
-    """For integration with .utilities.Data"""
+    """For integration with .utilities.Data
+
+    :param neighborlist: List of neighbors.
+    :type neighborlist: list of str
+
+    :param Gs: Dictionary of symbols and lists of dictionaries for making
+               symmetry functions. Either auto-genetrated, or given in the
+               following form, for example:
+
+               >>> Gs = {"O": [{"type":"G2", "element":"O", "eta":10.},
+               ...             {"type":"G4", "elements":["O", "Au"],
+               ...              "eta":5., "gamma":1., "zeta":1.0}],
+               ...       "Au": [{"type":"G2", "element":"O", "eta":2.},
+               ...              {"type":"G4", "elements":["O", "Au"],
+               ...               "eta":2., "gamma":1., "zeta":5.0}]}
+
+    :type Gs: dict
+
+    :param cutoff: Radius above which neighbor interactions are ignored.
+    :type cutoff: float
+
+    :param fortran: If True, will use fortran modules, if False, will not.
+    :type fortran: bool
+    """
 
     def __init__(self, neighborlist, Gs, cutoff, fortran):
         self.globals = Parameters({'cutoff': cutoff,
@@ -213,7 +276,14 @@ class FingerprintCalculator:
         self.fortran = fortran
 
     def calculate(self, image, key):
-        """Makes a list of fingerprints, one per atom, for the fed image."""
+        """Makes a list of fingerprints, one per atom, for the fed image.
+
+        :param image: ASE atoms object.
+        :type image: object
+
+        :param key: key of the image after being hashed.
+        :type key: str
+        """
         self.atoms = image
         nl = self.keyed.neighborlist[key]
         fingerprints = []
@@ -281,7 +351,30 @@ class FingerprintCalculator:
 
 class FingerprintPrimeCalculator:
 
-    """For integration with .utilities.Data"""
+    """For integration with .utilities.Data
+
+    :param neighborlist: List of neighbors.
+    :type neighborlist: list of str
+
+    :param Gs: Dictionary of symbols and lists of dictionaries for making
+               symmetry functions. Either auto-genetrated, or given in the
+               following form, for example:
+
+               >>> Gs = {"O": [{"type":"G2", "element":"O", "eta":10.},
+               ...             {"type":"G4", "elements":["O", "Au"],
+               ...              "eta":5., "gamma":1., "zeta":1.0}],
+               ...       "Au": [{"type":"G2", "element":"O", "eta":2.},
+               ...              {"type":"G4", "elements":["O", "Au"],
+               ...               "eta":2., "gamma":1., "zeta":5.0}]}
+
+    :type Gs: dict
+
+    :param cutoff: Radius above which neighbor interactions are ignored.
+    :type cutoff: float
+
+    :param fortran: If True, will use fortran modules, if False, will not.
+    :type fortran: bool
+    """
 
     def __init__(self, neighborlist, Gs, cutoff, fortran):
         self.globals = Parameters({'cutoff': cutoff,
@@ -292,7 +385,14 @@ class FingerprintPrimeCalculator:
 
     def calculate(self, image, key):
         """Makes a list of fingerprint derivatives, one per atom,
-        for the fed image."""
+        for the fed image.
+
+        :param image: ASE atoms object.
+        :type image: object
+
+        :param key: key of the image after being hashed.
+        :type key: str
+        """
         self.atoms = image
         nl = self.keyed.neighborlist[key]
         fingerprintprimes = {}
@@ -442,16 +542,22 @@ def calculate_G2(neighborsymbols,
 
     :param neighborsymbols: List of symbols of all neighbor atoms.
     :type neighborsymbols: list of str
+
     :param neighborpositions: List of Cartesian atomic positions.
     :type neighborpositions: list of list of float
+
     :param G_element: Symmetry functions of the center atom.
     :type G_element: dict
+
     :param eta: Parameter of Gaussian symmetry functions.
     :type eta: float
+
     :param cutoff: Radius above which neighbor interactions are ignored. #FIXME
     :type cutoff: float
+
     :param Ri: Index of the center atom.
     :type Ri: int
+
     :param fortran: If True, will use the fortran subroutines, else will not.
     :type fortran: bool
 
@@ -679,7 +785,7 @@ def dRij_dRml(i, j, Ri, Rj, m, l):
     :param l: Direction of force.
     :type l: int
 
-    :retuRjs: list of float -- the derivative of the noRi of position vector
+    :returns: list of float -- the derivative of the noRi of position vector
                                R_{ij} with respect to x_{l} of atomic index m.
     """
     Rij = np.linalg.norm(Rj - Ri)
@@ -976,13 +1082,27 @@ if __name__ == "__main__":
     sys.stderr = tempfile.NamedTemporaryFile(mode='w', delete=False,
                                              suffix='.stderr')
     print('stderr written to %s<stderr>' % sys.stderr.name)
+    sys.stderr.write('initiated\n')
+    sys.stderr.flush()
 
     # Establish client session via zmq; find purpose.
     context = zmq.Context()
+    sys.stderr.write('context started\n')
+    sys.stderr.flush()
     socket = context.socket(zmq.REQ)
+    sys.stderr.write('socket started\n')
+    sys.stderr.flush()
     socket.connect('tcp://%s' % hostsocket)
+    sys.stderr.write('connection made\n')
+    sys.stderr.flush()
     socket.send_pyobj(msg('<purpose>'))
+    sys.stderr.write('message sent\n')
+    sys.stderr.flush()
     purpose = socket.recv_pyobj()
+    sys.stderr.write('purpose received\n')
+    sys.stderr.flush()
+    sys.stderr.write('purpose: %s \n' % purpose)
+    sys.stderr.flush()
 
     if purpose == 'calculate_neighborlists':
         # Request variables.

@@ -201,6 +201,7 @@ def non_periodic_0th_bfgs_step_test():
             calc.model.lossfunction = lossfunction
             calc.train(images=images,)
             diff = abs(calc.model.lossfunction.loss - ref_loss)
+            print "diff at 204 =", diff
             assert (diff < 10.**(-10.)), \
                 'Calculated value of loss function is wrong!'
             diff = abs(calc.model.lossfunction.energy_loss - ref_energyloss)
@@ -410,6 +411,7 @@ def periodic_0th_bfgs_step_test():
             calc.model.lossfunction = lossfunction
             calc.train(images=images,)
             diff = abs(calc.model.lossfunction.loss - ref_loss)
+            print "diff at 414 =", diff
             assert (diff < 10.**(-10.)), \
                 'Calculated value of loss function is wrong!'
             diff = abs(calc.model.lossfunction.energy_loss - ref_energyloss)

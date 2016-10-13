@@ -58,6 +58,8 @@ the second command is where you expect::
    >>> import amp
    >>> print(amp.__file__)
 
+See also the section on parallel processing for any issues that arise in making the environment work with Amp in parallel.
+ 
 ----------------------------------
 Recommended step: Run the tests
 ----------------------------------
