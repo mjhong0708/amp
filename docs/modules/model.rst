@@ -9,12 +9,12 @@ description.
 Module contents
 ---------------
 
-.. automodule:: model
+.. automodule:: amp.model
     :members:
     :undoc-members:
     :show-inheritance:
 
-.. automodule:: model.neuralnetwork
+.. automodule:: amp.model.neuralnetwork
     :members:
     :undoc-members:
     :show-inheritance:
