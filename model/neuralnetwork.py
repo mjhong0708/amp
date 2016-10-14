@@ -982,14 +982,13 @@ def get_random_scalings(images, activation, elements=None):
 
 
 class Raveler:
-
     """Class to ravel and unravel variable values into a single vector.
     This is used for feeding into the optimizer. Feed in a list of
     dictionaries to initialize the shape of the transformation. Note no
     data is saved in the class; each time it is used it is passed either
     the dictionaries or vector. The dictionaries for initialization should
     be two levels deep.
-        weights, scalings: variables to ravel and unravel
+    weights, scalings are the variables to ravel and unravel
     """
 
     def __init__(self, weights, scalings):
