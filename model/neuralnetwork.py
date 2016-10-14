@@ -87,6 +87,12 @@ class NeuralNetwork(Model):
                     allow.
     :type fortran: bool
 
+    :param checkpoints: Frequency with which to save parameter checkpoints
+       upon training. E.g., 100 saves a checpoint on each 100th training setp.
+       Specify None for no checkpoints.
+
+    :type checkpoints: int
+
     .. note:: Dimensions of weight two dimensional arrays should be consistent
               with hiddenlayers.
 
@@ -95,7 +101,8 @@ class NeuralNetwork(Model):
 
     def __init__(self, hiddenlayers=(5, 5), activation='tanh', weights=None,
                  scalings=None, fprange=None, regressor=None, mode=None,
-                 lossfunction=None, version=None, fortran=True):
+                 lossfunction=None, version=None, fortran=True,
+                 checkpoints=100):
 
         # Version check, particularly if restarting.
         compatibleversions = ['2015.12', ]
@@ -131,6 +138,7 @@ class NeuralNetwork(Model):
         self.parent = None  # Can hold a reference to main Amp instance.
         self.lossfunction = lossfunction
         self.fortran = fortran
+        self.checkpoints = checkpoints
 
     def fit(self,
             trainingimages,
@@ -270,15 +278,17 @@ class NeuralNetwork(Model):
             filename = make_filename(self.parent.label,
                                      '-initial-parameters.amp')
             filename = self.parent.save(filename, overwrite=True)
-        elif self.step % 100 == 0:
-            path = os.path.join(self.parent.label + '-checkpoints/')
-            if self.step == 100:
-                if not os.path.exists(path):
-                    os.mkdir(path)
-            self.parent.log('Saving checkpoint data.')
-            filename = make_filename(path,
-                                     'parameters-checkpoint-%d.amp' % self.step)
-            filename = self.parent.save(filename, overwrite=True)
+        if self.checkpoints:
+            if self.step % self.checkpoints == 0:
+                path = os.path.join(self.parent.label + '-checkpoints/')
+                if self.step == 100:
+                    if not os.path.exists(path):
+                        os.mkdir(path)
+                self.parent.log('Saving checkpoint data.')
+                filename = make_filename(path,
+                                         'parameters-checkpoint-%d.amp'
+                                         % self.step)
+                filename = self.parent.save(filename, overwrite=True)
         self.step += 1
         return self.lossfunction.get_loss(vector, lossprime=False)['loss']
 
