@@ -3,8 +3,8 @@ import numpy as np
 
 from ase.data import atomic_numbers
 from ase.calculators.calculator import Parameters
-from ..utilities import Data, Logger, importer
-from .cutoffs import Cosine, Polynomial
+from amp.utilities import Data, Logger, importer
+from amp.descriptor.cutoffs import Cosine, Polynomial
 NeighborList = importer('NeighborList')
 
 

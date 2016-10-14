@@ -9,12 +9,12 @@ import math
 import random
 import signal
 import pickle
-from ase import io as aseio
-from ase.parallel import paropen
-from ase.db import connect
 import shelve
 from datetime import datetime
 from getpass import getuser
+from ase import io as aseio
+from ase.parallel import paropen
+from ase.db import connect
 
 
 # Parallel processing ########################################################

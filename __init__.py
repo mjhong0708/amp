@@ -16,14 +16,12 @@ except ImportError:
     # We're on ASE 3.9 or older
     from ase.version import version as aseversion
 
-from .utilities import make_filename
-from .utilities import hash_images
-from .utilities import Logger, string2dict, logo, now, assign_cores
-from .utilities import TrainingConvergenceError
+from amp.utilities import (make_filename, hash_images, Logger, string2dict,
+                           logo, now, assign_cores, TrainingConvergenceError)
 
 import warnings
 try:
-    from . import fmodules
+    from amp import fmodules
     fmodules_version = 8
     wrong_version = fmodules.check_version(version=fmodules_version)
     if wrong_version:
