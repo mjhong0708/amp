@@ -232,6 +232,9 @@ class SQLiteDB:
                                 raise
                         else:
                             success = True
+                    if not success:
+                        raise RuntimeError("Couldn't write to database"
+                                           " after %i tries." % tries)
 
                 def __getitem__(self, key):
                     tries = 0
@@ -303,7 +306,7 @@ class Data:
             self.d.close()
             self.d = None
         log(' Data stored in file %s.' % self.filename)
-        d = self.db.open(self.filename, 'c')
+        d = self.db.open(self.filename, 'r')
         calcs_needed = list(set(images.keys()).difference(d.keys()))
         dblength = len(d)
         d.close()
