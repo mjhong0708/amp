@@ -188,95 +188,13 @@ def start_workers(process_ids, workerhostname, workercommand, log):
 # Data and logging ###########################################################
 
 
-class SQLiteDB:
-    """Replacement to shelve.
-    Meant to mimic the same commands as shelve has so it is compatible with
-    Data class. If sqlitedict is not available, it falls back to shelve.
-    Note this calls yet another class, SQD, below. This could
-    be cleaned up a bit.
-    """
-    def __init__(self, maxretries=100, retrypause=10.0):
-        self.use_shelve = False
-        try:
-            import sqlitedict
-        except ImportError:
-            self.use_shelve = True
-        self.maxretries = maxretries
-        self.retrypause = retrypause
-
-    def open(self, filename, flag=None):
-        if self.use_shelve:
-            self.d = shelve.open(filename, flag=flag)
-        else:
-            from sqlitedict import SqliteDict
-            from sqlite3 import OperationalError
-            # self.d = SqliteDict(filename, autocommit=True)
-
-            class SQD(SqliteDict):
-                def __init__(self, filename, autocommit,
-                             maxretries, retrypause):
-                    self.maxretries = maxretries
-                    self.retrypause = retrypause
-                    SqliteDict.__init__(self, filename, autocommit=autocommit)
-
-                def __setitem__(self, key, value):
-                    tries = 0
-                    success = False
-                    while not success:
-                        try:
-                            SqliteDict.__setitem__(self, key, value)
-                        except OperationalError:
-                            tries += 1
-                            time.sleep(self.retrypause)
-                            if tries >= self.maxretries:
-                                raise
-                        else:
-                            success = True
-                    if not success:
-                        raise RuntimeError("Couldn't write to database"
-                                           " after %i tries." % tries)
-
-                def __getitem__(self, key):
-                    tries = 0
-                    success = False
-                    while not success:
-                        try:
-                            return SqliteDict.__getitem__(self, key)
-                        except OperationalError:
-                            tries += 1
-                            time.sleep(self.retrypause)
-                            if tries >= self.maxretries:
-                                raise
-                        else:
-                            success = True
-
-                def close(self):
-                    tries = 0
-                    success = False
-                    while not success:
-                        try:
-                            SqliteDict.close(self)
-                        except OperationalError:
-                            tries += 1
-                            time.sleep(self.retrypause)
-                            if tries >= self.maxretries:
-                                raise
-                        else:
-                            success = True
-
-            self.d = SQD(filename, autocommit=True,
-                         maxretries=self.maxretries,
-                         retrypause=self.retrypause)
-
-        return self.d
-
-
 class FileDatabase:
-    """Using a database file format that can handle multiple processes
-    writing to the file is hard. Therefore, we take the stupid approach of
-    having each database entry be a separate file. This behaves
-    essentially like shelve, but saves each dictionary entry as a plain
-    file within the directory.
+    """Using a database file, such as shelve or sqlitedict, that can handle
+    multiple processes writing to the file is hard. Therefore, we take the
+    stupid approach of having each database entry be a separate file. This
+    class behaves essentially like shelve, but saves each dictionary entry
+    as a plain pickle file within the directory, with the filename
+    corresponding to the dictionary key (which must be a string).
 
     Like shelve, this also keeps an internal (memory dictionary)
     representation of the variables that have been accessed.
