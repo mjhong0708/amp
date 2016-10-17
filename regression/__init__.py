@@ -10,9 +10,10 @@ class Regressor:
     Global optimization conditioners (e.g., simulated annealing, etc.) can
     be built into this class.
 
-    :param optimizer: Either of the scipy optimizers 'L-BFGS-B', 'BFGS', 'TNC',
-                      or 'NCG'.
-    :type optimizer: str
+    :param optimizer: The optimizer to use. Several defaults are available
+                      including 'L-BFGS-B', 'BFGS', 'TNC', or 'NCG'.
+                      Alternatively, any function can be supplied which
+                      behaves like scipy.optimize.fmin_bfgs.
 
     :param optimizer_kwargs: Optional keywords for the corresponding optimizer.
     :type optimizer_kwargs: dict
@@ -32,10 +33,12 @@ class Regressor:
         optimal paramters. Additional keyword arguments can be fed through
         the optimizer_kwargs dictionary."""
 
+        user_kwargs = optimizer_kwargs
+        optimizer_kwargs = {}
         if optimizer == 'L-BFGS-B':
             from scipy.optimize import fmin_l_bfgs_b as optimizer
             optimizer_kwargs = {'factr': 1e+02,
-                                'pgtol': 1e-08, 
+                                'pgtol': 1e-08,
                                 'maxfun': 1000000,
                                 'maxiter': 1000000}
             import scipy
@@ -56,6 +59,7 @@ class Regressor:
             from scipy.optimize import fmin_ncg as optimizer
             optimizer_kwargs = {'avextol': 1e-15, }
 
+        optimizer_kwargs.update(user_kwargs)
         self.optimizer = optimizer
         self.optimizer_kwargs = optimizer_kwargs
         self.lossprime = lossprime
