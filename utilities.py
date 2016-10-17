@@ -8,8 +8,8 @@ import copy
 import math
 import random
 import signal
-import pickle
 import shelve
+import cPickle as pickle
 from datetime import datetime
 from getpass import getuser
 from ase import io as aseio
@@ -271,6 +271,82 @@ class SQLiteDB:
         return self.d
 
 
+class FileDatabase:
+    """Using a database file format that can handle multiple processes
+    writing to the file is hard. Therefore, we take the stupid approach of
+    having each database entry be a separate file. This behaves
+    essentially like shelve, but saves each dictionary entry as a plain
+    file within the directory.
+
+    Like shelve, this also keeps an internal (memory dictionary)
+    representation of the variables that have been accessed.
+
+    :param verbose: Print debugging messages to stdout if True.
+    :type verbose: bool
+    """
+
+    def __init__(self, verbose=False):
+        self.verbose = verbose
+
+    def open(self, filename, flag='r'):
+        self.filename = filename
+        if os.path.exists(filename):
+            if not os.path.isdir(filename):
+                raise RuntimeError('FileDatabases should be directories.')
+        else:
+            os.mkdir(filename)
+        self._memdict = {}  # Items already accessed; stored in memory.
+        self._mode = flag
+        return self
+
+    def keys(self):
+        """Return list of keys, both of in-memory and out-of-memory
+        items."""
+        return os.listdir(self.filename)
+
+    def __len__(self):
+        return len(self.keys())
+
+    def close(self):
+        """Not necessary to call..."""
+        return
+
+    def __setitem__(self, key, value):
+        if self._mode not in ['w', 'c']:
+            raise IOError("Can't write to file %s while in %s mode." %
+                          (self.filename, self._mode))
+        self._memdict[key] = value
+        path = os.path.join(self.filename, str(key))
+        valuestring = pickle.dumps(value)
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                savedvalue = f.read()
+            if savedvalue == valuestring:
+                if self.verbose:
+                    print('FileDatabase: %s already exists in identical form '
+                          'in database %s.' % (key, self.filename))
+                return
+            else:
+                if self.verbose:
+                    print('FileDatabase: Changing %s in %s.' %
+                          (key, self._filename))
+        with open(path, 'w') as f:
+            pickle.dump(value, f)
+
+    def __getitem__(self, key):
+        if key in self._memdict:
+            return self._memdict[key]
+        path = os.path.join(self.filename, str(key))
+        if not os.path.exists(path):
+            raise KeyError(str(key))
+        with open(path, 'r') as f:
+            return pickle.load(f)
+
+    def update(self, newitems):
+        for key, value in newitems.iteritems():
+            self.__setitem__(key, value)
+
+
 class Data:
 
     """
@@ -290,7 +366,7 @@ class Data:
     >>> values = data.d.values()
     """
 
-    def __init__(self, filename, db=SQLiteDB(), calculator=None):
+    def __init__(self, filename, db=FileDatabase(), calculator=None):
         self.calc = calculator
         self.db = db
         self.filename = filename
