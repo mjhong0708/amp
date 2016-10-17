@@ -281,7 +281,7 @@ class NeuralNetwork(Model):
         if self.checkpoints:
             if self.step % self.checkpoints == 0:
                 path = os.path.join(self.parent.label + '-checkpoints/')
-                if self.step == 100:
+                if self.step == 0:
                     if not os.path.exists(path):
                         os.mkdir(path)
                 self.parent.log('Saving checkpoint data.')
