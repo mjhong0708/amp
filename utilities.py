@@ -8,7 +8,7 @@ import copy
 import math
 import random
 import signal
-import shelve
+import tarfile
 import cPickle as pickle
 from datetime import datetime
 from getpass import getuser
@@ -199,70 +199,94 @@ class FileDatabase:
     Like shelve, this also keeps an internal (memory dictionary)
     representation of the variables that have been accessed.
 
-    :param verbose: Print debugging messages to stdout if True.
-    :type verbose: bool
+    Also includes an archive feature, where files are instead added to a
+    file called 'archive.tar.gz' to save disk space. If an entry exists in
+    both the loose and archive formats, the loose is taken to be the new
+    (correct) value.
     """
 
-    def __init__(self, verbose=False):
-        self.verbose = verbose
-
-    def open(self, filename, flag='r'):
-        self.filename = filename
-        if os.path.exists(filename):
-            if not os.path.isdir(filename):
-                raise RuntimeError('FileDatabases should be directories.')
-        else:
-            os.mkdir(filename)
+    def __init__(self, filename):
+        """Open the filename at specified location. flag is ignored; this
+        format is always capable of both reading and writing."""
+        if not filename.endswith(os.extsep + 'ampdb'):
+            filename += os.extsep + 'ampdb'
+        self.path = filename
+        self.loosepath = os.path.join(self.path, 'loose')
+        self.tarpath = os.path.join(self.path, 'archive.tar.gz')
+        if not os.path.exists(self.path):
+            os.mkdir(self.path)
+            os.mkdir(self.loosepath)
         self._memdict = {}  # Items already accessed; stored in memory.
-        self._mode = flag
-        return self
+
+    @classmethod
+    def open(Cls, filename, flag=None):
+        """Open present for compatibility with shelve. flag is ignored; this
+        format is always capable of both reading and writing."""
+        return Cls(filename=filename)
+
+    def close(self):
+        """Only present for compatibility with shelve."""
+        return
 
     def keys(self):
         """Return list of keys, both of in-memory and out-of-memory
         items."""
-        return os.listdir(self.filename)
+        keys = os.listdir(self.loosepath)
+        if os.path.exists(self.tarpath):
+            with tarfile.open(self.tarpath) as tf:
+                keys = list(set(keys + tf.getnames()))
+        return keys
 
     def __len__(self):
         return len(self.keys())
 
-    def close(self):
-        """Not necessary to call..."""
-        return
-
     def __setitem__(self, key, value):
-        if self._mode not in ['w', 'c']:
-            raise IOError("Can't write to file %s while in %s mode." %
-                          (self.filename, self._mode))
         self._memdict[key] = value
-        path = os.path.join(self.filename, str(key))
-        valuestring = pickle.dumps(value)
+        path = os.path.join(self.loosepath, str(key))
         if os.path.exists(path):
             with open(path, 'r') as f:
-                savedvalue = f.read()
-            if savedvalue == valuestring:
-                if self.verbose:
-                    print('FileDatabase: %s already exists in identical form '
-                          'in database %s.' % (key, self.filename))
-                return
-            else:
-                if self.verbose:
-                    print('FileDatabase: Changing %s in %s.' %
-                          (key, self._filename))
+                if f.read() == pickle.dumps(value):
+                    return  # Nothing to update.
         with open(path, 'w') as f:
             pickle.dump(value, f)
 
     def __getitem__(self, key):
         if key in self._memdict:
             return self._memdict[key]
-        path = os.path.join(self.filename, str(key))
-        if not os.path.exists(path):
+        keypath = os.path.join(self.loosepath, key)
+        if os.path.exists(keypath):
+            with open(keypath, 'r') as f:
+                return pickle.load(f)
+        elif os.path.exists(self.tarpath):
+            with tarfile.open(self.tarpath) as tf:
+                return pickle.load(tf.extractfile(key))
+        else:
             raise KeyError(str(key))
-        with open(path, 'r') as f:
-            return pickle.load(f)
 
     def update(self, newitems):
         for key, value in newitems.iteritems():
             self.__setitem__(key, value)
+
+    def archive(self):
+        """Cleans up to save disk space and reduce huge number of files.
+        That is, puts all files into an archive.
+        Compresses all files in <path>/loose and places them in
+        <path>/archive.tar.gz.  If archive exists, appends/modifies.
+        """
+        if os.path.exists(self.tarpath):
+            with tarfile.open(self.tarpath) as tf:
+                names = [_ for _ in tf.getnames() if _ not in
+                         os.listdir(self.loosepath)]
+                for name in names:
+                    tf.extract(member=name, path=self.loosepath)
+        print('Compressing.')
+        with tarfile.open(self.tarpath, 'w:gz') as tf:
+            for file in os.listdir(self.loosepath):
+                tf.add(name=os.path.join(self.loosepath, file),
+                       arcname=file)
+        print('Cleaning up.')
+        for file in os.listdir(self.loosepath):
+            os.remove(os.path.join(self.loosepath, file))
 
 
 class Data:
@@ -284,7 +308,7 @@ class Data:
     >>> values = data.d.values()
     """
 
-    def __init__(self, filename, db=FileDatabase(), calculator=None):
+    def __init__(self, filename, db=FileDatabase, calculator=None):
         self.calc = calculator
         self.db = db
         self.filename = filename
@@ -1042,3 +1066,7 @@ class MetaDict(dict):
     """Dictionary that can also store metadata. Useful for images dictionary
     so that images can still be iterated by keys."""
     metadata = {}
+
+
+if __name__ == '__main__':
+    pass
