@@ -19,11 +19,9 @@ import pickle
 import uuid
 import time
 from amp.model import LossFunction
-from amp.utilities import now, ConvergenceOccurred
+from ..utilities import now,ConvergenceOccurred
 #from  tensorflow.contrib.opt.python.training import external_optimizer
 from  tensorflow.contrib.opt import ScipyOptimizerInterface
-
-
 class tfAmpNN:
     """
     TensorFlow-based Neural Network model. (Google's machine-learning
@@ -82,12 +80,17 @@ class tfAmpNN:
                  saveVariableName=None,
                  parameters=None,
                  sess=None,
-                 maxAtomsForces=50,
+                 maxAtomsForces=6,
                  energy_coefficient=1.0,
                  force_coefficient=0.04,
                  scikit_model=None,
                  convergenceCriteria=None,
-                 optimizationMethod='ADAM'
+                 optimizationMethod='ADAM',
+                 input_keep_prob=0.8,
+                 ADAM_optimizer_params={'beta1':0.9},
+                 regularization_strength=None,
+                 applyLinearModel=True,
+                 numTrainingImages={}
                 ):
         
         self.parameters = {} if parameters is None else parameters
@@ -95,7 +98,9 @@ class tfAmpNN:
                      'energyPerElement']:
             if prop not in self.parameters:
                 self.parameters[prop] = None
-        if convergenceCriteria is None:
+        if 'convergence' in self.parameters:
+            1
+        elif convergenceCriteria is None:
             self.parameters['convergence']={'energy_rmse': 0.001,
                                           'energy_maxresid': None,
                                           'force_rmse': 0.005,
@@ -105,11 +110,22 @@ class tfAmpNN:
             
         if scikit_model is not None:
             self.linearmodel = pickle.loads(scikit_model)
-
-        self.parameters['energy_coefficient'] = energy_coefficient
-        self.parameters['force_coefficient'] = force_coefficient
-
+        else:
+            self.linearmodel=None
+        if 'applyLinearMode' not in self.parameters:
+            self.parameters['applyLinearModel']=applyLinearModel
+        if 'energy_coefficient' not in self.parameters:
+            self.parameters['energy_coefficient']=energy_coefficient
+        if 'force_coefficient' not in self.parameters:
+            self.parameters['force_coefficient']=force_coefficient
+        if 'ADAM_optimizer_params' not in self.parameters:
+            self.parameters['ADAM_optimizer_params']=ADAM_optimizer_params
+        if 'regularization_strength' not in self.parameters:
+            self.parameters['regularization_strength']=regularization_strength
+        self.numTrainingImages=100
         self.hiddenlayers = hiddenlayers
+        self.maxAtomsForces = maxAtomsForces
+
         if isinstance(activation, basestring):
             self.activationName = activation
             self.activation = eval('tf.nn.' + activation)
@@ -117,6 +133,7 @@ class tfAmpNN:
             self.activation = activation
             self.activationName = activation.__name__
         self.keep_prob = keep_prob
+        self.input_keep_prob=input_keep_prob
         self.elements = elementFingerprintLengths.keys()
         self.elements.sort()
         if saveVariableName is None:
@@ -128,135 +145,206 @@ class tfAmpNN:
         for element in self.elements:
             self.elementFingerprintLengths[element] = elementFingerprintLengths[element]
         
-        self.constructModel()
-        if sess is None:
-            self.sess = tf.InteractiveSession()
-        else:
-            self.sess = sess
-        self.saver = tf.train.Saver(tf.trainable_variables())
-
-        if tfVars is not None:
-            trainable_vars = tf.trainable_variables()
-            all_vars = tf.all_variables()
-            untrainable_vars = []
-            for var in all_vars:
-                if var not in trainable_vars:
-                    untrainable_vars.append(var)
-            self.sess.run(tf.initialize_variables(untrainable_vars))
-            with open('tfAmpNN-checkpoint-restore', 'w') as fhandle:
-                fhandle.write(tfVars)
-            self.saver.restore(self.sess, 'tfAmpNN-checkpoint-restore')
-        else:
-            self.initializeVariables()
+        self.constructSessGraphModel(tfVars,sess)
+        self.tfVars=tfVars
+        
         self.maxTrainingEpochs = maxTrainingEpochs
         self.batchsize = batchsize
         self.initialTrainingRate = initialTrainingRate
         self.miniBatch = miniBatch
-        
 
         #optimizer can be 'ADAM' or 'l-BFGS-b'
         self.optimizationMethod=optimizationMethod
-        self.maxAtomsForces = maxAtomsForces
 
-    def constructModel(self):
+    def constructSessGraphModel(self,tfVars,sess,trainOnly=False,maxAtomsForces=0,numElements=None,numTrainingImages=None):
+        self.graph=tf.Graph()
+        with self.graph.as_default():
+            if sess is None:
+                self.sess = tf.InteractiveSession()
+            else:
+                self.sess = sess
+            if trainOnly:
+                self.constructModel(self.sess,self.graph,trainOnly,maxAtomsForces,numElements,numTrainingImages)
+            else:
+                self.constructModel(self.sess,self.graph)
+            trainvarlist=tf.trainable_variables()
+            trainvarlist=[a for a in trainvarlist if a.name[:8]==self.saveVariableName]
+            self.saver = tf.train.Saver(trainvarlist)
+            if tfVars is not None:
+                self.sess.run(tf.initialize_all_variables())
+                with open('tfAmpNN-checkpoint-restore', 'w') as fhandle:
+                    fhandle.write(tfVars)
+                self.saver.restore(self.sess, 'tfAmpNN-checkpoint-restore')
+            else:
+                self.sess.run(tf.initialize_all_variables())
+
+    def constructModel(self,sess,graph,preLoadData=False,maxAtomsForces=None,numElements=None,numTrainingImages=None):
         """Sets up the tensorflow neural networks for each atom type."""
 
+        with sess.as_default(),graph.as_default():
         # Make tensorflow inputs for each element.
-        tensordict = {}
-        indsdict = {}
-        maskdict = {}
-        tensorDerivDict = {}
-        for element in self.elements:
-            tensordict[element] = tf.placeholder(
-                "float", shape=[None, self.elementFingerprintLengths[element]])
-            tensorDerivDict[element] = tf.placeholder("float",
-                                                      shape=[None, None, 3, self.elementFingerprintLengths[element]])
-            indsdict[element] = tf.placeholder("int64", shape=[None])
-            maskdict[element] = tf.placeholder("float", shape=[None, 1])
-        self.indsdict = indsdict
-        self.tileDerivs = tf.placeholder("int32", shape=[4])
-        self.tensordict = tensordict
-        self.maskdict = maskdict
-        self.energyProdScale=tf.placeholder("float")
-        self.tensorDerivDict = tensorDerivDict
+            tensordict = {}
+            indsdict = {}
+            maskdict = {}
+            tensorDerivDict = {}
+            if preLoadData:
+                tensordictInitializer={}
+                tensorDerivDictInitializer={}
+                indsdictInitializer={}
+                maskdictInitializer={}
+            for element in self.elements:
+                if preLoadData:
+                    tensordictInitializer[element]= tf.placeholder(
+                    "float", shape=[numElements[element], self.elementFingerprintLengths[element]],name='tensor_%s'%element)
+                    tensorDerivDictInitializer[element]=tf.placeholder("float",
+                                                       shape=[numElements[element], maxAtomsForces, 3, self.elementFingerprintLengths[element]],name='tensorderiv_%s'%element)
+                    indsdictInitializer[element] = tf.placeholder("int64", shape=[numElements[element]],name='indsdict_%s'%element)
+                    maskdictInitializer[element] = tf.placeholder("float", shape=[numTrainingImages, 1],name='maskdict_%s'%element)
+                    tensordict[element]=tf.Variable(tensordictInitializer[element],trainable=False,collections=[])
+                    tensorDerivDict[element]=tf.Variable(tensorDerivDictInitializer[element],trainable=False,collections=[])
+                    indsdict[element]=tf.Variable(indsdictInitializer[element],trainable=False,collections=[])
+                    maskdict[element]=tf.Variable(maskdictInitializer[element],trainable=False,collections=[])
+                else:
+                    tensordict[element] = tf.placeholder(
+                    "float", shape=[None, self.elementFingerprintLengths[element]],name='tensor_%s'%element)
+                    tensorDerivDict[element] = tf.placeholder("float",
+                                                       shape=[None, None, 3, self.elementFingerprintLengths[element]],name='tensorderiv_%s'%element)
+                    indsdict[element] = tf.placeholder("int64", shape=[None],name='indsdict_%s'%element)
+                    maskdict[element] = tf.placeholder("float", shape=[None, 1],name='maskdict_%s'%element)
+    
+            self.indsdict = indsdict
+            
+            self.tensordict = tensordict
+            self.maskdict = maskdict
+            
+            self.tensorDerivDict = tensorDerivDict
 
         # y_ is the input energy for each configuration.
-        self.y_ = tf.placeholder("float", shape=[None, 1])
+        
 
-        self.keep_prob_in = tf.placeholder("float")
-        self.nAtoms_in = tf.placeholder("float", shape=[None, 1])
-        self.batchsizeInput = tf.placeholder("int32")
-        self.learningrate = tf.placeholder("float")
-        self.forces_in = tf.placeholder(
-            "float", shape=[None, None, 3], name='forces_in')
-        self.energycoefficient = tf.placeholder("float")
-        self.forcecoefficient = tf.placeholder("float")
+            if preLoadData:
+                y_Initializer = tf.placeholder("float", shape=[numTrainingImages, 1],name='y_')
+                input_keep_prob_inInitializer=tf.placeholder("float",shape=[],name='input_keep_prob_in')
+                keep_prob_inInitializer = tf.placeholder("float",shape=[],name='keep_prob_in')
+                nAtoms_inInitializer = tf.placeholder("float", shape=[numTrainingImages, 1],name='nAtoms_in')
+                batchsizeInputInitializer = tf.placeholder("int32",shape=[],name='batchsizeInput')
+                learningrateInitializer = tf.placeholder("float",shape=[],name='learningrate')
+                forces_inInitializer = tf.placeholder("float", shape=[numTrainingImages, maxAtomsForces, 3], name='forces_in')
+                energycoefficientInitializer = tf.placeholder("float",shape=[])
+                forcecoefficientInitializer = tf.placeholder("float",shape=[])
+                tileDerivsInitializer=tf.placeholder("int32", shape=[4],name='tileDerivs')
+                energyProdScaleInitializer=tf.placeholder("float",shape=[],name='energyProdScale')
 
-        # Generate a multilayer neural network for each element type.
-        outdict = {}
-        forcedict = {}
-        for element in self.elements:
-            if isinstance(self.hiddenlayers, dict):
-                networkListToUse = self.hiddenlayers[element]
+                self.y_ = tf.Variable(y_Initializer,trainable=False,collections=[])
+                self.input_keep_prob_in = tf.Variable(input_keep_prob_inInitializer,trainable=False,collections=[])
+                self.keep_prob_in = tf.Variable(keep_prob_inInitializer,trainable=False,collections=[])
+                self.nAtoms_in = tf.Variable(nAtoms_inInitializer,trainable=False,collections=[])
+                self.batchsizeInput = tf.Variable(batchsizeInputInitializer,trainable=False,collections=[])
+                self.learningrate = tf.Variable(learningrateInitializer,trainable=False,collections=[])
+                self.forces_in = tf.Variable(forces_inInitializer,trainable=False,collections=[])
+                self.energycoefficient = tf.Variable(energycoefficientInitializer,trainable=False,collections=[])
+                self.forcecoefficient = tf.Variable(forcecoefficientInitializer,trainable=False,collections=[])
+                self.tileDerivs = tf.Variable(tileDerivsInitializer,trainable=False,collections=[])
+                self.energyProdScale=tf.Variable(energyProdScaleInitializer,trainable=False,collections=[])
+                self.initializers={'indsdict':indsdictInitializer,'tensorDerivDict':tensorDerivDictInitializer,'maskdict':maskdictInitializer,'tensordict':tensordictInitializer,'y_':y_Initializer,'input_keep_prob_in':input_keep_prob_inInitializer,'keep_prob_in':keep_prob_inInitializer,'nAtoms_in':nAtoms_inInitializer,'batchsizeInput':batchsizeInputInitializer,'learningrate':learningrateInitializer,'forces_in':forces_inInitializer,'energycoefficient':energycoefficientInitializer,'forcecoefficient':forcecoefficientInitializer,'tileDerivs':tileDerivsInitializer,'energyProdScale':energyProdScaleInitializer}
             else:
-                networkListToUse = self.hiddenlayers
-            outdict[element], forcedict[element] = model(tensordict[element],
-                                                         indsdict[element],
-                                                         self.keep_prob_in,
-                                                         self.batchsizeInput,
-                                                         networkListToUse,
-                                                         self.activation,
-                                                         self.elementFingerprintLengths[
-                                                             element],
-                                                         mask=maskdict[
-                                                             element],
-                                                         name=self.saveVariableName,
-                                                         dxdxik=self.tensorDerivDict[
-                                                             element],
-                                                         tilederiv=self.tileDerivs,element=element)
-        self.outdict = outdict
+                self.y_ = tf.placeholder("float", shape=[None, 1],name='y_')
+                self.input_keep_prob_in=tf.placeholder("float",name='input_keep_prob_in')
+                self.keep_prob_in = tf.placeholder("float",name='keep_prob_in')
+                self.nAtoms_in = tf.placeholder("float", shape=[None, 1],name='nAtoms_in')
+                self.batchsizeInput = tf.placeholder("int32",name='batchsizeInput')
+                self.learningrate = tf.placeholder("float",name='learningrate')
+                self.forces_in = tf.placeholder("float", shape=[None, None, 3], name='forces_in')
+                self.energycoefficient = tf.placeholder("float")
+                self.forcecoefficient = tf.placeholder("float")
+                self.tileDerivs = tf.placeholder("int32", shape=[4],name='tileDerivs')
+                self.energyProdScale=tf.placeholder("float",name='energyProdScale')
+        # Generate a multilayer neural network for each element type.
+            outdict = {}
+            forcedict = {}
+            l2_regularization_dict={}
+            for element in self.elements:
+                if isinstance(self.hiddenlayers, dict):
+                    networkListToUse = self.hiddenlayers[element]
+                else:
+                    networkListToUse = self.hiddenlayers
+                outdict[element], forcedict[element],l2_regularization_dict[element] = model(tensordict[element],
+                                                             indsdict[element],
+                                                             self.keep_prob_in,
+                                 self.input_keep_prob_in,
+                                                             self.batchsizeInput,
+                                                             networkListToUse,
+                                                             self.activation,
+                                                             self.elementFingerprintLengths[
+                                                                 element],
+                                                             mask=maskdict[
+                                                                 element],
+                                                             name=self.saveVariableName,
+                                                             dxdxik=self.tensorDerivDict[
+                                                                 element],
+                                                             tilederiv=self.tileDerivs,element=element)
+            self.outdict = outdict
 
-        # The total energy is the sum of the energies over each atom type.
-        keylist = self.elements
-        ytot = outdict[keylist[0]]
-        for i in range(1, len(keylist)):
-            ytot = ytot + outdict[keylist[i]]
-        self.energy = ytot
+            # The total energy is the sum of the energies over each atom type.
+            keylist = self.elements
+            ytot = outdict[keylist[0]]
+            for i in range(1, len(keylist)):
+                ytot = ytot + outdict[keylist[i]]
+            self.energy = ytot*self.energyProdScale
 
-        # The total force is the sum of the forces over each atom type.
-        Ftot = forcedict[keylist[0]]
-        for i in range(1, len(keylist)):
-            Ftot = Ftot + forcedict[keylist[i]]
-        self.forces = -Ftot
-
-        # Define output nodes for the energy of a configuration, a loss
-        # function, and the loss per atom (which is what we usually track)
-        #self.loss = tf.sqrt(tf.reduce_sum(
-        #    tf.square(tf.sub(self.energy, self.y_))))
-        #self.lossPerAtom = tf.reduce_sum(
-        #    tf.square(tf.div(tf.sub(self.energy, self.y_), self.nAtoms_in)))
-        
-        #loss function, as included in model/__init__.py
-        self.energy_loss = tf.reduce_sum(
-            tf.square(tf.div(tf.sub(self.energy, self.y_), self.nAtoms_in)))*self.energyProdScale**2.
-        # Define the training step for energy training.
-        
-
-        #self.loss_forces = self.forcecoefficient * \
-        #    tf.sqrt(tf.reduce_mean(tf.square(tf.sub(self.forces_in, self.forces))))
-        #force loss function, as included in model/__init__.py
-        self.force_loss= tf.reduce_sum(tf.div(tf.reduce_sum(tf.square(tf.sub(self.forces_in, self.forces)),2)/3.,self.nAtoms_in))*self.energyProdScale**2.
+            # The total force is the sum of the forces over each atom type.
+            Ftot = forcedict[keylist[0]]
+            for i in range(1, len(keylist)):
+                Ftot = Ftot + forcedict[keylist[i]]
+            self.forces = -Ftot*self.energyProdScale
             
-        #Define max residuals
-        self.energy_maxresid=tf.reduce_max(tf.abs(tf.div(tf.sub(self.energy, self.y_), self.nAtoms_in))) 
-        self.force_maxresid=tf.reduce_max(tf.abs(tf.sub(self.forces_in, self.forces)))
-        
-        # Define the training step for force training.
-        self.loss = self.forcecoefficient*self.force_loss + self.energycoefficient*self.energy_loss
-        self.train_step = tf.train.AdamOptimizer(
-            self.learningrate, beta1=0.9).minimize(self.energy_loss)
-        self.train_step_forces = tf.train.AdamOptimizer(
-            self.learningrate, beta1=0.9).minimize(self.loss)
+            l2_regularization =l2_regularization_dict[keylist[0]]
+            for i in range(1, len(keylist)):
+                l2_regularization = l2_regularization + l2_regularization_dict[keylist[i]]
+            # Define output nodes for the energy of a configuration, a loss
+            # function, and the loss per atom (which is what we usually track)
+            #self.loss = tf.sqrt(tf.reduce_sum(
+            #    tf.square(tf.sub(self.energy, self.y_))))
+            #self.lossPerAtom = tf.reduce_sum(
+            #    tf.square(tf.div(tf.sub(self.energy, self.y_), self.nAtoms_in)))
+            
+            #loss function, as included in model/__init__.py
+            self.energy_loss = tf.reduce_sum(
+                tf.square(tf.div(tf.sub(self.energy, self.y_), self.nAtoms_in)))
+            # Define the training step for energy training.
+            
+
+            #self.loss_forces = self.forcecoefficient * \
+            #    tf.sqrt(tf.reduce_mean(tf.square(tf.sub(self.forces_in, self.forces))))
+            #force loss function, as included in model/__init__.py
+            self.force_loss= tf.reduce_sum(tf.div(tf.reduce_mean(tf.square(tf.sub(self.forces_in, self.forces)),2),self.nAtoms_in))
+            relativeA=0.5
+            self.force_loss= tf.reduce_sum(
+                    tf.div(
+                                    tf.reduce_mean(
+                                        tf.div(
+                                            tf.square(tf.sub(self.forces_in, self.forces)),tf.square(self.forces_in)+relativeA**2.)*relativeA**2.,2),self.nAtoms_in))
+            
+
+            #Define max residuals
+            self.energy_maxresid=tf.reduce_max(tf.abs(tf.div(tf.sub(self.energy, self.y_), self.nAtoms_in))) 
+            self.force_maxresid=tf.reduce_max(tf.abs(tf.sub(self.forces_in, self.forces)))
+            
+            # Define the training step for force training.
+            if self.parameters['regularization_strength'] is not None:
+                self.loss = self.forcecoefficient*self.force_loss + self.energycoefficient*self.energy_loss+self.parameters['regularization_strength']*l2_regularization
+                self.energy_loss_regularized=self.energy_loss+self.parameters['regularization_strength']*l2_regularization
+            else:
+                self.loss = self.forcecoefficient*self.force_loss + self.energycoefficient*self.energy_loss
+                self.energy_loss_regularized=self.energy_loss
+            
+            self.adam_optimizer_instance= tf.train.AdamOptimizer(self.learningrate, **self.parameters['ADAM_optimizer_params'])
+            self.train_step = self.adam_optimizer_instance.minimize(self.energy_loss_regularized)
+            self.train_step_forces =self.adam_optimizer_instance.minimize(self.loss)
+            #self.loss_forces_relative = self.forcecoefficient * tf.sqrt(tf.reduce_mean(tf.square(tf.div(tf.sub(self.forces_in, self.forces),self.forces_in+0.0001))))
+            #self.force_loss_relative= tf.reduce_sum(tf.div(tf.reduce_mean(tf.div(tf.square(tf.sub(self.forces_in, self.forces)),tf.square(self.forces_in)+0.005**2.),2),self.nAtoms_in))
+            #self.loss_relative = self.forcecoefficient*self.loss_forces_relative + self.energycoefficient*self.energy_loss
+            #self.train_step_forces = tf.adam_optimizer_instance.minimize(self.loss_relative)
 
     def initializeVariables(self):
         """Resets all of the variables in the current tensorflow model."""
@@ -270,7 +358,7 @@ class tfAmpNN:
                           atomsIndsReverse,
                           batchsize,
                           trainingrate,
-                          keepprob, natoms,
+                          keepprob, inputkeepprob,natoms,
                           forcesExp=0.,
                           forces=False,
                           energycoefficient=1.,
@@ -303,11 +391,14 @@ class tfAmpNN:
                     (1, self.elementFingerprintLengths[element]))
                 feedinput[self.indsdict[element]] = [0]
                 feedinput[self.maskdict[element]] = np.zeros((batchsize, 1))
+                feedinput[self.tensorDerivDict[element]] = np.zeros(
+                                                                (1, 1, 3, self.elementFingerprintLengths[element]))
         feedinput[self.tileDerivs] = tilederivs
         feedinput[self.y_] = energies[curinds]
         feedinput[self.batchsizeInput] = batchsize
         feedinput[self.learningrate] = trainingrate
         feedinput[self.keep_prob_in] = keepprob
+        feedinput[self.input_keep_prob_in] = inputkeepprob
         feedinput[self.nAtoms_in] = natoms[curinds]
         if forcecoefficient > 1.e-5:
             feedinput[self.forces_in] = forcesExp[curinds]
@@ -317,7 +408,7 @@ class tfAmpNN:
         return feedinput
 
     def fit(self, trainingimages, descriptor, cores=1, log=None,
-            outlier_energy=10.):
+            outlier_energy=10.,preLoadTrainingData=True):
         """Fit takes a bunch of training images (which are assumed to have a
         working calculator attached), and fits the internal variables to the
         training images.
@@ -333,10 +424,13 @@ class tfAmpNN:
         if self.parameters['force_coefficient']<1e-5:
             tempconvergence['force_rmse']=None
             tempconvergence['force_maxresid']=None
-        lf=LossFunction(convergence=tempconvergence,energy_coefficient=self.parameters['energy_coefficient'],force_coefficient=self.parameters['force_coefficient'],cores=1)
+        
+        
         if self.parameters['force_coefficient']>1e-5:
+            lf=LossFunction(convergence=tempconvergence,energy_coefficient=self.parameters['energy_coefficient'],force_coefficient=self.parameters['force_coefficient'],cores=1)
             lf.attach_model(self,images=trainingimages,fingerprints=descriptor.fingerprints,fingerprintprimes=descriptor.fingerprintprimes)
         else:
+            lf=LossFunction(convergence=tempconvergence,energy_coefficient=self.parameters['energy_coefficient'],force_coefficient=0.,cores=1)
             lf.attach_model(self,images=trainingimages,fingerprints=descriptor.fingerprints)
         lf._initialize()
         # Inputs:
@@ -349,12 +443,21 @@ class tfAmpNN:
         images = trainingimages
         keylist = images.keys()
         fingerprintDB = descriptor.fingerprints
-
+        self.parameters['numTrainingImages']=len(keylist)
         self.maxAtomsForces = np.max(map(lambda x: len(images[x]), keylist))
         atomArraysAll, nAtomsDict, atomsIndsReverse, natoms, atomArraysAllDerivs = generateTensorFlowArrays(
             fingerprintDB, self.elements, keylist, fingerprintDerDB, self.maxAtomsForces)
         energies = map(lambda x: [images[x].get_potential_energy()], keylist)
         energies = np.array(energies)
+        
+        
+        
+        if preLoadTrainingData and not(self.miniBatch):
+            self.sess.close()
+            numElements={}
+            for element in nAtomsDict:
+               numElements[element]=sum(nAtomsDict[element])
+            self.constructSessGraphModel(self.tfVars,None,trainOnly=True,maxAtomsForces=self.maxAtomsForces,numElements=numElements,numTrainingImages=len(keylist))
 
         natomsArray = np.zeros((len(keylist), len(self.elements)))
         for i in range(len(images)):
@@ -364,27 +467,30 @@ class tfAmpNN:
         # simple model to help normalize the energies by guessing a per-atom
         # energy.  This is helpful to removing the large electronic energy
         # associate for each element, making it easier to regress later
-        model_ransac = sklearn.linear_model.RANSACRegressor(
-            sklearn.linear_model.LinearRegression(), residual_threshold=outlier_energy, min_samples=0.1)
-        model_ransac.fit(natomsArray, energies)
-        energies = energies - model_ransac.predict(natomsArray)
-        self.linearmodel = model_ransac
-        newkeylist = []
-        newenergies = []
-        for i in range(len(keylist)):
-            if model_ransac.inlier_mask_[i] == True:
-                newkeylist.append(keylist[i])
-                newenergies.append(energies[i])
+        if self.linearmodel is None and self.parameters['applyLinearModel']:
+            model_ransac = sklearn.linear_model.RANSACRegressor(
+                 sklearn.linear_model.LinearRegression(), residual_threshold=outlier_energy, min_samples=0.1)
+            model_ransac.fit(natomsArray, energies)
+            self.linearmodel = model_ransac
+        if self.parameters['applyLinearModel']:
+            energies = energies - self.linearmodel.predict(natomsArray)
 
-        keylist = newkeylist
-        energies = np.array(newenergies)
+        #newkeylist = []
+        #newenergies = []
+        #for i in range(len(keylist)):
+        #    if self.linearmodel.inlier_mask_[i] == True:
+        #        newkeylist.append(keylist[i])
+        #        newenergies.append(energies[i])
+        
+        #keylist = newkeylist
+        #energies = np.array(newenergies)
         atomArraysAll, nAtomsDict, atomsIndsReverse, natoms, atomArraysAllDerivs = generateTensorFlowArrays(
             fingerprintDB, self.elements, keylist, fingerprintDerDB, self.maxAtomsForces)
 
         self.parameters['energyMeanScale'] = np.mean(energies)
         energies = energies - self.parameters['energyMeanScale']
         self.parameters['energyProdScale'] = np.mean(np.abs(energies))
-        energies = energies / self.parameters['energyProdScale']
+        #energies = energies / self.parameters['energyProdScale']
         self.parameters['elementFPScales'] = {}
         for element in self.elements:
             if len(atomArraysAll[element]) == 0:
@@ -404,7 +510,7 @@ class tfAmpNN:
                     atoms = images[keylist[i]]
                     forces[i, 0:len(atoms), :] = atoms.get_forces(
                     apply_constraint=False)
-                forces = forces / self.parameters['energyProdScale']
+                #forces = forces / self.parameters['energyProdScale']
             else:
                 forces = 0.
         else:
@@ -414,10 +520,11 @@ class tfAmpNN:
             batchsize = len(keylist)
 
         
-        def trainmodel(trainingrate, keepprob, maxepochs):
+        def trainmodel(trainingrate, keepprob, inputkeepprob,maxepochs):
             icount = 1
             icount_global = 1
             indlist = np.arange(len(keylist))
+            converge_save=[]
 
             # continue taking training steps as long as we haven't hit the RMSE
             # minimum of the max number of epochs
@@ -445,7 +552,7 @@ class tfAmpNN:
                                                            atomsIndsReverse,
                                                            batchsize,
                                                            trainingrate,
-                                                           keepprob,
+                                                           keepprob,inputkeepprob,
                                                            natoms,
                                                            forcesExp=forces,
                                                            energycoefficient=self.parameters['energy_coefficient'],
@@ -459,10 +566,11 @@ class tfAmpNN:
                                       feed_dict=feedinput)
 
                     # Print the loss function every 100 evals.
-                    if (self.miniBatch)and(icount % 100 == 0):
-                    	feed_keepprob_save=feedinput[self.keep_prob_in]
-                    	feedinput[self.keep_prob_in]=1.
-                        feedinput[self.keep_prob_in]=feed_keepprob_save
+                    #if (self.miniBatch)and(icount % 100 == 0):
+                    #	feed_keepprob_save=feedinput[self.keep_prob_in]
+                    #	feed_keepprob_save_input=feedinput[self.input_keep_prob_in]
+                    #	feedinput[self.keep_prob_in]=1.
+                    #    feedinput[self.keep_prob_in]=feed_keepprob_save
                     icount += 1
 
                 # Every 10 epochs, report the RMSE on the entire training set
@@ -476,20 +584,27 @@ class tfAmpNN:
                                                     atomsIndsReverse,
                                                     len(keylist),
                                                     trainingrate,
-                                                    1.,
+                                                    1.,1.,
                                                     natoms,
                                                     forcesExp=forces,
                                                     energycoefficient=self.parameters['energy_coefficient'],
                                                     forcecoefficient=self.parameters['force_coefficient'])
+                    feed_keepprob_save=feedinput[self.keep_prob_in]
+                    feed_keepprob_save_input=feedinput[self.input_keep_prob_in]
+                    feedinput[self.keep_prob_in]=1.
+                    feedinput[self.input_keep_prob_in]=1.
                     if self.parameters['force_coefficient'] > 1.e-5:
-                        converged=lf.check_convergence(self.sess.run(self.loss,feed_dict=feedinput),
+                        converge_save.append([self.sess.run(self.loss,feed_dict=feedinput),
                                          self.sess.run(self.energy_loss,feed_dict=feedinput),
                                          self.sess.run(self.force_loss,feed_dict=feedinput),
                                          self.sess.run(self.energy_maxresid,feed_dict=feedinput),
-                                         self.sess.run(self.force_maxresid,feed_dict=feedinput))
+                                         self.sess.run(self.force_maxresid,feed_dict=feedinput)])
+                        if len(converge_save)>2:
+                            converge_save.pop(0)
+                        convergence_vals=np.mean(converge_save,0)
+                        converged=lf.check_convergence(*convergence_vals)
                         if converged:
                             raise ConvergenceOccurred()
-
                     else:
                         converged=lf.check_convergence(self.sess.run(self.energy_loss,feed_dict=feedinput),
                                          self.sess.run(self.energy_loss,feed_dict=feedinput),
@@ -498,6 +613,8 @@ class tfAmpNN:
                                          0.)
                         if converged:
                             raise ConvergenceOccurred()
+                    feedinput[self.keep_prob_in]=keepprob
+                    feedinput[self.input_keep_prob_in]=inputkeepprob
                 icount_global += 1
             return
 
@@ -510,6 +627,7 @@ class tfAmpNN:
                                                            nAtomsDict,
                                                            atomsIndsReverse,
                                                            batchsize,
+                                                           1.,
                                                            1.,
                                                            1.,
                                                            natoms,
@@ -533,10 +651,37 @@ class tfAmpNN:
             else:
                 step_callbackfun=step_callbackfun_forces
                 curloss=self.loss
+
+            if preLoadTrainingData:
+                for element in self.tensorDerivDict:
+                    self.sess.run(self.tensorDerivDict[element].initializer,feed_dict={self.initializers['tensorDerivDict'][element]:feedinput[self.tensorDerivDict[element]]})
+                    self.sess.run(self.tensordict[element].initializer,feed_dict={self.initializers['tensordict'][element]:feedinput[self.tensordict[element]]})
+                    self.sess.run(self.indsdict[element].initializer,feed_dict={self.initializers['indsdict'][element]:feedinput[self.indsdict[element]]})
+                    self.sess.run(self.maskdict[element].initializer,feed_dict={self.initializers['maskdict'][element]:feedinput[self.maskdict[element]]})
+                    del feedinput[self.tensorDerivDict[element]]
+                    del feedinput[self.tensordict[element]]
+                    del feedinput[self.indsdict[element]]
+                    del feedinput[self.maskdict[element]]
+                self.sess.run(self.y_.initializer,feed_dict={self.initializers['y_']:feedinput[self.y_]})
+                self.sess.run(self.input_keep_prob_in.initializer,feed_dict={self.initializers['input_keep_prob_in']:feedinput[self.input_keep_prob_in]})
+                self.sess.run(self.keep_prob_in.initializer,feed_dict={self.initializers['keep_prob_in']:feedinput[self.keep_prob_in]})
+                self.sess.run(self.nAtoms_in.initializer,feed_dict={self.initializers['nAtoms_in']:feedinput[self.nAtoms_in]})
+                self.sess.run(self.batchsizeInput.initializer,feed_dict={self.initializers['batchsizeInput']:feedinput[self.batchsizeInput]})
+                self.sess.run(self.learningrate.initializer,feed_dict={self.initializers['learningrate']:feedinput[self.learningrate]})
+                self.sess.run(self.forces_in.initializer,feed_dict={self.initializers['forces_in']:feedinput[self.forces_in]})
+                self.sess.run(self.energycoefficient.initializer,feed_dict={self.initializers['energycoefficient']:feedinput[self.energycoefficient]})
+                self.sess.run(self.forcecoefficient.initializer,feed_dict={self.initializers['forcecoefficient']:feedinput[self.forcecoefficient]})
+                self.sess.run(self.tileDerivs.initializer,feed_dict={self.initializers['tileDerivs']:feedinput[self.tileDerivs]})
+                self.sess.run(self.energyProdScale.initializer,feed_dict={self.initializers['energyProdScale']:feedinput[self.energyProdScale]})
+
             extOpt=ScipyOptimizerInterface(curloss,method='l-BFGS-b',options={'maxiter':maxEpochs,'ftol':1.e-10,'gtol':1.e-10,'factr':1.e4})
             varlist=[]
             for var in [self.loss,self.energy_loss,self.force_loss,self.energy_maxresid,self.force_maxresid]:
-                varlist.append(extOpt._make_eval_func(var, self.sess, feedinput, []))
+                if preLoadTrainingData:
+                    varlist.append(extOpt._make_eval_func(var, self.sess, feedinput, []))
+                else:
+                    varlist.append(extOpt._make_eval_func(var, self.sess, {}, []))
+
 
             extOpt.minimize(self.sess,feed_dict=feedinput,step_callback=step_callbackfun)
                 
@@ -544,10 +689,11 @@ class tfAmpNN:
 
         try:        
             if self.optimizationMethod=='l-BFGS-b':
-                trainmodelBFGS(self.maxTrainingEpochs)
+                with self.graph.as_default():
+                    trainmodelBFGS(self.maxTrainingEpochs)
             elif self.optimizationMethod=='ADAM':
                 trainmodel(self.initialTrainingRate,
-                          self.keep_prob, self.maxTrainingEpochs)
+                          self.keep_prob, self.input_keep_prob,self.maxTrainingEpochs)
             else:
                 log('uknown optimizer!')
         except ConvergenceOccurred:
@@ -555,7 +701,7 @@ class tfAmpNN:
         return False
 
                
-    def get_energy_list(self, hashs, fingerprintDB, fingerprintDerDB=None, keep_prob=1., forces=False):
+    def get_energy_list(self, hashs, fingerprintDB, fingerprintDerDB=None, keep_prob=1., input_keep_prob=1.,forces=False,nsamples=1):
         """Methods to get the energy and forces for a set of
         configurations."""
 
@@ -598,24 +744,46 @@ class tfAmpNN:
         feedinput[self.batchsizeInput] = len(hashs)
         feedinput[self.nAtoms_in] = natoms[curinds]
         feedinput[self.keep_prob_in] = keep_prob
+        feedinput[self.input_keep_prob_in] = input_keep_prob
+        feedinput[self.energyProdScale]=self.parameters['energyProdScale']
         if tilederivs == []:
             tilederivs = [1, 1, 1, 1]
         feedinput[self.tileDerivs] = tilederivs
-        energies = np.array(self.energy.eval(feed_dict=feedinput)) * self.parameters[
-            'energyProdScale'] + self.parameters['energyMeanScale']
-
-        # Add in the per-atom base energy.
-        natomsArray = np.zeros((len(hashs), len(self.elements)))
-        for i in range(len(hashs)):
-            for j in range(len(self.elements)):
-                natomsArray[i][j] = nAtomsDict[self.elements[j]][i]
-
-        energies = energies + self.linearmodel.predict(natomsArray)
-        if forces:
-            force = self.forces.eval(
-                feed_dict=feedinput) * self.parameters['energyProdScale']
+        if nsamples==1:
+            energies = np.array(self.sess.run(self.energy,feed_dict=feedinput)) + self.parameters['energyMeanScale']
+            # Add in the per-atom base energy.
+            natomsArray = np.zeros((len(hashs), len(self.elements)))
+            for i in range(len(hashs)):
+                for j in range(len(self.elements)):
+                    natomsArray[i][j] = nAtomsDict[self.elements[j]][i]
+            if self.parameters['applyLinearModel']:
+                energies = energies + self.linearmodel.predict(natomsArray)
+            if forces:
+                force = self.sess.run(self.forces,
+                    feed_dict=feedinput)
+            else:
+                force=[]
         else:
-            force = []
+            energysave=[]
+            forcesave=[]
+            # Add in the per-atom base energy.
+            natomsArray = np.zeros((len(hashs), len(self.elements)))
+            for i in range(len(hashs)):
+                for j in range(len(self.elements)):
+                    natomsArray[i][j] = nAtomsDict[self.elements[j]][i]
+            for samplenum in range(nsamples):
+                energies = np.array(self.sess.run(self.energy,feed_dict=feedinput)) + self.parameters['energyMeanScale']
+                if self.parameters['applyLinearModel']:
+                    energies = energies + self.linearmodel.predict(natomsArray)
+                energysave.append(map(lambda x: x[0],energies))
+                if forces:
+                    force = self.sess.run(self.forces,
+                        feed_dict=feedinput)
+                    forcesave.append(force)
+            energies=np.array(energysave)
+            force=np.array(forcesave)
+            #else:
+            #    force = []
         return energies, force
 
     def get_energy(self, fingerprint):
@@ -624,6 +792,21 @@ class tfAmpNN:
         key = '1'
         energies, forces = self.get_energy_list([key], {key: fingerprint})
         return energies[0]
+
+    def getVariance(self,fingerprint,nSamples=10,l=1.):
+        key = '1'
+        #energies=[]
+        #for i in range(nSamples):
+        #    energies.append(self.get_energy_list([key], {key: fingerprint},keep_prob=self.keep_prob)[0])
+        energies,force=self.get_energy_list([key], {key: fingerprint},keep_prob=self.keep_prob,nsamples=nSamples)
+        if 'regularization_strength' in self.parameters and self.parameters['regularization_strength'] is not None:
+            tau=l**2.*self.keep_prob/(2*self.parameters['numTrainingImages']*self.parameters['regularization_strength'])
+            var=np.var(energies)+tau**-1.
+            #forcevar=np.var(forces,)
+        else:
+            tau=1
+            var=np.var(energies)
+        return var
 
     def get_forces(self, fingerprint, derfingerprint):
     # get_forces function still needs to be implemented.  Can't do this
@@ -639,6 +822,7 @@ class tfAmpNN:
 
         params['hiddenlayers'] = self.hiddenlayers
         params['keep_prob'] = self.keep_prob
+        params['input_keep_prob'] = self.input_keep_prob
         params['elementFingerprintLengths'] = self.elementFingerprintLengths
         params['batchsize'] = self.batchsize
         params['maxTrainingEpochs'] = self.maxTrainingEpochs
@@ -646,8 +830,10 @@ class tfAmpNN:
         params['activation'] = self.activationName
         params['saveVariableName'] = self.saveVariableName
         params['parameters'] = self.parameters
-
         params['miniBatch'] = self.miniBatch
+        params['maxAtomsForces']=self.maxAtomsForces
+        params['optimizationMethod']=self.optimizationMethod
+        params['applyLinearModel']=self.parameters['applyLinearModel']
 
         # Create a string format of the tensorflow variables.
         self.saver.save(self.sess, 'tfAmpNN-checkpoint')
@@ -660,31 +846,36 @@ class tfAmpNN:
 
         return str(params)
 
-
-def model(x, segmentinds, keep_prob, batchsize, neuronList, activationType,
+def model(x, segmentinds, keep_prob, input_keep_prob,batchsize, neuronList, activationType,
           fplength, mask, name, dxdxik, tilederiv,element):
     """Generates a multilayer neural network with variable number
     of neurons, so that we have a template for each atom's NN."""
-
+    namefun=lambda x: '%s_%s_'%(name,element)+x
     nNeurons = neuronList[0]
     # Pass  the input tensors through the first soft-plus layer
-    W_fc = weight_variable([fplength, nNeurons], name=name+element)
-    b_fc = bias_variable([nNeurons], name=name)
-    h_fc = activationType(tf.matmul(x, W_fc) + b_fc)
-    #h_fc = tf.nn.dropout(activationType(tf.matmul(x, W_fc) + b_fc),keep_prob)
-
+    W_fc = weight_variable([fplength, nNeurons], name=namefun('Wfc0'))
+    b_fc = bias_variable([nNeurons], name=namefun('bfc0'))
+    input_dropout=tf.nn.dropout(x,input_keep_prob)
+    #h_fc = activationType(tf.matmul(x, W_fc) + b_fc)
+    h_fc = tf.nn.dropout(activationType(tf.matmul(input_dropout, W_fc) + b_fc),keep_prob)
+    #l2_regularization=tf.reduce_sum(tf.square(W_fc))+tf.reduce_sum(tf.square(b_fc))
+    l2_regularization=tf.reduce_sum(tf.square(W_fc))
     if len(neuronList) > 1:
         for i in range(1, len(neuronList)):
             nNeurons = neuronList[i]
             nNeuronsOld = neuronList[i - 1]
-            W_fc = weight_variable([nNeuronsOld, nNeurons], name=name)
-            b_fc = bias_variable([nNeurons], name=name)
+            W_fc = weight_variable([nNeuronsOld, nNeurons], name=namefun('Wfc%d'%i))
+            b_fc = bias_variable([nNeurons], name=namefun('bfc%d'%i))
             h_fc = tf.nn.dropout(activationType(
                 tf.matmul(h_fc, W_fc) + b_fc), keep_prob)
+            l2_regularization+=tf.reduce_sum(tf.square(W_fc))+tf.reduce_sum(tf.square(b_fc))
+            #l2_regularization+=tf.reduce_sum(tf.square(W_fc))
 
-    W_fc_out = weight_variable([neuronList[-1], 1], name=name)
-    b_fc_out = bias_variable([1], name=name)
+    W_fc_out = weight_variable([neuronList[-1], 1], name=namefun('Wfcout'))
+    b_fc_out = bias_variable([1], name=namefun('bfcout'))
     y_out = tf.matmul(h_fc, W_fc_out) + b_fc_out
+    l2_regularization+=tf.reduce_sum(tf.square(W_fc_out))+tf.reduce_sum(tf.square(b_fc_out))
+    #l2_regularization+=tf.reduce_sum(tf.square(W_fc_out)))
 
     # Sum the predicted energy for each molecule
     reducedSum = tf.unsorted_segment_sum(y_out, segmentinds, batchsize)
@@ -697,7 +888,7 @@ def model(x, segmentinds, keep_prob, batchsize, neuronList, activationType,
     dEdxikReduce = tf.reduce_sum(dEdxik, 3)
     dEdxik_reduced = tf.unsorted_segment_sum(
         dEdxikReduce, segmentinds, batchsize)
-    return tf.mul(reducedSum, mask), dEdxik_reduced
+    return tf.mul(reducedSum, mask), dEdxik_reduced,l2_regularization
 
 
 def weight_variable(shape, name, stddev=0.1):
