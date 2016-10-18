@@ -1066,7 +1066,3 @@ class MetaDict(dict):
     """Dictionary that can also store metadata. Useful for images dictionary
     so that images can still be iterated by keys."""
     metadata = {}
-
-
-if __name__ == '__main__':
-    pass
