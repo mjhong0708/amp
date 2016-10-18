@@ -80,7 +80,7 @@ class tfAmpNN:
                  saveVariableName=None,
                  parameters=None,
                  sess=None,
-                 maxAtomsForces=50,
+                 maxAtomsForces=6,
                  energy_coefficient=1.0,
                  force_coefficient=0.04,
                  scikit_model=None,
@@ -90,6 +90,7 @@ class tfAmpNN:
                  ADAM_optimizer_params={'beta1':0.9},
                  regularization_strength=None,
                  applyLinearModel=True,
+                 numTrainingImages={}
                 ):
         
         self.parameters = {} if parameters is None else parameters
@@ -121,7 +122,10 @@ class tfAmpNN:
             self.parameters['ADAM_optimizer_params']=ADAM_optimizer_params
         if 'regularization_strength' not in self.parameters:
             self.parameters['regularization_strength']=regularization_strength
+        self.numTrainingImages=100
         self.hiddenlayers = hiddenlayers
+        self.maxAtomsForces = maxAtomsForces
+
         if isinstance(activation, basestring):
             self.activationName = activation
             self.activation = eval('tf.nn.' + activation)
@@ -141,42 +145,9 @@ class tfAmpNN:
         for element in self.elements:
             self.elementFingerprintLengths[element] = elementFingerprintLengths[element]
         
+        self.constructSessGraphModel(tfVars,sess)
+        self.tfVars=tfVars
         
-
-        self.graph=tf.Graph()
-        with self.graph.as_default():
-            if sess is None:
-                self.sess = tf.InteractiveSession()
-            else:
-                self.sess = sess
-
-            self.constructModel(self.sess,self.graph)
-            trainvarlist=tf.trainable_variables()
-            trainvarlist=[a for a in trainvarlist if a.name[:8]==self.saveVariableName]
-            self.saver = tf.train.Saver(trainvarlist)
-            if tfVars is not None:
-                #self.initializeVariables()
-                self.sess.run(tf.initialize_all_variables())
-                #trainable_vars = tf.trainable_variables()
-                #all_vars = tf.all_variables()
-                #untrainable_vars = []
-                #for var in all_vars:
-                #    if var not in trainable_vars:
-                #        untrainable_vars.append(var)
-                #    varnamesplit=var.name.split('_')
-                #beta_accumulators=self.adam_optimizer_instance._get_beta_accumulators()
-                #for var in beta_accumulators:
-                #    untrainable_vars.append(var)
-                #    if len(varnamesplit)>0 and varnamesplit[1]=='power' and (varnamesplit[0]=='beta1' or varnamesplit[0]=='beta2'):
-                #        untrainable_vars.append(var)
-                #    #re-initialize the ADAM ops
-                with open('tfAmpNN-checkpoint-restore', 'w') as fhandle:
-                    fhandle.write(tfVars)
-                self.saver.restore(self.sess, 'tfAmpNN-checkpoint-restore')
-                #self.sess.run(tf.initialize_variables(untrainable_vars))
-            else:
-                self.sess.run(tf.initialize_all_variables())
-                #self.initializeVariables()
         self.maxTrainingEpochs = maxTrainingEpochs
         self.batchsize = batchsize
         self.initialTrainingRate = initialTrainingRate
@@ -184,9 +155,30 @@ class tfAmpNN:
 
         #optimizer can be 'ADAM' or 'l-BFGS-b'
         self.optimizationMethod=optimizationMethod
-        self.maxAtomsForces = maxAtomsForces
 
-    def constructModel(self,sess,graph):
+    def constructSessGraphModel(self,tfVars,sess,trainOnly=False,maxAtomsForces=0,numElements=None,numTrainingImages=None):
+        self.graph=tf.Graph()
+        with self.graph.as_default():
+            if sess is None:
+                self.sess = tf.InteractiveSession()
+            else:
+                self.sess = sess
+            if trainOnly:
+                self.constructModel(self.sess,self.graph,trainOnly,maxAtomsForces,numElements,numTrainingImages)
+            else:
+                self.constructModel(self.sess,self.graph)
+            trainvarlist=tf.trainable_variables()
+            trainvarlist=[a for a in trainvarlist if a.name[:8]==self.saveVariableName]
+            self.saver = tf.train.Saver(trainvarlist)
+            if tfVars is not None:
+                self.sess.run(tf.initialize_all_variables())
+                with open('tfAmpNN-checkpoint-restore', 'w') as fhandle:
+                    fhandle.write(tfVars)
+                self.saver.restore(self.sess, 'tfAmpNN-checkpoint-restore')
+            else:
+                self.sess.run(tf.initialize_all_variables())
+
+    def constructModel(self,sess,graph,preLoadData=False,maxAtomsForces=None,numElements=None,numTrainingImages=None):
         """Sets up the tensorflow neural networks for each atom type."""
 
         with sess.as_default(),graph.as_default():
@@ -195,32 +187,78 @@ class tfAmpNN:
             indsdict = {}
             maskdict = {}
             tensorDerivDict = {}
+            if preLoadData:
+                tensordictInitializer={}
+                tensorDerivDictInitializer={}
+                indsdictInitializer={}
+                maskdictInitializer={}
             for element in self.elements:
-                tensordict[element] = tf.placeholder(
+                if preLoadData:
+                    tensordictInitializer[element]= tf.placeholder(
+                    "float", shape=[numElements[element], self.elementFingerprintLengths[element]],name='tensor_%s'%element)
+                    tensorDerivDictInitializer[element]=tf.placeholder("float",
+                                                       shape=[numElements[element], maxAtomsForces, 3, self.elementFingerprintLengths[element]],name='tensorderiv_%s'%element)
+                    indsdictInitializer[element] = tf.placeholder("int64", shape=[numElements[element]],name='indsdict_%s'%element)
+                    maskdictInitializer[element] = tf.placeholder("float", shape=[numTrainingImages, 1],name='maskdict_%s'%element)
+                    tensordict[element]=tf.Variable(tensordictInitializer[element],trainable=False,collections=[])
+                    tensorDerivDict[element]=tf.Variable(tensorDerivDictInitializer[element],trainable=False,collections=[])
+                    indsdict[element]=tf.Variable(indsdictInitializer[element],trainable=False,collections=[])
+                    maskdict[element]=tf.Variable(maskdictInitializer[element],trainable=False,collections=[])
+                else:
+                    tensordict[element] = tf.placeholder(
                     "float", shape=[None, self.elementFingerprintLengths[element]],name='tensor_%s'%element)
-                tensorDerivDict[element] = tf.placeholder("float",
+                    tensorDerivDict[element] = tf.placeholder("float",
                                                        shape=[None, None, 3, self.elementFingerprintLengths[element]],name='tensorderiv_%s'%element)
-                indsdict[element] = tf.placeholder("int64", shape=[None],name='indsdict_%s'%element)
-                maskdict[element] = tf.placeholder("float", shape=[None, 1],name='maskdict_%s'%element)
+                    indsdict[element] = tf.placeholder("int64", shape=[None],name='indsdict_%s'%element)
+                    maskdict[element] = tf.placeholder("float", shape=[None, 1],name='maskdict_%s'%element)
+    
             self.indsdict = indsdict
-            self.tileDerivs = tf.placeholder("int32", shape=[4],name='tileDerivs')
+            
             self.tensordict = tensordict
             self.maskdict = maskdict
-            self.energyProdScale=tf.placeholder("float",name='energyProdScale')
+            
             self.tensorDerivDict = tensorDerivDict
 
         # y_ is the input energy for each configuration.
-            self.y_ = tf.placeholder("float", shape=[None, 1],name='y_')
-            self.input_keep_prob_in=tf.placeholder("float",name='input_kee_prob_in')
-            self.keep_prob_in = tf.placeholder("float",name='keep_prob_in')
-            self.nAtoms_in = tf.placeholder("float", shape=[None, 1],name='nAtoms_in')
-            self.batchsizeInput = tf.placeholder("int32",name='batchsizeInput')
-            self.learningrate = tf.placeholder("float",name='learningrate')
-            self.forces_in = tf.placeholder(
-            "float", shape=[None, None, 3], name='forces_in')
-            self.energycoefficient = tf.placeholder("float")
-            self.forcecoefficient = tf.placeholder("float")
+        
 
+            if preLoadData:
+                y_Initializer = tf.placeholder("float", shape=[numTrainingImages, 1],name='y_')
+                input_keep_prob_inInitializer=tf.placeholder("float",shape=[],name='input_keep_prob_in')
+                keep_prob_inInitializer = tf.placeholder("float",shape=[],name='keep_prob_in')
+                nAtoms_inInitializer = tf.placeholder("float", shape=[numTrainingImages, 1],name='nAtoms_in')
+                batchsizeInputInitializer = tf.placeholder("int32",shape=[],name='batchsizeInput')
+                learningrateInitializer = tf.placeholder("float",shape=[],name='learningrate')
+                forces_inInitializer = tf.placeholder("float", shape=[numTrainingImages, maxAtomsForces, 3], name='forces_in')
+                energycoefficientInitializer = tf.placeholder("float",shape=[])
+                forcecoefficientInitializer = tf.placeholder("float",shape=[])
+                tileDerivsInitializer=tf.placeholder("int32", shape=[4],name='tileDerivs')
+                energyProdScaleInitializer=tf.placeholder("float",shape=[],name='energyProdScale')
+
+                self.y_ = tf.Variable(y_Initializer,trainable=False,collections=[])
+                self.input_keep_prob_in = tf.Variable(input_keep_prob_inInitializer,trainable=False,collections=[])
+                self.keep_prob_in = tf.Variable(keep_prob_inInitializer,trainable=False,collections=[])
+                self.nAtoms_in = tf.Variable(nAtoms_inInitializer,trainable=False,collections=[])
+                self.batchsizeInput = tf.Variable(batchsizeInputInitializer,trainable=False,collections=[])
+                self.learningrate = tf.Variable(learningrateInitializer,trainable=False,collections=[])
+                self.forces_in = tf.Variable(forces_inInitializer,trainable=False,collections=[])
+                self.energycoefficient = tf.Variable(energycoefficientInitializer,trainable=False,collections=[])
+                self.forcecoefficient = tf.Variable(forcecoefficientInitializer,trainable=False,collections=[])
+                self.tileDerivs = tf.Variable(tileDerivsInitializer,trainable=False,collections=[])
+                self.energyProdScale=tf.Variable(energyProdScaleInitializer,trainable=False,collections=[])
+                self.initializers={'indsdict':indsdictInitializer,'tensorDerivDict':tensorDerivDictInitializer,'maskdict':maskdictInitializer,'tensordict':tensordictInitializer,'y_':y_Initializer,'input_keep_prob_in':input_keep_prob_inInitializer,'keep_prob_in':keep_prob_inInitializer,'nAtoms_in':nAtoms_inInitializer,'batchsizeInput':batchsizeInputInitializer,'learningrate':learningrateInitializer,'forces_in':forces_inInitializer,'energycoefficient':energycoefficientInitializer,'forcecoefficient':forcecoefficientInitializer,'tileDerivs':tileDerivsInitializer,'energyProdScale':energyProdScaleInitializer}
+            else:
+                self.y_ = tf.placeholder("float", shape=[None, 1],name='y_')
+                self.input_keep_prob_in=tf.placeholder("float",name='input_keep_prob_in')
+                self.keep_prob_in = tf.placeholder("float",name='keep_prob_in')
+                self.nAtoms_in = tf.placeholder("float", shape=[None, 1],name='nAtoms_in')
+                self.batchsizeInput = tf.placeholder("int32",name='batchsizeInput')
+                self.learningrate = tf.placeholder("float",name='learningrate')
+                self.forces_in = tf.placeholder("float", shape=[None, None, 3], name='forces_in')
+                self.energycoefficient = tf.placeholder("float")
+                self.forcecoefficient = tf.placeholder("float")
+                self.tileDerivs = tf.placeholder("int32", shape=[4],name='tileDerivs')
+                self.energyProdScale=tf.placeholder("float",name='energyProdScale')
         # Generate a multilayer neural network for each element type.
             outdict = {}
             forcedict = {}
@@ -370,7 +408,7 @@ class tfAmpNN:
         return feedinput
 
     def fit(self, trainingimages, descriptor, cores=1, log=None,
-            outlier_energy=10.):
+            outlier_energy=10.,preLoadTrainingData=True):
         """Fit takes a bunch of training images (which are assumed to have a
         working calculator attached), and fits the internal variables to the
         training images.
@@ -411,6 +449,15 @@ class tfAmpNN:
             fingerprintDB, self.elements, keylist, fingerprintDerDB, self.maxAtomsForces)
         energies = map(lambda x: [images[x].get_potential_energy()], keylist)
         energies = np.array(energies)
+        
+        
+        
+        if preLoadTrainingData and not(self.miniBatch):
+            self.sess.close()
+            numElements={}
+            for element in nAtomsDict:
+               numElements[element]=sum(nAtomsDict[element])
+            self.constructSessGraphModel(self.tfVars,None,trainOnly=True,maxAtomsForces=self.maxAtomsForces,numElements=numElements,numTrainingImages=len(keylist))
 
         natomsArray = np.zeros((len(keylist), len(self.elements)))
         for i in range(len(images)):
@@ -604,10 +651,37 @@ class tfAmpNN:
             else:
                 step_callbackfun=step_callbackfun_forces
                 curloss=self.loss
+
+            if preLoadTrainingData:
+                for element in self.tensorDerivDict:
+                    self.sess.run(self.tensorDerivDict[element].initializer,feed_dict={self.initializers['tensorDerivDict'][element]:feedinput[self.tensorDerivDict[element]]})
+                    self.sess.run(self.tensordict[element].initializer,feed_dict={self.initializers['tensordict'][element]:feedinput[self.tensordict[element]]})
+                    self.sess.run(self.indsdict[element].initializer,feed_dict={self.initializers['indsdict'][element]:feedinput[self.indsdict[element]]})
+                    self.sess.run(self.maskdict[element].initializer,feed_dict={self.initializers['maskdict'][element]:feedinput[self.maskdict[element]]})
+                    del feedinput[self.tensorDerivDict[element]]
+                    del feedinput[self.tensordict[element]]
+                    del feedinput[self.indsdict[element]]
+                    del feedinput[self.maskdict[element]]
+                self.sess.run(self.y_.initializer,feed_dict={self.initializers['y_']:feedinput[self.y_]})
+                self.sess.run(self.input_keep_prob_in.initializer,feed_dict={self.initializers['input_keep_prob_in']:feedinput[self.input_keep_prob_in]})
+                self.sess.run(self.keep_prob_in.initializer,feed_dict={self.initializers['keep_prob_in']:feedinput[self.keep_prob_in]})
+                self.sess.run(self.nAtoms_in.initializer,feed_dict={self.initializers['nAtoms_in']:feedinput[self.nAtoms_in]})
+                self.sess.run(self.batchsizeInput.initializer,feed_dict={self.initializers['batchsizeInput']:feedinput[self.batchsizeInput]})
+                self.sess.run(self.learningrate.initializer,feed_dict={self.initializers['learningrate']:feedinput[self.learningrate]})
+                self.sess.run(self.forces_in.initializer,feed_dict={self.initializers['forces_in']:feedinput[self.forces_in]})
+                self.sess.run(self.energycoefficient.initializer,feed_dict={self.initializers['energycoefficient']:feedinput[self.energycoefficient]})
+                self.sess.run(self.forcecoefficient.initializer,feed_dict={self.initializers['forcecoefficient']:feedinput[self.forcecoefficient]})
+                self.sess.run(self.tileDerivs.initializer,feed_dict={self.initializers['tileDerivs']:feedinput[self.tileDerivs]})
+                self.sess.run(self.energyProdScale.initializer,feed_dict={self.initializers['energyProdScale']:feedinput[self.energyProdScale]})
+
             extOpt=ScipyOptimizerInterface(curloss,method='l-BFGS-b',options={'maxiter':maxEpochs,'ftol':1.e-10,'gtol':1.e-10,'factr':1.e4})
             varlist=[]
             for var in [self.loss,self.energy_loss,self.force_loss,self.energy_maxresid,self.force_maxresid]:
-                varlist.append(extOpt._make_eval_func(var, self.sess, feedinput, []))
+                if preLoadTrainingData:
+                    varlist.append(extOpt._make_eval_func(var, self.sess, feedinput, []))
+                else:
+                    varlist.append(extOpt._make_eval_func(var, self.sess, {}, []))
+
 
             extOpt.minimize(self.sess,feed_dict=feedinput,step_callback=step_callbackfun)
                 
