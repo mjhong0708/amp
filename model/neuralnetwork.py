@@ -2,10 +2,10 @@ import numpy as np
 from collections import OrderedDict
 import os
 from ase.calculators.calculator import Parameters
-from ..regression import Regressor
-from ..model import LossFunction, calculate_fingerprints_range
-from ..model import Model
-from ..utilities import Logger, hash_images, make_filename
+from amp.regression import Regressor
+from amp.model import LossFunction, calculate_fingerprints_range
+from amp.model import Model
+from amp.utilities import Logger, hash_images, make_filename
 
 
 class NeuralNetwork(Model):
@@ -87,6 +87,12 @@ class NeuralNetwork(Model):
                     allow.
     :type fortran: bool
 
+    :param checkpoints: Frequency with which to save parameter checkpoints
+       upon training. E.g., 100 saves a checpoint on each 100th training setp.
+       Specify None for no checkpoints.
+
+    :type checkpoints: int
+
     .. note:: Dimensions of weight two dimensional arrays should be consistent
               with hiddenlayers.
 
@@ -95,7 +101,8 @@ class NeuralNetwork(Model):
 
     def __init__(self, hiddenlayers=(5, 5), activation='tanh', weights=None,
                  scalings=None, fprange=None, regressor=None, mode=None,
-                 lossfunction=None, version=None, fortran=True):
+                 lossfunction=None, version=None, fortran=True,
+                 checkpoints=100):
 
         # Version check, particularly if restarting.
         compatibleversions = ['2015.12', ]
@@ -131,6 +138,7 @@ class NeuralNetwork(Model):
         self.parent = None  # Can hold a reference to main Amp instance.
         self.lossfunction = lossfunction
         self.fortran = fortran
+        self.checkpoints = checkpoints
 
     def fit(self,
             trainingimages,
@@ -270,15 +278,17 @@ class NeuralNetwork(Model):
             filename = make_filename(self.parent.label,
                                      '-initial-parameters.amp')
             filename = self.parent.save(filename, overwrite=True)
-        elif self.step % 100 == 0:
-            path = os.path.join(self.parent.label + '-checkpoints/')
-            if self.step == 100:
-                if not os.path.exists(path):
-                    os.mkdir(path)
-            self.parent.log('Saving checkpoint data.')
-            filename = make_filename(path,
-                                     'parameters-checkpoint-%d.amp' % self.step)
-            filename = self.parent.save(filename, overwrite=True)
+        if self.checkpoints:
+            if self.step % self.checkpoints == 0:
+                path = os.path.join(self.parent.label + '-checkpoints/')
+                if self.step == 0:
+                    if not os.path.exists(path):
+                        os.mkdir(path)
+                self.parent.log('Saving checkpoint data.')
+                filename = make_filename(path,
+                                         'parameters-checkpoint-%d.amp'
+                                         % self.step)
+                filename = self.parent.save(filename, overwrite=True)
         self.step += 1
         return self.lossfunction.get_loss(vector, lossprime=False)['loss']
 
@@ -972,14 +982,13 @@ def get_random_scalings(images, activation, elements=None):
 
 
 class Raveler:
-
     """Class to ravel and unravel variable values into a single vector.
     This is used for feeding into the optimizer. Feed in a list of
     dictionaries to initialize the shape of the transformation. Note no
     data is saved in the class; each time it is used it is passed either
     the dictionaries or vector. The dictionaries for initialization should
     be two levels deep.
-        weights, scalings: variables to ravel and unravel
+    weights, scalings are the variables to ravel and unravel
     """
 
     def __init__(self, weights, scalings):

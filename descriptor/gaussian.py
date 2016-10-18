@@ -2,8 +2,8 @@ import numpy as np
 
 from ase.data import atomic_numbers
 from ase.calculators.calculator import Parameters
-from ..utilities import Data, Logger, importer
-from .cutoffs import Cosine, dict2cutoff
+from amp.utilities import Data, Logger, importer
+from amp.descriptor.cutoffs import Cosine, dict2cutoff
 NeighborList = importer('NeighborList')
 try:
     from .. import fmodules
@@ -738,7 +738,7 @@ def Kronecker(i, j):
 def dRij_dRml_vector(i, j, m, l):
     """
     Returns the derivative of the position vector R_{ij} with respect to
-        x_{l} of itomic index m.
+    x_{l} of itomic index m.
     See Eq. 14d of the supplementary information of Khorshidi, Peterson,
     CPC(2016).
 
@@ -768,7 +768,7 @@ def dRij_dRml_vector(i, j, m, l):
 def dRij_dRml(i, j, Ri, Rj, m, l):
     """
     Returns the derivative of the norm of position vector R_{ij} with
-        respect to coordinate x_{l} of atomic index m.
+    respect to coordinate x_{l} of atomic index m.
     See Eq. 14c of the supplementary information of Khorshidi, Peterson,
     CPC(2016).
 
@@ -801,7 +801,7 @@ def dRij_dRml(i, j, Ri, Rj, m, l):
 def dCos_theta_ijk_dR_ml(i, j, k, Ri, Rj, Rk, m, l):
     """
     Returns the derivative of Cos(theta_{ijk}) with respect to
-        x_{l} of atomic index m.
+    x_{l} of atomic index m.
     See Eq. 14f of the supplementary information of Khorshidi, Peterson,
     CPC(2016).
 

@@ -7,17 +7,17 @@ Methods for describing local atomic environment are included in this module.
 Module contents
 ---------------
 
-.. automodule:: descriptor.gaussian
+.. automodule:: amp.descriptor.gaussian
     :members:
     :undoc-members:
     :show-inheritance:
 
-.. automodule:: descriptor.zernike
+.. automodule:: amp.descriptor.zernike
     :members:
     :undoc-members:
     :show-inheritance:
 
-.. automodule:: descriptor.bispectrum
+.. automodule:: amp.descriptor.bispectrum
     :members:
     :undoc-members:
     :show-inheritance:
