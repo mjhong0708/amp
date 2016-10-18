@@ -59,7 +59,8 @@ class Regressor:
             from scipy.optimize import fmin_ncg as optimizer
             optimizer_kwargs = {'avextol': 1e-15, }
 
-        optimizer_kwargs.update(user_kwargs)
+        if user_kwargs:
+            optimizer_kwargs.update(user_kwargs)
         self.optimizer = optimizer
         self.optimizer_kwargs = optimizer_kwargs
         self.lossprime = lossprime
