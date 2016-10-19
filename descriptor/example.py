@@ -3,9 +3,9 @@ import numpy as np
 
 from ase.data import atomic_numbers
 from ase.calculators.calculator import Parameters
-from ase.neighborlist import NeighborList
-from ..utilities import Data, Logger
-from .cutoffs import Cosine, Polynomial
+from amp.utilities import Data, Logger, importer
+from amp.descriptor.cutoffs import Cosine, Polynomial
+NeighborList = importer('NeighborList')
 
 
 class AtomCenteredExample(object):

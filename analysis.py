@@ -1,13 +1,15 @@
 #!/usr/bin/env python
 
-from . import Amp
-from .utilities import now, hash_images, make_filename, Logger
 import os
 import numpy as np
 import matplotlib
+matplotlib.use('Agg')
 from matplotlib import rcParams
 from matplotlib import pyplot
-matplotlib.use('Agg')
+
+from amp import Amp
+from amp.utilities import now, hash_images, make_filename, Logger
+
 rcParams.update({'figure.autolayout': True})
 
 

@@ -1,5 +1,5 @@
-
-from amp.utilities import hash_images
+import matplotlib
+matplotlib.use('Agg')  # For headless operation.
 
 from ase.calculators.emt import EMT
 from ase.lattice.surface import fcc110
@@ -14,6 +14,7 @@ from amp.descriptor.gaussian import Gaussian
 from amp.model.neuralnetwork import NeuralNetwork
 from amp.model import LossFunction
 from amp.model.neuralnetwork import NodePlot
+from amp.utilities import hash_images
 
 
 def generate_data(count):

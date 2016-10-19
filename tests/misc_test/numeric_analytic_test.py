@@ -4,7 +4,7 @@ and then checks for consistency between analytical and numerical forces,
 as well as dloss_dparameters."""
 
 from ase.calculators.emt import EMT
-from ase.lattice.surface import fcc110
+from ase.build import fcc110
 from ase import Atoms, Atom
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase import units
@@ -122,6 +122,7 @@ def test():
         for i in range(3):
             diff = abs(forces[image_no][atom_no][i] -
                        ref_forces[image_no][atom_no][i])
+            print "diff =", diff
             assert (diff < 10.**(-9.)), \
                 'The calculated %i force of atom %i of ' \
                 'image %i is wrong!' % (i, atom_no, image_no + 1)

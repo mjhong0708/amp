@@ -3,10 +3,10 @@ from numpy import sqrt
 
 from ase.data import atomic_numbers
 from ase.calculators.calculator import Parameters
-from ase.neighborlist import NeighborList
 from scipy.special import sph_harm
-from ..utilities import Data, Logger
-from .cutoffs import Cosine, Polynomial
+from amp.utilities import Data, Logger, importer
+from amp.descriptor.cutoffs import Cosine, Polynomial
+NeighborList = importer('NeighborList')
 try:
     from .. import fmodules
 except ImportError:
@@ -346,7 +346,6 @@ class FingerprintCalculator:
         home = self.atoms[index].position
         cutoff = self.globals.cutoff
         cutofffn = self.globals.cutofffn
-        print "cutofffn =", cutofffn
 
         if cutofffn == 'Cosine':
             cutoff_fxn = Cosine(cutoff)

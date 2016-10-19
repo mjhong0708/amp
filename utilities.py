@@ -8,13 +8,13 @@ import copy
 import math
 import random
 import signal
-import pickle
+import tarfile
+import cPickle as pickle
+from datetime import datetime
+from getpass import getuser
 from ase import io as aseio
 from ase.parallel import paropen
 from ase.db import connect
-import shelve
-from datetime import datetime
-from getpass import getuser
 
 
 # Parallel processing ########################################################
@@ -188,84 +188,105 @@ def start_workers(process_ids, workerhostname, workercommand, log):
 # Data and logging ###########################################################
 
 
-class SQLiteDB:
-    """Replacement to shelve.
-    Meant to mimic the same commands as shelve has so it is compatible with
-    Data class. If sqlitedict is not available, it falls back to shelve.
-    Note this calls yet another class, SQD, below. This could
-    be cleaned up a bit.
+class FileDatabase:
+    """Using a database file, such as shelve or sqlitedict, that can handle
+    multiple processes writing to the file is hard. Therefore, we take the
+    stupid approach of having each database entry be a separate file. This
+    class behaves essentially like shelve, but saves each dictionary entry
+    as a plain pickle file within the directory, with the filename
+    corresponding to the dictionary key (which must be a string).
+
+    Like shelve, this also keeps an internal (memory dictionary)
+    representation of the variables that have been accessed.
+
+    Also includes an archive feature, where files are instead added to a
+    file called 'archive.tar.gz' to save disk space. If an entry exists in
+    both the loose and archive formats, the loose is taken to be the new
+    (correct) value.
     """
-    def __init__(self, maxretries=100, retrypause=10.0):
-        self.use_shelve = False
-        try:
-            import sqlitedict
-        except ImportError:
-            self.use_shelve = True
-        self.maxretries = maxretries
-        self.retrypause = retrypause
 
-    def open(self, filename, flag=None):
-        if self.use_shelve:
-            self.d = shelve.open(filename, flag=flag)
+    def __init__(self, filename):
+        """Open the filename at specified location. flag is ignored; this
+        format is always capable of both reading and writing."""
+        if not filename.endswith(os.extsep + 'ampdb'):
+            filename += os.extsep + 'ampdb'
+        self.path = filename
+        self.loosepath = os.path.join(self.path, 'loose')
+        self.tarpath = os.path.join(self.path, 'archive.tar.gz')
+        if not os.path.exists(self.path):
+            os.mkdir(self.path)
+            os.mkdir(self.loosepath)
+        self._memdict = {}  # Items already accessed; stored in memory.
+
+    @classmethod
+    def open(Cls, filename, flag=None):
+        """Open present for compatibility with shelve. flag is ignored; this
+        format is always capable of both reading and writing."""
+        return Cls(filename=filename)
+
+    def close(self):
+        """Only present for compatibility with shelve."""
+        return
+
+    def keys(self):
+        """Return list of keys, both of in-memory and out-of-memory
+        items."""
+        keys = os.listdir(self.loosepath)
+        if os.path.exists(self.tarpath):
+            with tarfile.open(self.tarpath) as tf:
+                keys = list(set(keys + tf.getnames()))
+        return keys
+
+    def __len__(self):
+        return len(self.keys())
+
+    def __setitem__(self, key, value):
+        self._memdict[key] = value
+        path = os.path.join(self.loosepath, str(key))
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                if f.read() == pickle.dumps(value):
+                    return  # Nothing to update.
+        with open(path, 'w') as f:
+            pickle.dump(value, f)
+
+    def __getitem__(self, key):
+        if key in self._memdict:
+            return self._memdict[key]
+        keypath = os.path.join(self.loosepath, key)
+        if os.path.exists(keypath):
+            with open(keypath, 'r') as f:
+                return pickle.load(f)
+        elif os.path.exists(self.tarpath):
+            with tarfile.open(self.tarpath) as tf:
+                return pickle.load(tf.extractfile(key))
         else:
-            from sqlitedict import SqliteDict
-            from sqlite3 import OperationalError
-            # self.d = SqliteDict(filename, autocommit=True)
+            raise KeyError(str(key))
 
-            class SQD(SqliteDict):
-                def __init__(self, filename, autocommit,
-                             maxretries, retrypause):
-                    self.maxretries = maxretries
-                    self.retrypause = retrypause
-                    SqliteDict.__init__(self, filename, autocommit=autocommit)
+    def update(self, newitems):
+        for key, value in newitems.iteritems():
+            self.__setitem__(key, value)
 
-                def __setitem__(self, key, value):
-                    tries = 0
-                    success = False
-                    while not success:
-                        try:
-                            SqliteDict.__setitem__(self, key, value)
-                        except OperationalError:
-                            tries += 1
-                            time.sleep(self.retrypause)
-                            if tries >= self.maxretries:
-                                raise
-                        else:
-                            success = True
-
-                def __getitem__(self, key):
-                    tries = 0
-                    success = False
-                    while not success:
-                        try:
-                            return SqliteDict.__getitem__(self, key)
-                        except OperationalError:
-                            tries += 1
-                            time.sleep(self.retrypause)
-                            if tries >= self.maxretries:
-                                raise
-                        else:
-                            success = True
-
-                def close(self):
-                    tries = 0
-                    success = False
-                    while not success:
-                        try:
-                            SqliteDict.close(self)
-                        except OperationalError:
-                            tries += 1
-                            time.sleep(self.retrypause)
-                            if tries >= self.maxretries:
-                                raise
-                        else:
-                            success = True
-
-            self.d = SQD(filename, autocommit=True,
-                         maxretries=self.maxretries,
-                         retrypause=self.retrypause)
-
-        return self.d
+    def archive(self):
+        """Cleans up to save disk space and reduce huge number of files.
+        That is, puts all files into an archive.
+        Compresses all files in <path>/loose and places them in
+        <path>/archive.tar.gz.  If archive exists, appends/modifies.
+        """
+        if os.path.exists(self.tarpath):
+            with tarfile.open(self.tarpath) as tf:
+                names = [_ for _ in tf.getnames() if _ not in
+                         os.listdir(self.loosepath)]
+                for name in names:
+                    tf.extract(member=name, path=self.loosepath)
+        print('Compressing.')
+        with tarfile.open(self.tarpath, 'w:gz') as tf:
+            for file in os.listdir(self.loosepath):
+                tf.add(name=os.path.join(self.loosepath, file),
+                       arcname=file)
+        print('Cleaning up.')
+        for file in os.listdir(self.loosepath):
+            os.remove(os.path.join(self.loosepath, file))
 
 
 class Data:
@@ -287,7 +308,7 @@ class Data:
     >>> values = data.d.values()
     """
 
-    def __init__(self, filename, db=SQLiteDB(), calculator=None):
+    def __init__(self, filename, db=FileDatabase, calculator=None):
         self.calc = calculator
         self.db = db
         self.filename = filename
@@ -303,7 +324,7 @@ class Data:
             self.d.close()
             self.d = None
         log(' Data stored in file %s.' % self.filename)
-        d = self.db.open(self.filename, 'c')
+        d = self.db.open(self.filename, 'r')
         calcs_needed = list(set(images.keys()).difference(d.keys()))
         dblength = len(d)
         d.close()
@@ -670,19 +691,26 @@ o      o   o       o   o
 """
 
 
-def importer(modulename):
+def importer(name):
     """Handles strange import cases, like pxssh which might show
-    up in pexpect or pxssh."""
+    up in eithr the package pexpect or pxssh."""
 
-    if modulename == 'pxssh':
+    if name == 'pxssh':
         try:
             import pxssh
         except ImportError:
             try:
                 from pexpect import pxssh
             except ImportError:
-                raise ImportError('pexpect not found!')
+                raise ImportError('pxssh not found!')
         return pxssh
+    elif name == 'NeighborList':
+        try:
+            from ase.neighborlist import NeighborList
+        except ImportError:
+            # We're on ASE 3.10 or older
+            from ase.calculators.neighborlist import NeighborList
+        return NeighborList
 
 
 # Amp Simulated Annealer ######################################################

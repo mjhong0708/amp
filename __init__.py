@@ -16,14 +16,12 @@ except ImportError:
     # We're on ASE 3.9 or older
     from ase.version import version as aseversion
 
-from .utilities import make_filename
-from .utilities import hash_images
-from .utilities import Logger, string2dict, logo, now, assign_cores
-from .utilities import TrainingConvergenceError
+from amp.utilities import (make_filename, hash_images, Logger, string2dict,
+                           logo, now, assign_cores, TrainingConvergenceError)
 
 import warnings
 try:
-    from . import fmodules
+    from amp import fmodules
     fmodules_version = 8
     wrong_version = fmodules.check_version(version=fmodules_version)
     if wrong_version:
@@ -395,13 +393,6 @@ class Amp(Calculator, object):
                 import pexpect
                 log('pxssh (via pexpect v%s): %s' %
                     (pexpect.__version__, pxssh.__file__))
-        try:
-            import sqlitedict
-            log('sqlitedict v%s: %s' %
-                (sqlitedict.__version__, os.path.dirname(sqlitedict.__file__)))
-        except ImportError:
-            log('sqlitedict: Not available. Multi-process access to data '
-                '(fingerprints) may crash.')
         log('=' * 70)
 
 
