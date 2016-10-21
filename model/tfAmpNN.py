@@ -557,6 +557,8 @@ class tfAmpNN:
                                                            forcesExp=forces,
                                                            energycoefficient=self.parameters['energy_coefficient'],
                                                            forcecoefficient=self.parameters['force_coefficient'])
+                        if preLoadTrainingData and not(self.miniBatch):
+                            self.preLoadFeed(feedinput)
 
                     # run a training step with the inputs.
                     if (self.parameters['force_coefficient'] < 1.e-5):
@@ -653,26 +655,7 @@ class tfAmpNN:
                 curloss=self.loss
 
             if preLoadTrainingData:
-                for element in self.tensorDerivDict:
-                    self.sess.run(self.tensorDerivDict[element].initializer,feed_dict={self.initializers['tensorDerivDict'][element]:feedinput[self.tensorDerivDict[element]]})
-                    self.sess.run(self.tensordict[element].initializer,feed_dict={self.initializers['tensordict'][element]:feedinput[self.tensordict[element]]})
-                    self.sess.run(self.indsdict[element].initializer,feed_dict={self.initializers['indsdict'][element]:feedinput[self.indsdict[element]]})
-                    self.sess.run(self.maskdict[element].initializer,feed_dict={self.initializers['maskdict'][element]:feedinput[self.maskdict[element]]})
-                    del feedinput[self.tensorDerivDict[element]]
-                    del feedinput[self.tensordict[element]]
-                    del feedinput[self.indsdict[element]]
-                    del feedinput[self.maskdict[element]]
-                self.sess.run(self.y_.initializer,feed_dict={self.initializers['y_']:feedinput[self.y_]})
-                self.sess.run(self.input_keep_prob_in.initializer,feed_dict={self.initializers['input_keep_prob_in']:feedinput[self.input_keep_prob_in]})
-                self.sess.run(self.keep_prob_in.initializer,feed_dict={self.initializers['keep_prob_in']:feedinput[self.keep_prob_in]})
-                self.sess.run(self.nAtoms_in.initializer,feed_dict={self.initializers['nAtoms_in']:feedinput[self.nAtoms_in]})
-                self.sess.run(self.batchsizeInput.initializer,feed_dict={self.initializers['batchsizeInput']:feedinput[self.batchsizeInput]})
-                self.sess.run(self.learningrate.initializer,feed_dict={self.initializers['learningrate']:feedinput[self.learningrate]})
-                self.sess.run(self.forces_in.initializer,feed_dict={self.initializers['forces_in']:feedinput[self.forces_in]})
-                self.sess.run(self.energycoefficient.initializer,feed_dict={self.initializers['energycoefficient']:feedinput[self.energycoefficient]})
-                self.sess.run(self.forcecoefficient.initializer,feed_dict={self.initializers['forcecoefficient']:feedinput[self.forcecoefficient]})
-                self.sess.run(self.tileDerivs.initializer,feed_dict={self.initializers['tileDerivs']:feedinput[self.tileDerivs]})
-                self.sess.run(self.energyProdScale.initializer,feed_dict={self.initializers['energyProdScale']:feedinput[self.energyProdScale]})
+                self.preLoadFeed(feedinput)
 
             extOpt=ScipyOptimizerInterface(curloss,method='l-BFGS-b',options={'maxiter':maxEpochs,'ftol':1.e-10,'gtol':1.e-10,'factr':1.e4})
             varlist=[]
@@ -681,7 +664,6 @@ class tfAmpNN:
                     varlist.append(extOpt._make_eval_func(var, self.sess, feedinput, []))
                 else:
                     varlist.append(extOpt._make_eval_func(var, self.sess, {}, []))
-
 
             extOpt.minimize(self.sess,feed_dict=feedinput,step_callback=step_callbackfun)
                 
@@ -700,7 +682,31 @@ class tfAmpNN:
             return True
         return False
 
-               
+    def preLoadFeed(self,feedinput):
+        for element in self.tensorDerivDict:
+            if self.tensorDerivDict[element] in feedinput: 
+                self.sess.run(self.tensorDerivDict[element].initializer,feed_dict={self.initializers['tensorDerivDict'][element]:feedinput[self.tensorDerivDict[element]]})
+                del feedinput[self.tensorDerivDict[element]]
+            self.sess.run(self.tensordict[element].initializer,feed_dict={self.initializers['tensordict'][element]:feedinput[self.tensordict[element]]})
+            self.sess.run(self.indsdict[element].initializer,feed_dict={self.initializers['indsdict'][element]:feedinput[self.indsdict[element]]})
+            self.sess.run(self.maskdict[element].initializer,feed_dict={self.initializers['maskdict'][element]:feedinput[self.maskdict[element]]})
+            del feedinput[self.tensordict[element]]
+            del feedinput[self.indsdict[element]]
+            del feedinput[self.maskdict[element]]
+        self.sess.run(self.y_.initializer,feed_dict={self.initializers['y_']:feedinput[self.y_]})
+        self.sess.run(self.input_keep_prob_in.initializer,feed_dict={self.initializers['input_keep_prob_in']:feedinput[self.input_keep_prob_in]})
+        self.sess.run(self.keep_prob_in.initializer,feed_dict={self.initializers['keep_prob_in']:feedinput[self.keep_prob_in]})
+        self.sess.run(self.nAtoms_in.initializer,feed_dict={self.initializers['nAtoms_in']:feedinput[self.nAtoms_in]})
+        self.sess.run(self.batchsizeInput.initializer,feed_dict={self.initializers['batchsizeInput']:feedinput[self.batchsizeInput]})
+        self.sess.run(self.learningrate.initializer,feed_dict={self.initializers['learningrate']:feedinput[self.learningrate]})
+        if self.forces_in in feedinput:
+            self.sess.run(self.forces_in.initializer,feed_dict={self.initializers['forces_in']:feedinput[self.forces_in]})
+            self.sess.run(self.energycoefficient.initializer,feed_dict={self.initializers['energycoefficient']:feedinput[self.energycoefficient]})
+            self.sess.run(self.forcecoefficient.initializer,feed_dict={self.initializers['forcecoefficient']:feedinput[self.forcecoefficient]})
+            self.sess.run(self.tileDerivs.initializer,feed_dict={self.initializers['tileDerivs']:feedinput[self.tileDerivs]})
+        self.sess.run(self.energyProdScale.initializer,feed_dict={self.initializers['energyProdScale']:feedinput[self.energyProdScale]})
+        #feeedinput={}
+            
     def get_energy_list(self, hashs, fingerprintDB, fingerprintDerDB=None, keep_prob=1., input_keep_prob=1.,forces=False,nsamples=1):
         """Methods to get the energy and forces for a set of
         configurations."""
