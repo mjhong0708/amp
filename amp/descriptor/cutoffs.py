@@ -68,7 +68,7 @@ class Cosine(object):
                 'kwargs': {'Rc': self.Rc}}
 
     def __repr__(self):
-        return ('Cosine cutoff with Rc=%.3f from amp.descriptor.cutoffs'
+        return ('<Cosine cutoff with Rc=%.3f from amp.descriptor.cutoffs>'
                 % self.Rc)
 
 
@@ -125,6 +125,6 @@ class Polynomial(object):
                 'kwargs': {'Rc': self.Rc}}
 
     def __repr__(self):
-        return ('Polynomial cutoff with Rc=%.3f and gamma=%i '
-                'from amp.descriptor.cutoffs'
+        return ('<Polynomial cutoff with Rc=%.3f and gamma=%i '
+                'from amp.descriptor.cutoffs>'
                 % (self.Rc, self.gamma))

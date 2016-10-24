@@ -289,8 +289,11 @@ class NeuralNetwork(Model):
                                          'parameters-checkpoint-%d.amp'
                                          % self.step)
                 filename = self.parent.save(filename, overwrite=True)
+        loss = self.lossfunction.get_loss(vector, lossprime=False)['loss']
+        if hasattr(self, 'observer'):
+            self.observer(self, vector, loss)
         self.step += 1
-        return self.lossfunction.get_loss(vector, lossprime=False)['loss']
+        return loss
 
     def get_lossprime(self, vector):
         """

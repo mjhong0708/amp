@@ -21,7 +21,7 @@ To build your own descriptor, it needs to have certain minimum requirements met,
             self.parameters = Parameters({'mode': 'atom-centered',})
             self.parameters.parameter1 = parameter1
             self.parameters.parameter2 = parameter2
-    
+
         def tostring(self):
             return self.parameters.tostring()
 
@@ -32,7 +32,7 @@ To build your own descriptor, it needs to have certain minimum requirements met,
 
 The specific requirements, illustrated above, are:
 
-* Has a parameters attribute (of type `ase.calculators.calculator.Parameters`), which holds the minimum information needed to re-build your module. 
+* Has a parameters attribute (of type `ase.calculators.calculator.Parameters`), which holds the minimum information needed to re-build your module.
   That is, if your descriptor has user-settable parameters such as a cutoff radius, etc., they should be stored in this dictionary.
   Additionally, it must have the keyword "mode"; which must be set to either "atom-centered" or "image-centered".
   (This keyword will be used by the model class.)
@@ -47,11 +47,11 @@ The specific requirements, illustrated above, are:
   The images argument is a dictionary of training images, with keys that are unique hashes of each image in the set produced with `amp.utilities.hash_images`.
   The log is a `amp.utilities.Logger` instance, that the method can optionally use as `log('Message.')`.
   The cores keyword describes parallelization, and can safely be ignored if serial operation is desired.
-  This method must save a sub-attribute `self.fingerprints` (which will be accessible in the main *Amp* instance as `calc.descriptor.fingerprints`) that contains a dictionary-like object of the fingerprints, indexed by the same keys that were in the images dictionary. 
+  This method must save a sub-attribute `self.fingerprints` (which will be accessible in the main *Amp* instance as `calc.descriptor.fingerprints`) that contains a dictionary-like object of the fingerprints, indexed by the same keys that were in the images dictionary.
   Ideally, `descriptor.fingerprints` is an instance of `amp.utilities.Data`, but probably any mapping (dictionary-like) object will do.
 
   A fingerprint is a vector.
-  In **image-centered** mode, there is one fingerprint for each image. 
+  In **image-centered** mode, there is one fingerprint for each image.
   This will generally be just the Cartesian positions of all the atoms in the system, but transformations are possible.
   For example this could be accessed by the images key
 
@@ -72,9 +72,9 @@ The specific requirements, illustrated above, are:
 Descriptor: standard practices
 ----------------------------------
 
-The below describes standard practices we use in building modules. It is not necessary to use these, but it should make your life easeier to follow standard practices. And, if your code is ultimately destined to be part of an Amp release, you should plan to make it follow these practices unless there is a compelling reason not to.
+The below describes standard practices we use in building modules. It is not necessary to use these, but it should make your life easier to follow standard practices. And, if your code is ultimately destined to be part of an Amp release, you should plan to make it follow these practices unless there is a compelling reason not to.
 
-We have an example of a minimal descriptor in `amp.descriptor.example`; it's probably easiest to copy this file and modify it to become your new desscriptor. For a complete example of a working descriptor, see `amp.descriptor.gaussian`.
+We have an example of a minimal descriptor in `amp.descriptor.example`; it's probably easiest to copy this file and modify it to become your new descriptor. For a complete example of a working descriptor, see `amp.descriptor.gaussian`.
 
 The Data class
 ^^^^^^^^^^^^^^^^^^^
@@ -94,12 +94,12 @@ To make the descriptor work with the `Data` class, the `Data` class needs a keyw
         For each image fed to calculate, a list of neighbors with offset
         distances is returned.
         """
-    
+
         def __init__(self, cutoff):
             self.globals = Parameters({'cutoff': cutoff})
             self.keyed = Parameters()
             self.parallel_command = 'calculate_neighborlists'
-    
+
         def calculate(self, image, key):
             cutoff = self.globals.cutoff
             n = NeighborList(cutoffs=[cutoff / 2.] * len(image),
@@ -120,17 +120,17 @@ The `Data` class itself serves as the master, and the workers are instances of t
     if __name__ == "__main__":
         import sys
         import tempfile
-    
+
         hostsocket = sys.argv[-1]
         proc_id = sys.argv[-2]
-    
+
         print('<amp-connect>')
         sys.stderr = tempfile.NamedTemporaryFile(mode='w', delete=False,
                                                  suffix='.stderr')
         print('stderr written to %s<stderr>' % sys.stderr.name)
 
 
-After this, the worker communicates with the master in request (from the worker) / reply (from the master) mode, via ZMQ. (It's worth checking out the `ZMQ Guide <http://zguide.zeromq.org/>`_; [ZMQ Guide examples.) Each request from the worker needs to take the form of a dictionary with three entries: "id", "subject", and (optionally) "data". These are easily created with the `amp.utilities.MessageDictionary` class. The first thing the worker needs to do is establish the connection to the master and ask its purpose::
+After this, the worker communicates with the master in request (from the worker) / reply (from the master) mode, via ZMQ. (It's worth checking out the `ZMQ Guide <http://zguide.zeromq.org/>`_; (ZMQ Guide examples). Each request from the worker needs to take the form of a dictionary with three entries: "id", "subject", and (optionally) "data". These are easily created with the `amp.utilities.MessageDictionary` class. The first thing the worker needs to do is establish the connection to the master and ask its purpose::
 
     import zmq
     from ..utilities import MessageDictionary

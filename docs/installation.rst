@@ -50,7 +50,7 @@ Set the environment
 You need to let your python version know about the existence of the amp module. Add the following line to your '.bashrc'
 (or other appropriate spot), with the appropriate path substituted for '~/path/to/my/codes'::
 
-   $ export PYTHONPATH=~/path/to/my/codes:$PYTHONPATH
+   $ export PYTHONPATH=~/path/to/my/codes/amp:$PYTHONPATH
 
 You can check that this works by starting python and typing the below command, verifying that the location listed from
 the second command is where you expect::
@@ -59,6 +59,12 @@ the second command is where you expect::
    >>> print(amp.__file__)
 
 See also the section on parallel processing for any issues that arise in making the environment work with Amp in parallel.
+
+----------------------------------
+Recommended step: Build fortran modules
+----------------------------------
+
+Please see the README file for the latest instructions.
  
 ----------------------------------
 Recommended step: Run the tests
