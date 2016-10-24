@@ -21,7 +21,7 @@ from ase.db import connect
 
 def assign_cores(cores, log=None):
     """Tries to guess cores from environment. If fed a log object, will write
-    it's progress."""
+    its progress."""
     log = Logger(None) if log is None else log
 
     def fail(q):
@@ -83,7 +83,6 @@ def assign_cores(cores, log=None):
 
 
 class MessageDictionary:
-
     """Standard container for all messages (typically requests, via
     zmq.context.socket.send_pyobj) sent from the workers to the master.
     This returns a simple dictionary. This is roughly email format.
@@ -169,9 +168,8 @@ def setup_parallel(cores, workercommand, log):
 
 
 def start_workers(process_ids, workerhostname, workercommand, log):
-    """A function to start a new SSH session. Starting via threads allows all
-    sessions to start simultaneously, rather than waiting on one another.
-    Access its created session with self.ssh.
+    """A function to start a new SSH session and establish processes on
+    that session.
     """
     pxssh = importer('pxssh')
     ssh = pxssh.pxssh()
