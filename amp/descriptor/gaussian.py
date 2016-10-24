@@ -16,9 +16,11 @@ class Gaussian(object):
     """
     Class that calculates Gaussian fingerprints (i.e., Behler-style).
 
-    :param cutoff: Cutoff function. Can be also fed as a float representing the
-                   radius above which neighbor interactions are ignored.
-                   Default is 6.5 Angstroms.
+    :param cutoff: Cutoff function, typically from amp.descriptor.cutoffs.
+                   Can be also fed as a float representing the radius above
+                   which neighbor interactions are ignored; in this case
+                   a cosine cutoff function will be employed.
+                   Default is a 6.5-Angstrom cosine cutoff.
     :type cutoff: object or float
 
     :param Gs: Dictionary of symbols and lists of dictionaries for making
