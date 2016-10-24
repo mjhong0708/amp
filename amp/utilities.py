@@ -133,11 +133,13 @@ def setup_parallel(cores, workercommand, log):
 
     Returns:
         the server (a ZMQ socket)
+
         the ssh connections (pxssh instances; if these objects are destroyed
-           pxssh will close the sessions)
+        pxssh will close the sessions)
+
         the pid_count, which is the total number of workers started. Each
-           worker can be communicated directly through its PID, an integer
-           between 0 and pid_count
+        worker can be communicated directly through its PID, an integer
+        between 0 and pid_count
     """
     import zmq
     from socket import gethostname
