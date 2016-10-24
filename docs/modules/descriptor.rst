@@ -21,3 +21,8 @@ Module contents
     :members:
     :undoc-members:
     :show-inheritance:
+
+.. automodule:: amp.descriptor.cutoffs
+    :members:
+    :undoc-members:
+    :show-inheritance:
