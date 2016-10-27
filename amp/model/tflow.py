@@ -30,8 +30,6 @@ class NeuralNetwork:
     code).
 
     Initialize with:
-      elementFingerprintLengths: dictionary (one for each element type)
-          that contains the fingerprint length for each element
 
       hiddenlayers: structure of the neural network
 
@@ -71,10 +69,10 @@ class NeuralNetwork:
 
     def __init__(self,
                  hiddenlayers=(5, 5),
-                 activation='relu',
+                 activation='tanh',
                  keep_prob=1.,
                  maxTrainingEpochs=10000,
-                 batchsize=20,
+                 batchsize=2,
                  initialTrainingRate=1e-4,
                  miniBatch=True,
                  tfVars=None,
@@ -86,13 +84,15 @@ class NeuralNetwork:
                  force_coefficient=0.04,
                  scikit_model=None,
                  convergenceCriteria=None,
-                 optimizationMethod='ADAM',
+                 optimizationMethod='l-BFGS-b',
                  input_keep_prob=0.8,
                  ADAM_optimizer_params={'beta1':0.9},
                  regularization_strength=None,
                  applyLinearModel=True,
                  numTrainingImages={},
-                 elementFingerprintLengths=None
+                 elementFingerprintLengths=None,
+                 weights={},
+                 scales={}
                 ):
         
         self.parameters = {} if parameters is None else parameters
@@ -149,10 +149,12 @@ class NeuralNetwork:
             for element in self.elements:
                 self.elementFingerprintLengths[element] = elementFingerprintLengths[element]
             
+        self.weights=weights
+        self.scales=scales
         
         self.sess=sess
         self.graph=None
-        if tfVars is not None:
+        if tfVars!=None:
             self.constructSessGraphModel(tfVars,self.sess)
         self.tfVars=tfVars
         
@@ -163,6 +165,7 @@ class NeuralNetwork:
 
         #optimizer can be 'ADAM' or 'l-BFGS-b'
         self.optimizationMethod=optimizationMethod
+        
 
     def constructSessGraphModel(self,tfVars,sess,trainOnly=False,maxAtomsForces=0,numElements=None,numTrainingImages=None):
         self.graph=tf.Graph()
@@ -357,7 +360,7 @@ class NeuralNetwork:
     def initializeVariables(self):
         """Resets all of the variables in the current tensorflow model."""
         self.sess.run(tf.initialize_all_variables())
-
+        
     def generateFeedInput(self, curinds,
                           energies,
                           atomArraysAll,
@@ -416,7 +419,7 @@ class NeuralNetwork:
         return feedinput
 
     def fit(self, trainingimages, descriptor, cores=1, log=None,
-            outlier_energy=10.,preLoadTrainingData=True):
+            outlier_energy=10.,preLoadTrainingData=False):
         """Fit takes a bunch of training images (which are assumed to have a
         working calculator attached), and fits the internal variables to the
         training images.
@@ -511,7 +514,7 @@ class NeuralNetwork:
         self.parameters['elementFPScales'] = {}
         for element in self.elements:
             if len(atomArraysAll[element]) == 0:
-                self.parameters['elementFPScales'][element] = [-1.,1.]
+                self.parameters['elementFPScales'][element] = []
             else:
                 self.parameters['elementFPScales'][element] = [np.min(atomArraysAll[element],axis=0),np.max(atomArraysAll[element],axis=0)]
 
@@ -675,9 +678,9 @@ class NeuralNetwork:
             varlist=[]
             for var in [self.loss,self.energy_loss,self.force_loss,self.energy_maxresid,self.force_maxresid]:
                 if preLoadTrainingData:
-                    varlist.append(extOpt._make_eval_func(var, self.sess, feedinput, []))
-                else:
                     varlist.append(extOpt._make_eval_func(var, self.sess, {}, []))
+                else:
+                    varlist.append(extOpt._make_eval_func(var, self.sess, feedinput, []))
 
             extOpt.minimize(self.sess,feed_dict=feedinput,step_callback=step_callbackfun)
                 
@@ -889,7 +892,6 @@ def model(x, segmentinds, keep_prob, input_keep_prob,batchsize, neuronList, acti
             h_fc = tf.nn.dropout(activationType(
                 tf.matmul(h_fc, W_fc) + b_fc), keep_prob)
             l2_regularization+=tf.reduce_sum(tf.square(W_fc))+tf.reduce_sum(tf.square(b_fc))
-            #l2_regularization+=tf.reduce_sum(tf.square(W_fc))
 
     W_fc_out = weight_variable([neuronList[-1], 1], name=namefun('Wfcout'))
     b_fc_out = bias_variable([1], name=namefun('bfcout'))
