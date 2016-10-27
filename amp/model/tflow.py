@@ -118,6 +118,7 @@ class NeuralNetwork:
 
     """
 
+
     def __init__(self,
                  hiddenlayers=(5, 5),
                  activation='tanh',
@@ -142,12 +143,15 @@ class NeuralNetwork:
                  applyLinearModel=True,
                  numTrainingImages={},
                  elementFingerprintLengths=None,
-                 weights={},
-                 scales={}
+                 fprange=None,
+                 weights=None,
+                 scalings=None,
+                 fortran=None,
+                 mode=None
                 ):
         
         self.parameters = {} if parameters is None else parameters
-        for prop in ['elementFPScales', 'energyMeanScale', 'energyProdScale',
+        for prop in ['energyMeanScale', 'energyProdScale',
                      'energyPerElement']:
             if prop not in self.parameters:
                 self.parameters[prop] = None
@@ -175,6 +179,10 @@ class NeuralNetwork:
             self.parameters['ADAM_optimizer_params']=ADAM_optimizer_params
         if 'regularization_strength' not in self.parameters:
             self.parameters['regularization_strength']=regularization_strength
+        if 'fprange' not in self.parameters and fprange is not None:
+            self.parameters['fprange']={}
+            for element in fprange:
+                self.parameters['fprange'][element]=np.array([map(lambda x: x[0],fprange[element]),map(lambda x: x[1],fprange[element])])
         self.numTrainingImages=100
         self.hiddenlayers = hiddenlayers
         self.maxAtomsForces = maxAtomsForces
@@ -199,13 +207,20 @@ class NeuralNetwork:
             self.elementFingerprintLengths={}
             for element in self.elements:
                 self.elementFingerprintLengths[element] = elementFingerprintLengths[element]
-            
         self.weights=weights
-        self.scales=scales
+        self.scalings=scalings
         
         self.sess=sess
         self.graph=None
         if tfVars!=None:
+            self.constructSessGraphModel(tfVars,self.sess)
+            
+        if weights is not None:
+            self.elementFingerprintLengths={}
+            self.elements=weights.keys()
+            for element in self.elements:
+                self.elementFingerprintLengths[element]=weights[element][1][0].shape[0]
+            print(self.elementFingerprintLengths)
             self.constructSessGraphModel(tfVars,self.sess)
         self.tfVars=tfVars
         
@@ -239,6 +254,20 @@ class NeuralNetwork:
                 self.saver.restore(self.sess, 'tfAmpNN-checkpoint-restore')
             else:
                 self.sess.run(tf.initialize_all_variables())
+                
+    #This function is used to test the code by pre-setting the weights in the model for each element, so that results can be checked against pre-computed exact estimates
+    def setWeightsScalings(self,feedinput,weights,scalings):
+        with self.graph.as_default():
+            for var in tf.trainable_variables():
+                print(var.name)
+            namefun=lambda x: '%s_%s_'%(self.saveVariableName,element)+x
+            for element in weights:
+                for layer in weights[element]:
+                    print(self.hiddenlayers)
+                    feedinput[self.graph.get_tensor_by_name(namefun('Wfc%d:0'%(layer-1)))]=weights[element][layer][0]
+                    feedinput[self.graph.get_tensor_by_name(namefun('bfc%d:0'%(layer-1)))]=weights[element][layer][1]
+                feedinput[self.graph.get_tensor_by_name(namefun('Wfcout:0'%(layer-1)))]=scalings[element]['slope']
+                feedinput[self.graph.get_tensor_by_name(namefun('bfcout:0'%(layer-1)))]=scalings[element]['intercept']
 
     def constructModel(self,sess,graph,preLoadData=False,maxAtomsForces=None,numElements=None,numTrainingImages=None):
         """Sets up the tensorflow neural networks for each atom type."""
@@ -439,7 +468,7 @@ class NeuralNetwork:
         for element in self.elements:
             if len(atomArraysFinal[element]) > 0:
                 feedinput[self.tensordict[element]] =  -1.+2.*(atomArraysFinal[
-                    element]-self.parameters['elementFPScales'][element][0]) / (self.parameters['elementFPScales'][element][1]-self.parameters['elementFPScales'][element][0])
+                    element]-self.parameters['fprange'][element][0]) / (self.parameters['fprange'][element][1]-self.parameters['fprange'][element][0])
                 feedinput[self.indsdict[element]] = atomInds[element]
                 feedinput[self.maskdict[element]] = np.ones((batchsize, 1))
                 if forcecoefficient > 1.e-5:
@@ -562,12 +591,12 @@ class NeuralNetwork:
         energies = energies - self.parameters['energyMeanScale']
         self.parameters['energyProdScale'] = np.mean(np.abs(energies))
         #energies = energies / self.parameters['energyProdScale']
-        self.parameters['elementFPScales'] = {}
+        self.parameters['fprange'] = {}
         for element in self.elements:
             if len(atomArraysAll[element]) == 0:
-                self.parameters['elementFPScales'][element] = []
+                self.parameters['fprange'][element] = []
             else:
-                self.parameters['elementFPScales'][element] = [np.min(atomArraysAll[element],axis=0),np.max(atomArraysAll[element],axis=0)]
+                self.parameters['fprange'][element] = [np.min(atomArraysAll[element],axis=0),np.max(atomArraysAll[element],axis=0)]
 
         if self.maxAtomsForces >0:
             if self.parameters['force_coefficient'] is not None:
@@ -798,8 +827,10 @@ class NeuralNetwork:
         tilederivs = []
         for element in self.elements:
             if len(atomArraysFinal[element]) > 0:
+                print(atomArraysFinal[element])
+                print(self.parameters['fprange'])
                 feedinput[self.tensordict[element]] = -1.+2.*(atomArraysFinal[
-                    element]-self.parameters['elementFPScales'][element][0]) / (self.parameters['elementFPScales'][element][1]-self.parameters['elementFPScales'][element][0])
+                    element]-self.parameters['fprange'][element][0]) / (self.parameters['fprange'][element][1]-self.parameters['fprange'][element][0])
                 feedinput[self.indsdict[element]] = atomInds[element]
                 feedinput[self.maskdict[element]] = np.ones((len(hashs), 1))
                 if forces:
@@ -823,6 +854,9 @@ class NeuralNetwork:
         if tilederivs == []:
             tilederivs = [1, 1, 1, 1]
         feedinput[self.tileDerivs] = tilederivs
+        
+        if self.weights is not None:
+            self.setWeightsScalings(feedinput,self.weights,self.scalings)
         if nsamples==1:
             energies = np.array(self.sess.run(self.energy,feed_dict=feedinput)) + self.parameters['energyMeanScale']
             # Add in the per-atom base energy.
