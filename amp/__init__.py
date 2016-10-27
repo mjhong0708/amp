@@ -277,8 +277,9 @@ class Amp(Calculator, object):
 
         log = self.log
         log('\nAmp training started. ' + now() + '\n')
-        log('Descriptor: %s' % self.descriptor.__class__.__name__)
-        log('Model: %s' % self.model.__class__.__name__)
+        log('Descriptor: %s\n  (%s)' % (self.descriptor.__class__.__name__,
+                                        self.descriptor))
+        log('Model: %s\n  (%s)' % (self.model.__class__.__name__, self.model))
 
         images = hash_images(images, log=log)
 
