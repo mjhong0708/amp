@@ -13,7 +13,7 @@ from ase.constraints import FixAtoms
 
 from amp import Amp
 from amp.descriptor.gaussian import Gaussian
-from amp.model.neuralnetwork import NeuralNetwork
+from amp.model.tflow import NeuralNetwork
 from amp.model import LossFunction
 
 
@@ -43,7 +43,7 @@ def generate_data(count):
 def train_test():
     label = 'train_test/calc'
     train_images = generate_data(2)
-
+            
     calc = Amp(descriptor=Gaussian(),
                model=NeuralNetwork(hiddenlayers=(3, 3)),
                label=label,
