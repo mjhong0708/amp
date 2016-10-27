@@ -22,7 +22,9 @@ from amp.model import LossFunction
 from ..utilities import now,ConvergenceOccurred
 #from  tensorflow.contrib.opt.python.training import external_optimizer
 from  tensorflow.contrib.opt import ScipyOptimizerInterface
-class tfAmpNN:
+
+
+class NeuralNetwork:
     """
     TensorFlow-based Neural Network model. (Google's machine-learning
     code).
