@@ -22,10 +22,10 @@ You can read about Amp in the below paper; if you find Amp useful, we would appr
 
    <a href="http://dx.doi.org/10.1016/j.cpc.2016.05.010" target="_blank">[DOI:10.1016/j.cpc.2016.05.010] </a>
 
-**Table of Contents**:
+**Table of Contents (Manual)**:
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    introduction.rst
    theory.rst
@@ -38,7 +38,7 @@ You can read about Amp in the below paper; if you find Amp useful, we would appr
    tensorflow.rst
    develop.rst
 
-**List of All Methods**:
+**Modules**:
 
 .. toctree::
    :maxdepth: 1
@@ -51,8 +51,7 @@ You can read about Amp in the below paper; if you find Amp useful, we would appr
    modules/analysis.rst
 
 
-Indices and tables
-==================
+**Indices and tables**
 
 * :ref:`genindex`
 * :ref:`modindex`
