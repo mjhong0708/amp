@@ -25,5 +25,10 @@ Neural Network
 Tensorflow Neural Network
 -------------------------
 
-A work in progress, this module `amp.model.tfAmpNN` uses Google's TensorFlow package to implement a neural network, which may provide GPU acceleration and other advantages.
+A work in progress, this module `amp.model.tflow` uses Google's TensorFlow package to implement a neural network, which may provide GPU acceleration and other advantages.
+
+.. automodule:: amp.model.tflow
+    :members:
+    :undoc-members:
+    :show-inheritance:
 

@@ -35,6 +35,7 @@ You can read about Amp in the below paper; if you find Amp useful, we would appr
    building.rst
    moredescriptor.rst
    moremodel.rst
+   tensorflow.rst
    develop.rst
 
 **List of All Methods**:
