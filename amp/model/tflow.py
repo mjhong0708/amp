@@ -70,7 +70,6 @@ class NeuralNetwork:
     """
 
     def __init__(self,
-                 elementFingerprintLengths,
                  hiddenlayers=(5, 5),
                  activation='relu',
                  keep_prob=1.,
@@ -92,7 +91,8 @@ class NeuralNetwork:
                  ADAM_optimizer_params={'beta1':0.9},
                  regularization_strength=None,
                  applyLinearModel=True,
-                 numTrainingImages={}
+                 numTrainingImages={},
+                 elementFingerprintLengths=None
                 ):
         
         self.parameters = {} if parameters is None else parameters
@@ -136,18 +136,24 @@ class NeuralNetwork:
             self.activationName = activation.__name__
         self.keep_prob = keep_prob
         self.input_keep_prob=input_keep_prob
-        self.elements = elementFingerprintLengths.keys()
-        self.elements.sort()
+        
         if saveVariableName is None:
             self.saveVariableName = str(uuid.uuid4())[:8]
         else:
             self.saveVariableName = saveVariableName
 
-        self.elementFingerprintLengths={}
-        for element in self.elements:
-            self.elementFingerprintLengths[element] = elementFingerprintLengths[element]
+        if elementFingerprintLengths is not None:
+            self.elements = elementFingerprintLengths.keys()
+            self.elements.sort()
+            self.elementFingerprintLengths={}
+            for element in self.elements:
+                self.elementFingerprintLengths[element] = elementFingerprintLengths[element]
+            
         
-        self.constructSessGraphModel(tfVars,sess)
+        self.sess=sess
+        self.graph=None
+        if tfVars is not None:
+            self.constructSessGraphModel(tfVars,self.sess)
         self.tfVars=tfVars
         
         self.maxTrainingEpochs = maxTrainingEpochs
@@ -378,8 +384,8 @@ class NeuralNetwork:
         tilederivs = (0, 0, 0, 0)
         for element in self.elements:
             if len(atomArraysFinal[element]) > 0:
-                feedinput[self.tensordict[element]] = atomArraysFinal[
-                    element] / self.parameters['elementFPScales'][element]
+                feedinput[self.tensordict[element]] =  -1.+2.*(atomArraysFinal[
+                    element]-self.parameters['elementFPScales'][element][0]) / (self.parameters['elementFPScales'][element][1]-self.parameters['elementFPScales'][element][0])
                 feedinput[self.indsdict[element]] = atomInds[element]
                 feedinput[self.maskdict[element]] = np.ones((batchsize, 1))
                 if forcecoefficient > 1.e-5:
@@ -415,12 +421,21 @@ class NeuralNetwork:
         working calculator attached), and fits the internal variables to the
         training images.
         """
+        
+        #if self.graph is None, the module hasn't been initialized
+        if self.graph is None:
+            self.elementFingerprintLengths={}
+            for element in descriptor.parameters.Gs:
+                self.elementFingerprintLengths[element]=len(descriptor.parameters.Gs[element])
+            self.elements = self.elementFingerprintLengths.keys()
+            self.elements.sort()
+            self.constructSessGraphModel(self.tfVars,self.sess)
 
         # The force_coefficient was moved out of Amp.train; pull from the
         # initialization variables. This doesn't catch if the user sends
         # train_forces=False in Amp.train, but an issue is filed to fix
         # this.
-
+        
         self.log=log
         tempconvergence=self.parameters['convergence'].copy()
         if self.parameters['force_coefficient']<1e-5:
@@ -729,7 +744,7 @@ class NeuralNetwork:
         tilederivs = []
         for element in self.elements:
             if len(atomArraysFinal[element]) > 0:
-                feedinput[self.tensordict[element]] = feedinput[self.tensordict[element]] = -1.+2.*(atomArraysFinal[
+                feedinput[self.tensordict[element]] = -1.+2.*(atomArraysFinal[
                     element]-self.parameters['elementFPScales'][element][0]) / (self.parameters['elementFPScales'][element][1]-self.parameters['elementFPScales'][element][0])
                 feedinput[self.indsdict[element]] = atomInds[element]
                 feedinput[self.maskdict[element]] = np.ones((len(hashs), 1))

@@ -44,16 +44,9 @@ def generate_data(count):
 def train_test():
     label = 'train_test/calc'
     train_images = generate_data(2)
-    desc=Gaussian()
-    testimagehash=hash_images([train_images[0]])
-    desc.calculate_fingerprints(testimagehash)
-    testfp=desc.fingerprints[testimagehash.keys()[0]][0]
-    elementFPLengths={}
-    for element in np.unique(train_images[0].get_chemical_symbols()):
-        elementFPLengths[element]=len(testfp[1])
             
     calc = Amp(descriptor=Gaussian(),
-               model=NeuralNetwork(hiddenlayers=(3, 3),elementFingerprintLengths=elementFPLengths),
+               model=NeuralNetwork(hiddenlayers=(3, 3)),
                label=label,
                cores=1)
     loss = LossFunction(convergence={'energy_rmse': 0.02,
