@@ -496,12 +496,9 @@ class NeuralNetwork:
         self.parameters['elementFPScales'] = {}
         for element in self.elements:
             if len(atomArraysAll[element]) == 0:
-                self.parameters['elementFPScales'][element] = 1.
+                self.parameters['elementFPScales'][element] = [-1.,1.]
             else:
-                self.parameters['elementFPScales'][element] = np.max(
-                    np.max(np.abs(atomArraysAll[element])))
-        for key in self.parameters['elementFPScales']:
-            self.parameters['elementFPScales'][key]=1
+                self.parameters['elementFPScales'][element] = [np.min(atomArraysAll[element],axis=0),np.max(atomArraysAll[element],axis=0)]
 
         if self.maxAtomsForces >0:
             if self.parameters['force_coefficient'] is not None:
@@ -732,8 +729,8 @@ class NeuralNetwork:
         tilederivs = []
         for element in self.elements:
             if len(atomArraysFinal[element]) > 0:
-                feedinput[self.tensordict[element]] = atomArraysFinal[
-                    element] / self.parameters['elementFPScales'][element]
+                feedinput[self.tensordict[element]] = feedinput[self.tensordict[element]] = -1.+2.*(atomArraysFinal[
+                    element]-self.parameters['elementFPScales'][element][0]) / (self.parameters['elementFPScales'][element][1]-self.parameters['elementFPScales'][element][0])
                 feedinput[self.indsdict[element]] = atomInds[element]
                 feedinput[self.maskdict[element]] = np.ones((len(hashs), 1))
                 if forces:
