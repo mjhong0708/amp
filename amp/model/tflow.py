@@ -25,48 +25,93 @@ from  tensorflow.contrib.opt import ScipyOptimizerInterface
 
 
 class NeuralNetwork:
-    """
-    TensorFlow-based Neural Network model. (Google's machine-learning
-    code).
+    """TensorFlow-based Neural Network model.
 
-    Initialize with:
-      elementFingerprintLengths: dictionary (one for each element type)
-          that contains the fingerprint length for each element
+    Uses Google's machine-learning code to construct a neural network. This
+    method also allows for GPU acceleration.
 
-      hiddenlayers: structure of the neural network
+    Parameters
+    ----------
+    hiddenlayers 
+        Structure of the neural network. (XXX Provide formats allowed.
+        E.g., only (5,5) or can we do {'Cu': (5, 5), 'O': (10, 5)}?)
 
-      activation: activation type
+    activation
+        Activation type. (XXX Provide list of possibilities.)
 
-      keep_prob: dropout rate for the neural network to reduce overfitting.
+    keep_prob : float
+        Dropout rate for the neural network to reduce overfitting.
         (keep_prob=1. uses all nodes, keep_prob~0.5-0.8 better for training)
 
-      RMSEtarget: target for the final loss function
-      Note this is the per-image value.
+    maxTrainingEpochs : int
+        Maximum number of times to loop through the training data before
+        giving up.
 
-      maxTrainingEpochs: maximum number of times to loop through the
-      training data before giving up
+    batchsize : int
+        Batch size for minibatch (if miniBatch is set to True).
 
-      batchsize: batch size for minibatch (if miniBatch is set to True)
+    initialTrainingRate
+        XXX Undocumented.
 
-      tfVars: tensorflow variables (used if restoring from a previous save)
+    miniBatch : bool
+        Whether to use minibatches in training.
 
-      saveVariableName: name used for the internal tensorflow variable
-      naming scheme.  if variables have the same name as another model in
-      the same tensorflow session, there will be collisions
+    tfVars
+        Tensorflow variables (used if restoring from a previous save).
 
-      sess: tensorflow session to use (None means start a new session)
+    saveVariableName : str
+        Name used for the internal tensorflow variable naming scheme.
+        If variables have the same name as another model in the same
+        tensorflow session, there will be collisions.
 
-      maxAtomsForces: number of atoms to be used in the force training.  It
-      sets the upper bound on the number of atoms that can be used to
-      calculate the force for (e.g. if maxAtomsForces=40, then forces can
-      only be calculated for images with less than 40 atoms)
+    parameters
+        XXX Undoumented.
 
-      energy_coefficient and force_coefficient are used to adjust the
-      loss function; note you must turn on train_forces when calling
-      Amp.train (or model.fit) if you want to use force training.
+    sess
+        tensorflow session to use (None means start a new session)
 
-      scikit_model: a pickled version of the scikit model used to
-      re-establish this model.
+    maxAtomsForces : int
+        Number of atoms to be used in the force training. It sets the upper
+        bound on the number of atoms that can be used to calculate the force
+        for. E.g., if maxAtomsForces=40, then forces can only be calculated
+        for images with less than 40 atoms.
+
+    energy_coefficient : float
+        Used to adjust the loss function; this is the weight applied to the
+        energy component.
+
+    force_coefficient : float
+        Used to adjust the loss function; this is the weight applied to the
+        force component. Note you must turn on train_forces when calling
+        Amp.train (or model.fit) if you want to use force training.
+    
+    scikit_model
+        A pickled version of the scikit model used to re-establish this model.
+
+    convergenceCriteria
+        XXX Undocumented.
+
+    optimizationMethod
+        XXX Undocumented.
+
+    input_keep_prob
+        XXX Undocumented.
+
+    ADAM_optimizer_params
+        XXX Undocumented
+
+    regularization_strength
+        XXX Undocumented
+
+    applyLinearModel
+        XXX Undocumented
+
+    numTrainingImages
+        XXX Undocumented
+
+    elementFingerprintLengths
+        XXX Undocumented
+
     """
 
     def __init__(self,
