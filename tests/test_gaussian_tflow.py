@@ -13,11 +13,10 @@ from ase.constraints import FixAtoms
 
 from amp import Amp
 from amp.descriptor.gaussian import Gaussian
-#from amp.model.neuralnetwork import NeuralNetwork
-from amp.model import LossFunction
 from amp.model.tflow import NeuralNetwork
-from amp.utilities import hash_images
-import numpy as np
+from amp.model import LossFunction
+
+
 def generate_data(count):
     """Generates test or training data with a simple MD simulation."""
     atoms = fcc110('Pt', (2, 2, 2), vacuum=7.)
