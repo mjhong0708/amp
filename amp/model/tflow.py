@@ -115,7 +115,19 @@ class NeuralNetwork:
 
     elementFingerprintLengths
         XXX Undocumented
+    
+    fprange
+        XXX Undocumented
 
+    weights
+        XXX Undocumented
+        
+    scalings
+        XXX Undocumented
+    
+    unit_type: string
+        Sets the internal datatype of the tensorflow model.  Either "float" 
+        for 32-bit FP precision, or "double" for 64-bit FP precision
     """
 
 
@@ -146,8 +158,8 @@ class NeuralNetwork:
                  fprange=None,
                  weights=None,
                  scalings=None,
+                 unit_type="float"
                 ):
-        
         self.parameters = {} if parameters is None else parameters
         for prop in ['energyMeanScale', 
                      'energyPerElement']:
@@ -156,6 +168,7 @@ class NeuralNetwork:
         for prop in ['energyProdScale']:
             if prop not in self.parameters:
                 self.parameters[prop] = 1.
+           
         if 'convergence' in self.parameters:
             1
         elif convergenceCriteria is None:
@@ -180,6 +193,8 @@ class NeuralNetwork:
             self.parameters['ADAM_optimizer_params']=ADAM_optimizer_params
         if 'regularization_strength' not in self.parameters:
             self.parameters['regularization_strength']=regularization_strength
+        if 'unit_type' not in self.parameters:
+            self.parameters['unit_type']=unit_type
         if 'fprange' not in self.parameters and fprange is not None:
             self.parameters['fprange']={}
             for element in fprange:
@@ -287,22 +302,22 @@ class NeuralNetwork:
             for element in self.elements:
                 if preLoadData:
                     tensordictInitializer[element]= tf.placeholder(
-                    "float", shape=[numElements[element], self.elementFingerprintLengths[element]],name='tensor_%s'%element)
-                    tensorDerivDictInitializer[element]=tf.placeholder("float",
+                    self.parameters['unit_type'], shape=[numElements[element], self.elementFingerprintLengths[element]],name='tensor_%s'%element)
+                    tensorDerivDictInitializer[element]=tf.placeholder(self.parameters['unit_type'],
                                                        shape=[numElements[element], maxAtomsForces, 3, self.elementFingerprintLengths[element]],name='tensorderiv_%s'%element)
                     indsdictInitializer[element] = tf.placeholder("int64", shape=[numElements[element]],name='indsdict_%s'%element)
-                    maskdictInitializer[element] = tf.placeholder("float", shape=[numTrainingImages, 1],name='maskdict_%s'%element)
+                    maskdictInitializer[element] = tf.placeholder(self.parameters['unit_type'], shape=[numTrainingImages, 1],name='maskdict_%s'%element)
                     tensordict[element]=tf.Variable(tensordictInitializer[element],trainable=False,collections=[])
                     tensorDerivDict[element]=tf.Variable(tensorDerivDictInitializer[element],trainable=False,collections=[])
                     indsdict[element]=tf.Variable(indsdictInitializer[element],trainable=False,collections=[])
                     maskdict[element]=tf.Variable(maskdictInitializer[element],trainable=False,collections=[])
                 else:
                     tensordict[element] = tf.placeholder(
-                    "float", shape=[None, self.elementFingerprintLengths[element]],name='tensor_%s'%element)
-                    tensorDerivDict[element] = tf.placeholder("float",
+                    self.parameters['unit_type'], shape=[None, self.elementFingerprintLengths[element]],name='tensor_%s'%element)
+                    tensorDerivDict[element] = tf.placeholder(self.parameters['unit_type'],
                                                        shape=[None, None, 3, self.elementFingerprintLengths[element]],name='tensorderiv_%s'%element)
                     indsdict[element] = tf.placeholder("int64", shape=[None],name='indsdict_%s'%element)
-                    maskdict[element] = tf.placeholder("float", shape=[None, 1],name='maskdict_%s'%element)
+                    maskdict[element] = tf.placeholder(self.parameters['unit_type'], shape=[None, 1],name='maskdict_%s'%element)
     
             self.indsdict = indsdict
             
@@ -315,17 +330,17 @@ class NeuralNetwork:
         
 
             if preLoadData:
-                y_Initializer = tf.placeholder("float", shape=[numTrainingImages, 1],name='y_')
-                input_keep_prob_inInitializer=tf.placeholder("float",shape=[],name='input_keep_prob_in')
-                keep_prob_inInitializer = tf.placeholder("float",shape=[],name='keep_prob_in')
-                nAtoms_inInitializer = tf.placeholder("float", shape=[numTrainingImages, 1],name='nAtoms_in')
+                y_Initializer = tf.placeholder(self.parameters['unit_type'], shape=[numTrainingImages, 1],name='y_')
+                input_keep_prob_inInitializer=tf.placeholder(self.parameters['unit_type'],shape=[],name='input_keep_prob_in')
+                keep_prob_inInitializer = tf.placeholder(self.parameters['unit_type'],shape=[],name='keep_prob_in')
+                nAtoms_inInitializer = tf.placeholder(self.parameters['unit_type'], shape=[numTrainingImages, 1],name='nAtoms_in')
                 batchsizeInputInitializer = tf.placeholder("int32",shape=[],name='batchsizeInput')
-                learningrateInitializer = tf.placeholder("float",shape=[],name='learningrate')
-                forces_inInitializer = tf.placeholder("float", shape=[numTrainingImages, maxAtomsForces, 3], name='forces_in')
-                energycoefficientInitializer = tf.placeholder("float",shape=[])
-                forcecoefficientInitializer = tf.placeholder("float",shape=[])
+                learningrateInitializer = tf.placeholder(self.parameters['unit_type'],shape=[],name='learningrate')
+                forces_inInitializer = tf.placeholder(self.parameters['unit_type'], shape=[numTrainingImages, maxAtomsForces, 3], name='forces_in')
+                energycoefficientInitializer = tf.placeholder(self.parameters['unit_type'],shape=[])
+                forcecoefficientInitializer = tf.placeholder(self.parameters['unit_type'],shape=[])
                 tileDerivsInitializer=tf.placeholder("int32", shape=[4],name='tileDerivs')
-                energyProdScaleInitializer=tf.placeholder("float",shape=[],name='energyProdScale')
+                energyProdScaleInitializer=tf.placeholder(self.parameters['unit_type'],shape=[],name='energyProdScale')
 
                 self.y_ = tf.Variable(y_Initializer,trainable=False,collections=[])
                 self.input_keep_prob_in = tf.Variable(input_keep_prob_inInitializer,trainable=False,collections=[])
@@ -340,17 +355,17 @@ class NeuralNetwork:
                 self.energyProdScale=tf.Variable(energyProdScaleInitializer,trainable=False,collections=[])
                 self.initializers={'indsdict':indsdictInitializer,'tensorDerivDict':tensorDerivDictInitializer,'maskdict':maskdictInitializer,'tensordict':tensordictInitializer,'y_':y_Initializer,'input_keep_prob_in':input_keep_prob_inInitializer,'keep_prob_in':keep_prob_inInitializer,'nAtoms_in':nAtoms_inInitializer,'batchsizeInput':batchsizeInputInitializer,'learningrate':learningrateInitializer,'forces_in':forces_inInitializer,'energycoefficient':energycoefficientInitializer,'forcecoefficient':forcecoefficientInitializer,'tileDerivs':tileDerivsInitializer,'energyProdScale':energyProdScaleInitializer}
             else:
-                self.y_ = tf.placeholder("float", shape=[None, 1],name='y_')
-                self.input_keep_prob_in=tf.placeholder("float",name='input_keep_prob_in')
-                self.keep_prob_in = tf.placeholder("float",name='keep_prob_in')
-                self.nAtoms_in = tf.placeholder("float", shape=[None, 1],name='nAtoms_in')
+                self.y_ = tf.placeholder(self.parameters['unit_type'], shape=[None, 1],name='y_')
+                self.input_keep_prob_in=tf.placeholder(self.parameters['unit_type'],name='input_keep_prob_in')
+                self.keep_prob_in = tf.placeholder(self.parameters['unit_type'],name='keep_prob_in')
+                self.nAtoms_in = tf.placeholder(self.parameters['unit_type'], shape=[None, 1],name='nAtoms_in')
                 self.batchsizeInput = tf.placeholder("int32",name='batchsizeInput')
-                self.learningrate = tf.placeholder("float",name='learningrate')
-                self.forces_in = tf.placeholder("float", shape=[None, None, 3], name='forces_in')
-                self.energycoefficient = tf.placeholder("float")
-                self.forcecoefficient = tf.placeholder("float")
+                self.learningrate = tf.placeholder(self.parameters['unit_type'],name='learningrate')
+                self.forces_in = tf.placeholder(self.parameters['unit_type'], shape=[None, None, 3], name='forces_in')
+                self.energycoefficient = tf.placeholder(self.parameters['unit_type'])
+                self.forcecoefficient = tf.placeholder(self.parameters['unit_type'])
                 self.tileDerivs = tf.placeholder("int32", shape=[4],name='tileDerivs')
-                self.energyProdScale=tf.placeholder("float",name='energyProdScale')
+                self.energyProdScale=tf.placeholder(self.parameters['unit_type'],name='energyProdScale')
         # Generate a multilayer neural network for each element type.
             outdict = {}
             forcedict = {}
@@ -363,7 +378,7 @@ class NeuralNetwork:
                 outdict[element], forcedict[element],l2_regularization_dict[element] = model(tensordict[element],
                                                              indsdict[element],
                                                              self.keep_prob_in,
-                                 self.input_keep_prob_in,
+                                                             self.input_keep_prob_in,
                                                              self.batchsizeInput,
                                                              networkListToUse,
                                                              self.activation,
@@ -374,7 +389,7 @@ class NeuralNetwork:
                                                              name=self.saveVariableName,
                                                              dxdxik=self.tensorDerivDict[
                                                                  element],
-                                                             tilederiv=self.tileDerivs,element=element)
+                                                             tilederiv=self.tileDerivs,element=element,unit_type=self.parameters['unit_type'])
             self.outdict = outdict
 
             # The total energy is the sum of the energies over each atom type.
@@ -980,14 +995,14 @@ class NeuralNetwork:
         return str(params)
 
 def model(x, segmentinds, keep_prob, input_keep_prob,batchsize, neuronList, activationType,
-          fplength, mask, name, dxdxik, tilederiv,element):
+          fplength, mask, name, dxdxik, tilederiv,element,unit_type):
     """Generates a multilayer neural network with variable number
     of neurons, so that we have a template for each atom's NN."""
     namefun=lambda x: '%s_%s_'%(name,element)+x
     nNeurons = neuronList[0]
     # Pass  the input tensors through the first soft-plus layer
-    W_fc = weight_variable([fplength, nNeurons], name=namefun('Wfc0'))
-    b_fc = bias_variable([nNeurons], name=namefun('bfc0'))
+    W_fc = weight_variable([fplength, nNeurons], name=namefun('Wfc0'),unit_type=unit_type)
+    b_fc = bias_variable([nNeurons], name=namefun('bfc0'),unit_type=unit_type)
     input_dropout=tf.nn.dropout(x,input_keep_prob)
     #h_fc = activationType(tf.matmul(x, W_fc) + b_fc)
     h_fc = tf.nn.dropout(activationType(tf.matmul(input_dropout, W_fc) + b_fc),keep_prob)
@@ -997,14 +1012,14 @@ def model(x, segmentinds, keep_prob, input_keep_prob,batchsize, neuronList, acti
         for i in range(1, len(neuronList)):
             nNeurons = neuronList[i]
             nNeuronsOld = neuronList[i - 1]
-            W_fc = weight_variable([nNeuronsOld, nNeurons], name=namefun('Wfc%d'%i))
-            b_fc = bias_variable([nNeurons], name=namefun('bfc%d'%i))
+            W_fc = weight_variable([nNeuronsOld, nNeurons], name=namefun('Wfc%d'%i),unit_type=unit_type)
+            b_fc = bias_variable([nNeurons], name=namefun('bfc%d'%i),unit_type=unit_type)
             h_fc = tf.nn.dropout(activationType(
                 tf.matmul(h_fc, W_fc) + b_fc), keep_prob)
             l2_regularization+=tf.reduce_sum(tf.square(W_fc))+tf.reduce_sum(tf.square(b_fc))
 
-    W_fc_out = weight_variable([neuronList[-1], 1], name=namefun('Wfcout'))
-    b_fc_out = bias_variable([1], name=namefun('bfcout'))
+    W_fc_out = weight_variable([neuronList[-1], 1], name=namefun('Wfcout'),unit_type=unit_type)
+    b_fc_out = bias_variable([1], name=namefun('bfcout'),unit_type=unit_type)
     y_out = tf.matmul(h_fc, W_fc_out) + b_fc_out
     l2_regularization+=tf.reduce_sum(tf.square(W_fc_out))+tf.reduce_sum(tf.square(b_fc_out))
     #l2_regularization+=tf.reduce_sum(tf.square(W_fc_out)))
@@ -1023,17 +1038,17 @@ def model(x, segmentinds, keep_prob, input_keep_prob,batchsize, neuronList, acti
     return tf.mul(reducedSum, mask), dEdxik_reduced,l2_regularization
 
 
-def weight_variable(shape, name, stddev=0.1):
+def weight_variable(shape, name, unit_type,stddev=0.1):
     """Helper functions taken from the MNIST tutorial to generate weight and
     bias variables with random initial weights."""
-    initial = tf.truncated_normal(shape, stddev=stddev)
+    initial = tf.truncated_normal(shape, stddev=stddev,dtype=unit_type)
     return tf.Variable(initial, name=name)
 
 
-def bias_variable(shape, name, a=0.1):
+def bias_variable(shape, name, unit_type,a=0.1):
     """Helper functions taken from the MNIST tutorial to generate weight and
     bias variables with random initial weights."""
-    initial = tf.truncated_normal(stddev=a, shape=shape)
+    initial = tf.truncated_normal(stddev=a, shape=shape,dtype=unit_type)
     return tf.Variable(initial, name=name)
 
 
