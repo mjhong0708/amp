@@ -11,7 +11,6 @@
 # accelerated.
 
 import numpy as np
-import tensorflow as tf
 import random
 import string
 import pickle
@@ -20,6 +19,15 @@ import time
 from amp.model import LossFunction
 from ..utilities import now,ConvergenceOccurred
 from  tensorflow.contrib.opt import ScipyOptimizerInterface
+try:
+    import tensorflow as tf
+    # This exception is just so the documentation can build even if
+    # tensorflow is missing.
+except ImportError:
+
+    import warnings
+    warnings.warn('Please install tensorflow if you plan to use this '
+                  'module.')
 
 
 class NeuralNetwork:
