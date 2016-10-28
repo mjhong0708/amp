@@ -809,13 +809,13 @@ class LossFunction:
                 log('%5i %19s %12.4e %10.4e %1s'
                     ' %10.4e %1s %10.4e %1s %10.4e %1s' %
                     (self._step, now(), loss, energy_rmse,
-                     'C' if energy_rmse_converged else '',
+                     'C' if energy_rmse_converged else '-',
                      energy_maxresid,
-                     'C' if energy_maxresid_converged else '',
+                     'C' if energy_maxresid_converged else '-',
                      force_rmse,
-                     'C' if force_rmse_converged else '',
+                     'C' if force_rmse_converged else '-',
                      force_maxresid,
-                     'C' if force_maxresid_converged else ''))
+                     'C' if force_maxresid_converged else '-'))
 
             self._step += 1
             return energy_rmse_converged and energy_maxresid_converged and \
