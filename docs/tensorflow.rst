@@ -10,10 +10,7 @@ Google has released an open-source version of its machine-learning software name
 Dependencies
 ---------------------------------
 
-This package requires google's tensorflow. It also uses scikit learn to initialize some parameters. Installation of these two packages is typically possible with::
-
-   $ pip install tensorflow
-   $ pip install scikit-learn
+This package requires google's tensorflow; please see tensorflow's website for instructions for installation on your system. You should be able to run.
 
 
 Example
