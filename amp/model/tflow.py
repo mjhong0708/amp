@@ -14,13 +14,11 @@ import numpy as np
 import tensorflow as tf
 import random
 import string
-import sklearn.linear_model
 import pickle
 import uuid
 import time
 from amp.model import LossFunction
 from ..utilities import now,ConvergenceOccurred
-#from  tensorflow.contrib.opt.python.training import external_optimizer
 from  tensorflow.contrib.opt import ScipyOptimizerInterface
 
 
@@ -37,8 +35,11 @@ class NeuralNetwork:
     Parameters
     ----------
     hiddenlayers 
-        Structure of the neural network. (XXX Provide formats allowed.
-        E.g., only (5,5) or can we do {'Cu': (5, 5), 'O': (10, 5)}?)
+        Structure of the neural network. Can either be in the format
+        (int,int,int), where each element represnts the size of a 
+        layer and there and the length of the list is the number of
+        layers, or dictionary format of the network structure for each
+        element type. E.g. {'Cu': (5, 5), 'O': (10, 5)}
 
     activation
         Activation type. (XXX Provide list of possibilities.)
@@ -89,26 +90,24 @@ class NeuralNetwork:
         force component. Note you must turn on train_forces when calling
         Amp.train (or model.fit) if you want to use force training.
     
-    scikit_model
-        A pickled version of the scikit model used to re-establish this model.
-
     convergenceCriteria
         XXX Undocumented.
 
     optimizationMethod
-        XXX Undocumented.
+        XXX Undocumented. 
 
     input_keep_prob
-        XXX Undocumented.
+        Dropout ratio on the first layer (from fingerprints to the neural 
+        network. Rule of thumb is this should be 0 to 0.2.  Only applies when
+        using a SGD optimizer like ADAM.  BFGS ignores this.
 
     ADAM_optimizer_params
-        XXX Undocumented
+        Dictionary of parameters to pass to the ADAM optimizer. See 
+        https://www.tensorflow.org/versions/r0.11/api_docs/python/
+        train.html#AdamOptimizer for documentation
 
     regularization_strength
-        XXX Undocumented
-
-    applyLinearModel
-        XXX Undocumented
+        Weight for L2-regularization in 
 
     numTrainingImages
         XXX Undocumented
@@ -152,7 +151,6 @@ class NeuralNetwork:
                  input_keep_prob=0.8,
                  ADAM_optimizer_params={'beta1':0.9},
                  regularization_strength=None,
-                 applyLinearModel=False,
                  numTrainingImages={},
                  elementFingerprintLengths=None,
                  fprange=None,
@@ -178,13 +176,7 @@ class NeuralNetwork:
                                           'force_maxresid': None}
         else:
             self.parameters['convergence']=convergenceCriteria
-            
-        if scikit_model is not None:
-            self.linearmodel = pickle.loads(scikit_model)
-        else:
-            self.linearmodel=None
-        if 'applyLinearMode' not in self.parameters:
-            self.parameters['applyLinearModel']=applyLinearModel
+
         if 'energy_coefficient' not in self.parameters:
             self.parameters['energy_coefficient']=energy_coefficient
         if 'force_coefficient' not in self.parameters:
@@ -594,33 +586,14 @@ class NeuralNetwork:
             for j in range(len(self.elements)):
                 natomsArray[i][j] = nAtomsDict[self.elements[j]][i]
 
-        # simple model to help normalize the energies by guessing a per-atom
-        # energy.  This is helpful to removing the large electronic energy
-        # associate for each element, making it easier to regress later
-        if self.linearmodel is None and self.parameters['applyLinearModel']:
-            model_ransac = sklearn.linear_model.RANSACRegressor(
-                 sklearn.linear_model.LinearRegression(), residual_threshold=outlier_energy, min_samples=0.1)
-            model_ransac.fit(natomsArray, energies)
-            self.linearmodel = model_ransac
-        if self.parameters['applyLinearModel']:
-            energies = energies - self.linearmodel.predict(natomsArray)
 
-        #newkeylist = []
-        #newenergies = []
-        #for i in range(len(keylist)):
-        #    if self.linearmodel.inlier_mask_[i] == True:
-        #        newkeylist.append(keylist[i])
-        #        newenergies.append(energies[i])
-        
-        #keylist = newkeylist
-        #energies = np.array(newenergies)
+
         atomArraysAll, nAtomsDict, atomsIndsReverse, natoms, atomArraysAllDerivs = generateTensorFlowArrays(
             fingerprintDB, self.elements, keylist, fingerprintDerDB, self.maxAtomsForces)
 
         self.parameters['energyMeanScale'] = np.mean(energies)
         energies = energies - self.parameters['energyMeanScale']
         self.parameters['energyProdScale'] = np.mean(np.abs(energies))
-        #energies = energies / self.parameters['energyProdScale']
         self.parameters['fprange'] = {}
         for element in self.elements:
             if len(atomArraysAll[element]) == 0:
@@ -637,7 +610,6 @@ class NeuralNetwork:
                     atoms = images[keylist[i]]
                     forces[i, 0:len(atoms), :] = atoms.get_forces(
                     apply_constraint=False)
-                #forces = forces / self.parameters['energyProdScale']
             else:
                 forces = 0.
         else:
@@ -765,12 +737,13 @@ class NeuralNetwork:
                                                            forcecoefficient=self.parameters['force_coefficient'])
 
             def step_callbackfun_forces(x):
-                converged=lf.check_convergence(varlist[0](x),varlist[1](x),varlist[2](x),varlist[3](x),varlist[4](x))
+                evalvarlist=map(lambda y: float(np.array(y(x))),varlist)
+                converged=lf.check_convergence(*evalvarlist)
                 if converged:
                     raise ConvergenceOccurred()
                     
             def step_callbackfun_noforces(x):
-                converged=lf.check_convergence(varlist[1](x),varlist[1](x),0.,varlist[3](x),0.)
+                converged=lf.check_convergence(float(np.array(varlist[1](x))),float(np.array(varlist[1](x))),0.,float(np.array(varlist[3](x))),0.)
                 if converged:
                     raise ConvergenceOccurred()
                 
@@ -904,8 +877,6 @@ class NeuralNetwork:
             for i in range(len(hashs)):
                 for j in range(len(self.elements)):
                     natomsArray[i][j] = nAtomsDict[self.elements[j]][i]
-            if self.parameters['applyLinearModel']:
-                energies = energies + self.linearmodel.predict(natomsArray)
             if forces:
                 force = self.sess.run(self.forces,
                     feed_dict=feedinput)
@@ -921,8 +892,6 @@ class NeuralNetwork:
                     natomsArray[i][j] = nAtomsDict[self.elements[j]][i]
             for samplenum in range(nsamples):
                 energies = np.array(self.sess.run(self.energy,feed_dict=feedinput)) + self.parameters['energyMeanScale']
-                if self.parameters['applyLinearModel']:
-                    energies = energies + self.linearmodel.predict(natomsArray)
                 energysave.append(map(lambda x: x[0],energies))
                 if forces:
                     force = self.sess.run(self.forces,
@@ -981,16 +950,12 @@ class NeuralNetwork:
         params['miniBatch'] = self.miniBatch
         params['maxAtomsForces']=self.maxAtomsForces
         params['optimizationMethod']=self.optimizationMethod
-        params['applyLinearModel']=self.parameters['applyLinearModel']
 
         # Create a string format of the tensorflow variables.
         self.saver.save(self.sess, 'tfAmpNN-checkpoint')
         with open('tfAmpNN-checkpoint') as fhandle:
             params['tfVars'] = fhandle.read()
 
-        # Unfortunately, scikit learn only can use the pickle for
-        # saving/reestablishing itself.
-        params['scikit_model'] = pickle.dumps(self.linearmodel)
 
         return str(params)
 
