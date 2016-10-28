@@ -127,6 +127,11 @@ class NeuralNetwork:
     unit_type: string
         Sets the internal datatype of the tensorflow model.  Either "float" 
         for 32-bit FP precision, or "double" for 64-bit FP precision
+    
+    preLoadTrainingData: bool
+        Decides whether to run the training by preloading all training data
+        into tensorflow.  Doing so results in faster training if the entire 
+        dataset can fit into memory.  This only works when not using mini-batch.
     """
 
 
@@ -137,7 +142,7 @@ class NeuralNetwork:
                  maxTrainingEpochs=10000,
                  batchsize=2,
                  initialTrainingRate=1e-4,
-                 miniBatch=True,
+                 miniBatch=False,
                  tfVars=None,
                  saveVariableName=None,
                  parameters=None,
@@ -156,7 +161,8 @@ class NeuralNetwork:
                  fprange=None,
                  weights=None,
                  scalings=None,
-                 unit_type="float"
+                 unit_type="float",
+                 preLoadTrainingData=True
                 ):
         self.parameters = {} if parameters is None else parameters
         for prop in ['energyMeanScale', 
@@ -187,10 +193,13 @@ class NeuralNetwork:
             self.parameters['regularization_strength']=regularization_strength
         if 'unit_type' not in self.parameters:
             self.parameters['unit_type']=unit_type
+        if 'preLoadTrainingData' not in self.parameters:
+            self.parameters['preLoadTrainingData']=preLoadTrainingData
         if 'fprange' not in self.parameters and fprange is not None:
             self.parameters['fprange']={}
             for element in fprange:
                 self.parameters['fprange'][element]=np.array([map(lambda x: x[0],fprange[element]),map(lambda x: x[1],fprange[element])])
+        
         self.numTrainingImages=100
         self.hiddenlayers = hiddenlayers
         self.maxAtomsForces = maxAtomsForces
@@ -520,8 +529,7 @@ class NeuralNetwork:
         feedinput[self.energyProdScale]=self.parameters['energyProdScale']
         return feedinput
 
-    def fit(self, trainingimages, descriptor, cores=1, log=None,
-            outlier_energy=10.,preLoadTrainingData=False):
+    def fit(self, trainingimages, descriptor, cores=1, log=None):
         """Fit takes a bunch of training images (which are assumed to have a
         working calculator attached), and fits the internal variables to the
         training images.
@@ -572,21 +580,21 @@ class NeuralNetwork:
         energies = map(lambda x: [images[x].get_potential_energy()], keylist)
         energies = np.array(energies)
         
-        
-        
-        if preLoadTrainingData and not(self.miniBatch):
-            self.sess.close()
+        if self.parameters['preLoadTrainingData'] and not(self.miniBatch):
+            
             numElements={}
             for element in nAtomsDict:
                numElements[element]=sum(nAtomsDict[element])
-            self.constructSessGraphModel(self.tfVars,None,trainOnly=True,maxAtomsForces=self.maxAtomsForces,numElements=numElements,numTrainingImages=len(keylist))
+            self.saver.save(self.sess, 'tfAmpNN-checkpoint')
+            with open('tfAmpNN-checkpoint') as fhandle:
+                tfvars = fhandle.read()
+            self.sess.close()
+            self.constructSessGraphModel(tfvars,None,trainOnly=True,maxAtomsForces=self.maxAtomsForces,numElements=numElements,numTrainingImages=len(keylist))
 
         natomsArray = np.zeros((len(keylist), len(self.elements)))
         for i in range(len(images)):
             for j in range(len(self.elements)):
                 natomsArray[i][j] = nAtomsDict[self.elements[j]][i]
-
-
 
         atomArraysAll, nAtomsDict, atomsIndsReverse, natoms, atomArraysAllDerivs = generateTensorFlowArrays(
             fingerprintDB, self.elements, keylist, fingerprintDerDB, self.maxAtomsForces)
@@ -656,7 +664,7 @@ class NeuralNetwork:
                                                            forcesExp=forces,
                                                            energycoefficient=self.parameters['energy_coefficient'],
                                                            forcecoefficient=self.parameters['force_coefficient'])
-                        if preLoadTrainingData and not(self.miniBatch):
+                        if self.parameters['preLoadTrainingData'] and not(self.miniBatch):
                             self.preLoadFeed(feedinput)
 
                     # run a training step with the inputs.
@@ -754,13 +762,13 @@ class NeuralNetwork:
                 step_callbackfun=step_callbackfun_forces
                 curloss=self.loss
 
-            if preLoadTrainingData:
+            if self.parameters['preLoadTrainingData'] and not(self.miniBatch):
                 self.preLoadFeed(feedinput)
 
             extOpt=ScipyOptimizerInterface(curloss,method='l-BFGS-b',options={'maxiter':maxEpochs,'ftol':1.e-10,'gtol':1.e-10,'factr':1.e4})
             varlist=[]
             for var in [self.loss,self.energy_loss,self.force_loss,self.energy_maxresid,self.force_maxresid]:
-                if preLoadTrainingData:
+                if self.parameters['preLoadTrainingData'] and not(self.miniBatch):
                     varlist.append(extOpt._make_eval_func(var, self.sess, {}, []))
                 else:
                     varlist.append(extOpt._make_eval_func(var, self.sess, feedinput, []))
@@ -779,6 +787,11 @@ class NeuralNetwork:
             else:
                 log('uknown optimizer!')
         except ConvergenceOccurred:
+            if self.parameters['preLoadTrainingData'] and not(self.miniBatch):
+                self.saver.save(self.sess, 'tfAmpNN-checkpoint')
+                with open('tfAmpNN-checkpoint') as fhandle:
+                    tfvars = fhandle.read()
+                self.constructSessGraphModel(tfvars,None,trainOnly=False)
             return True
         return False
 
