@@ -140,21 +140,22 @@ class NeuralNetwork:
                  input_keep_prob=0.8,
                  ADAM_optimizer_params={'beta1':0.9},
                  regularization_strength=None,
-                 applyLinearModel=True,
+                 applyLinearModel=False,
                  numTrainingImages={},
                  elementFingerprintLengths=None,
                  fprange=None,
                  weights=None,
                  scalings=None,
-                 fortran=None,
-                 mode=None
                 ):
         
         self.parameters = {} if parameters is None else parameters
-        for prop in ['energyMeanScale', 'energyProdScale',
+        for prop in ['energyMeanScale', 
                      'energyPerElement']:
             if prop not in self.parameters:
-                self.parameters[prop] = None
+                self.parameters[prop] = 0.
+        for prop in ['energyProdScale']:
+            if prop not in self.parameters:
+                self.parameters[prop] = 1.
         if 'convergence' in self.parameters:
             1
         elif convergenceCriteria is None:
@@ -219,8 +220,8 @@ class NeuralNetwork:
             self.elementFingerprintLengths={}
             self.elements=weights.keys()
             for element in self.elements:
-                self.elementFingerprintLengths[element]=weights[element][1][0].shape[0]
-            print(self.elementFingerprintLengths)
+                self.elementFingerprintLengths[element]=weights[element][1].shape[0]-1
+
             self.constructSessGraphModel(tfVars,self.sess)
         self.tfVars=tfVars
         
@@ -258,17 +259,17 @@ class NeuralNetwork:
     #This function is used to test the code by pre-setting the weights in the model for each element, so that results can be checked against pre-computed exact estimates
     def setWeightsScalings(self,feedinput,weights,scalings):
         with self.graph.as_default():
-            for var in tf.trainable_variables():
-                print(var.name)
             namefun=lambda x: '%s_%s_'%(self.saveVariableName,element)+x
             for element in weights:
                 for layer in weights[element]:
-                    print(self.hiddenlayers)
-                    feedinput[self.graph.get_tensor_by_name(namefun('Wfc%d:0'%(layer-1)))]=weights[element][layer][0]
-                    feedinput[self.graph.get_tensor_by_name(namefun('bfc%d:0'%(layer-1)))]=weights[element][layer][1]
-                feedinput[self.graph.get_tensor_by_name(namefun('Wfcout:0'%(layer-1)))]=scalings[element]['slope']
-                feedinput[self.graph.get_tensor_by_name(namefun('bfcout:0'%(layer-1)))]=scalings[element]['intercept']
-
+                    weight=weights[element][layer][0:-1]
+                    bias=weights[element][layer][-1]
+                    bias=np.array(bias).reshape(bias.size)
+                    feedinput[self.graph.get_tensor_by_name(namefun('Wfc%d:0'%(layer-1)))]=weight
+                    feedinput[self.graph.get_tensor_by_name(namefun('bfc%d:0'%(layer-1)))]=bias
+                feedinput[self.graph.get_tensor_by_name(namefun('Wfcout:0'))]=np.array(scalings[element]['slope']).reshape((1,1))
+                feedinput[self.graph.get_tensor_by_name(namefun('bfcout:0'))]=np.array(scalings[element]['intercept']).reshape((1,))
+        
     def constructModel(self,sess,graph,preLoadData=False,maxAtomsForces=None,numElements=None,numTrainingImages=None):
         """Sets up the tensorflow neural networks for each atom type."""
 
@@ -467,13 +468,27 @@ class NeuralNetwork:
         tilederivs = (0, 0, 0, 0)
         for element in self.elements:
             if len(atomArraysFinal[element]) > 0:
-                feedinput[self.tensordict[element]] =  -1.+2.*(atomArraysFinal[
-                    element]-self.parameters['fprange'][element][0]) / (self.parameters['fprange'][element][1]-self.parameters['fprange'][element][0])
+                aAF=atomArraysFinal[element].copy()
+                for i in range(len(aAF)):
+                    for j in range(len(aAF[i])):
+                       if (self.parameters['fprange'][element][1][j]-self.parameters['fprange'][element][0][j])>10.**-8:
+                            aAF[i][j]=-1.+2.*(atomArraysFinal[element][i][j]-self.parameters['fprange'][element][0][j]) / (self.parameters['fprange'][element][1][j]-self.parameters['fprange'][element][0][j])
+                feedinput[self.tensordict[element]] = aAF
+               
                 feedinput[self.indsdict[element]] = atomInds[element]
                 feedinput[self.maskdict[element]] = np.ones((batchsize, 1))
                 if forcecoefficient > 1.e-5:
+                    aAFD=atomArraysDerivsFinal[element]
+                    for i in range(atomArraysDerivsFinal[element].shape[0]):
+                        for j in range(atomArraysDerivsFinal[element].shape[1]):
+                            for k in range(atomArraysDerivsFinal[element].shape[2]):
+                                for l in range(atomArraysDerivsFinal[element].shape[3]):
+                                    if (self.parameters['fprange'][element][1][l]-self.parameters['fprange'][element][0][l])>10.**-8:
+                                        aAFD[i][j][k][l]=2.*atomArraysDerivsFinal[element][i][j][k][l] / (self.parameters['fprange'][element][1][l]-self.parameters['fprange'][element][0][l])
                     feedinput[self.tensorDerivDict[element]
-                              ] = atomArraysDerivsFinal[element]
+                              ] = aAFD
+                    #feedinput[self.tensorDerivDict[element]
+                    #          ] = atomArraysDerivsFinal[element]
                 if len(atomArraysDerivsFinal[element]) > 0:
                     tilederivs = np.array([1, atomArraysDerivsFinal[element].shape[
                                           1], atomArraysDerivsFinal[element].shape[2], 1])
@@ -827,15 +842,24 @@ class NeuralNetwork:
         tilederivs = []
         for element in self.elements:
             if len(atomArraysFinal[element]) > 0:
-                print(atomArraysFinal[element])
-                print(self.parameters['fprange'])
-                feedinput[self.tensordict[element]] = -1.+2.*(atomArraysFinal[
-                    element]-self.parameters['fprange'][element][0]) / (self.parameters['fprange'][element][1]-self.parameters['fprange'][element][0])
+                aAF=atomArraysFinal[element].copy()
+                for i in range(len(aAF)):
+                    for j in range(len(aAF[i])):
+                       if (self.parameters['fprange'][element][1][j]-self.parameters['fprange'][element][0][j])>10.**-8:
+                            aAF[i][j]=-1.+2.*(atomArraysFinal[element][i][j]-self.parameters['fprange'][element][0][j]) / (self.parameters['fprange'][element][1][j]-self.parameters['fprange'][element][0][j])
+                feedinput[self.tensordict[element]] = aAF
                 feedinput[self.indsdict[element]] = atomInds[element]
                 feedinput[self.maskdict[element]] = np.ones((len(hashs), 1))
                 if forces:
+                    aAFD=atomArraysDerivsFinal[element]
+                    for i in range(atomArraysDerivsFinal[element].shape[0]):
+                        for j in range(atomArraysDerivsFinal[element].shape[1]):
+                            for k in range(atomArraysDerivsFinal[element].shape[2]):
+                                for l in range(atomArraysDerivsFinal[element].shape[3]):
+                                    if (self.parameters['fprange'][element][1][l]-self.parameters['fprange'][element][0][l])>10.**-8:
+                                        aAFD[i][j][k][l]=2.*atomArraysDerivsFinal[element][i][j][k][l] / (self.parameters['fprange'][element][1][l]-self.parameters['fprange'][element][0][l])
                     feedinput[self.tensorDerivDict[element]
-                              ] = atomArraysDerivsFinal[element]
+                              ] = aAFD
                     if len(atomArraysDerivsFinal[element]) > 0:
                         tilederivs = np.array([1, atomArraysDerivsFinal[element].shape[
                                               1], atomArraysDerivsFinal[element].shape[2], 1])
@@ -859,6 +883,7 @@ class NeuralNetwork:
             self.setWeightsScalings(feedinput,self.weights,self.scalings)
         if nsamples==1:
             energies = np.array(self.sess.run(self.energy,feed_dict=feedinput)) + self.parameters['energyMeanScale']
+            
             # Add in the per-atom base energy.
             natomsArray = np.zeros((len(hashs), len(self.elements)))
             for i in range(len(hashs)):
