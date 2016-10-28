@@ -11,6 +11,7 @@
 # accelerated.
 
 import numpy as np
+import tensorflow as tf
 import random
 import string
 import pickle
@@ -18,16 +19,17 @@ import uuid
 import time
 from amp.model import LossFunction
 from ..utilities import now,ConvergenceOccurred
+
 try:
     import tensorflow as tf
     from  tensorflow.contrib.opt import ScipyOptimizerInterface
     # This exception is just so the documentation can build even if
     # tensorflow is missing.
 except ImportError:
-
     import warnings
-warnings.warn('Please install tensorflow if you plan to use this '
+    warnings.warn('Please install tensorflow if you plan to use this '
                   'module.')
+                  
 
 
 class NeuralNetwork:
@@ -94,11 +96,18 @@ class NeuralNetwork:
         force component. Note you must turn on train_forces when calling
         Amp.train (or model.fit) if you want to use force training.
     
-    convergenceCriteria
-        XXX Undocumented.
+    convergenceCriteria: dict
+        Dictionary of convergence criteria, analagous to the main AMP
+        convergence criteria dictionary.
 
-    optimizationMethod
-        XXX Undocumented. 
+    optimizationMethod: string
+        Set the optimization method for the NN parameters.  Currently either 
+        'ADAM' for the ADAM optimizer in tensorflow, of 'l-BFGS-b' for the 
+        deterministic l-BFGS-b method.  ADAM is usually faster per training step
+        has all of the benefits of being a stochastic optimizer, and allows for
+        mini-batch operation, but has more tunable parameters and can be harder
+        to get working well.  l-BFGS-b usually works for small/moderate network 
+        sizes.
 
     input_keep_prob
         Dropout ratio on the first layer (from fingerprints to the neural 
@@ -111,26 +120,32 @@ class NeuralNetwork:
         train.html#AdamOptimizer for documentation
 
     regularization_strength
-        Weight for L2-regularization in 
-
-    numTrainingImages
-        XXX Undocumented
+        Weight for L2-regularization in the cost function
 
     elementFingerprintLengths
         XXX Undocumented
     
-    fprange
-        XXX Undocumented
+    fprange: dict
+        This is a dictionary that contains the minimum and maximum values seen
+        for each fingerprint of each element.  These 
 
-    weights
-        XXX Undocumented
+    weights: np array
+        Input that allows the NN weights (and biases) to be set directly.  This
+        is only used for verifying that the calculation is working correctly
+        in the CuOPd test case.  In general, don't use this except for testing
+        the code.  This argument is analagous to the original AMP NeuralNetwork
+        module.
         
     scalings
-        XXX Undocumented
+        Input that allows the NN final scaling o be set directly.  This
+        is only used for verifying that the calculation is working correctly
+        in the CuOPd test case.  In general, don't use this except for testing
+        the code. This argument is analagous to the original AMP NeuralNetwork
+        module.
     
     unit_type: string
         Sets the internal datatype of the tensorflow model.  Either "float" 
-        for 32-bit FP precision, or "double" for 64-bit FP precision
+        for 32-bit FP precision, or "double" for 64-bit FP precision.
     
     preLoadTrainingData: bool
         Decides whether to run the training by preloading all training data
@@ -204,7 +219,6 @@ class NeuralNetwork:
             for element in fprange:
                 self.parameters['fprange'][element]=np.array([map(lambda x: x[0],fprange[element]),map(lambda x: x[1],fprange[element])])
         
-        self.numTrainingImages=100
         self.hiddenlayers = hiddenlayers
         self.maxAtomsForces = maxAtomsForces
 
@@ -585,7 +599,6 @@ class NeuralNetwork:
         energies = np.array(energies)
         
         if self.parameters['preLoadTrainingData'] and not(self.miniBatch):
-            
             numElements={}
             for element in nAtomsDict:
                numElements[element]=sum(nAtomsDict[element])
