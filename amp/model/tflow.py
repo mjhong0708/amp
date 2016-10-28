@@ -62,7 +62,9 @@ class NeuralNetwork:
         Batch size for minibatch (if miniBatch is set to True).
 
     initialTrainingRate
-        XXX Undocumented.
+        Initial training rate for SGD optimizers like ADAM.  See the TF 
+        documentation for choose this value.  Likely between 1e-2 and 1e-5, 
+        depending on use case, whether mini-batch is on, etc.
 
     miniBatch : bool
         Whether to use minibatches in training.
@@ -76,7 +78,9 @@ class NeuralNetwork:
         tensorflow session, there will be collisions.
 
     parameters
-        XXX Undoumented.
+        Dictionary of parameters to be used in initialization.  Mostly these
+        are the same keywords as the keyword arguments in this function.  This
+        is primarily used to make saving/loading easier. 
 
     sess
         tensorflow session to use (None means start a new session)
@@ -121,9 +125,6 @@ class NeuralNetwork:
 
     regularization_strength
         Weight for L2-regularization in the cost function
-
-    elementFingerprintLengths
-        XXX Undocumented
     
     fprange: dict
         This is a dictionary that contains the minimum and maximum values seen
@@ -151,6 +152,15 @@ class NeuralNetwork:
         Decides whether to run the training by preloading all training data
         into tensorflow.  Doing so results in faster training if the entire 
         dataset can fit into memory.  This only works when not using mini-batch.
+        
+    relativeForceCutoff: float
+        Parameter for controlling whether the force contribution to the trained
+        cost function is absolute (just differences of force compared to
+        training forces) or relative for large values of the force.  This
+        basically sets the upper limit on the forces that should be fitted 
+        (e.g. if the force is >A, then the force is scaled).  This helps when a 
+        small number of images have very large forces that don't need to be 
+        reconstructed perfectly.
     """
 
 
@@ -181,7 +191,8 @@ class NeuralNetwork:
                  weights=None,
                  scalings=None,
                  unit_type="float",
-                 preLoadTrainingData=True
+                 preLoadTrainingData=True,
+                 relativeForceCutoff=None
                 ):
         self.parameters = {} if parameters is None else parameters
         for prop in ['energyMeanScale', 
@@ -210,6 +221,8 @@ class NeuralNetwork:
             self.parameters['ADAM_optimizer_params']=ADAM_optimizer_params
         if 'regularization_strength' not in self.parameters:
             self.parameters['regularization_strength']=regularization_strength
+        if 'relativeForceCutoff' not in self.parameters:
+            self.parameters['relativeForceCutoff']=relativeForceCutoff
         if 'unit_type' not in self.parameters:
             self.parameters['unit_type']=unit_type
         if 'preLoadTrainingData' not in self.parameters:
@@ -443,13 +456,14 @@ class NeuralNetwork:
             #self.loss_forces = self.forcecoefficient * \
             #    tf.sqrt(tf.reduce_mean(tf.square(tf.sub(self.forces_in, self.forces))))
             #force loss function, as included in model/__init__.py
-            self.force_loss= tf.reduce_sum(tf.div(tf.reduce_mean(tf.square(tf.sub(self.forces_in, self.forces)),2),self.nAtoms_in))
-            relativeA=0.5
-            self.force_loss= tf.reduce_sum(
-                    tf.div(
-                                    tf.reduce_mean(
-                                        tf.div(
-                                            tf.square(tf.sub(self.forces_in, self.forces)),tf.square(self.forces_in)+relativeA**2.)*relativeA**2.,2),self.nAtoms_in))
+            if self.parameters['relativeForceCutoff'] is None:
+                self.force_loss= tf.reduce_sum(tf.div(tf.reduce_mean(tf.square(tf.sub(self.forces_in, self.forces)),2),self.nAtoms_in))
+            else:
+                relativeA=self.parameters['relativeForceCutoff'] 
+                self.force_loss= tf.reduce_sum(tf.div(tf.reduce_mean(
+                          tf.div(tf.square(tf.sub(self.forces_in, self.forces)),
+                          tf.square(self.forces_in)+relativeA**2.)*relativeA**2.,2),
+                          self.nAtoms_in))
             
 
             #Define max residuals
