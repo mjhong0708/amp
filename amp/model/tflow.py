@@ -11,7 +11,6 @@
 # accelerated.
 
 import numpy as np
-import tensorflow as tf
 import random
 import string
 import pickle
@@ -19,18 +18,23 @@ import uuid
 import time
 from amp.model import LossFunction
 from ..utilities import now,ConvergenceOccurred
-from  tensorflow.contrib.opt import ScipyOptimizerInterface
+try:
+    import tensorflow as tf
+    from  tensorflow.contrib.opt import ScipyOptimizerInterface
+    # This exception is just so the documentation can build even if
+    # tensorflow is missing.
+except ImportError:
+
+    import warnings
+warnings.warn('Please install tensorflow if you plan to use this '
+                  'module.')
 
 
 class NeuralNetwork:
     """TensorFlow-based Neural Network model.
 
-<<<<<<< HEAD
-    Initialize with:
-=======
     Uses Google's machine-learning code to construct a neural network. This
     method also allows for GPU acceleration.
->>>>>>> 5a1902e047ab3c835d92c8b0c007e3330360fbc9
 
     Parameters
     ----------
