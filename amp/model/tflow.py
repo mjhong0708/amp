@@ -18,9 +18,9 @@ import uuid
 import time
 from amp.model import LossFunction
 from ..utilities import now,ConvergenceOccurred
-from  tensorflow.contrib.opt import ScipyOptimizerInterface
 try:
     import tensorflow as tf
+    from  tensorflow.contrib.opt import ScipyOptimizerInterface
     # This exception is just so the documentation can build even if
     # tensorflow is missing.
 except ImportError:
