@@ -176,7 +176,6 @@ class NeuralNetwork:
                  saveVariableName=None,
                  parameters=None,
                  sess=None,
-                 maxAtomsForces=6,
                  energy_coefficient=1.0,
                  force_coefficient=0.04,
                  scikit_model=None,
@@ -233,7 +232,6 @@ class NeuralNetwork:
                 self.parameters['fprange'][element]=np.array([map(lambda x: x[0],fprange[element]),map(lambda x: x[1],fprange[element])])
         
         self.hiddenlayers = hiddenlayers
-        self.maxAtomsForces = maxAtomsForces
 
         if isinstance(activation, basestring):
             self.activationName = activation
@@ -281,7 +279,7 @@ class NeuralNetwork:
         self.optimizationMethod=optimizationMethod
         
 
-    def constructSessGraphModel(self,tfVars,sess,trainOnly=False,maxAtomsForces=0,numElements=None,numTrainingImages=None):
+    def constructSessGraphModel(self,tfVars,sess,trainOnly=False,numElements=None,numTrainingImages=None,num_dgdx_Eindices=None,numTrainingAtoms=None):
         self.graph=tf.Graph()
         with self.graph.as_default():
             if sess is None:
@@ -289,7 +287,7 @@ class NeuralNetwork:
             else:
                 self.sess = sess
             if trainOnly:
-                self.constructModel(self.sess,self.graph,trainOnly,maxAtomsForces,numElements,numTrainingImages)
+                self.constructModel(self.sess,self.graph,trainOnly,numElements,numTrainingImages,num_dgdx_Eindices,numTrainingAtoms)
             else:
                 self.constructModel(self.sess,self.graph)
             trainvarlist=tf.trainable_variables()
@@ -317,7 +315,7 @@ class NeuralNetwork:
                 feedinput[self.graph.get_tensor_by_name(namefun('Wfcout:0'))]=np.array(scalings[element]['slope']).reshape((1,1))
                 feedinput[self.graph.get_tensor_by_name(namefun('bfcout:0'))]=np.array(scalings[element]['intercept']).reshape((1,))
         
-    def constructModel(self,sess,graph,preLoadData=False,maxAtomsForces=None,numElements=None,numTrainingImages=None):
+    def constructModel(self,sess,graph,preLoadData=False,numElements=None,numTrainingImages=None,num_dgdx_Eindices=None,numTrainingAtoms=None):
         """Sets up the tensorflow neural networks for each atom type."""
 
         with sess.as_default(),graph.as_default():
@@ -325,29 +323,42 @@ class NeuralNetwork:
             tensordict = {}
             indsdict = {}
             maskdict = {}
-            tensorDerivDict = {}
+            dgdx_dict = {}
+            dgdx_Eindices_dict={}
+            dgdx_Xindices_dict={}
             if preLoadData:
                 tensordictInitializer={}
-                tensorDerivDictInitializer={}
+                dgdx_dict_initializer={}
+                dgdx_Eindices_dict_initializer={}
+                dgdx_Xindices_dict_initializer={}
                 indsdictInitializer={}
                 maskdictInitializer={}
             for element in self.elements:
                 if preLoadData:
                     tensordictInitializer[element]= tf.placeholder(
                     self.parameters['unit_type'], shape=[numElements[element], self.elementFingerprintLengths[element]],name='tensor_%s'%element)
-                    tensorDerivDictInitializer[element]=tf.placeholder(self.parameters['unit_type'],
-                                                       shape=[numElements[element], maxAtomsForces, 3, self.elementFingerprintLengths[element]],name='tensorderiv_%s'%element)
+                    
+                    dgdx_dict_initializer[element]=tf.placeholder(self.parameters['unit_type'],
+                                                       shape=[num_dgdx_Eindices[element],self.elementFingerprintLengths[element],3],name='dgdx_%s'%element)
+                    dgdx_Eindices_dict_initializer[element] = tf.placeholder("int64", shape=[num_dgdx_Eindices[element]],name='dgdx_Eindices_%s'%element)
+                    dgdx_Xindices_dict_initializer[element] = tf.placeholder("int64", shape=[num_dgdx_Eindices[element]],name='dgdx_Xindices_%s'%element)
+
                     indsdictInitializer[element] = tf.placeholder("int64", shape=[numElements[element]],name='indsdict_%s'%element)
                     maskdictInitializer[element] = tf.placeholder(self.parameters['unit_type'], shape=[numTrainingImages, 1],name='maskdict_%s'%element)
                     tensordict[element]=tf.Variable(tensordictInitializer[element],trainable=False,collections=[])
-                    tensorDerivDict[element]=tf.Variable(tensorDerivDictInitializer[element],trainable=False,collections=[])
+                    dgdx_dict[element]=tf.Variable(dgdx_dict_initializer[element],trainable=False,collections=[])
+                    dgdx_Eindices_dict[element]=tf.Variable(dgdx_Eindices_dict_initializer[element],trainable=False,collections=[])
+                    dgdx_Xindices_dict[element]=tf.Variable(dgdx_Xindices_dict_initializer[element],trainable=False,collections=[])
                     indsdict[element]=tf.Variable(indsdictInitializer[element],trainable=False,collections=[])
                     maskdict[element]=tf.Variable(maskdictInitializer[element],trainable=False,collections=[])
                 else:
                     tensordict[element] = tf.placeholder(
                     self.parameters['unit_type'], shape=[None, self.elementFingerprintLengths[element]],name='tensor_%s'%element)
-                    tensorDerivDict[element] = tf.placeholder(self.parameters['unit_type'],
-                                                       shape=[None, None, 3, self.elementFingerprintLengths[element]],name='tensorderiv_%s'%element)
+                    dgdx_dict[element]= tf.placeholder(self.parameters['unit_type'],
+                                                       shape=[None, self.elementFingerprintLengths[element],3],name='dgdx_%s'%element)
+                    dgdx_Eindices_dict[element] = tf.placeholder("int64", shape=[None],name='dgdx_Eindices_%s'%element)
+                    dgdx_Xindices_dict[element]=tf.placeholder("int64", shape=[None],name='dgdx_Xindices_%s'%element)
+
                     indsdict[element] = tf.placeholder("int64", shape=[None],name='indsdict_%s'%element)
                     maskdict[element] = tf.placeholder(self.parameters['unit_type'], shape=[None, 1],name='maskdict_%s'%element)
     
@@ -355,8 +366,9 @@ class NeuralNetwork:
             
             self.tensordict = tensordict
             self.maskdict = maskdict
-            
-            self.tensorDerivDict = tensorDerivDict
+            self.dgdx_dict=dgdx_dict
+            self.dgdx_Eindices_dict=dgdx_Eindices_dict
+            self.dgdx_Xindices_dict=dgdx_Xindices_dict
 
         # y_ is the input energy for each configuration.
         
@@ -366,13 +378,14 @@ class NeuralNetwork:
                 input_keep_prob_inInitializer=tf.placeholder(self.parameters['unit_type'],shape=[],name='input_keep_prob_in')
                 keep_prob_inInitializer = tf.placeholder(self.parameters['unit_type'],shape=[],name='keep_prob_in')
                 nAtoms_inInitializer = tf.placeholder(self.parameters['unit_type'], shape=[numTrainingImages, 1],name='nAtoms_in')
+                nAtoms_forces_Initializer = tf.placeholder(self.parameters['unit_type'], shape=[numTrainingAtoms, 1],name='nAtoms_forces')
                 batchsizeInputInitializer = tf.placeholder("int32",shape=[],name='batchsizeInput')
                 learningrateInitializer = tf.placeholder(self.parameters['unit_type'],shape=[],name='learningrate')
-                forces_inInitializer = tf.placeholder(self.parameters['unit_type'], shape=[numTrainingImages, maxAtomsForces, 3], name='forces_in')
+                forces_inInitializer = tf.placeholder(self.parameters['unit_type'], shape=[numTrainingAtoms, 3], name='forces_in')
                 energycoefficientInitializer = tf.placeholder(self.parameters['unit_type'],shape=[])
                 forcecoefficientInitializer = tf.placeholder(self.parameters['unit_type'],shape=[])
-                tileDerivsInitializer=tf.placeholder("int32", shape=[4],name='tileDerivs')
                 energyProdScaleInitializer=tf.placeholder(self.parameters['unit_type'],shape=[],name='energyProdScale')
+                totalNumAtomsInitializer=tf.placeholder("int32",shape=[],name='totalNumAtoms')
 
                 self.y_ = tf.Variable(y_Initializer,trainable=False,collections=[])
                 self.input_keep_prob_in = tf.Variable(input_keep_prob_inInitializer,trainable=False,collections=[])
@@ -383,9 +396,10 @@ class NeuralNetwork:
                 self.forces_in = tf.Variable(forces_inInitializer,trainable=False,collections=[])
                 self.energycoefficient = tf.Variable(energycoefficientInitializer,trainable=False,collections=[])
                 self.forcecoefficient = tf.Variable(forcecoefficientInitializer,trainable=False,collections=[])
-                self.tileDerivs = tf.Variable(tileDerivsInitializer,trainable=False,collections=[])
                 self.energyProdScale=tf.Variable(energyProdScaleInitializer,trainable=False,collections=[])
-                self.initializers={'indsdict':indsdictInitializer,'tensorDerivDict':tensorDerivDictInitializer,'maskdict':maskdictInitializer,'tensordict':tensordictInitializer,'y_':y_Initializer,'input_keep_prob_in':input_keep_prob_inInitializer,'keep_prob_in':keep_prob_inInitializer,'nAtoms_in':nAtoms_inInitializer,'batchsizeInput':batchsizeInputInitializer,'learningrate':learningrateInitializer,'forces_in':forces_inInitializer,'energycoefficient':energycoefficientInitializer,'forcecoefficient':forcecoefficientInitializer,'tileDerivs':tileDerivsInitializer,'energyProdScale':energyProdScaleInitializer}
+                self.totalNumAtoms=tf.Variable(totalNumAtomsInitializer,trainable=False,collections=[])
+                self.nAtoms_forces=tf.Variable(nAtoms_forces_Initializer,trainable=False,collections=[])
+                self.initializers={'indsdict':indsdictInitializer,'dgdx_dict':dgdx_dict_initializer,'dgdx_Xindices_dict':dgdx_Xindices_dict_initializer,'dgdx_Eindices_dict':dgdx_Eindices_dict_initializer,'maskdict':maskdictInitializer,'tensordict':tensordictInitializer,'y_':y_Initializer,'input_keep_prob_in':input_keep_prob_inInitializer,'keep_prob_in':keep_prob_inInitializer,'nAtoms_in':nAtoms_inInitializer,'batchsizeInput':batchsizeInputInitializer,'learningrate':learningrateInitializer,'forces_in':forces_inInitializer,'energycoefficient':energycoefficientInitializer,'forcecoefficient':forcecoefficientInitializer,'energyProdScale':energyProdScaleInitializer,'totalNumAtoms':totalNumAtomsInitializer,'nAtoms_forces':nAtoms_forces_Initializer}
             else:
                 self.y_ = tf.placeholder(self.parameters['unit_type'], shape=[None, 1],name='y_')
                 self.input_keep_prob_in=tf.placeholder(self.parameters['unit_type'],name='input_keep_prob_in')
@@ -396,8 +410,9 @@ class NeuralNetwork:
                 self.forces_in = tf.placeholder(self.parameters['unit_type'], shape=[None, None, 3], name='forces_in')
                 self.energycoefficient = tf.placeholder(self.parameters['unit_type'])
                 self.forcecoefficient = tf.placeholder(self.parameters['unit_type'])
-                self.tileDerivs = tf.placeholder("int32", shape=[4],name='tileDerivs')
                 self.energyProdScale=tf.placeholder(self.parameters['unit_type'],name='energyProdScale')
+                self.totalNumAtoms = tf.placeholder("int32",name='totalNumAtoms')
+                self.nAtoms_forces = tf.placeholder(self.parameters['unit_type'],shape=[None,1],name='totalNumAtoms')
         # Generate a multilayer neural network for each element type.
             outdict = {}
             forcedict = {}
@@ -419,10 +434,13 @@ class NeuralNetwork:
                                                              mask=maskdict[
                                                                  element],
                                                              name=self.saveVariableName,
-                                                             dxdxik=self.tensorDerivDict[
-                                                                 element],
-                                                             tilederiv=self.tileDerivs,element=element,unit_type=self.parameters['unit_type'])
+                                                             dgdx=self.dgdx_dict[element],
+                                                             dgdx_Eindices=self.dgdx_Eindices_dict[element],
+                                                             dgdx_Xindices=self.dgdx_Xindices_dict[element],
+                                                             element=element,
+                                                             unit_type=self.parameters['unit_type'],totalNumAtoms=self.totalNumAtoms)
             self.outdict = outdict
+            
 
             # The total energy is the sum of the energies over each atom type.
             keylist = self.elements
@@ -435,6 +453,7 @@ class NeuralNetwork:
             Ftot = forcedict[keylist[0]]
             for i in range(1, len(keylist)):
                 Ftot = Ftot + forcedict[keylist[i]]
+            self.forcedict=forcedict
             self.forces = -Ftot*self.energyProdScale
             
             l2_regularization =l2_regularization_dict[keylist[0]]
@@ -457,13 +476,18 @@ class NeuralNetwork:
             #    tf.sqrt(tf.reduce_mean(tf.square(tf.sub(self.forces_in, self.forces))))
             #force loss function, as included in model/__init__.py
             if self.parameters['relativeForceCutoff'] is None:
-                self.force_loss= tf.reduce_sum(tf.div(tf.reduce_mean(tf.square(tf.sub(self.forces_in, self.forces)),2),self.nAtoms_in))
+                self.force_loss=tf.reduce_sum(tf.div(tf.square(tf.sub(self.forces_in, self.forces)),self.nAtoms_forces))/3.
+                #tf.reduce_sum(tf.div(tf.reduce_mean(tf.square(tf.sub(self.forces_in, self.forces)),2),self.nAtoms_in))
             else:
                 relativeA=self.parameters['relativeForceCutoff'] 
-                self.force_loss= tf.reduce_sum(tf.div(tf.reduce_mean(
+                self.force_loss=tf.reduce_sum(tf.div(
                           tf.div(tf.square(tf.sub(self.forces_in, self.forces)),
-                          tf.square(self.forces_in)+relativeA**2.)*relativeA**2.,2),
-                          self.nAtoms_in))
+                          tf.square(self.forces_in)+relativeA**2.)*relativeA**2.,self.nAtoms_forces))/3.
+                
+                #tf.reduce_sum(tf.div(tf.reduce_mean(
+                #          tf.div(tf.square(tf.sub(self.forces_in, self.forces)),
+                #          tf.square(self.forces_in)+relativeA**2.)*relativeA**2.,2),
+                #          self.nAtoms_in))
             
 
             #Define max residuals
@@ -481,6 +505,9 @@ class NeuralNetwork:
             self.adam_optimizer_instance= tf.train.AdamOptimizer(self.learningrate, **self.parameters['ADAM_optimizer_params'])
             self.train_step = self.adam_optimizer_instance.minimize(self.energy_loss_regularized)
             self.train_step_forces =self.adam_optimizer_instance.minimize(self.loss)
+            
+            
+            
             #self.loss_forces_relative = self.forcecoefficient * tf.sqrt(tf.reduce_mean(tf.square(tf.div(tf.sub(self.forces_in, self.forces),self.forces_in+0.0001))))
             #self.force_loss_relative= tf.reduce_sum(tf.div(tf.reduce_mean(tf.div(tf.square(tf.sub(self.forces_in, self.forces)),tf.square(self.forces_in)+0.005**2.),2),self.nAtoms_in))
             #self.loss_relative = self.forcecoefficient*self.loss_forces_relative + self.energycoefficient*self.energy_loss
@@ -493,7 +520,7 @@ class NeuralNetwork:
     def generateFeedInput(self, curinds,
                           energies,
                           atomArraysAll,
-                          atomArraysAllDerivs,
+                          dgdx,dgdx_Eindices,dgdx_Xindices,
                           nAtomsDict,
                           atomsIndsReverse,
                           batchsize,
@@ -506,14 +533,14 @@ class NeuralNetwork:
         """Generates the input dictionary that maps various inputs on
         the python side to placeholders for the tensorflow model.  """
 
-        atomArraysFinal, atomArraysDerivsFinal, atomInds = generateBatch(curinds,
+        atomArraysFinal, dgdx_batch,dgdx_Eindices_batch,dgdx_Xindices_batch, atomInds = generateBatch(curinds,
                                                                          self.elements,
                                                                          atomArraysAll,
                                                                          nAtomsDict,
                                                                          atomsIndsReverse,
-                                                                         atomArraysAllDerivs)
+                                                                         dgdx,dgdx_Eindices,dgdx_Xindices)
         feedinput = {}
-        tilederivs = (0, 0, 0, 0)
+
         for element in self.elements:
             if len(atomArraysFinal[element]) > 0:
                 aAF=atomArraysFinal[element].copy()
@@ -526,36 +553,39 @@ class NeuralNetwork:
                 feedinput[self.indsdict[element]] = atomInds[element]
                 feedinput[self.maskdict[element]] = np.ones((batchsize, 1))
                 if forcecoefficient > 1.e-5:
-                    aAFD=atomArraysDerivsFinal[element]
-                    for i in range(atomArraysDerivsFinal[element].shape[0]):
-                        for j in range(atomArraysDerivsFinal[element].shape[1]):
-                            for k in range(atomArraysDerivsFinal[element].shape[2]):
-                                for l in range(atomArraysDerivsFinal[element].shape[3]):
-                                    if (self.parameters['fprange'][element][1][l]-self.parameters['fprange'][element][0][l])>10.**-8:
-                                        aAFD[i][j][k][l]=2.*atomArraysDerivsFinal[element][i][j][k][l] / (self.parameters['fprange'][element][1][l]-self.parameters['fprange'][element][0][l])
-                    feedinput[self.tensorDerivDict[element]
-                              ] = aAFD
-                    #feedinput[self.tensorDerivDict[element]
-                    #          ] = atomArraysDerivsFinal[element]
-                if len(atomArraysDerivsFinal[element]) > 0:
-                    tilederivs = np.array([1, atomArraysDerivsFinal[element].shape[
-                                          1], atomArraysDerivsFinal[element].shape[2], 1])
+                    
+                    dgdx_to_scale=dgdx_batch[element]
+                    for i in range(dgdx_to_scale.shape[0]):
+                        for l in range(dgdx_to_scale.shape[1]):
+                            if (self.parameters['fprange'][element][1][l]-self.parameters['fprange'][element][0][l])>10.**-8:
+                                dgdx_to_scale[i][l][:]=2.*dgdx_to_scale[i][l][:] / (self.parameters['fprange'][element][1][l]-self.parameters['fprange'][element][0][l])
+                    feedinput[self.dgdx_dict[element]]= dgdx_to_scale
+                    feedinput[self.dgdx_Eindices_dict[element]]=dgdx_Eindices_batch[element]
+                    feedinput[self.dgdx_Xindices_dict[element]]=dgdx_Xindices_batch[element]
             else:
                 feedinput[self.tensordict[element]] = np.zeros(
                     (1, self.elementFingerprintLengths[element]))
                 feedinput[self.indsdict[element]] = [0]
                 feedinput[self.maskdict[element]] = np.zeros((batchsize, 1))
-                feedinput[self.tensorDerivDict[element]] = np.zeros(
-                                                                (1, 1, 3, self.elementFingerprintLengths[element]))
-        feedinput[self.tileDerivs] = tilederivs
+                feedinput[self.dgdx_dict[element]]=[]
+                feedinput[self.dgdx_Eindices_dict[element]]=[]
+                feedinput[self.dgdx_Xindices_dict[element]]=[]
+
         feedinput[self.y_] = energies[curinds]
         feedinput[self.batchsizeInput] = batchsize
         feedinput[self.learningrate] = trainingrate
         feedinput[self.keep_prob_in] = keepprob
         feedinput[self.input_keep_prob_in] = inputkeepprob
+        natoms_forces=[]
+        for natom in natoms[curinds]:
+            for i in range(natom):
+                natoms_forces.append(natom)
+        natoms_forces=np.array(natoms_forces)
+        feedinput[self.nAtoms_forces]=natoms_forces
         feedinput[self.nAtoms_in] = natoms[curinds]
+        feedinput[self.totalNumAtoms]=np.sum(natoms[curinds])
         if forcecoefficient > 1.e-5:
-            feedinput[self.forces_in] = forcesExp[curinds]
+            feedinput[self.forces_in] = np.concatenate(forcesExp[curinds],axis=0)
             feedinput[self.forcecoefficient] = forcecoefficient
             feedinput[self.energycoefficient] = energycoefficient
         feedinput[self.energyProdScale]=self.parameters['energyProdScale']
@@ -606,10 +636,9 @@ class NeuralNetwork:
         keylist = images.keys()
         fingerprintDB = descriptor.fingerprints
         self.parameters['numTrainingImages']=len(keylist)
-        self.maxAtomsForces = np.max(map(lambda x: len(images[x]), keylist))
-        atomArraysAll, nAtomsDict, atomsIndsReverse, natoms, atomArraysAllDerivs = generateTensorFlowArrays(
-            fingerprintDB, self.elements, keylist, fingerprintDerDB, self.maxAtomsForces)
-        energies = map(lambda x: [images[x].get_potential_energy()], keylist)
+        atomArraysAll, nAtomsDict, atomsIndsReverse, natoms,  dgdx,dgdx_Eindices,dgdx_Xindices  = generateTensorFlowArrays(
+            fingerprintDB, self.elements, keylist, fingerprintDerDB)
+        energies = map(lambda x: [images[x].get_potential_energy(apply_constraint=False)], keylist)
         energies = np.array(energies)
         
         if self.parameters['preLoadTrainingData'] and not(self.miniBatch):
@@ -620,15 +649,23 @@ class NeuralNetwork:
             with open('tfAmpNN-checkpoint') as fhandle:
                 tfvars = fhandle.read()
             self.sess.close()
-            self.constructSessGraphModel(tfvars,None,trainOnly=True,maxAtomsForces=self.maxAtomsForces,numElements=numElements,numTrainingImages=len(keylist))
+            numTrainingAtoms=np.sum(map(lambda x: len(images[x]),keylist))
+            num_dgdx_Eindices={}
+            num_dgdx_Xindices={}
+            for element in self.elements:
+                num_dgdx_Eindices[element]=sum(map(len,dgdx_Eindices[element]))
+                num_dgdx_Xindices[element]=sum(map(len,dgdx_Xindices[element]))
+
+
+            self.constructSessGraphModel(tfvars,None,trainOnly=True,numElements=numElements,numTrainingImages=len(keylist),num_dgdx_Eindices=num_dgdx_Eindices,numTrainingAtoms=numTrainingAtoms)
 
         natomsArray = np.zeros((len(keylist), len(self.elements)))
         for i in range(len(images)):
             for j in range(len(self.elements)):
                 natomsArray[i][j] = nAtomsDict[self.elements[j]][i]
 
-        atomArraysAll, nAtomsDict, atomsIndsReverse, natoms, atomArraysAllDerivs = generateTensorFlowArrays(
-            fingerprintDB, self.elements, keylist, fingerprintDerDB, self.maxAtomsForces)
+        atomArraysAll, nAtomsDict, atomsIndsReverse, natoms,  dgdx,dgdx_Eindices,dgdx_Xindices  = generateTensorFlowArrays(
+            fingerprintDB, self.elements, keylist, fingerprintDerDB)
 
         self.parameters['energyMeanScale'] = np.mean(energies)
         energies = energies - self.parameters['energyMeanScale']
@@ -640,17 +677,15 @@ class NeuralNetwork:
             else:
                 self.parameters['fprange'][element] = [np.min(atomArraysAll[element],axis=0),np.max(atomArraysAll[element],axis=0)]
 
-        if self.maxAtomsForces >0:
-            if self.parameters['force_coefficient'] is not None:
-                #forces = map(lambda x: images[x].get_forces(
-                #    apply_constraint=False), keylist)
-                forces = np.zeros((len(keylist), self.maxAtomsForces, 3))
-                for i in range(len(keylist)):
-                    atoms = images[keylist[i]]
-                    forces[i, 0:len(atoms), :] = atoms.get_forces(
-                    apply_constraint=False)
-            else:
-                forces = 0.
+        if self.parameters['force_coefficient'] is not None:
+            #forces = map(lambda x: images[x].get_forces(
+            #    apply_constraint=False), keylist)
+            #forces = np.zeros((len(keylist), self.maxAtomsForces, 3))
+            forces=[]
+            for i in range(len(keylist)):
+                atoms = images[keylist[i]]
+                forces.append(atoms.get_forces(apply_constraint=False))
+            forces=np.array(forces)
         else:
             forces=0.
 
@@ -685,7 +720,9 @@ class NeuralNetwork:
                         feedinput = self.generateFeedInput(curinds,
                                                            energies,
                                                            atomArraysAll,
-                                                           atomArraysAllDerivs,
+                                                           dgdx,
+                                                           dgdx_Eindices,
+                                                           dgdx_Xindices,
                                                            nAtomsDict,
                                                            atomsIndsReverse,
                                                            batchsize,
@@ -719,7 +756,9 @@ class NeuralNetwork:
                         feedinput = self.generateFeedInput(range(len(keylist)),
                                                     energies,
                                                     atomArraysAll,
-                                                    atomArraysAllDerivs,
+                                                    dgdx,
+                                                    dgdx_Eindices,
+                                                    dgdx_Xindices,
                                                     nAtomsDict,
                                                     atomsIndsReverse,
                                                     len(keylist),
@@ -763,7 +802,9 @@ class NeuralNetwork:
             feedinput = self.generateFeedInput(curinds,
                                                            energies,
                                                            atomArraysAll,
-                                                           atomArraysAllDerivs,
+                                                           dgdx,
+                                                           dgdx_Eindices,
+                                                           dgdx_Xindices,
                                                            nAtomsDict,
                                                            atomsIndsReverse,
                                                            batchsize,
@@ -827,10 +868,14 @@ class NeuralNetwork:
         return False
 
     def preLoadFeed(self,feedinput):
-        for element in self.tensorDerivDict:
-            if self.tensorDerivDict[element] in feedinput: 
-                self.sess.run(self.tensorDerivDict[element].initializer,feed_dict={self.initializers['tensorDerivDict'][element]:feedinput[self.tensorDerivDict[element]]})
-                del feedinput[self.tensorDerivDict[element]]
+        for element in self.dgdx_dict:
+            if self.dgdx_dict[element] in feedinput: 
+                self.sess.run(self.dgdx_dict[element].initializer,feed_dict={self.initializers['dgdx_dict'][element]:feedinput[self.dgdx_dict[element]]})
+                self.sess.run(self.dgdx_Eindices_dict[element].initializer,feed_dict={self.initializers['dgdx_Eindices_dict'][element]:feedinput[self.dgdx_Eindices_dict[element]]})
+                self.sess.run(self.dgdx_Xindices_dict[element].initializer,feed_dict={self.initializers['dgdx_Xindices_dict'][element]:feedinput[self.dgdx_Xindices_dict[element]]})
+                del feedinput[self.dgdx_dict[element]]
+                del feedinput[self.dgdx_Eindices_dict[element]]
+                del feedinput[self.dgdx_Xindices_dict[element]]
             self.sess.run(self.tensordict[element].initializer,feed_dict={self.initializers['tensordict'][element]:feedinput[self.tensordict[element]]})
             self.sess.run(self.indsdict[element].initializer,feed_dict={self.initializers['indsdict'][element]:feedinput[self.indsdict[element]]})
             self.sess.run(self.maskdict[element].initializer,feed_dict={self.initializers['maskdict'][element]:feedinput[self.maskdict[element]]})
@@ -843,11 +888,12 @@ class NeuralNetwork:
         self.sess.run(self.nAtoms_in.initializer,feed_dict={self.initializers['nAtoms_in']:feedinput[self.nAtoms_in]})
         self.sess.run(self.batchsizeInput.initializer,feed_dict={self.initializers['batchsizeInput']:feedinput[self.batchsizeInput]})
         self.sess.run(self.learningrate.initializer,feed_dict={self.initializers['learningrate']:feedinput[self.learningrate]})
+        self.sess.run(self.totalNumAtoms.initializer,feed_dict={self.initializers['totalNumAtoms']:feedinput[self.totalNumAtoms]})
+        self.sess.run(self.nAtoms_forces.initializer,feed_dict={self.initializers['nAtoms_forces']:feedinput[self.nAtoms_forces]})
         if self.forces_in in feedinput:
             self.sess.run(self.forces_in.initializer,feed_dict={self.initializers['forces_in']:feedinput[self.forces_in]})
             self.sess.run(self.energycoefficient.initializer,feed_dict={self.initializers['energycoefficient']:feedinput[self.energycoefficient]})
             self.sess.run(self.forcecoefficient.initializer,feed_dict={self.initializers['forcecoefficient']:feedinput[self.forcecoefficient]})
-            self.sess.run(self.tileDerivs.initializer,feed_dict={self.initializers['tileDerivs']:feedinput[self.tileDerivs]})
         self.sess.run(self.energyProdScale.initializer,feed_dict={self.initializers['energyProdScale']:feedinput[self.energyProdScale]})
         #feeedinput={}
             
@@ -863,15 +909,14 @@ class NeuralNetwork:
         # Reformat the image and fingerprint data into something we can pass
         # into tensorflow.
 
-        atomArraysAll, nAtomsDict, atomsIndsReverse, natoms, atomArraysAllDerivs = generateTensorFlowArrays(
-            fingerprintDB, self.elements, hashs, fingerprintDerDB, self.maxAtomsForces)
+        atomArraysAll, nAtomsDict, atomsIndsReverse, natoms, dgdx,dgdx_Eindices,dgdx_Xindices  = generateTensorFlowArrays(
+            fingerprintDB, self.elements, hashs, fingerprintDerDB)
 
         energies = np.zeros(len(hashs))
         curinds = range(len(hashs))
-        atomArraysFinal, atomArraysDerivsFinal, atomInds = generateBatch(
-            curinds, self.elements, atomArraysAll, nAtomsDict, atomsIndsReverse, atomArraysAllDerivs)
+        atomArraysFinal, dgdx_batch,dgdx_Eindices_batch,dgdx_Xindices_batch, atomInds  = generateBatch(
+            curinds, self.elements, atomArraysAll, nAtomsDict, atomsIndsReverse,  dgdx,dgdx_Eindices,dgdx_Xindices )
         feedinput = {}
-        tilederivs = []
         for element in self.elements:
             if len(atomArraysFinal[element]) > 0:
                 aAF=atomArraysFinal[element].copy()
@@ -883,34 +928,37 @@ class NeuralNetwork:
                 feedinput[self.indsdict[element]] = atomInds[element]
                 feedinput[self.maskdict[element]] = np.ones((len(hashs), 1))
                 if forces:
-                    aAFD=atomArraysDerivsFinal[element]
-                    for i in range(atomArraysDerivsFinal[element].shape[0]):
-                        for j in range(atomArraysDerivsFinal[element].shape[1]):
-                            for k in range(atomArraysDerivsFinal[element].shape[2]):
-                                for l in range(atomArraysDerivsFinal[element].shape[3]):
-                                    if (self.parameters['fprange'][element][1][l]-self.parameters['fprange'][element][0][l])>10.**-8:
-                                        aAFD[i][j][k][l]=2.*atomArraysDerivsFinal[element][i][j][k][l] / (self.parameters['fprange'][element][1][l]-self.parameters['fprange'][element][0][l])
-                    feedinput[self.tensorDerivDict[element]
-                              ] = aAFD
-                    if len(atomArraysDerivsFinal[element]) > 0:
-                        tilederivs = np.array([1, atomArraysDerivsFinal[element].shape[
-                                              1], atomArraysDerivsFinal[element].shape[2], 1])
+                    dgdx_to_scale=dgdx_batch[element]
+                    for i in range(dgdx_to_scale.shape[0]):
+                        for l in range(dgdx_to_scale.shape[1]):
+                            if (self.parameters['fprange'][element][1][l]-self.parameters['fprange'][element][0][l])>10.**-8:
+                                dgdx_to_scale[i][l][:]=2.*dgdx_to_scale[i][l][:] / (self.parameters['fprange'][element][1][l]-self.parameters['fprange'][element][0][l])
+                    feedinput[self.dgdx_dict[element]]= dgdx_to_scale
+                    feedinput[self.dgdx_Eindices_dict[element]]=dgdx_Eindices_batch[element]
+                    feedinput[self.dgdx_Xindices_dict[element]]=dgdx_Xindices_batch[element]
             else:
                 feedinput[self.tensordict[element]] = np.zeros(
                     (1, self.elementFingerprintLengths[element]))
                 feedinput[self.indsdict[element]] = [0]
                 feedinput[self.maskdict[element]] = np.zeros((len(hashs), 1))
-                feedinput[self.tensorDerivDict[element]] = np.zeros(
-                    (1, 1, 3, self.elementFingerprintLengths[element]))
+                if forces:
+                    feedinput[self.dgdx_dict[element]]=np.zeros((len(dgdx_Eindices[element]),self.elementFingerprintLengths[element],3))
+                    feedinput[self.dgdx_Eindices_dict[element]]=[]
+                    feedinput[self.dgdx_Xindices_dict[element]]=[]
+                    
         feedinput[self.batchsizeInput] = len(hashs)
         feedinput[self.nAtoms_in] = natoms[curinds]
+        feedinput[self.totalNumAtoms]=np.sum(natoms[curinds])
         feedinput[self.keep_prob_in] = keep_prob
         feedinput[self.input_keep_prob_in] = input_keep_prob
         feedinput[self.energyProdScale]=self.parameters['energyProdScale']
-        if tilederivs == []:
-            tilederivs = [1, 1, 1, 1]
-        feedinput[self.tileDerivs] = tilederivs
-        
+        natoms_forces=[]
+        for natom in natoms[curinds]:
+            for i in range(natom):
+                natoms_forces.append(natom)
+        natoms_forces=np.array(natoms_forces)
+        feedinput[self.nAtoms_forces]=natoms_forces
+
         if self.weights is not None:
             self.setWeightsScalings(feedinput,self.weights,self.scalings)
         if nsamples==1:
@@ -924,6 +972,8 @@ class NeuralNetwork:
             if forces:
                 force = self.sess.run(self.forces,
                     feed_dict=feedinput)
+                force=reorganizeForces(force,natoms)
+                
             else:
                 force=[]
         else:
@@ -940,11 +990,10 @@ class NeuralNetwork:
                 if forces:
                     force = self.sess.run(self.forces,
                         feed_dict=feedinput)
-                    forcesave.append(force)
+                    forcesave.append(reorganizeForces(force,natoms))
             energies=np.array(energysave)
             force=np.array(forcesave)
-            #else:
-            #    force = []
+
         return energies, force
 
     def get_energy(self, fingerprint):
@@ -992,7 +1041,6 @@ class NeuralNetwork:
         params['saveVariableName'] = self.saveVariableName
         params['parameters'] = self.parameters
         params['miniBatch'] = self.miniBatch
-        params['maxAtomsForces']=self.maxAtomsForces
         params['optimizationMethod']=self.optimizationMethod
 
         # Create a string format of the tensorflow variables.
@@ -1004,7 +1052,7 @@ class NeuralNetwork:
         return str(params)
 
 def model(x, segmentinds, keep_prob, input_keep_prob,batchsize, neuronList, activationType,
-          fplength, mask, name, dxdxik, tilederiv,element,unit_type):
+          fplength, mask, name, dgdx,dgdx_Xindices,dgdx_Eindices,element,unit_type,totalNumAtoms):
     """Generates a multilayer neural network with variable number
     of neurons, so that we have a template for each atom's NN."""
     namefun=lambda x: '%s_%s_'%(name,element)+x
@@ -1037,14 +1085,36 @@ def model(x, segmentinds, keep_prob, input_keep_prob,batchsize, neuronList, acti
     reducedSum = tf.unsorted_segment_sum(y_out, segmentinds, batchsize)
 
     dEjdgj = tf.gradients(y_out, x)[0]
-    dEjdgj1 = tf.expand_dims(dEjdgj, 1)
-    dEjdgj2 = tf.expand_dims(dEjdgj1, 1)
-    dEjdgjtile = tf.tile(dEjdgj2, tilederiv)
-    dEdxik = tf.mul(dxdxik, dEjdgjtile)
-    dEdxikReduce = tf.reduce_sum(dEdxik, 3)
-    dEdxik_reduced = tf.unsorted_segment_sum(
-        dEdxikReduce, segmentinds, batchsize)
-    return tf.mul(reducedSum, mask), dEdxik_reduced,l2_regularization
+    
+    #expand for 3 components (x,y,z)
+    #dEjdgj1 = tf.expand_dims(dEjdgj, 2)
+    #dEjdgjtile = tf.tile(dEjdgj1, [1,1,3])
+    
+    #Gather rows necessary based on the given partial derivatives (dg/dx)
+    dEdg_arranged=tf.gather(dEjdgj,dgdx_Eindices)
+
+    dEdg_arranged_expand=tf.expand_dims(dEdg_arranged, 2)
+    dEdg_arranged_tile= tf.tile(dEdg_arranged_expand, [1,1,3])
+    
+    #multiply through with the dg/dx tensor, and sum along the components of g
+    #to get a tensor of dE/dx (one row per atom considered, second dim =3)
+    dEdx=tf.reduce_sum(tf.mul(dEdg_arranged_tile,dgdx),1)
+    
+    #this should be a tensor of size (total atoms in training set)x3, representing
+    #the contribution of each atom to the total energy via interactions with elements
+    #of the current atom type
+    dEdx_arranged=tf.unsorted_segment_sum(dEdx,dgdx_Xindices,totalNumAtoms)
+    
+    return tf.mul(reducedSum, mask), dEdx_arranged,l2_regularization
+#    dEg
+#    dEjdgj1 = tf.expand_dims(dEjdgj, 1)
+#    dEjdgj2 = tf.expand_dims(dEjdgj1, 1)
+#    dEjdgjtile = tf.tile(dEjdgj2, tilederiv)
+#    dEdxik = tf.mul(dxdxik, dEjdgjtile)
+#    dEdxikReduce = tf.reduce_sum(dEdxik, 3)
+#    dEdxik_reduced = tf.unsorted_segment_sum(
+#        dEdxikReduce, segmentinds, batchsize)
+#    return tf.mul(reducedSum, mask), dEdxik_reduced,l2_regularization
 
 
 def weight_variable(shape, name, unit_type,stddev=0.1):
@@ -1063,25 +1133,46 @@ def bias_variable(shape, name, unit_type,a=0.1):
 
 
 def generateBatch(curinds, elements, atomArraysAll, nAtomsDict,
-                  atomsIndsReverse, atomArraysAllDerivs):
+                  atomsIndsReverse, dgdx,dgdx_Eindices,dgdx_Xindices,):
     """This method generates batches from a large dataset using a set of
     selected indices curinds."""
     # inputs:
+
     atomArraysFinal = {}
-    atomArraysDerivsFinal = {}
     for element in elements:
         validKeys = np.in1d(atomsIndsReverse[element], curinds)
         if len(validKeys) > 0:
             atomArraysFinal[element] = atomArraysAll[element][validKeys]
-            if len(atomArraysAllDerivs[element]) > 0:
-                atomArraysDerivsFinal[element] = atomArraysAllDerivs[
-                    element][validKeys, :, :, :]
-            else:
-                atomArraysDerivsFinal[element] = []
         else:
             atomArraysFinal[element] = []
-            atomArraysDerivsFinal[element] = []
 
+    dgdx_out={}
+    dgdx_Eindices_out={}
+    dgdx_Xindices_out={}
+    for element in elements:
+        if len(dgdx[element])>0:
+            dgdx_out[element]=[]
+            dgdx_Eindices_out[element]=[]
+            dgdx_Xindices_out[element]=[]
+            cursumE=0
+            cursumX=0
+            for curind in curinds:
+                natomsElement=nAtomsDict[element][curind]
+                natomsTotal=np.sum(map(lambda x:nAtomsDict[x][curind],elements))
+                if len(dgdx_Eindices[element][curind])>0:
+                    dgdx_out[element].append(dgdx[element][curind])
+                    dgdx_Eindices_out[element].append(dgdx_Eindices[element][curind]+cursumE)
+                    dgdx_Xindices_out[element].append(dgdx_Xindices[element][curind]+cursumX)
+                    cursumE+=natomsElement
+                    cursumX+=natomsTotal
+            if len(dgdx_out[element])>0:
+                dgdx_out[element]=np.concatenate(dgdx_out[element],axis=0)
+                dgdx_Eindices_out[element]=np.concatenate(dgdx_Eindices_out[element],axis=0)
+                dgdx_Xindices_out[element]=np.concatenate(dgdx_Xindices_out[element],axis=0)
+            else:
+                dgdx_out[element]=np.array([[]])
+                dgdx_Eindices_out[element]=np.array([])
+                dgdx_Xindices_out[element]=np.array([])
     atomInds = {}
     for element in elements:
         validKeys = np.in1d(atomsIndsReverse[element], curinds)
@@ -1093,11 +1184,11 @@ def generateBatch(curinds, elements, atomArraysAll, nAtomsDict,
         else:
             atomInds[element] = []
 
-    return atomArraysFinal, atomArraysDerivsFinal, atomInds
+    return atomArraysFinal, dgdx_out,dgdx_Eindices_out,dgdx_Xindices_out, atomInds
 
 
 def generateTensorFlowArrays(fingerprintDB, elements, keylist,
-                             fingerprintDerDB=None, maxAtomsForces=0):
+                             fingerprintDerDB=None):
     """
     This function generates the inputs to the tensorflow graph for the selected images.
     The essential problem is that each neural network is associated with a
@@ -1176,6 +1267,8 @@ def generateTensorFlowArrays(fingerprintDB, elements, keylist,
             if len(atomArraysTemp) > 0:
                 atomArraysAll[element].append(atomArraysTemp)
         natoms[j] = len(atomSymbols)
+        
+    natomsposition=np.cumsum(natoms)-natoms[0]
 
     for element in elements:
         if len(atomArraysAll[element]) > 0:
@@ -1184,36 +1277,62 @@ def generateTensorFlowArrays(fingerprintDB, elements, keylist,
             atomArraysAll[element] = []
 
     # Set up the array for atom-based fingerprint derivatives.
-    atomArraysAllDerivs = {}
+
+    dgdx={}
+    dgdx_Eindices={}
+    dgdx_Xindices={}
     for element in elements:
-        atomArraysAllDerivs[element] = []
+        dgdx[element]=[] #Nxlen(fp)x3 array
+        dgdx_Eindices[element]=[]  #Nx1 array of which dE/dg to pull
+        dgdx_Xindices[element]=[] #Nx1 array representing which atom this force will represent
     if fingerprintDerDB is not None:
         for j in range(len(keylist)):
             fp = fingerprintDB[keylist[j]]
             fpDer = fingerprintDerDB[keylist[j]]
             atomSymbols, fpdata = zip(*fp)
             atomdata = zip(atomSymbols, range(len(atomSymbols)))
+        
             for element in elements:
                 curatoms = [atom for atom in atomdata if atom[0] == element]
+                dgdx_temp=[]
+                dgdx_Eindices_temp=[]
+                dgdx_Xindices_temp=[]
                 if len(curatoms) > 0:
-                    if maxAtomsForces == 0:
-                        maxAtomsForces = len(atomdata)
-                    fingerprintDerivatives = np.zeros(
-                        (len(curatoms), maxAtomsForces, 3, len(fp[curatoms[0][1]][1])))
                     for i in range(len(curatoms)):
                         for k in range(len(atomdata)):
-                            for ix in range(3):
-                                dictkey = (k, atomdata[k][0], curatoms[
+                            #check if fp derivative is present
+                            dictkeys = [(k, atomdata[k][0], curatoms[
+                                           i][1], curatoms[i][0], 0),
+                                           (k, atomdata[k][0], curatoms[
+                                           i][1], curatoms[i][0], 1),
+                                           (k, atomdata[k][0], curatoms[
+                                           i][1], curatoms[i][0], 2)]
+                            if dictkeys[0] in fpDer or dictkeys[1] in fpDer or dictkeys[2] in fpDer:
+                                fptemp=[]
+                                for ix in range(3):
+                                    dictkey = (k, atomdata[k][0], curatoms[
                                            i][1], curatoms[i][0], ix)
-                                if dictkey in fpDer:
-                                    fingerprintDerivatives[
-                                        i, k, ix, :] = fpDer[dictkey]
-                    atomArraysAllDerivs[element].append(fingerprintDerivatives)
-        for element in elements:
-            if len(atomArraysAllDerivs[element]) > 0:
-                atomArraysAllDerivs[element] = np.concatenate(
-                    atomArraysAllDerivs[element], axis=0)
-            else:
-                atomArraysAllDerivs[element] = []
+                                    fptemp.append(fpDer[dictkey])
+                                dgdx_temp.append(np.array(fptemp).transpose())
+                                dgdx_Eindices_temp.append(i)
+                                dgdx_Xindices_temp.append(k)
+                if len(dgdx_Eindices_temp)>0:
+                    dgdx[element].append(np.array(dgdx_temp))
+                    dgdx_Eindices[element].append(np.array(dgdx_Eindices_temp))
+                    dgdx_Xindices[element].append(np.array(dgdx_Xindices_temp))
+                else:
+                    dgdx[element].append([])
+                    dgdx_Eindices[element].append([])
+                    dgdx_Xindices[element].append([])
+    return atomArraysAll, nAtomsDict, atomsIndsReverse, natoms, dgdx,dgdx_Eindices,dgdx_Xindices                                        
 
-    return atomArraysAll, nAtomsDict, atomsIndsReverse, natoms, atomArraysAllDerivs
+def reorganizeForces(forces,natoms):
+    curoffset=0
+    forcelist=[]
+    for N in natoms:
+        forcelist.append(forces[curoffset:curoffset+N[0]])
+        curoffset+=N[0]
+    return forcelist
+    
+    
+    

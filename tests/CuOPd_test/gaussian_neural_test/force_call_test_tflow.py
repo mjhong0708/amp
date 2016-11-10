@@ -162,9 +162,7 @@ def non_periodic_test():
                                            weights=weights,
                                            scalings=scalings,
                                            activation='sigmoid',
-                                           fprange=fingerprints_range,
-                                           mode='atom-centered',
-                                           fortran=fortran),
+                                           fprange=fingerprints_range),
                        label=label,
                        dblabel=label,
                        cores=cores)
@@ -184,8 +182,10 @@ def non_periodic_test():
             predicted_forces = [calc.get_forces(image) for image in images]
 
             for image_no in range(len(predicted_forces)):
+                print('predicted forces:')
                 print(predicted_forces[image_no])
-                print(correct_forces[image_no])
+                print('correct forces:')
+                print(np.array(correct_forces[image_no]))
                 for index in range(np.shape(predicted_forces[image_no])[0]):
                     for direction in range(
                             np.shape(predicted_forces[image_no])[1]):
@@ -308,8 +308,7 @@ def periodic_test():
                                            scalings=scalings,
                                            activation='tanh',
                                            fprange=fingerprints_range,
-                                           mode='atom-centered',
-                                           fortran=fortran),
+                                           unit_type="double"),
                        label=label,
                        dblabel=label,
                        cores=cores)
@@ -329,6 +328,10 @@ def periodic_test():
             predicted_forces = [calc.get_forces(image) for image in images]
 
             for image_no in range(len(predicted_forces)):
+                print('predicted forces:')
+                print(predicted_forces[image_no])
+                print('correct forces:')
+                print(np.array(correct_forces[image_no]))
                 for index in range(np.shape(predicted_forces[image_no])[0]):
                     for direction in range(
                             np.shape(predicted_forces[image_no])[1]):
