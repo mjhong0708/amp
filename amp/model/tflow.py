@@ -529,7 +529,7 @@ class NeuralNetwork:
                           forcesExp=0.,
                           forces=False,
                           energycoefficient=1.,
-                          forcecoefficient=None):
+                          forcecoefficient=None,training=True):
         """Generates the input dictionary that maps various inputs on
         the python side to placeholders for the tensorflow model.  """
 
@@ -562,16 +562,19 @@ class NeuralNetwork:
                     feedinput[self.dgdx_dict[element]]= dgdx_to_scale
                     feedinput[self.dgdx_Eindices_dict[element]]=dgdx_Eindices_batch[element]
                     feedinput[self.dgdx_Xindices_dict[element]]=dgdx_Xindices_batch[element]
+                else:
+                    feedinput[self.dgdx_dict[element]]=np.zeros((len(dgdx_Eindices[element]),self.elementFingerprintLengths[element],3))
+                    feedinput[self.dgdx_Eindices_dict[element]]=[]
+                    feedinput[self.dgdx_Xindices_dict[element]]=[]
             else:
                 feedinput[self.tensordict[element]] = np.zeros(
                     (1, self.elementFingerprintLengths[element]))
                 feedinput[self.indsdict[element]] = [0]
                 feedinput[self.maskdict[element]] = np.zeros((batchsize, 1))
-                feedinput[self.dgdx_dict[element]]=[]
+                feedinput[self.dgdx_dict[element]]=np.zeros((len(dgdx_Eindices[element]),self.elementFingerprintLengths[element],3))
                 feedinput[self.dgdx_Eindices_dict[element]]=[]
                 feedinput[self.dgdx_Xindices_dict[element]]=[]
-
-        feedinput[self.y_] = energies[curinds]
+        
         feedinput[self.batchsizeInput] = batchsize
         feedinput[self.learningrate] = trainingrate
         feedinput[self.keep_prob_in] = keepprob
@@ -584,10 +587,12 @@ class NeuralNetwork:
         feedinput[self.nAtoms_forces]=natoms_forces
         feedinput[self.nAtoms_in] = natoms[curinds]
         feedinput[self.totalNumAtoms]=np.sum(natoms[curinds])
-        if forcecoefficient > 1.e-5:
-            feedinput[self.forces_in] = np.concatenate(forcesExp[curinds],axis=0)
-            feedinput[self.forcecoefficient] = forcecoefficient
-            feedinput[self.energycoefficient] = energycoefficient
+        if training:
+            feedinput[self.y_] = energies[curinds]
+            if forcecoefficient > 1.e-5:
+                feedinput[self.forces_in] = np.concatenate(forcesExp[curinds],axis=0)
+                feedinput[self.forcecoefficient] = forcecoefficient
+                feedinput[self.energycoefficient] = energycoefficient
         feedinput[self.energyProdScale]=self.parameters['energyProdScale']
         return feedinput
 
@@ -913,51 +918,29 @@ class NeuralNetwork:
             fingerprintDB, self.elements, hashs, fingerprintDerDB)
 
         energies = np.zeros(len(hashs))
+        forcelist = np.zeros(len(hashs))
         curinds = range(len(hashs))
         atomArraysFinal, dgdx_batch,dgdx_Eindices_batch,dgdx_Xindices_batch, atomInds  = generateBatch(
             curinds, self.elements, atomArraysAll, nAtomsDict, atomsIndsReverse,  dgdx,dgdx_Eindices,dgdx_Xindices )
-        feedinput = {}
-        for element in self.elements:
-            if len(atomArraysFinal[element]) > 0:
-                aAF=atomArraysFinal[element].copy()
-                for i in range(len(aAF)):
-                    for j in range(len(aAF[i])):
-                       if (self.parameters['fprange'][element][1][j]-self.parameters['fprange'][element][0][j])>10.**-8:
-                            aAF[i][j]=-1.+2.*(atomArraysFinal[element][i][j]-self.parameters['fprange'][element][0][j]) / (self.parameters['fprange'][element][1][j]-self.parameters['fprange'][element][0][j])
-                feedinput[self.tensordict[element]] = aAF
-                feedinput[self.indsdict[element]] = atomInds[element]
-                feedinput[self.maskdict[element]] = np.ones((len(hashs), 1))
-                if forces:
-                    dgdx_to_scale=dgdx_batch[element]
-                    for i in range(dgdx_to_scale.shape[0]):
-                        for l in range(dgdx_to_scale.shape[1]):
-                            if (self.parameters['fprange'][element][1][l]-self.parameters['fprange'][element][0][l])>10.**-8:
-                                dgdx_to_scale[i][l][:]=2.*dgdx_to_scale[i][l][:] / (self.parameters['fprange'][element][1][l]-self.parameters['fprange'][element][0][l])
-                    feedinput[self.dgdx_dict[element]]= dgdx_to_scale
-                    feedinput[self.dgdx_Eindices_dict[element]]=dgdx_Eindices_batch[element]
-                    feedinput[self.dgdx_Xindices_dict[element]]=dgdx_Xindices_batch[element]
-            else:
-                feedinput[self.tensordict[element]] = np.zeros(
-                    (1, self.elementFingerprintLengths[element]))
-                feedinput[self.indsdict[element]] = [0]
-                feedinput[self.maskdict[element]] = np.zeros((len(hashs), 1))
-                if forces:
-                    feedinput[self.dgdx_dict[element]]=np.zeros((len(dgdx_Eindices[element]),self.elementFingerprintLengths[element],3))
-                    feedinput[self.dgdx_Eindices_dict[element]]=[]
-                    feedinput[self.dgdx_Xindices_dict[element]]=[]
-                    
-        feedinput[self.batchsizeInput] = len(hashs)
-        feedinput[self.nAtoms_in] = natoms[curinds]
-        feedinput[self.totalNumAtoms]=np.sum(natoms[curinds])
-        feedinput[self.keep_prob_in] = keep_prob
-        feedinput[self.input_keep_prob_in] = input_keep_prob
-        feedinput[self.energyProdScale]=self.parameters['energyProdScale']
-        natoms_forces=[]
-        for natom in natoms[curinds]:
-            for i in range(natom):
-                natoms_forces.append(natom)
-        natoms_forces=np.array(natoms_forces)
-        feedinput[self.nAtoms_forces]=natoms_forces
+
+            
+        feedinput = self.generateFeedInput(curinds,
+                                               energies,
+                                               atomArraysAll,
+                                               dgdx,
+                                               dgdx_Eindices,
+                                               dgdx_Xindices,
+                                               nAtomsDict,
+                                               atomsIndsReverse,
+                                               len(hashs),
+                                               1.,
+                                               1.,
+                                               1.,
+                                               natoms,
+                                               forcesExp=forcelist,
+                                               energycoefficient=1.,
+                                               forcecoefficient=int(forces),training=False)
+        
 
         if self.weights is not None:
             self.setWeightsScalings(feedinput,self.weights,self.scalings)
@@ -1173,6 +1156,10 @@ def generateBatch(curinds, elements, atomArraysAll, nAtomsDict,
                 dgdx_out[element]=np.array([[]])
                 dgdx_Eindices_out[element]=np.array([])
                 dgdx_Xindices_out[element]=np.array([])
+        else:
+            dgdx_out[element]=np.array([[[]]])
+            dgdx_Eindices_out[element]=np.array([])
+            dgdx_Xindices_out[element]=np.array([])
     atomInds = {}
     for element in elements:
         validKeys = np.in1d(atomsIndsReverse[element], curinds)
