@@ -154,7 +154,7 @@ def setup_parallel(cores, workercommand, log):
     serversocket = '%s:%s' % (serverhostname, port)
     log(' Established server at %s.' % serversocket)
 
-    workercommand += ' %s ' + serversocket + ' &'
+    workercommand += ' %s ' + serversocket
 
     log(' Establishing worker sessions.')
     connections = []
@@ -173,16 +173,31 @@ def start_workers(process_ids, workerhostname, workercommand, log):
     """A function to start a new SSH session and establish processes on
     that session.
     """
-    pxssh = importer('pxssh')
-    ssh = pxssh.pxssh()
-    ssh.login(workerhostname, getuser())
+    if workerhostname != 'localhost':
+        workercommand += ' &'
+        log('Starting non-local connections.')
+        pxssh = importer('pxssh')
+        ssh = pxssh.pxssh()
+        ssh.login(workerhostname, getuser())
+        for process_id in process_ids:
+            ssh.sendline(workercommand % process_id)
+            ssh.expect('<amp-connect>')
+            ssh.expect('<stderr>')
+            log('  Session %i (%s): %s' %
+                (process_id, workerhostname, ssh.before.strip()))
+        return ssh
+    import pexpect
+    log('Starting local connections.')
+    log(workercommand)
+    children = []
     for process_id in process_ids:
-        ssh.sendline(workercommand % process_id)
-        ssh.expect('<amp-connect>')
-        ssh.expect('<stderr>')
+        child = pexpect.spawn(workercommand % process_id)
+        child.expect('<amp-connect>')
+        child.expect('<stderr>')
         log('  Session %i (%s): %s' %
-            (process_id, workerhostname, ssh.before.strip()))
-    return ssh
+            (process_id, workerhostname, child.before.strip()))
+        children.append(child)
+    return children
 
 
 # Data and logging ###########################################################
