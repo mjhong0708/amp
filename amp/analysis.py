@@ -511,6 +511,7 @@ def plot_error(load,
         else:
             return fig, energy_data, force_data
 
+
 def read_trainlog(logfile):
     """
     Reads the log file from the training process, returning the relevant
@@ -532,7 +533,6 @@ def read_trainlog(logfile):
     data['no_images'] = no_images
     print('no_images')
     print(no_images)
-
 
     # Find where convergence data starts.
     startline = None
@@ -587,6 +587,8 @@ def read_trainlog(logfile):
         elif 'optimization completed successfully.' in line:
             break
         elif 'could not find parameters for the' in line:
+            break
+        elif '...optimization unsuccessful.' in line:
             break
         print(line)
         step, time, costfxn, e, _, _, _, f, _, _, _ = line.split()
@@ -674,9 +676,5 @@ def plot_convergence(logfile, plotfile='convergence.pdf'):
         ax.set_ylim(0, 1)
 
     with PdfPages(plotfile) as pdf:
-        if 'annealing' in data:
-            pdf.savefig(fig0)
-            pyplot.close(fig0)
         pdf.savefig(fig)
         pyplot.close(fig)
-
