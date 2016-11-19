@@ -482,7 +482,8 @@ class LossFunction:
                 finished[int(message['id'])] = True
 
         for _ in self._sessions['connections']:
-            _.logout()
+            if hasattr(_, 'logout'):
+                _.logout()
         del self._sessions['connections']
 
     def get_loss(self, parametervector, lossprime):
