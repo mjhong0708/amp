@@ -21,7 +21,7 @@ You can read about Amp in the below paper; if you find Amp useful, we would appr
 
    <a href="http://dx.doi.org/10.1016/j.cpc.2016.05.010" target="_blank">[DOI:10.1016/j.cpc.2016.05.010] </a>
 
-**Table of Contents (Manual)**:
+**Manual**:
 
 .. toctree::
    :maxdepth: 1
@@ -32,13 +32,14 @@ You can read about Amp in the below paper; if you find Amp useful, we would appr
    installation.rst
    useamp.rst
    examplescripts.rst
+   neuralnetwork.rst
    building.rst
    moredescriptor.rst
    moremodel.rst
    tensorflow.rst
    develop.rst
 
-**Modules**:
+**Module autodocumentation**:
 
 .. toctree::
    :maxdepth: 1
