@@ -14,7 +14,6 @@ from ase.constraints import FixAtoms
 from amp import Amp
 from amp.descriptor.gaussian import Gaussian
 from amp.model.tflow import NeuralNetwork
-from amp.model import LossFunction
 
 
 def generate_data(count):
@@ -43,14 +42,15 @@ def generate_data(count):
 def train_test():
     label = 'train_test/calc'
     train_images = generate_data(2)
-            
+    convergence = {
+            'energy_rmse': 0.02,
+            'force_rmse': 0.02
+            }
+
     calc = Amp(descriptor=Gaussian(),
-               model=NeuralNetwork(hiddenlayers=(3, 3)),
+               model=NeuralNetwork(hiddenlayers=(3, 3), convergenceCriteria=convergence),
                label=label,
                cores=1)
-    loss = LossFunction(convergence={'energy_rmse': 0.02,
-                                     'force_rmse': 0.02})
-    calc.model.lossfunction = loss
 
     calc.train(images=train_images,)
     for image in train_images:
