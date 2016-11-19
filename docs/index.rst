@@ -10,8 +10,7 @@ Amp: Atomistic Machine-learning Package
 This project is being developed at Brown University in the School of Engineering, primarily by **Andrew Peterson** and **Alireza Khorshidi**,
 and is released under the GNU General Public License.
 
-This is a relatively new project, so things are constantly changing!
-Please see the project's `git repository <https://bitbucket.org/andrewpeterson/amp>`_ for the latest version and news.
+Please see the project's `git repository <https://bitbucket.org/andrewpeterson/amp>`_ for the latest version, news, or a place to report an issue.
 
 You can read about Amp in the below paper; if you find Amp useful, we would appreciate if you cite this work:
 
@@ -29,6 +28,7 @@ You can read about Amp in the below paper; if you find Amp useful, we would appr
 
    introduction.rst
    theory.rst
+   credits.rst
    installation.rst
    useamp.rst
    examplescripts.rst
