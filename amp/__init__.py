@@ -34,36 +34,31 @@ except ImportError:
 
 class Amp(Calculator, object):
 
-    """
-    Atomistic Machine-Learning Potential (Amp) ASE calculator
+    """Atomistic Machine-Learning Potential (Amp) ASE calculator
 
-    :param descriptor: Class representing local atomic environment.
-    :type descriptor: object
-
-    :param model: Class representing the regression model. Can be only
-                  NeuralNetwork for now. Input arguments for NeuralNetwork
-                  are hiddenlayers, activation, weights, and scalings; for
-                  more information see docstring for the class NeuralNetwork.
-    :type model: object
-
-    :param label: Default prefix/location used for all files.
-    :type label: str
-
-    :param dblabel: Optional separate prefix/location for database files,
-                    including fingerprints, fingerprint derivatives, and
-                    neighborlists. This file location can be shared between
-                    calculator instances to avoid re-calculating redundant
-                    information. If not supplied, just uses the value from
-                    label.
-    :type dblabel: str
-
-    :param cores: Can specify cores to use for parallel training;
-                  if None, will determine from environment
-    :type cores: int
-
-    :param atoms: ASE atoms objects with positions, symbols, energy,
-                  and forces in ASE format.
-    :type atoms: object
+    Parameters
+    ----------
+    descriptor : object
+        Class representing local atomic environment.
+    model : object
+        Class representing the regression model. Can be only NeuralNetwork for
+        now. Input arguments for NeuralNetwork are hiddenlayers, activation,
+        weights, and scalings; for more information see docstring for the class
+        NeuralNetwork.
+    label : str
+        Default prefix/location used for all files.
+    dblabel : str
+        Optional separate prefix/location for database files, including
+        fingerprints, fingerprint derivatives, and neighborlists. This file
+        location can be shared between calculator instances to avoid
+        re-calculating redundant information. If not supplied, just uses the
+        value from label.
+    cores : int
+        Can specify cores to use for parallel training; if None, will determine
+        from environment
+    atoms : object
+        ASE atoms objects with positions, symbols, energy, and forces in ASE
+        format.
     """
     implemented_properties = ['energy', 'forces']
 
@@ -84,24 +79,28 @@ class Amp(Calculator, object):
     @property
     def cores(self):
         """
-        :param cores: Parallel configuration. If cores is an integer,
-                      parallelizes over this many processes on machine
-                      localhost. cores can also be a dictionary of the type
-                      {'node324': 16, 'node325': 16}. If not specified,
-                      tries to determine from environment, using
-                      amp.utilities.assign_cores.
+        Parameters
+        ----------
+        cores : int or dictionary
+            Parallel configuration. If cores is an integer, parallelizes over
+            this many processes on machine localhost. cores can also be
+            a dictionary of the type {'node324': 16, 'node325': 16}. If not
+            specified, tries to determine from environment, using
+            amp.utilities.assign_cores.
         """
         return self._cores
 
     @cores.setter
     def cores(self, cores):
         """
-        :param cores: Parallel configuration. If cores is an integer,
-                      parallelizes over this many processes on machine
-                      localhost. cores can also be a dictionary of the type
-                      {'node324': 16, 'node325': 16}. If not specified,
-                      tries to determine from environment, using
-                      amp.utilities.assign_cores.
+        Parameters
+        ----------
+        cores : int or dict
+            Parallel configuration. If cores is an integer, parallelizes over
+            this many processes on machine localhost. cores can also be
+            a dictionary of the type {'node324': 16, 'node325': 16}. If not
+            specified, tries to determine from environment, using
+            amp.utilities.assign_cores.
         """
         self._cores = assign_cores(cores, log=self.log)
 
@@ -112,8 +111,10 @@ class Amp(Calculator, object):
     @descriptor.setter
     def descriptor(self, descriptor):
         """
-        :param descriptor: Class representing local atomic environment.
-        :type descriptor: object
+        Parameters
+        ----------
+        descriptor : object
+            Class representing local atomic environment.
         """
         descriptor.parent = self  # gives the descriptor object a reference to
         # the main Amp instance. Then descriptor can pull parameters directly
@@ -128,8 +129,10 @@ class Amp(Calculator, object):
     @model.setter
     def model(self, model):
         """
-        :param model: Class representing the regression model.
-        :type model: object
+        Parameters
+        ----------
+        model : object
+            Class representing the regression model.
         """
         model.parent = self  # gives the model object a reference to the main
         # Amp instance. Then model can pull parameters directly from Amp
@@ -140,23 +143,24 @@ class Amp(Calculator, object):
     @classmethod
     def load(Cls, file, Descriptor=None, Model=None, **kwargs):
         """Attempts to load calculators and return a new instance of Amp.
+
         Only a filename or file-like object is required, in typical cases.
 
-        If using a home-rolled descriptor or model, also supply
-        uninstantiated classes to those models, as in Model=MyModel.
-        (Not as Model=MyModel()!)
+        If using a home-rolled descriptor or model, also supply uninstantiated
+        classes to those models, as in Model=MyModel.  (Not as
+        Model=MyModel()!)
 
         Any additional keyword arguments (such as label or dblabel) can be
         fed through to Amp.
 
-        :param file: Name of the file to load data from.
-        :type file: str
-
-        :param Descriptor: Class representing local atomic environment.
-        :type Descriptor: object
-
-        :param Model: Class representing the regression model.
-        :type Model: object
+        Parameters
+        ----------
+        file : str
+            Name of the file to load data from.
+        Descriptor : object
+            Class representing local atomic environment.
+        Model : object
+            Class representing the regression model.
         """
         if hasattr(file, 'read'):
             text = file.read()
@@ -188,20 +192,22 @@ class Amp(Calculator, object):
         return calc
 
     def set(self, **kwargs):
-        """
-        Function to set parameters. For now, this doesn't do anything
-        as all parameters are within the model and descriptor.
+        """Function to set parameters.
+
+        For now, this doesn't do anything as all parameters are within the
+        model and descriptor.
         """
         changed_parameters = Calculator.set(self, **kwargs)
         if len(changed_parameters) > 0:
             self.reset()
 
     def set_label(self, label):
-        """
-        Sets label, ensuring that any needed directories are made.
+        """Sets label, ensuring that any needed directories are made.
 
-        :param label: Default prefix/location used for all files.
-        :type label: str
+        Parameters
+        ----------
+        label : str
+            Default prefix/location used for all files.
         """
         Calculator.set_label(self, label)
 
@@ -218,8 +224,8 @@ class Amp(Calculator, object):
         self._printheader(log)
 
     def calculate(self, atoms, properties, system_changes):
-        """
-        Calculation of the energy of system and forces of all atoms.
+        """Calculation of the energy of system and forces of all atoms.
+
         """
         # The inherited method below just sets the atoms object,
         # if specified, to self.atoms.
@@ -256,23 +262,20 @@ class Amp(Calculator, object):
               overwrite=False,
               train_forces=True,
               ):
-        """
-        Fits the model to the training images.
+        """Fits the model to the training images.
 
-        :param images: List of ASE atoms objects with positions, symbols,
-                       energies, and forces in ASE format. This is the training
-                       set of data. This can also be the path to an ASE
-                       trajectory (.traj) or database (.db) file. Energies can
-                       be obtained from any reference, e.g. DFT calculations.
-        :type images: list or str
-
-        :param overwrite: If an output file with the same name exists,
-                          overwrite it.
-        :type overwrite: bool
-
-        :param train_forces: Determining whether forces are also trained or
-                             not.
-        :type train_forces: bool
+        Parameters
+        ----------
+        images : list or str
+            List of ASE atoms objects with positions, symbols, energies, and
+            forces in ASE format. This is the training set of data. This can
+            also be the path to an ASE trajectory (.traj) or database (.db)
+            file. Energies can be obtained from any reference, e.g. DFT
+            calculations.
+        overwrite : bool
+            If an output file with the same name exists, overwrite it.
+        train_forces : bool
+            Determining whether forces are also trained or not.
         """
 
         log = self.log
@@ -315,15 +318,15 @@ class Amp(Calculator, object):
                                            ' more information.')
 
     def save(self, filename, overwrite=False):
-        """Saves the calculator in way that it can be re-opened with
+        """Saves the calculator in a way that it can be re-opened with
         load.
 
-        :param filename: File object or path to the file to write to.
-        :type filename: str
-
-        :param overwrite: If an output file with the same name exists,
-                          overwrite it.
-        :type overwrite: bool
+        Parameters
+        ----------
+        filename : str
+            File object or path to the file to write to.
+        overwrite : bool
+            If an output file with the same name exists, overwrite it.
         """
         if os.path.exists(filename):
             if overwrite is False:
@@ -348,7 +351,8 @@ class Amp(Calculator, object):
         return filename
 
     def _printheader(self, log):
-        """Prints header to log file; inspired by that in GPAW."""
+        """Prints header to log file; inspired by that in GPAW.
+        """
         log(logo)
         log('Amp: Atomistic Machine-learning Package')
         log('Developed by Andrew Peterson, Alireza Khorshidi, and others,')
@@ -409,8 +413,9 @@ class Amp(Calculator, object):
 
 
 def importhelper(importname):
-    """Manually compiled list of available modules. This is to prevent the
-    execution of arbitrary (potentially malicious) code.
+    """Manually compiled list of available modules.
+
+    This is to prevent the execution of arbitrary (potentially malicious) code.
 
     However, since there is an `eval` statement in string2dict maybe this
     is silly.
@@ -433,7 +438,8 @@ def importhelper(importname):
 
 
 def get_git_commit(ampdirectory):
-    """Attempts to get the last git commit from the amp directory."""
+    """Attempts to get the last git commit from the amp directory.
+    """
     pwd = os.getcwd()
     os.chdir(ampdirectory)
     try:

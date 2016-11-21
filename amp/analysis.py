@@ -16,26 +16,24 @@ rcParams.update({'figure.autolayout': True})
 
 def perturb_parameters(load, images, d=0.0001, overwrite=False, **kwargs):
     """Returns the plot of loss function in terms of perturbed parameters.
-    Takes the load file and images. Any other keyword taken by the
-    Amp calculator can be fed to this class also.
 
-    :param load: Path for loading an existing ".amp" file. Should be fed like
-                 'load="filename.amp"'.
-    :type load: str
+    Takes the load file and images. Any other keyword taken by the Amp
+    calculator can be fed to this class also.
 
-    :param images: List of ASE atoms objects with positions, symbols, energies,
-                   and forces in ASE format. This can also be the path to an
-                   ASE trajectory (.traj) or database (.db) file.
-                   Energies can be obtained from any reference, e.g. DFT
-                   calculations.
-    :type images: list or str
-
-    :param d: The amount of perturbation in each parameter.
-    :type d: float
-
-    :param overwrite: If a plot or an script containing values found overwrite
-                      it.
-    :type overwrite: bool
+    Parameters
+    ----------
+    load : str
+        Path for loading an existing ".amp" file. Should be fed like
+        'load="filename.amp"'.
+    images : list or str
+        List of ASE atoms objects with positions, symbols, energies, and forces
+        in ASE format. This can also be the path to an ASE trajectory (.traj)
+        or database (.db) file.  Energies can be obtained from any reference,
+        e.g. DFT calculations.
+    d : float
+        The amount of perturbation in each parameter.
+    overwrite : bool
+        If a plot or an script containing values found overwrite it.
     """
 
     from amp.model import LossFunction
@@ -154,51 +152,38 @@ def plot_parity(load,
                 cores=None,
                 overwrite=False,
                 returndata=False):
-    """
-    Makes a parity plot of Amp energies and forces versus real energies and
+    """Makes a parity plot of Amp energies and forces versus real energies and
     forces.
 
-    :param load: Path for loading an existing ".amp" file. Should be fed like
-                 'load="filename.amp"'.
-    :type load: str
-
-    :param images: List of ASE atoms objects with positions, symbols, energies,
-                   and forces in ASE format. This can also be the path to an
-                   ASE trajectory (.traj) or database (.db) file.
-                   Energies can be obtained from any reference, e.g. DFT
-                   calculations.
-    :type images: list or str
-
-    :param label: Default prefix/location used for all files.
-    :type label: str
-
-    :param dblabel: Optional separate prefix/location of database files,
-                    including fingerprints, fingerprint primes, and
-                    neighborlists, to avoid calculating them. If not supplied,
-                    just uses the value from label.
-    :type dblabel: str
-
-    :param plot_forces: Determines whether or not forces should be plotted as
-                        well.
-    :type plot_forces: bool
-
-    :param plotfile: File for plots.
-    :type plotfile: Object
-
-    :param color: Plot color.
-    :type color: str
-
-    :param cores: Can specify cores to use for parallel training;
-                  if None, will determine from environment
-    :type cores: int
-
-    :param overwrite: If a plot or an script containing values found overwrite
-                      it.
-    :type overwrite: bool
-
-    :param returndata: Whether to return a reference to the figures and their
-                       data or not.
-    :type returndata: bool
+    Parameters
+    ----------
+    load : str
+        Path for loading an existing ".amp" file. Should be fed like
+        'load="filename.amp"'.
+    images : list or str
+        List of ASE atoms objects with positions, symbols, energies, and forces
+        in ASE format. This can also be the path to an ASE trajectory (.traj)
+        or database (.db) file.  Energies can be obtained from any reference,
+        e.g. DFT calculations.
+    label : str
+        Default prefix/location used for all files.
+    dblabel : str
+        Optional separate prefix/location of database files, including
+        fingerprints, fingerprint primes, and neighborlists, to avoid
+        calculating them. If not supplied, just uses the value from label.
+    plot_forces : bool
+        Determines whether or not forces should be plotted as well.
+    plotfile : Object
+        File for plots.
+    color : str
+        Plot color.
+    cores : int
+        Can specify cores to use for parallel training; if None, will determine
+        from environment
+    overwrite : bool
+        If a plot or an script containing values found overwrite it.
+    returndata : bool
+        Whether to return a reference to the figures and their data or not.
     """
 
     if plotfile is None:
@@ -321,53 +306,41 @@ def plot_error(load,
                cores=None,
                overwrite=False,
                returndata=False):
-    """
-    Makes an error plot of Amp energies and forces versus real energies and
+    """Makes an error plot of Amp energies and forces versus real energies and
     forces.
 
-    :param load: Path for loading an existing ".amp" file. Should be fed like
-                 'load="filename.amp"'.
-    :type load: str
-
-    :param images: List of ASE atoms objects with positions, symbols, energies,
-                   and forces in ASE format. This can also be the path to an
-                   ASE trajectory (.traj) or database (.db) file.
-                   Energies can be obtained from any reference, e.g. DFT
-                   calculations.
-    :type images: list or str
-
-    :param label: Default prefix/location used for all files.
-    :type label: str
-
-    :param dblabel: Optional separate prefix/location of database files,
-                    including fingerprints, fingerprint primes, and
-                    neighborlists, to avoid calculating them. If not supplied,
-                    just uses the value from label.
-    :type dblabel: str
-
-    :param plot_forces: Determines whether or not forces should be plotted as
-                        well.
-    :type plot_forces: bool
-
-    :param plotfile: File for plots.
-    :type plotfile: Object
-
-    :param color: Plot color.
-    :type color: str
-
-    :param cores: Can specify cores to use for parallel training;
-                  if None, will determine from environment
-    :type cores: int
-
-    :param overwrite: If a plot or an script containing values found overwrite
-                      it.
-    :type overwrite: bool
-
-    :param returndata: Whether to return a reference to the figures and their
-                       data or not.
-    :type returndata: bool
+    Parameters
+    ----------
+    load : str
+        Path for loading an existing ".amp" file. Should be fed like
+        'load="filename.amp"'.
+    images : list or str
+        List of ASE atoms objects with positions, symbols, energies, and forces
+        in ASE format. This can also be the path to an ASE trajectory (.traj)
+        or database (.db) file.  Energies can be obtained from any reference,
+        e.g. DFT calculations.
+    label : str
+        Default prefix/location used for all files.
+    dblabel : str
+        Optional separate prefix/location of database files, including
+        fingerprints, fingerprint primes, and neighborlists, to avoid
+        calculating them. If not supplied, just uses the value from label.
+    plot_forces : bool
+        Determines whether or not forces should be plotted as well.
+    plotfile : Object
+        File for plots.
+    color : str
+        Plot color.
+    cores : int
+        Can specify cores to use for parallel training; if None, will determine
+        from environment
+    overwrite : bool
+        If a plot or an script containing values found overwrite it.
+    returndata : bool
+        Whether to return a reference to the figures and their data or not.
     """
 
+    np.set_printoptions(precision=30)
     if plotfile is None:
         plotfile = make_filename(label, 'plot.pdf')
 
@@ -513,12 +486,13 @@ def plot_error(load,
 
 
 def read_trainlog(logfile):
-    """
-    Reads the log file from the training process, returning the relevant
+    """Reads the log file from the training process, returning the relevant
     parameters.
 
-    :param logfile: Name or path to the log file.
-    :type logfile: str
+    Parameters
+    ----------
+    logfile : str
+        Name or path to the log file.
     """
     data = {}
 
@@ -614,16 +588,18 @@ def read_trainlog(logfile):
 
 
 def plot_convergence(logfile, plotfile='convergence.pdf'):
-    """
-    Makes a plot of the convergence of the cost function and its energy
+    """Makes a plot of the convergence of the cost function and its energy
     and force components.
 
-    :param logfile: Name or path to the log file.
-    :type logfile: str
-    :param plotfile: Name or path to the plot file.
-    :type plotfile: str
+    Parameters
+    ----------
+    logfile : str
+        Name or path to the log file.
+    plotfile : str
+        Name or path to the plot file.
     """
 
+    np.set_printoptions(precision=30)
     data = read_trainlog(logfile)
 
     # Find if multiple runs contained in data set.
