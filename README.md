@@ -9,24 +9,26 @@ https://bitbucket.org/andrewpeterson/amp
 Documentation lives at:
 http://amp.readthedocs.org
 
+If you would like to compile a local version of the documentation, see the README file in the docs directory.
+
 (This project was formerly known as "Neural". The last stable version of Neural can be found at https://bitbucket.org/andrewpeterson/neural)
 
 
 License
 =======
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 Recommended step: Compiling Fortran modules:
@@ -45,24 +47,27 @@ prepare the extension module the following steps need to be taken:
 
 1- Compile model Fortran subroutines inside the model folder by:
 
-$ cd <installation-directory>/amp/model
+    $ cd <installation-directory>/amp/model
 
-$ gfortran -c neuralnetwork.f90
+    $ gfortran -c neuralnetwork.f90
 
-2- Move the module ``neuralnetwork.mod'' created in the last step, to the parent directory
+
+2- Move the module "neuralnetwork.mod" created in the last step, to the parent directory
 by:
 
-$ mv neuralnetwork.mod ../
+
+    $ mv neuralnetwork.mod ../
+
 
 3- Go back to the parent directory and compile the model Fortran subroutines in companion with the descriptor and neuralnetwork subroutines by something like:
 
-$ cd ../
+    $ cd ../
 
-$ f2py -c -m fmodules model.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90
+    $ f2py -c -m fmodules model.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90
 
 or on a Windows machine by:
 
-$ f2py -c -m fmodules model.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90 --fcompiler=gnu95 --compiler=mingw32
+    $ f2py -c -m fmodules model.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90 --fcompiler=gnu95 --compiler=mingw32
 
 If the version of fmodules.f90 is not updated, an exception
 will be raised which tells user which version number should be
