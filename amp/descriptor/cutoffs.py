@@ -34,6 +34,7 @@ class Cosine(object):
         Radius above which neighbor interactions are ignored.
     """
 
+    print('Cosine')
     def __init__(self, Rc):
 
         self.Rc = Rc
