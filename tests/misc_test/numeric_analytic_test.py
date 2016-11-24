@@ -37,6 +37,7 @@ def generate_data(count):
         newatoms = atoms.copy()
         newatoms.set_calculator(EMT())
         newatoms.get_potential_energy()
+        del newatoms.constraints  # See ASE issue #64.
         images.append(newatoms)
     return images
 

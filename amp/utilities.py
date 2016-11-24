@@ -21,7 +21,7 @@ from ase.db import connect
 
 def assign_cores(cores, log=None):
     """Tries to guess cores from environment. If fed a log object, will write
-    it's progress."""
+    its progress."""
     log = Logger(None) if log is None else log
 
     def fail(q):
@@ -83,7 +83,6 @@ def assign_cores(cores, log=None):
 
 
 class MessageDictionary:
-
     """Standard container for all messages (typically requests, via
     zmq.context.socket.send_pyobj) sent from the workers to the master.
     This returns a simple dictionary. This is roughly email format.
@@ -134,11 +133,13 @@ def setup_parallel(cores, workercommand, log):
 
     Returns:
         the server (a ZMQ socket)
+
         the ssh connections (pxssh instances; if these objects are destroyed
-           pxssh will close the sessions)
+        pxssh will close the sessions)
+
         the pid_count, which is the total number of workers started. Each
-           worker can be communicated directly through its PID, an integer
-           between 0 and pid_count
+        worker can be communicated directly through its PID, an integer
+        between 0 and pid_count
     """
     import zmq
     from socket import gethostname
@@ -153,7 +154,7 @@ def setup_parallel(cores, workercommand, log):
     serversocket = '%s:%s' % (serverhostname, port)
     log(' Established server at %s.' % serversocket)
 
-    workercommand += ' %s ' + serversocket + ' &'
+    workercommand += ' %s ' + serversocket
 
     log(' Establishing worker sessions.')
     connections = []
@@ -169,20 +170,34 @@ def setup_parallel(cores, workercommand, log):
 
 
 def start_workers(process_ids, workerhostname, workercommand, log):
-    """A function to start a new SSH session. Starting via threads allows all
-    sessions to start simultaneously, rather than waiting on one another.
-    Access its created session with self.ssh.
+    """A function to start a new SSH session and establish processes on
+    that session.
     """
-    pxssh = importer('pxssh')
-    ssh = pxssh.pxssh()
-    ssh.login(workerhostname, getuser())
+    if workerhostname != 'localhost':
+        workercommand += ' &'
+        log('Starting non-local connections.')
+        pxssh = importer('pxssh')
+        ssh = pxssh.pxssh()
+        ssh.login(workerhostname, getuser())
+        for process_id in process_ids:
+            ssh.sendline(workercommand % process_id)
+            ssh.expect('<amp-connect>')
+            ssh.expect('<stderr>')
+            log('  Session %i (%s): %s' %
+                (process_id, workerhostname, ssh.before.strip()))
+        return ssh
+    import pexpect
+    log('Starting local connections.')
+    log(workercommand)
+    children = []
     for process_id in process_ids:
-        ssh.sendline(workercommand % process_id)
-        ssh.expect('<amp-connect>')
-        ssh.expect('<stderr>')
+        child = pexpect.spawn(workercommand % process_id)
+        child.expect('<amp-connect>')
+        child.expect('<stderr>')
         log('  Session %i (%s): %s' %
-            (process_id, workerhostname, ssh.before.strip()))
-    return ssh
+            (process_id, workerhostname, child.before.strip()))
+        children.append(child)
+    return children
 
 
 # Data and logging ###########################################################

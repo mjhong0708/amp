@@ -6,6 +6,7 @@ import matplotlib
 matplotlib.use('Agg')
 from matplotlib import rcParams
 from matplotlib import pyplot
+from matplotlib.backends.backend_pdf import PdfPages
 
 from amp import Amp
 from amp.utilities import now, hash_images, make_filename, Logger
@@ -509,3 +510,171 @@ def plot_error(load,
             return fig, energy_data
         else:
             return fig, energy_data, force_data
+
+
+def read_trainlog(logfile):
+    """
+    Reads the log file from the training process, returning the relevant
+    parameters.
+
+    :param logfile: Name or path to the log file.
+    :type logfile: str
+    """
+    data = {}
+
+    with open(logfile, 'r') as f:
+        lines = f.read().splitlines()
+
+    # Get number of images.
+    for line in lines:
+        if 'unique images after hashing.' in line:
+            no_images = int(line.split()[0])
+            break
+    data['no_images'] = no_images
+    print('no_images')
+    print(no_images)
+
+    # Find where convergence data starts.
+    startline = None
+    for index, line in enumerate(lines):
+        if 'Loss function convergence criteria:' in line:
+            startline = index
+            data['convergence'] = {}
+            d = data['convergence']
+            break
+
+    print('convergence')
+    print(startline)
+
+    # Get convergence parameters.
+    ready = [False, False, False, False, False]
+    for index, line in enumerate(lines[startline:]):
+        if 'energy_rmse:' in line:
+            ready[0] = True
+            d['energy_rmse'] = float(line.split(':')[-1])
+        elif 'force_rmse:' in line:
+            ready[1] = True
+            d['force_rmse'] = float(line.split(':')[-1])
+        elif 'force_coefficient:' in line:
+            ready[2] = True
+            d['force_coefficient'] = float(line.split(':')[-1])
+        elif 'energy_coefficient:' in line:
+            ready[3] = True
+            d['energy_coefficient'] = float(line.split(':')[-1])
+        elif 'Step' in line and 'Time' in line:
+            ready[4] = True
+            startline += index + 2
+        if ready == [True, True, True, True]:
+            break
+
+    E = d['energy_rmse']**2 * no_images
+    F = d['force_rmse']**2 * no_images
+    costfxngoal = d['energy_coefficient'] * E + d['force_coefficient'] * F
+    d['costfxngoal'] = costfxngoal
+
+    # Extract data.
+    steps, es, fs, costfxns = [], [], [], []
+    costfxnEs, costfxnFs = [], []
+    index = startline
+    while index < len(lines):
+        line = lines[index]
+        if 'Saving checkpoint data.' in line:
+            index += 1
+            continue
+        elif 'Overwriting file' in line:
+            index += 1
+            continue
+        elif 'optimization completed successfully.' in line:
+            break
+        elif 'could not find parameters for the' in line:
+            break
+        elif '...optimization unsuccessful.' in line:
+            break
+        print(line)
+        step, time, costfxn, e, _, _, _, f, _, _, _ = line.split()
+
+        fs.append(float(f))
+        steps.append(int(step))
+        es.append(float(e))
+        costfxns.append(costfxn)
+
+        E = float(e)**2 * no_images
+        F = float(f)**2 * no_images
+        costfxnEs.append(d['energy_coefficient'] * E / float(costfxn))
+        costfxnFs.append(d['force_coefficient'] * F / float(costfxn))
+        index += 1
+    d['steps'] = steps
+    d['es'] = es
+    d['fs'] = fs
+    d['costfxns'] = costfxns
+    d['costfxnEs'] = costfxnEs
+    d['costfxnFs'] = costfxnFs
+
+    return data
+
+
+def plot_convergence(logfile, plotfile='convergence.pdf'):
+    """
+    Makes a plot of the convergence of the cost function and its energy
+    and force components.
+
+    :param logfile: Name or path to the log file.
+    :type logfile: str
+    :param plotfile: Name or path to the plot file.
+    :type plotfile: str
+    """
+
+    data = read_trainlog(logfile)
+
+    # Find if multiple runs contained in data set.
+    d = data['convergence']
+    steps = range(len(d['steps']))
+    breaks = []
+    for index, step in enumerate(d['steps'][1:]):
+        if step < d['steps'][index]:
+            breaks.append(index)
+
+    # Make plots.
+    fig = pyplot.figure(figsize=(6., 8.))
+    # Margins, vertical gap, and top-to-bottom ratio of figure.
+    lm, rm, bm, tm, vg, tb = 0.12, 0.05, 0.08, 0.03, 0.08, 4.
+    bottomaxheight = (1. - bm - tm - vg) / (tb + 1.)
+
+    ax = fig.add_axes((lm, bm + bottomaxheight + vg,
+                       1. - lm - rm, tb * bottomaxheight))
+    ax.semilogy(steps, d['es'], 'b', lw=2, label='energy rmse')
+    if d['force_rmse']:
+        ax.semilogy(steps, d['fs'], 'g', lw=2, label='force rmse')
+    ax.semilogy(steps, d['costfxns'], color='0.5', lw=2,
+                label='loss function')
+    # Targets.
+    ax.semilogy([steps[0], steps[-1]], [d['energy_rmse']] * 2,
+                color='b', linestyle=':')
+    if d['force_rmse']:
+        ax.semilogy([steps[0], steps[-1]], [d['force_rmse']] * 2,
+                    color='g', linestyle=':')
+    ax.semilogy([steps[0], steps[-1]], [d['costfxngoal']] * 2,
+                color='0.5', linestyle=':')
+    ax.set_ylabel('error')
+    ax.set_xlabel('BFGS step')
+    ax.legend(loc='best')
+    if len(breaks) > 0:
+        ylim = ax.get_ylim()
+        for b in breaks:
+            ax.plot([b] * 2, ylim, '--k')
+
+    if d['force_rmse']:
+        ax = fig.add_axes((lm, bm, 1. - lm - rm, bottomaxheight))
+        ax.fill_between(x=np.array(steps), y1=d['costfxnEs'],
+                        color='blue')
+        ax.fill_between(x=np.array(steps), y1=d['costfxnEs'],
+                        y2=np.array(d['costfxnEs']) +
+                        np.array(d['costfxnFs']),
+                        color='green')
+        ax.set_ylabel('loss function component')
+        ax.set_xlabel('BFGS step')
+        ax.set_ylim(0, 1)
+
+    with PdfPages(plotfile) as pdf:
+        pdf.savefig(fig)
+        pyplot.close(fig)

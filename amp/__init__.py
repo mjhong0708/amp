@@ -83,14 +83,25 @@ class Amp(Calculator, object):
 
     @property
     def cores(self):
+        """
+        :param cores: Parallel configuration. If cores is an integer,
+                      parallelizes over this many processes on machine
+                      localhost. cores can also be a dictionary of the type
+                      {'node324': 16, 'node325': 16}. If not specified,
+                      tries to determine from environment, using
+                      amp.utilities.assign_cores.
+        """
         return self._cores
 
     @cores.setter
     def cores(self, cores):
         """
-        :param cores: Number of cores to parallelize over. If not specified,
-                      attempts to determine from environment.
-        :type cores: int
+        :param cores: Parallel configuration. If cores is an integer,
+                      parallelizes over this many processes on machine
+                      localhost. cores can also be a dictionary of the type
+                      {'node324': 16, 'node325': 16}. If not specified,
+                      tries to determine from environment, using
+                      amp.utilities.assign_cores.
         """
         self._cores = assign_cores(cores, log=self.log)
 
@@ -266,8 +277,9 @@ class Amp(Calculator, object):
 
         log = self.log
         log('\nAmp training started. ' + now() + '\n')
-        log('Descriptor: %s' % self.descriptor.__class__.__name__)
-        log('Model: %s' % self.model.__class__.__name__)
+        log('Descriptor: %s\n  (%s)' % (self.descriptor.__class__.__name__,
+                                        self.descriptor))
+        log('Model: %s\n  (%s)' % (self.model.__class__.__name__, self.model))
 
         images = hash_images(images, log=log)
 
