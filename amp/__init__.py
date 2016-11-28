@@ -313,8 +313,8 @@ class Amp(Calculator, object):
         log("This file can be opened with `calc = Amp.load('%s')`" %
             filename)
         if result is False:
-            raise TrainingConvergenceError('Amp did not converge upon '
-                                           'training. See log file for'
+            raise TrainingConvergenceError('Amp did not converge upon ' \
+                                           'training. See log file for' \
                                            ' more information.')
 
     def save(self, filename, overwrite=False):

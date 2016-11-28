@@ -933,7 +933,7 @@ def dRij_dRml(i, j, Ri, Rj, m, l):
 
     Returns
     -------
-    list of float
+    dRij_dRml : list of float
         The derivative of the noRi of position vector R_{ij} with respect to
         x_{l} of atomic index m.
     """
@@ -976,7 +976,7 @@ def dCos_theta_ijk_dR_ml(i, j, k, Ri, Rj, Rk, m, l):
 
     Returns
     -------
-    float
+    dCos_theta_ijk_dR_ml : float
         Derivative of Cos(theta_{ijk}) with respect to x_{l} of atomic index m.
     """
     np.set_printoptions(precision=30)
@@ -1043,7 +1043,7 @@ def calculate_G2_prime(neighborindices, neighborsymbols, neighborpositions,
 
     Returns
     -------
-    float
+    ridge : float
         Coordinate derivative of G2 symmetry function for atom at index a and
         position Ri with respect to coordinate x_{l} of atom index m.
     """
@@ -1309,17 +1309,17 @@ def calculate_G5_prime(neighborindices, neighborsymbols, neighborpositions,
                 c1 = (1. + gamma * cos_theta_ijk)
                 fcRij = cutoff_fxn(Rij)
                 fcRik = cutoff_fxn(Rik)
-                fcRjk = cutoff_fxn(Rjk)
+                #fcRjk = cutoff_fxn(Rjk)
                 if zeta == 1:
                     term1 = \
-                        np.exp(- eta * (Rij ** 2. + Rik ** 2. + Rjk ** 2.) /
+                        np.exp(- eta * (Rij ** 2. + Rik ** 2.) /
                                (Rc ** 2.))
                 else:
                     term1 = c1 ** (zeta - 1.) * \
-                        np.exp(- eta * (Rij ** 2. + Rik ** 2. + Rjk ** 2.) /
+                        np.exp(- eta * (Rij ** 2. + Rik ** 2.) /
                                (Rc ** 2.))
                 term2 = 0.
-                fcRijfcRikfcRjk = fcRij * fcRik * fcRjk
+                fcRijfcRik = fcRij * fcRik# * fcRjk
                 dCosthetadRml = dCos_theta_ijk_dR_ml(i,
                                                      neighborindices[j],
                                                      neighborindices[k],
@@ -1333,15 +1333,15 @@ def calculate_G5_prime(neighborindices, neighborsymbols, neighborpositions,
                 dRikdRml = dRij_dRml(i, neighborindices[k], Ri, Rk, m, l)
                 if dRikdRml != 0:
                     term2 += -2. * c1 * eta * Rik * dRikdRml / (Rc ** 2.)
-                dRjkdRml = dRij_dRml(neighborindices[j],
-                                     neighborindices[k],
-                                     Rj, Rk, m, l)
-                if dRjkdRml != 0:
-                    term2 += -2. * c1 * eta * Rjk * dRjkdRml / (Rc ** 2.)
-                term3 = fcRijfcRikfcRjk * term2
-                term4 = cutoff_fxn.prime(Rij) * dRijdRml * fcRik * fcRjk
-                term5 = fcRij * cutoff_fxn.prime(Rik) * dRikdRml * fcRjk
-                term6 = fcRij * fcRik * cutoff_fxn.prime(Rjk) * dRjkdRml
+                #dRjkdRml = dRij_dRml(neighborindices[j],
+                                     #neighborindices[k],
+                                     #Rj, Rk, m, l)
+                #if dRjkdRml != 0:
+                    #term2 += -2. * c1 * eta * Rjk * dRjkdRml / (Rc ** 2.)
+                term3 = fcRijfcRik * term2
+                term4 = cutoff_fxn.prime(Rij) * dRijdRml * fcRik #* fcRjk
+                term5 = fcRij * cutoff_fxn.prime(Rik) * dRikdRml #* fcRjk
+                term6 = fcRij * fcRik #* cutoff_fxn.prime(Rjk) * dRjkdRml
 
                 ridge += term1 * (term3 + c1 * (term4 + term5 + term6))
         ridge *= 2. ** (1. - zeta)
