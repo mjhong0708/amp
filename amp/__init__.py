@@ -16,7 +16,7 @@ except ImportError:
     # We're on ASE 3.9 or older
     from ase.version import version as aseversion
 
-from amp.utilities import (make_filename, hash_images, Logger, string2dict,
+from .utilities import (make_filename, hash_images, Logger, string2dict,
                            logo, now, assign_cores, TrainingConvergenceError)
 
 import warnings
