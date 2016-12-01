@@ -2,7 +2,7 @@
 import numpy as np
 from ase.calculators.calculator import Parameters
 from amp.utilities import (Logger, ConvergenceOccurred, make_sublists, now,
-                         setup_parallel)
+                           setup_parallel)
 try:
     from amp import fmodules
 except ImportError:
@@ -236,6 +236,7 @@ class Model(object):
 
 
 class LossFunction:
+
     """Basic loss function, which can be used by the model.get_loss_function
     method which is required in standard model classes.
 
@@ -614,10 +615,11 @@ class LossFunction:
                         denergy_dparameters = \
                             self._model.get_numerical_dEnergy_dParameters(
                                 self.fingerprints[hash], d=self.d)
-                    dloss_dparameters += p.energy_coefficient * 2. * \
+                    temp = p.energy_coefficient * 2. * \
                         (amp_energy - actual_energy) * \
                         denergy_dparameters / \
                         (no_of_atoms ** 2.)
+                    dloss_dparameters += temp
 
             if p.force_coefficient != 0.:
                 amp_forces = \
@@ -630,10 +632,10 @@ class LossFunction:
                                           actual_forces[index][i])
                         if force_resid > force_maxresid:
                             force_maxresid = force_resid
-                        forceloss += \
-                            (1. / 3.) * (amp_forces[index][i] -
-                                         actual_forces[index][i]) ** 2. / \
+                        temp = (1. / 3.) * (amp_forces[index][i] -
+                                            actual_forces[index][i]) ** 2. / \
                             no_of_atoms
+                        forceloss += temp
                 # Calculates derivative of the loss function with respect to
                 # parameters if lossprime is true
                 if lossprime:
@@ -653,12 +655,12 @@ class LossFunction:
                                     d=self.d)
                         for selfindex in range(no_of_atoms):
                             for i in range(3):
-                                dloss_dparameters += p.force_coefficient * \
-                                    (2.0 / 3.0) * \
+                                temp = p.force_coefficient * (2.0 / 3.0) * \
                                     (amp_forces[selfindex][i] -
                                      actual_forces[selfindex][i]) * \
                                     dforces_dparameters[(selfindex, i)] \
                                     / no_of_atoms
+                                dloss_dparameters += temp
 
         loss = p.energy_coefficient * energyloss + \
             p.force_coefficient * forceloss
@@ -888,14 +890,16 @@ def ravel_data(train_forces,
     """
     from ase.data import atomic_numbers as an
 
+    hashs = images.iteritems()
+
     actual_energies = [image.get_potential_energy(apply_constraint=False)
-                       for hash, image in images.iteritems()]
+                       for hash, image in hashs]
 
     if mode == 'atom-centered':
         num_images_atoms = [len(image)
-                            for hash, image in images.iteritems()]
+                            for hash, image in hashs]
         atomic_numbers = [an[atom.symbol]
-                          for hash, image in images.iteritems()
+                          for hash, image in hashs
                           for atom in image]
 
         def ravel_fingerprints(images,
@@ -905,7 +909,7 @@ def ravel_data(train_forces,
             """
             raveled_fingerprints = []
             elements = []
-            for hash, image in images.iteritems():
+            for hash, image in hashs:
                 for index in range(len(image)):
                     elements += [fingerprints[hash][index][0]]
                     raveled_fingerprints += [fingerprints[hash][index][1]]
@@ -920,13 +924,13 @@ def ravel_data(train_forces,
                                                             fingerprints)
     else:
         atomic_positions = [image.positions.ravel()
-                            for hash, image in images.iteritems()]
+                            for hash, image in hashs]
 
     if train_forces is True:
 
         actual_forces = \
             [image.get_forces(apply_constraint=False)[index]
-             for hash, image in images.iteritems()
+             for hash, image in hashs
              for index in range(len(image))]
 
         if mode == 'atom-centered':
@@ -945,7 +949,7 @@ def ravel_data(train_forces,
                 num_neighbors = []
                 raveled_neighborlists = []
                 raveled_fingerprintprimes = []
-                for hash, image in images.iteritems():
+                for hash, image in hashs:
                     for atom in image:
                         selfindex = atom.index
                         selfsymbol = atom.symbol
