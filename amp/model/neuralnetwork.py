@@ -81,7 +81,9 @@ class NeuralNetwork(Model):
     .. note:: Dimensions of weight two dimensional arrays should be consistent
               with hiddenlayers.
 
-    :raises: RuntimeError, NotImplementedError
+    Raises
+    ------
+        RuntimeError, NotImplementedError
     """
 
     def __init__(self, hiddenlayers=(5, 5), activation='tanh', weights=None,

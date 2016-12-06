@@ -216,7 +216,6 @@ class NeighborlistCalculator:
         Radius above which neighbor interactions are ignored.
     """
     def __init__(self, cutoff):
-        print('NeighborlistCalculator')
         self.globals = Parameters({'cutoff': cutoff})
         self.keyed = Parameters()
         self.parallel_command = 'calculate_neighborlists'
@@ -270,7 +269,6 @@ class FingerprintCalculator:
     def __init__(self, neighborlist, Gs, cutoff, fortran):
         self.globals = Parameters({'cutoff': cutoff,
                                    'Gs': Gs})
-        print('FingerprintCalculator')
         self.keyed = Parameters({'neighborlist': neighborlist})
         self.parallel_command = 'calculate_fingerprints'
         self.fortran = fortran
@@ -302,6 +300,9 @@ class FingerprintCalculator:
                 index, symbol, neighborsymbols, neighborpositions)
             fingerprints.append(indexfp)
 
+            if index == 1:
+                print('fingerprints')
+                print(fingerprints)
         return fingerprints
 
     def get_fingerprint(self, index, symbol,
@@ -325,7 +326,7 @@ class FingerprintCalculator:
 
         Returns
         -------
-        list of float
+        symbol, fingerprint : list of float
             fingerprints for atom specified by its index and symbol.
         """
         Ri = self.atoms[index].position
@@ -493,7 +494,7 @@ class FingerprintPrimeCalculator:
 
         Returns
         -------
-        list of float
+        fingerprintprime : list of float
             The value of the derivative of the fingerprints for atom with index
             and symbol with respect to coordinate x_{l} of atom index m.
         """
@@ -618,7 +619,6 @@ def calculate_G2(neighborsymbols,
                 Rij = np.linalg.norm(Rj - Ri)
                 ridge += (np.exp(-eta * (Rij ** 2.) / (Rc ** 2.)) *
                           cutoff_fxn(Rij))
-    print('calculate_g2: ', ridge)
     return ridge
 
 
@@ -658,7 +658,6 @@ def calculate_G4(neighborsymbols, neighborpositions,
     ridge : float
         G4 fingerprint.
     """
-    print('G4 Python')
     np.set_printoptions(precision=30)
     if fortran:  # fortran version; faster
         G_numbers = sorted([atomic_numbers[el] for el in G_elements])
@@ -702,7 +701,8 @@ def calculate_G4(neighborsymbols, neighborpositions,
                 term *= cutoff_fxn(Rjk)
                 ridge += term
         ridge *= 2. ** (1. - zeta)
-        print('calculate_g4, zeta, gamma: ', ridge, zeta, gamma)
+        print('ridge')
+        print(ridge)
         return ridge
 
 
@@ -746,7 +746,6 @@ def calculate_G5(neighborsymbols, neighborpositions,
     ridge : float
         G5 fingerprint.
     """
-    print('G5 Python')
     np.set_printoptions(precision=30)
     if fortran:  # fortran version; faster
         G_numbers = sorted([atomic_numbers[el] for el in G_elements])
@@ -768,6 +767,7 @@ def calculate_G5(neighborsymbols, neighborpositions,
     else:
         Rc = cutoff['kwargs']['Rc']
         cutoff_fxn = dict2cutoff(cutoff)
+        #eta = eta * Rc**2
         ridge = 0.
         counts = range(len(neighborpositions))
         for j in counts:
@@ -789,7 +789,6 @@ def calculate_G5(neighborsymbols, neighborpositions,
                 term *= cutoff_fxn(Rik)
                 ridge += term
         ridge *= 2. ** (1. - zeta)
-        print('calculate_g5, zeta, gamma: ', ridge, zeta, gamma)
         return ridge
 
 
@@ -1290,6 +1289,7 @@ def calculate_G5_prime(neighborindices, neighborsymbols, neighborpositions,
         Rc = cutoff['kwargs']['Rc']
         cutoff_fxn = dict2cutoff(cutoff)
         ridge = 0.
+        eta = eta / Rc**2
         # number of neighboring atoms
         counts = range(len(neighborpositions))
         for j in counts:
