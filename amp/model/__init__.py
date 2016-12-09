@@ -890,16 +890,14 @@ def ravel_data(train_forces,
     """
     from ase.data import atomic_numbers as an
 
-    hashs = images.iteritems()
-
     actual_energies = [image.get_potential_energy(apply_constraint=False)
-                       for hash, image in hashs]
+                       for hash, image in images.iteritems()]
 
     if mode == 'atom-centered':
         num_images_atoms = [len(image)
-                            for hash, image in hashs]
+                            for hash, image in images.iteritems()]
         atomic_numbers = [an[atom.symbol]
-                          for hash, image in hashs
+                          for hash, image in images.iteritems()
                           for atom in image]
 
         def ravel_fingerprints(images,
@@ -909,7 +907,7 @@ def ravel_data(train_forces,
             """
             raveled_fingerprints = []
             elements = []
-            for hash, image in hashs:
+            for hash, image in images.iteritems():
                 for index in range(len(image)):
                     elements += [fingerprints[hash][index][0]]
                     raveled_fingerprints += [fingerprints[hash][index][1]]
@@ -924,13 +922,13 @@ def ravel_data(train_forces,
                                                             fingerprints)
     else:
         atomic_positions = [image.positions.ravel()
-                            for hash, image in hashs]
+                            for hash, image in images.iteritems()]
 
     if train_forces is True:
 
         actual_forces = \
             [image.get_forces(apply_constraint=False)[index]
-             for hash, image in hashs
+             for hash, image in images.iteritems()
              for index in range(len(image))]
 
         if mode == 'atom-centered':
@@ -949,7 +947,7 @@ def ravel_data(train_forces,
                 num_neighbors = []
                 raveled_neighborlists = []
                 raveled_fingerprintprimes = []
-                for hash, image in hashs:
+                for hash, image in images.iteritems():
                     for atom in image:
                         selfindex = atom.index
                         selfsymbol = atom.symbol
