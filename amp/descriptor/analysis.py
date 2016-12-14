@@ -4,7 +4,6 @@ from amp.utilities import hash_images
 
 class FingerprintPlot:
     """Create plots of fingerprint ranges.
-
     Initialize with an Amp calculator object.
     """
 
@@ -12,9 +11,8 @@ class FingerprintPlot:
         self._calc = calc
 
     def __call__(self, images, name='fingerprints.pdf'):
-        """Creates a violin plot of fingerprints for each element type in the
-        fed images; saves to specified filename.
-        """
+        """Creates a violin plot of fingerprints for each element type in
+        the fed images; saves to specified filename."""
 
         from matplotlib import pyplot
         from matplotlib.backends.backend_pdf import PdfPages

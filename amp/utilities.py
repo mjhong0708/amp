@@ -111,7 +111,6 @@ def make_sublists(masterlist, n):
     keys to each task in parallel processing. This also destroys
     the masterlist (to save some memory).
     """
-    np.set_printoptions(precision=30)
     np.random.shuffle(masterlist)
     N = len(masterlist)
     sublist_lengths = [
@@ -141,9 +140,8 @@ def setup_parallel(cores, workercommand, log):
 
     Returns
     -------
-        the server (a ZMQ socket)
-
-        the ssh connections (pxssh instances; if these objects are destroyed
+    server : (a ZMQ socket)
+        The ssh connections (pxssh instances; if these objects are destroyed
         pxssh will close the sessions)
 
         the pid_count, which is the total number of workers started. Each
@@ -638,6 +636,7 @@ def randomize_images(images, fraction=0.8):
 
     Returns
     -------
+    train_images, test_images : list
         Lists of train and test images.
     """
     np.set_printoptions(precision=30)
@@ -894,7 +893,6 @@ class Annealer(object):
     def move(self, state):
         """Create a state change
         """
-        np.set_printoptions(precision=30)
         move_step = np.random.rand(len(state)) * 2. - 1.
         move_step *= 0.0005
         for _ in range(len(state)):
@@ -978,11 +976,13 @@ class Annealer(object):
 
         Parameters
         ---------
-        state : an initial arrangement of the system
+        state
+            An initial arrangement of the system
 
         Returns
         -------
-        (state, loss): the best state and loss found.
+        state, loss
+            The best state and loss found.
         """
         step = 0
         self.start = time.time()
