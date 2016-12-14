@@ -140,9 +140,8 @@ def setup_parallel(cores, workercommand, log):
 
     Returns
     -------
-        the server (a ZMQ socket)
-
-        the ssh connections (pxssh instances; if these objects are destroyed
+    server : (a ZMQ socket)
+        The ssh connections (pxssh instances; if these objects are destroyed
         pxssh will close the sessions)
 
         the pid_count, which is the total number of workers started. Each
@@ -637,6 +636,7 @@ def randomize_images(images, fraction=0.8):
 
     Returns
     -------
+    train_images, test_images : list
         Lists of train and test images.
     """
     file_opened = False
@@ -974,11 +974,13 @@ class Annealer(object):
 
         Parameters
         ---------
-        state : an initial arrangement of the system
+        state
+            An initial arrangement of the system
 
         Returns
         -------
-        (state, loss): the best state and loss found.
+        state, loss
+            The best state and loss found.
         """
         step = 0
         self.start = time.time()
