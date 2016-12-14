@@ -109,3 +109,22 @@ Under the hood, the train function is pretty simple; it just runs:
 * In the third line, the model (e.g., a neural network) is fit to the data. As it is passed a reference to `self.descriptor`, it has access to the fingerprints as well as the mode. Many options are available to customize this in terms of the loss function, the regression method, etc.
 
 * In the final pair of lines, if the target fit was achieved, the model is saved to disk.
+
+----------------------------------
+Re-training
+----------------------------------
+
+If training does not succeed, Amp raises a `TrainingConvergenceError`. You can use this within your scripts to catch when training succeeds or fails, for example:
+
+.. code-block:: python
+
+    from amp.utilities import TrainingConvergenceError
+
+    ...
+
+    try:
+        calc.train(images)
+    except TrainingConvergenceError:
+        # Whatever you want to happen if training fails;
+        # e.g., refresh parameters and train again.
+
