@@ -40,6 +40,7 @@ To build a local copy, cd into the docs directory and try a command such as
 .. code-block:: bash
 
    sphinx-build . /tmp/ampdocs
+   firefox /tmp/ampdocs/index.html &  # View the local copy.
 
 This uses the style "bizstyle"; if you find this is missing on your system, you can likely install it with
 

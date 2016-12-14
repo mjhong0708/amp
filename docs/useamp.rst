@@ -49,7 +49,13 @@ To control how tightly the energy is converged, you can adjust the `LossFunction
    convergence = {'energy_rmse': 0.02, 'force_rmse': 0.04}
    calc.model.lossfunction = LossFunction(convergence=convergence)
 
-You can see the adjustable parameters and their default values in the dictionary `LossFunction.default_parameters`.
+You can see the adjustable parameters and their default values in the dictionary `LossFunction.default_parameters`:
+
+.. code-block:: python
+
+    >>> LossFunction.default_parameters
+    {'convergence': {'energy_rmse': 0.001, 'force_rmse': 0.005, 'energy_maxresid': None, 'force_maxresid': None}}
+
 
 To change how the code manages the regression process, you can use the `Regressor` class. For example, to switch from the scipy's fmin_bfgs optimizer (the default) to scipy's basin hopping optimizer, try inserting the following lines before initializing training:
 
