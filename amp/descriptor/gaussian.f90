@@ -1,9 +1,9 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
- 
+
        subroutine calculate_g2(neighbornumbers, neighborpositions, &
        g_number, g_eta, rc, cutofffn, ri, num_neighbors, ridge)
-               
+
               implicit none
               integer, dimension(num_neighbors):: neighbornumbers
               integer, dimension(1):: g_number
@@ -60,16 +60,16 @@
                       cutoff_fxn = 0.5d0 * (cos(pi*r/rc) + 1.0d0)
               end if
       end function
-      
+
       end subroutine calculate_g2
-      
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-       
+
       subroutine calculate_g4(neighbornumbers, neighborpositions, &
       g_numbers, g_gamma, g_zeta, g_eta, rc, cutofffn, ri, &
       num_neighbors, ridge)
-               
+
               implicit none
               integer, dimension(num_neighbors):: neighbornumbers
               integer, dimension(2):: g_numbers
@@ -163,16 +163,16 @@
                       cutoff_fxn = 0.5d0 * (cos(pi*r/rc) + 1.0d0)
               end if
       end function
-      
+
       end subroutine calculate_g4
-      
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-          
+
        subroutine calculate_g2_prime(neighborindices, neighbornumbers, &
        neighborpositions, g_number, g_eta, rc, cutofffn, i, ri, m, l, &
        num_neighbors, ridge)
-               
+
               implicit none
               integer, dimension(num_neighbors):: neighborindices
               integer, dimension(num_neighbors):: neighbornumbers
@@ -205,7 +205,7 @@
                      dRij_dRml(i, neighborindices(j), ri, Rj, m, l)
                     if (dRijdRml /= 0.0d0) then
 					  Rij = sqrt(dot_product(Rij_vector, Rij_vector))
-                      term1 = - 2.0d0 * g_eta * Rij * & 
+                      term1 = - 2.0d0 * g_eta * Rij * &
                       cutoff_fxn(Rij, rc) / (rc ** 2.0d0) + &
                       cutoff_fxn_prime(Rij, rc)
                       ridge = ridge + exp(- g_eta * (Rij**2.0d0) / &
@@ -227,7 +227,7 @@
                       match = 0
               end if
       end function compare
-      
+
       function cutoff_fxn(r, rc)
               double precision:: r, rc, cutoff_fxn, pi
               if (r > rc) then
@@ -237,7 +237,7 @@
                       cutoff_fxn = 0.5d0 * (cos(pi*r/rc) + 1.0d0)
               end if
       end function
-      
+
       function cutoff_fxn_prime(r, rc)
               double precision:: r, rc, cutoff_fxn_prime, pi
               if (r > rc) then
@@ -248,7 +248,7 @@
                        / rc
               end if
       end function
-      
+
       function dRij_dRml(i, j, Ri, Rj, m, l)
               integer i, j, m, l
               double precision, dimension(3):: Ri, Rj, Rij_vector
@@ -265,16 +265,16 @@
                       dRij_dRml = 0.0d0
               end if
       end function
-      
+
       end subroutine calculate_g2_prime
-      
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
- 
+
       subroutine calculate_g4_prime(neighborindices, neighbornumbers, &
       neighborpositions, g_numbers, g_gamma, g_zeta, g_eta, rc, &
       cutofffn, i, ri, m, l, num_neighbors, ridge)
-               
+
               implicit none
               integer, dimension(num_neighbors):: neighborindices
               integer, dimension(num_neighbors):: neighbornumbers
@@ -414,7 +414,7 @@
                       cutoff_fxn = 0.5d0 * (cos(pi*r/rc) + 1.0d0)
               end if
       end function
-      
+
       function cutoff_fxn_prime(r, rc)
               double precision:: r, rc, cutoff_fxn_prime, pi
               if (r > rc) then
@@ -425,7 +425,7 @@
                        / rc
               end if
       end function
-      
+
       function dRij_dRml(i, j, Ri, Rj, m, l)
               integer i, j, m, l
               double precision, dimension(3):: Ri, Rj, Rij_vector
@@ -442,7 +442,7 @@
                       dRij_dRml = 0.0d0
               end if
       end function
-      
+
       function dCos_ijk_dR_ml(i, j, k, ri, Rj, Rk, m, l)
       implicit none
       integer:: i, j, k, m, l
@@ -450,10 +450,10 @@
       double precision, dimension(3):: ri, Rj, Rk
       integer, dimension(3):: dRijdRml, dRikdRml
       double precision:: dRijdRml_, dRikdRml_
-      
+
       do xyz = 1, 3
             Rij_vector(xyz) = Rj(xyz) - ri(xyz)
-            Rik_vector(xyz) = Rk(xyz) - ri(xyz) 
+            Rik_vector(xyz) = Rk(xyz) - ri(xyz)
       end do
       Rij = sqrt(dot_product(Rij_vector, Rij_vector))
       Rik = sqrt(dot_product(Rik_vector, Rik_vector))
@@ -484,14 +484,14 @@
         dCos_ijk_dR_ml =  dCos_ijk_dR_ml - 1.0d0 / (Rij * Rik * Rik) * &
         dot_product(Rij_vector, Rik_vector) * dRikdRml_
       end if
-     
+
       end function
 
       function dRij_dRml_vector(i, j, m, l)
       implicit none
       integer:: i, j, m, l, c1
       integer, dimension(3):: dRij_dRml_vector
-      
+
       if ((m /= i) .AND. (m /= j)) then
           dRij_dRml_vector(1) = 0
           dRij_dRml_vector(2) = 0
@@ -504,21 +504,21 @@
       end if
 
       end function
-       
+
       function Kronecker(i, j)
       implicit none
       integer:: i, j
       integer:: Kronecker
-      
+
       if (i == j) then
         Kronecker = 1
       else
         Kronecker = 0
       end if
-    
+
       end function
 
       end subroutine calculate_g4_prime
-      
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

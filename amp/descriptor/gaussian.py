@@ -12,20 +12,19 @@ except ImportError:
 
 
 class Gaussian(object):
+    """Class that calculates Gaussian fingerprints (i.e., Behler-style).
 
-    """
-    Class that calculates Gaussian fingerprints (i.e., Behler-style).
-
-    :param cutoff: Cutoff function, typically from amp.descriptor.cutoffs.
-                   Can be also fed as a float representing the radius above
-                   which neighbor interactions are ignored; in this case
-                   a cosine cutoff function will be employed.
-                   Default is a 6.5-Angstrom cosine cutoff.
-    :type cutoff: object or float
-
-    :param Gs: Dictionary of symbols and lists of dictionaries for making
-               symmetry functions. Either auto-genetrated, or given in the
-               following form, for example:
+    Parameters
+    ----------
+    cutoff : object or float
+        Cutoff function, typically from amp.descriptor.cutoffs.  Can be also
+        fed as a float representing the radius above which neighbor
+        interactions are ignored; in this case a cosine cutoff function will be
+        employed.  Default is a 6.5-Angstrom cosine cutoff.
+    Gs : dict
+        Dictionary of symbols and lists of dictionaries for making symmetry
+        functions. Either auto-genetrated, or given in the following form, for
+        example:
 
                >>> Gs = {"O": [{"type":"G2", "element":"O", "eta":10.},
                ...             {"type":"G4", "elements":["O", "Au"],
@@ -34,30 +33,25 @@ class Gaussian(object):
                ...              {"type":"G4", "elements":["O", "Au"],
                ...               "eta":2., "gamma":1., "zeta":5.0}]}
 
-    :type Gs: dict
+    dblabel : str
+        Optional separate prefix/location for database files, including
+        fingerprints, fingerprint derivatives, and neighborlists. This file
+        location can be shared between calculator instances to avoid
+        re-calculating redundant information. If not supplied, just uses the
+        value from label.
+    elements : list
+        List of allowed elements present in the system. If not provided, will
+        be found automatically.
+    version : str
+        Version of fingerprints.
+    fortran : bool
+        If True, will use fortran modules, if False, will not.
+    mode : str
+        Can be either 'atom-centered' or 'image-centered'.
 
-    :param dblabel: Optional separate prefix/location for database files,
-                    including fingerprints, fingerprint derivatives, and
-                    neighborlists. This file location can be shared between
-                    calculator instances to avoid re-calculating redundant
-                    information. If not supplied, just uses the value from
-                    label.
-    :type dblabel: str
-
-    :param elements: List of allowed elements present in the system. If not
-                     provided, will be found automatically.
-    :type elements: list
-
-    :param version: Version of fingerprints.
-    :type version: str
-
-    :param fortran: If True, will use fortran modules, if False, will not.
-    :type fortran: bool
-
-    :param mode: Can be either 'atom-centered' or 'image-centered'.
-    :type mode: str
-
-    :raises: RuntimeError
+    Raises
+    ------
+        RuntimeError
     """
 
     def __init__(self, cutoff=Cosine(6.5), Gs=None, dblabel=None,
@@ -107,7 +101,8 @@ class Gaussian(object):
 
     def tostring(self):
         """Returns an evaluatable representation of the calculator that can
-        be used to restart the calculator."""
+        be used to restart the calculator.
+        """
         return self.parameters.tostring()
 
     def calculate_fingerprints(self, images, cores=1, fortran=None,
@@ -115,28 +110,24 @@ class Gaussian(object):
         """Calculates the fingerpints of the images, for the ones not already
         done.
 
-        :param images: List of ASE atoms objects with positions, symbols,
-                       energies, and forces in ASE format. This is the training
-                       set of data. This can also be the path to an ASE
-                       trajectory (.traj) or database (.db) file. Energies can
-                       be obtained from any reference, e.g. DFT calculations.
-        :type images: list or str
-
-        :param cores: Number of cores to parallelize over. If not specified,
-                      attempts to determine from environment.
-        :type cores: int
-
-        :param fortran: If True, allows for extrapolation, if False, does not
-                        allow.
-        :type fortran: bool
-
-        :param log: Write function at which to log data. Note this must be a
-                    callable function.
-        :type log: Logger object
-
-        :param calculate_derivatives: Decides whether or not fingerprintprimes
-                                      should also be calculated.
-        :type calculate_derivatives: bool
+        Parameters
+        ----------
+        images : list or str
+            List of ASE atoms objects with positions, symbols, energies, and
+            forces in ASE format. This is the training set of data. This can
+            also be the path to an ASE trajectory (.traj) or database (.db)
+            file. Energies can be obtained from any reference, e.g. DFT
+            calculations.
+        cores : int
+            Number of cores to parallelize over. If not specified, attempts to
+            determine from environment.
+        fortran : bool
+            If True, allows for extrapolation, if False, does not allow.
+        log : Logger object
+            Write function at which to log data. Note this must be a callable
+            function.
+        calculate_derivatives : bool
+            Decides whether or not fingerprintprimes should also be calculated.
         """
         if fortran is None:
             fortran = self.fortran
@@ -209,15 +200,16 @@ class Gaussian(object):
 
 # Neighborlist Calculator
 class NeighborlistCalculator:
-
     """For integration with .utilities.Data
-    For each image fed to calculate, a list of neighbors with offset
-    distances is returned.
 
-    :param cutoff: Radius above which neighbor interactions are ignored.
-    :type cutoff: float
+    For each image fed to calculate, a list of neighbors with offset distances
+    is returned.
+
+    Parameters
+    ----------
+    cutoff : float
+        Radius above which neighbor interactions are ignored.
     """
-
     def __init__(self, cutoff):
         self.globals = Parameters({'cutoff': cutoff})
         self.keyed = Parameters()
@@ -225,14 +217,16 @@ class NeighborlistCalculator:
 
     def calculate(self, image, key):
         """For integration with .utilities.Data
+
         For each image fed to calculate, a list of neighbors with offset
         distances is returned.
 
-        :param image: ASE atoms object.
-        :type image: object
-
-        :param key: key of the image after being hashed.
-        :type key: str
+        Parameters
+        ----------
+        image : object
+            ASE atoms object.
+        key : str
+            key of the image after being hashed.
         """
         cutoff = self.globals.cutoff
         n = NeighborList(cutoffs=[cutoff / 2.] * len(image),
@@ -244,15 +238,16 @@ class NeighborlistCalculator:
 
 
 class FingerprintCalculator:
-
     """For integration with .utilities.Data
 
-    :param neighborlist: List of neighbors.
-    :type neighborlist: list of str
-
-    :param Gs: Dictionary of symbols and lists of dictionaries for making
-               symmetry functions. Either auto-genetrated, or given in the
-               following form, for example:
+    Parameters
+    ----------
+    neighborlist : list of str
+        List of neighbors.
+    Gs : dict
+        Dictionary of symbols and lists of dictionaries for making symmetry
+        functions. Either auto-genetrated, or given in the following form, for
+        example:
 
                >>> Gs = {"O": [{"type":"G2", "element":"O", "eta":10.},
                ...             {"type":"G4", "elements":["O", "Au"],
@@ -261,15 +256,11 @@ class FingerprintCalculator:
                ...              {"type":"G4", "elements":["O", "Au"],
                ...               "eta":2., "gamma":1., "zeta":5.0}]}
 
-    :type Gs: dict
-
-    :param cutoff: Radius above which neighbor interactions are ignored.
-    :type cutoff: float
-
-    :param fortran: If True, will use fortran modules, if False, will not.
-    :type fortran: bool
+    cutoff : float
+        Radius above which neighbor interactions are ignored.
+    fortran : bool
+        If True, will use fortran modules, if False, will not.
     """
-
     def __init__(self, neighborlist, Gs, cutoff, fortran):
         self.globals = Parameters({'cutoff': cutoff,
                                    'Gs': Gs})
@@ -280,11 +271,12 @@ class FingerprintCalculator:
     def calculate(self, image, key):
         """Makes a list of fingerprints, one per atom, for the fed image.
 
-        :param image: ASE atoms object.
-        :type image: object
-
-        :param key: key of the image after being hashed.
-        :type key: str
+        Parameters
+        ----------
+        image : object
+            ASE atoms object.
+        key : str
+            key of the image after being hashed.
         """
         self.atoms = image
         nl = self.keyed.neighborlist[key]
@@ -306,26 +298,27 @@ class FingerprintCalculator:
 
     def get_fingerprint(self, index, symbol,
                         neighborsymbols, neighborpositions):
-        """
-        Returns the fingerprint of symmetry function values for atom
-        specified by its index and symbol. neighborsymbols and
-        neighborpositions are lists of neighbors' symbols and Cartesian
-        positions, respectively.
+        """Returns the fingerprint of symmetry function values for atom
+        specified by its index and symbol.
 
-        :param index: Index of the center atom.
-        :type index: int
+        neighborsymbols and neighborpositions are lists of neighbors' symbols
+        and Cartesian positions, respectively.
 
-        :param symbol: Symbol of the center atom.
-        :type symbol: str
+        Parameters
+        ----------
+        index : int
+            Index of the center atom.
+        symbol : str
+            Symbol of the center atom.
+        neighborsymbols : list of str
+            List of neighbors' symbols.
+        neighborpositions : list of list of float
+            List of Cartesian atomic positions.
 
-        :param neighborsymbols: List of neighbors' symbols.
-        :type neighborsymbols: list of str
-
-        :param neighborpositions: List of Cartesian atomic positions.
-        :type neighborpositions: list of list of float
-
-        :returns: list of float -- fingerprints for atom specified by its index
-                                    and symbol.
+        Returns
+        -------
+        symbol, fingerprint : list of float
+            fingerprints for atom specified by its index and symbol.
         """
         Ri = self.atoms[index].position
 
@@ -352,15 +345,16 @@ class FingerprintCalculator:
 
 
 class FingerprintPrimeCalculator:
-
     """For integration with .utilities.Data
 
-    :param neighborlist: List of neighbors.
-    :type neighborlist: list of str
-
-    :param Gs: Dictionary of symbols and lists of dictionaries for making
-               symmetry functions. Either auto-genetrated, or given in the
-               following form, for example:
+    Parameters
+    ----------
+    neighborlist : list of str
+        List of neighbors.
+    Gs : dict
+        Dictionary of symbols and lists of dictionaries for making symmetry
+        functions. Either auto-genetrated, or given in the following form, for
+        example:
 
                >>> Gs = {"O": [{"type":"G2", "element":"O", "eta":10.},
                ...             {"type":"G4", "elements":["O", "Au"],
@@ -369,13 +363,10 @@ class FingerprintPrimeCalculator:
                ...              {"type":"G4", "elements":["O", "Au"],
                ...               "eta":2., "gamma":1., "zeta":5.0}]}
 
-    :type Gs: dict
-
-    :param cutoff: Radius above which neighbor interactions are ignored.
-    :type cutoff: float
-
-    :param fortran: If True, will use fortran modules, if False, will not.
-    :type fortran: bool
+    cutoff : float
+        Radius above which neighbor interactions are ignored.
+    fortran : bool
+        If True, will use fortran modules, if False, will not.
     """
 
     def __init__(self, neighborlist, Gs, cutoff, fortran):
@@ -389,11 +380,12 @@ class FingerprintPrimeCalculator:
         """Makes a list of fingerprint derivatives, one per atom,
         for the fed image.
 
-        :param image: ASE atoms object.
-        :type image: object
-
-        :param key: key of the image after being hashed.
-        :type key: str
+        Parameters
+        ----------
+        image : object
+            ASE atoms object.
+        key : str
+            key of the image after being hashed.
         """
         self.atoms = image
         nl = self.keyed.neighborlist[key]
@@ -462,31 +454,34 @@ class FingerprintPrimeCalculator:
                              neighborsymbols,
                              neighborpositions,
                              m, l):
-        """
-        Returns the value of the derivative of G for atom with index and
+        """ Returns the value of the derivative of G for atom with index and
         symbol with respect to coordinate x_{l} of atom index m.
+
         neighborindices, neighborsymbols and neighborpositions are lists of
         neighbors' indices, symbols and Cartesian positions, respectively.
 
-        :param index: Index of the center atom.
-        :type index: int
-        :param symbol: Symbol of the center atom.
-        :type symbol: str
-        :param neighborindices: List of neighbors' indices.
-        :type neighborindices: list of int
-        :param neighborsymbols: List of neighbors' symbols.
-        :type neighborsymbols: list of str
-        :param neighborpositions: List of Cartesian atomic positions.
-        :type neighborpositions: list of list of float
-        :param m: Index of the pair atom.
-        :type m: int
-        :param l: Direction of the derivative; is an integer from 0 to 2.
-        :type l: int
+        Parameters
+        ----------
+        index : int
+            Index of the center atom.
+        symbol : str
+            Symbol of the center atom.
+        neighborindices : list of int
+            List of neighbors' indices.
+        neighborsymbols : list of str
+            List of neighbors' symbols.
+        neighborpositions : list of list of float
+            List of Cartesian atomic positions.
+        m : int
+            Index of the pair atom.
+        l : int
+            Direction of the derivative; is an integer from 0 to 2.
 
-        :returns: list of float -- the value of the derivative of the
-                                   fingerprints for atom with index and symbol
-                                   with respect to coordinate x_{l} of atom
-                                   index m.
+        Returns
+        -------
+        fingerprintprime : list of float
+            The value of the derivative of the fingerprints for atom with index
+            and symbol with respect to coordinate x_{l} of atom index m.
         """
 
         num_symmetries = len(self.globals.Gs[symbol])
@@ -535,35 +530,34 @@ class FingerprintPrimeCalculator:
 
 def calculate_G2(neighborsymbols,
                  neighborpositions, G_element, eta, cutoff, Ri, fortran):
-    """
-    Calculate G2 symmetry function. Ideally this will not be used but
-    will be a template for how to build the fortran version (and serves as
-    a slow backup if the fortran one goes uncompiled).
-    See Eq. 13a of the supplementary information of Khorshidi, Peterson,
-    CPC(2016).
+    """Calculate G2 symmetry function.
 
-    :param neighborsymbols: List of symbols of all neighbor atoms.
-    :type neighborsymbols: list of str
+    Ideally this will not be used but will be a template for how to build the
+    fortran version (and serves as a slow backup if the fortran one goes
+    uncompiled).  See Eq. 13a of the supplementary information of Khorshidi,
+    Peterson, CPC(2016).
 
-    :param neighborpositions: List of Cartesian atomic positions.
-    :type neighborpositions: list of list of float
+    Parameters
+    ----------
+    neighborsymbols : list of str
+        List of symbols of all neighbor atoms.
+    neighborpositions : list of list of float
+        List of Cartesian atomic positions.
+    G_element : dict
+        Symmetry functions of the center atom.
+    eta : float
+        Parameter of Gaussian symmetry functions.
+    cutoff : float
+        Radius above which neighbor interactions are ignored. #FIXME
+    Ri : int
+        Index of the center atom.
+    fortran : bool
+        If True, will use the fortran subroutines, else will not.
 
-    :param G_element: Symmetry functions of the center atom.
-    :type G_element: dict
-
-    :param eta: Parameter of Gaussian symmetry functions.
-    :type eta: float
-
-    :param cutoff: Radius above which neighbor interactions are ignored. #FIXME
-    :type cutoff: float
-
-    :param Ri: Index of the center atom.
-    :type Ri: int
-
-    :param fortran: If True, will use the fortran subroutines, else will not.
-    :type fortran: bool
-
-    :returns: float -- G2 fingerprint.
+    Returns
+    -------
+    ridge : float
+        G2 fingerprint.
     """
     if fortran:  # fortran version; faster
         G_number = [atomic_numbers[G_element]]
@@ -594,43 +588,45 @@ def calculate_G2(neighborsymbols,
                 Rij = np.linalg.norm(Rj - Ri)
                 ridge += (np.exp(-eta * (Rij ** 2.) / (Rc ** 2.)) *
                           cutoff_fxn(Rij))
-
     return ridge
 
 
 def calculate_G4(neighborsymbols, neighborpositions,
                  G_elements, gamma, zeta, eta, cutoff,
                  Ri, fortran):
+    """Calculate G4 symmetry function.
+
+    Ideally this will not be used but will be a template for how to build the
+    fortran version (and serves as a slow backup if the fortran one goes
+    uncompiled).  See Eq. 13c of the supplementary information of Khorshidi,
+    Peterson, CPC(2016).
+
+    Parameters
+    ----------
+    neighborsymbols : list of str
+        List of symbols of neighboring atoms.
+    neighborpositions : list of list of float
+        List of Cartesian atomic positions of neighboring atoms.
+    G_elements : dict
+        Symmetry functions of the center atom.
+    gamma : float
+        Parameter of Gaussian symmetry functions.
+    zeta : float
+        Parameter of Gaussian symmetry functions.
+    eta : float
+        Parameter of Gaussian symmetry functions.
+    cutoff : float #FIXME
+        Radius above which neighbor interactions are ignored.
+    Ri : int
+        Index of the center atom.
+    fortran : bool
+        If True, will use the fortran subroutines, else will not.
+
+    Returns
+    -------
+    ridge : float
+        G4 fingerprint.
     """
-    Calculate G4 symmetry function. Ideally this will not be used but
-    will be a template for how to build the fortran version (and serves as
-    a slow backup if the fortran one goes uncompiled).
-    See Eq. 13c of the supplementary information of Khorshidi, Peterson,
-    CPC(2016).
-
-    :param neighborsymbols: List of symbols of neighboring atoms.
-    :type neighborsymbols: list of str
-    :param neighborpositions: List of Cartesian atomic positions of neighboring
-                              atoms.
-    :type neighborpositions: list of list of float
-    :param G_elements: Symmetry functions of the center atom.
-    :type G_elements: dict
-    :param gamma: Parameter of Gaussian symmetry functions.
-    :type gamma: float
-    :param zeta: Parameter of Gaussian symmetry functions.
-    :type zeta: float
-    :param eta: Parameter of Gaussian symmetry functions.
-    :type eta: float
-    :param cutoff: Radius above which neighbor interactions are ignored.
-    :type cutoff: float #FIXME
-    :param Ri: Index of the center atom.
-    :type Ri: int
-    :param fortran: If True, will use the fortran subroutines, else will not.
-    :type fortran: bool
-
-    :returns: float -- G4 fingerprint.
-    """
-
     if fortran:  # fortran version; faster
         G_numbers = sorted([atomic_numbers[el] for el in G_elements])
         neighbornumbers = \
@@ -675,22 +671,25 @@ def calculate_G4(neighborsymbols, neighborpositions,
         ridge *= 2. ** (1. - zeta)
         return ridge
 
-
 def make_symmetry_functions(elements):
-    """
-    Makes symmetry functions as in Nano Letters function by Artrith.
-    Elements is a list of the elements, as in ["C", "O", "H", "Cu"].
-    G[0] = {"type":"G2", "element": "O", "eta": 0.0009}
-    G[40] = {"type":"G4", "elements": ["O", "Au"], "eta": 0.0001,
-    "gamma": 1.0, "zeta": 1.0}
+    """Makes symmetry functions as in Nano Letters function by Artrith.
+
+    Elements is a list of the elements, as in: ["C", "O", "H", "Cu"].  G[0]
+    = {"type":"G2", "element": "O", "eta": 0.0009} G[40] = {"type":"G4",
+    "elements": ["O", "Au"], "eta": 0.0001, "gamma": 1.0, "zeta": 1.0}
 
     If G (a list) is fed in, this will add to it and return an expanded
     version. If not, it will create a new one.
 
-    :param elements: List of symbols of all atoms.
-    :type elements: list of str
+    Parameters
+    ----------
+    elements : list of str
+        List of symbols of all atoms.
 
-    :returns: dict of lists -- symmetry functions if not given by the user.
+    Returns
+    -------
+    G : dict of lists
+        Symmetry functions if not given by the user.
     """
     G = {}
     for element0 in elements:
@@ -716,20 +715,25 @@ def make_symmetry_functions(elements):
                                        'eta': eta,
                                        'gamma': gamma,
                                        'zeta': zeta})
+
         G[element0] = _G
     return G
 
 
 def Kronecker(i, j):
-    """
-    Kronecker delta function.
+    """Kronecker delta function.
 
-    :param i: First index of Kronecker delta.
-    :type i: int
-    :param j: Second index of Kronecker delta.
-    :type j: int
+    Parameters
+    ----------
+    i : int
+        First index of Kronecker delta.
+    j : int
+        Second index of Kronecker delta.
 
-    :returns: int -- the value of the Kronecker delta.
+    Returns
+    -------
+    int
+        The value of the Kronecker delta.
     """
     if i == j:
         return 1
@@ -738,23 +742,28 @@ def Kronecker(i, j):
 
 
 def dRij_dRml_vector(i, j, m, l):
-    """
-    Returns the derivative of the position vector R_{ij} with respect to
+    """Returns the derivative of the position vector R_{ij} with respect to
     x_{l} of itomic index m.
+
     See Eq. 14d of the supplementary information of Khorshidi, Peterson,
     CPC(2016).
 
-    :param i: Index of the first atom.
-    :type i: int
-    :param j: Index of the second atom.
-    :type j: int
-    :param m: Index of the atom force is acting on.
-    :type m: int
-    :param l: Direction of force.
-    :type l: int
+    Parameters
+    ----------
+    i : int
+        Index of the first atom.
+    j : int
+        Index of the second atom.
+    m : int
+        Index of the atom force is acting on.
+    l : int
+        Direction of force.
 
-    :returns: list of float -- the derivative of the position vector R_{ij}
-                               with respect to x_{l} of atomic index m.
+    Returns
+    -------
+    list of float
+        The derivative of the position vector R_{ij} with respect to x_{l} of
+        atomic index m.
     """
     if (m != i) and (m != j):
         return [0, 0, 0]
@@ -768,27 +777,32 @@ def dRij_dRml_vector(i, j, m, l):
 
 
 def dRij_dRml(i, j, Ri, Rj, m, l):
-    """
-    Returns the derivative of the norm of position vector R_{ij} with
+    """Returns the derivative of the norm of position vector R_{ij} with
     respect to coordinate x_{l} of atomic index m.
+
     See Eq. 14c of the supplementary information of Khorshidi, Peterson,
     CPC(2016).
 
-    :param i: Index of the first atom.
-    :type i: int
-    :param j: Index of the second atom.
-    :type j: int
-    :param Ri: Position of the first atom.
-    :type Ri: float
-    :param Rj: Position of the second atom.
-    :type Rj: float
-    :param m: Index of the atom force is acting on.
-    :type m: int
-    :param l: Direction of force.
-    :type l: int
+    Parameters
+    ----------
+    i : int
+        Index of the first atom.
+    j : int
+        Index of the second atom.
+    Ri : float
+        Position of the first atom.
+    Rj : float
+        Position of the second atom.
+    m : int
+        Index of the atom force is acting on.
+    l : int
+        Direction of force.
 
-    :returns: list of float -- the derivative of the noRi of position vector
-                               R_{ij} with respect to x_{l} of atomic index m.
+    Returns
+    -------
+    dRij_dRml : list of float
+        The derivative of the noRi of position vector R_{ij} with respect to
+        x_{l} of atomic index m.
     """
     Rij = np.linalg.norm(Rj - Ri)
     if m == i and i != j:  # i != j is necessary for periodic systems
@@ -801,31 +815,35 @@ def dRij_dRml(i, j, Ri, Rj, m, l):
 
 
 def dCos_theta_ijk_dR_ml(i, j, k, Ri, Rj, Rk, m, l):
-    """
-    Returns the derivative of Cos(theta_{ijk}) with respect to
+    """Returns the derivative of Cos(theta_{ijk}) with respect to
     x_{l} of atomic index m.
+
     See Eq. 14f of the supplementary information of Khorshidi, Peterson,
     CPC(2016).
 
-    :param i: Index of the center atom.
-    :type i: int
-    :param j: Index of the first atom.
-    :type j: int
-    :param k: Index of the second atom.
-    :type k: int
-    :param Ri: Position of the center atom.
-    :type Ri: float
-    :param Rj: Position of the first atom.
-    :type Rj: float
-    :param Rk: Position of the second atom.
-    :type Rk: float
-    :param m: Index of the atom force is acting on.
-    :type m: int
-    :param l: Direction of force.
-    :type l: int
+    Parameters
+    ----------
+    i : int
+        Index of the center atom.
+    j : int
+        Index of the first atom.
+    k : int
+        Index of the second atom.
+    Ri : float
+        Position of the center atom.
+    Rj : float
+        Position of the first atom.
+    Rk : float
+        Position of the second atom.
+    m : int
+        Index of the atom force is acting on.
+    l : int
+        Direction of force.
 
-    :returns: float -- derivative of Cos(theta_{ijk}) with respect to x_{l}
-                       of atomic index m.
+    Returns
+    -------
+    dCos_theta_ijk_dR_ml : float
+        Derivative of Cos(theta_{ijk}) with respect to x_{l} of atomic index m.
     """
     Rij_vector = Rj - Ri
     Rij = np.linalg.norm(Rij_vector)
@@ -856,40 +874,43 @@ def dCos_theta_ijk_dR_ml(i, j, k, Ri, Rj, Rk, m, l):
 def calculate_G2_prime(neighborindices, neighborsymbols, neighborpositions,
                        G_element, eta, cutoff,
                        i, Ri, m, l, fortran):
-    """
-    Calculates coordinate derivative of G2 symmetry function for atom at
+    """Calculates coordinate derivative of G2 symmetry function for atom at
     index i and position Ri with respect to coordinate x_{l} of atom index
     m.
+
     See Eq. 13b of the supplementary information of Khorshidi, Peterson,
     CPC(2016).
 
-    :param neighborindices: List of int of neighboring atoms.
-    :type neighborindices: list of int
-    :param neighborsymbols: List of symbols of neighboring atoms.
-    :type neighborsymbols: list of str
-    :param neighborpositions: List of Cartesian atomic positions of neighboring
-                              atoms.
-    :type neighborpositions: list of list of float
-    :param G_element: Symmetry functions of the center atom.
-    :type G_element: dict
-    :param eta: Parameter of Behler symmetry functions.
-    :type eta: float
-    :param cutoff: Radius above which neighbor interactions are ignored.
-    :type cutoff: float #FIXME
-    :param i: Index of the center atom.
-    :type i: int
-    :param Ri: Position of the center atom.
-    :type Ri: float
-    :param m: Index of the atom force is acting on.
-    :type m: int
-    :param l: Direction of force.
-    :type l: int
-    :param fortran: If True, will use the fortran subroutines, else will not.
-    :type fortran: bool
+    Parameters
+    ---------
+    neighborindices : list of int
+        List of int of neighboring atoms.
+    neighborsymbols : list of str
+        List of symbols of neighboring atoms.
+    neighborpositions : list of list of float
+        List of Cartesian atomic positions of neighboring atoms.
+    G_element : dict
+        Symmetry functions of the center atom.
+    eta : float
+        Parameter of Behler symmetry functions.
+    cutoff : float #FIXME
+        Radius above which neighbor interactions are ignored.
+    i : int
+        Index of the center atom.
+    Ri : float
+        Position of the center atom.
+    m : int
+        Index of the atom force is acting on.
+    l : int
+        Direction of force.
+    fortran : bool
+        If True, will use the fortran subroutines, else will not.
 
-    :returns: float -- coordinate derivative of G2 symmetry function for atom
-                       at index a and position Ri with respect to coordinate
-                       x_{l} of atom index m.
+    Returns
+    -------
+    ridge : float
+        Coordinate derivative of G2 symmetry function for atom at index a and
+        position Ri with respect to coordinate x_{l} of atom index m.
     """
     if fortran:  # fortran version; faster
         G_number = [atomic_numbers[G_element]]
@@ -934,43 +955,46 @@ def calculate_G2_prime(neighborindices, neighborsymbols, neighborpositions,
 def calculate_G4_prime(neighborindices, neighborsymbols, neighborpositions,
                        G_elements, gamma, zeta, eta,
                        cutoff, i, Ri, m, l, fortran):
-    """
-    Calculates coordinate derivative of G4 symmetry function for atom at
+    """Calculates coordinate derivative of G4 symmetry function for atom at
     index i and position Ri with respect to coordinate x_{l} of atom index m.
+
     See Eq. 13d of the supplementary information of Khorshidi, Peterson,
     CPC(2016).
 
-    :param neighborindices: List of int of neighboring atoms.
-    :type neighborindices: list of int
-    :param neighborsymbols: List of symbols of neighboring atoms.
-    :type neighborsymbols: list of str
-    :param neighborpositions: List of Cartesian atomic positions of neighboring
-                              atoms.
-    :type neighborpositions: list of list of float
-    :param G_elements: Symmetry functions of the center atom.
-    :type G_elements: dict
-    :param gamma: Parameter of Behler symmetry functions.
-    :type gamma: float
-    :param zeta: Parameter of Behler symmetry functions.
-    :type zeta: float
-    :param eta: Parameter of Behler symmetry functions.
-    :type eta: float
-    :param cutoff: Radius above which neighbor interactions are ignored.
-    :type cutoff: float #FIXME
-    :param i: Index of the center atom.
-    :type i: int
-    :param Ri: Position of the center atom.
-    :type Ri: float
-    :param m: Index of the atom force is acting on.
-    :type m: int
-    :param l: Direction of force.
-    :type l: int
-    :param fortran: If True, will use the fortran subroutines, else will not.
-    :type fortran: bool
+    Parameters
+    ----------
+    neighborindices : list of int
+        List of int of neighboring atoms.
+    neighborsymbols : list of str
+        List of symbols of neighboring atoms.
+    neighborpositions : list of list of float
+        List of Cartesian atomic positions of neighboring atoms.
+    G_elements : dict
+        Symmetry functions of the center atom.
+    gamma : float
+        Parameter of Behler symmetry functions.
+    zeta : float
+        Parameter of Behler symmetry functions.
+    eta : float
+        Parameter of Behler symmetry functions.
+    cutoff : float #FIXME
+        Radius above which neighbor interactions are ignored.
+    i : int
+        Index of the center atom.
+    Ri : float
+        Position of the center atom.
+    m : int
+        Index of the atom force is acting on.
+    l : int
+        Direction of force.
+    fortran : bool
+        If True, will use the fortran subroutines, else will not.
 
-    :returns: float -- coordinate derivative of G4 symmetry function for atom
-                       at index i and position Ri with respect to coordinate
-                       x_{l} of atom index m.
+    Returns
+    -------
+    ridge : float
+        Coordinate derivative of G4 symmetry function for atom at index i and
+        position Ri with respect to coordinate x_{l} of atom index m.
     """
     if fortran:  # fortran version; faster
         G_numbers = sorted([atomic_numbers[el] for el in G_elements])
@@ -1057,12 +1081,12 @@ def calculate_G4_prime(neighborindices, neighborsymbols, neighborpositions,
 
     return ridge
 
-
 if __name__ == "__main__":
     """Directly calling this module; apparently from another node.
+
     Calls should come as
 
-    python -m amp.descriptor.gaussian id hostname:port
+        python -m amp.descriptor.gaussian id hostname:port
 
     This session will then start a zmq session with that socket, labeling
     itself with id. Instructions on what to do will come from the socket.

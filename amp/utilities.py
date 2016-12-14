@@ -20,8 +20,10 @@ from ase.db import connect
 # Parallel processing ########################################################
 
 def assign_cores(cores, log=None):
-    """Tries to guess cores from environment. If fed a log object, will write
-    its progress."""
+    """Tries to guess cores from environment.
+
+    If fed a log object, will write its progress.
+    """
     log = Logger(None) if log is None else log
 
     def fail(q):
@@ -85,6 +87,7 @@ def assign_cores(cores, log=None):
 class MessageDictionary:
     """Standard container for all messages (typically requests, via
     zmq.context.socket.send_pyobj) sent from the workers to the master.
+
     This returns a simple dictionary. This is roughly email format.
     Initialize with process id (e.g., 'from'). Call with subject and data
     (body).
@@ -102,9 +105,12 @@ class MessageDictionary:
 
 def make_sublists(masterlist, n):
     """Randomly divides the masterlist into n sublists of roughly
-    equal size. The intended use is to divide a keylist and assign
+    equal size.
+
+    The intended use is to divide a keylist and assign
     keys to each task in parallel processing. This also destroys
-    the masterlist (to save some memory)."""
+    the masterlist (to save some memory).
+    """
     np.random.shuffle(masterlist)
     N = len(masterlist)
     sublist_lengths = [
@@ -117,6 +123,7 @@ def make_sublists(masterlist, n):
 
 def setup_parallel(cores, workercommand, log):
     """Starts the worker processes and the master to control them.
+
     This makes an SSH connection to each node (including the one the master
     process runs on), then creates the specified number of processes on each
     node through its SSH connection. Then sets up ZMQ for efficienty
@@ -131,7 +138,8 @@ def setup_parallel(cores, workercommand, log):
     assigned to each process and <serversocket> is the address of the
     server, like 'node321:34292'.
 
-    Returns:
+    Returns
+    -------
         the server (a ZMQ socket)
 
         the ssh connections (pxssh instances; if these objects are destroyed
@@ -205,19 +213,20 @@ def start_workers(process_ids, workerhostname, workercommand, log):
 
 class FileDatabase:
     """Using a database file, such as shelve or sqlitedict, that can handle
-    multiple processes writing to the file is hard. Therefore, we take the
-    stupid approach of having each database entry be a separate file. This
-    class behaves essentially like shelve, but saves each dictionary entry
-    as a plain pickle file within the directory, with the filename
-    corresponding to the dictionary key (which must be a string).
+    multiple processes writing to the file is hard.
 
-    Like shelve, this also keeps an internal (memory dictionary)
-    representation of the variables that have been accessed.
+    Therefore, we take the stupid approach of having each database entry be
+    a separate file. This class behaves essentially like shelve, but saves each
+    dictionary entry as a plain pickle file within the directory, with the
+    filename corresponding to the dictionary key (which must be a string).
 
-    Also includes an archive feature, where files are instead added to a
-    file called 'archive.tar.gz' to save disk space. If an entry exists in
-    both the loose and archive formats, the loose is taken to be the new
-    (correct) value.
+    Like shelve, this also keeps an internal (memory dictionary) representation
+    of the variables that have been accessed.
+
+    Also includes an archive feature, where files are instead added to a file
+    called 'archive.tar.gz' to save disk space. If an entry exists in both the
+    loose and archive formats, the loose is taken to be the new (correct)
+    value.
     """
 
     def __init__(self, filename):
@@ -236,16 +245,19 @@ class FileDatabase:
     @classmethod
     def open(Cls, filename, flag=None):
         """Open present for compatibility with shelve. flag is ignored; this
-        format is always capable of both reading and writing."""
+        format is always capable of both reading and writing.
+        """
         return Cls(filename=filename)
 
     def close(self):
-        """Only present for compatibility with shelve."""
+        """Only present for compatibility with shelve.
+        """
         return
 
     def keys(self):
         """Return list of keys, both of in-memory and out-of-memory
-        items."""
+        items.
+        """
         keys = os.listdir(self.loosepath)
         if os.path.exists(self.tarpath):
             with tarfile.open(self.tarpath) as tf:
@@ -284,9 +296,10 @@ class FileDatabase:
 
     def archive(self):
         """Cleans up to save disk space and reduce huge number of files.
-        That is, puts all files into an archive.
-        Compresses all files in <path>/loose and places them in
-        <path>/archive.tar.gz.  If archive exists, appends/modifies.
+
+        That is, puts all files into an archive.  Compresses all files in
+        <path>/loose and places them in <path>/archive.tar.gz.  If archive
+        exists, appends/modifies.
         """
         if os.path.exists(self.tarpath):
             with tarfile.open(self.tarpath) as tf:
@@ -305,18 +318,20 @@ class FileDatabase:
 
 
 class Data:
-
-    """
-    Serves as a container (dictionary-like) for (key, value) pairs that
+    """Serves as a container (dictionary-like) for (key, value) pairs that
     also serves to calculate them.
-    Works by default with python's shelve module, but something that is
-    built to share the same commands as shelve will work fine; just specify
-    this in dbinstance.
+
+    Works by default with python's shelve module, but something that is built
+    to share the same commands as shelve will work fine; just specify this in
+    dbinstance.
+
     Designed to hold things like neighborlists, which have a hash, value
     format.
+
     This will work like a dictionary in that items can be accessed with
-    data[key], but other advanced dictionary functions should be accessed
-    with through the .d attribute:
+    data[key], but other advanced dictionary functions should be accessed with
+    through the .d attribute:
+
     >>> data = Data(...)
     >>> data.open()
     >>> keys = data.d.keys()
@@ -331,8 +346,11 @@ class Data:
 
     def calculate_items(self, images, cores=1, log=None):
         """Calculates the data value with 'calculator' for the specified
-        images. images is a dictionary, and the same keys will be used for
-        the current database."""
+        images.
+
+        images is a dictionary, and the same keys will be used for the current
+        database.
+        """
         if log is None:
             log = Logger(None)
         if self.d is not None:
@@ -412,13 +430,15 @@ class Data:
         return self.d[key]
 
     def close(self):
-        """Safely close the database."""
+        """Safely close the database.
+        """
         if self.d:
             self.d.close()
         self.d = None
 
     def open(self, mode='r'):
-        """Open the database connection with mode specified."""
+        """Open the database connection with mode specified.
+        """
         if self.d is None:
             self.d = self.db.open(self.filename, mode)
 
@@ -428,12 +448,13 @@ class Data:
 
 class Logger:
 
-    """
-    Logger that can also deliver timing information.
+    """Logger that can also deliver timing information.
 
-    :param file: File object or path to the file to write to.
-                     Or set to None for a logger that does nothing.
-    :type file: str
+    Parameters
+    ----------
+    file : str
+        File object or path to the file to write to.  Or set to None for
+        a logger that does nothing.
     """
 
     def __init__(self, file):
@@ -447,11 +468,12 @@ class Logger:
         self.tics = {}
 
     def tic(self, label=None):
-        """
-        Start a timer.
+        """Start a timer.
 
-        :param label: Label for managing multiple timers.
-        :type label: str
+        Parameters
+        ----------
+        label : str
+            Label for managing multiple timers.
         """
         if self.file is None:
             return
@@ -461,18 +483,18 @@ class Logger:
             self._tic = time.time()
 
     def __call__(self, message, toc=None, tic=False):
-        """
-        Writes message to the log file.
+        """Writes message to the log file.
 
-        :param message: Message to be written.
-        :type message: str
-        :param toc: If toc=True or toc=label, it will append timing information
-                    in minutes to the timer.
-        :type toc: bool or str
-        :param tic: If tic=True or tic=label, will start the generic timer
-                    or a timer associated with label. Equivalent to
-                    self.tic(label).
-        :type tic: bool or str
+        Parameters
+        ---------
+        message : str
+            Message to be written.
+        toc : bool or str
+            If toc=True or toc=label, it will append timing information in
+            minutes to the timer.
+        tic : bool or str
+            If tic=True or tic=label, will start the generic timer or a timer
+            associated with label. Equivalent to self.tic(label).
         """
         if self.file is None:
             return
@@ -496,15 +518,18 @@ class Logger:
 
 
 def make_filename(label, base_filename):
-    """
-    Creates a filename from the label and the base_filename which should be
-    a string. Returns None if label is None; that is, it only saves output
-    if a label is specified.
+    """Creates a filename from the label and the base_filename which should be
+    a string.
 
-    :param label: Prefix.
-    :type label: str
-    :param base_filename: Basic name of the file.
-    :type base_filename: str
+    Returns None if label is None; that is, it only saves output if a label is
+    specified.
+
+    Parameters
+    ----------
+    label : str
+        Prefix.
+    base_filename : str
+        Basic name of the file.
     """
 
     if label is None:
@@ -520,16 +545,19 @@ def make_filename(label, base_filename):
 # Images and hasing ##########################################################
 
 def hash_image(atoms):
-    """
-    Creates a unique signature for a particular ASE atoms object.
-    This is used to check whether an image has been seen before.
-    This is just an md5 hash of a string representation of the atoms
-    object.
+    """Creates a unique signature for a particular ASE atoms object.
 
-    :param atoms: ASE atoms object.
-    :type atoms: ASE dict
+    This is used to check whether an image has been seen before. This is just
+    an md5 hash of a string representation of the atoms object.
 
-    :returns: Hash key of 'atoms'.
+    Parameters
+    ----------
+    atoms : ASE dict
+        ASE atoms object.
+
+    Returns
+    -------
+        Hash key of 'atoms'.
     """
     string = str(atoms.pbc)
     for number in atoms.cell.flatten():
@@ -544,14 +572,14 @@ def hash_image(atoms):
 
 
 def hash_images(images, log=None, ordered=False):
-    """
-    Converts input images -- which may be a list, a trajectory file, or a
-    database -- into a dictionary indexed by their hashes. Returns this
-    dictionary. If ordered is True, returns an OrderedDict. When duplicate
-    images are encountered (based on encountering an identical hash), a
-    warning is written to the logfile. The number of duplicates of each
-    image can be accessed by examinging dict_images.metadata['duplicates'],
-    where dict_images is the returned dictionary.
+    """ Converts input images -- which may be a list, a trajectory file, or
+    a database -- into a dictionary indexed by their hashes.
+
+    Returns this dictionary. If ordered is True, returns an OrderedDict. When
+    duplicate images are encountered (based on encountering an identical hash),
+    a warning is written to the logfile. The number of duplicates of each image
+    can be accessed by examinging dict_images.metadata['duplicates'], where
+    dict_images is the returned dictionary.
     """
     if log is None:
         log = Logger(None)
@@ -596,18 +624,20 @@ def hash_images(images, log=None, ordered=False):
 
 
 def randomize_images(images, fraction=0.8):
-    """
-    Randomly assigns 'fraction' of the images to a training set and
-    (1 - 'fraction') to a test set. Returns two lists of ASE images.
+    """Randomly assigns 'fraction' of the images to a training set and (1
+    - 'fraction') to a test set. Returns two lists of ASE images.
 
-    :param images: List of ASE atoms objects in ASE format. This can also be
-                   the path to an ASE trajectory (.traj) or database (.db)
-                   file.
-    :type images: list or str
-    :param fraction: Portion of train_images to all images.
-    :type fraction: float
+    Parameters
+    ----------
+    images : list or str
+        List of ASE atoms objects in ASE format. This can also be the path to
+        an ASE trajectory (.traj) or database (.db) file.
+    fraction : float
+        Portion of train_images to all images.
 
-    :returns: Lists of train and test images.
+    Returns
+    -------
+        Lists of train and test images.
     """
     file_opened = False
     if type(images) == str:
@@ -639,40 +669,43 @@ def randomize_images(images, fraction=0.8):
 
 
 class FingerprintsError(Exception):
-
-    """ Error in case functional form of fingerprints has changed."""
+    """ Error in case functional form of fingerprints has changed.
+    """
     pass
 
 
 class ConvergenceOccurred(Exception):
-
-    """ Kludge to decide when scipy's optimizers are complete."""
+    """ Kludge to decide when scipy's optimizers are complete.
+    """
     pass
 
 
 class TrainingConvergenceError(Exception):
-
-    """Error to be raised if training does not converge."""
+    """Error to be raised if training does not converge.
+    """
     pass
 
 
 class ExtrapolateError(Exception):
-
-    """Error class in the case of extrapolation."""
+    """Error class in the case of extrapolation.
+    """
     pass
 
 
 class UntrainedError(Exception):
-
-    """Error class in the case of unsuccessful training."""
+    """Error class in the case of unsuccessful training.
+    """
     pass
 
 
 # Miscellaneous ##############################################################
 
 def string2dict(text):
-    """Converts a string into a dictionary. Basically just calls `eval` on
-    it, but supplies words like OrderedDict and matrix."""
+    """Converts a string into a dictionary.
+
+    Basically just calls `eval` on it, but supplies words like OrderedDict and
+    matrix.
+    """
     try:
         dictionary = eval(text)
     except NameError:
@@ -684,7 +717,9 @@ def string2dict(text):
 
 def now(with_utc=False):
     """
-    :returns: String of current time.'
+    Returns
+    -------
+        String of current time.
     """
     local = datetime.now().isoformat().split('.')[0]
     utc = datetime.utcnow().isoformat().split('.')[0]
@@ -708,7 +743,8 @@ o      o   o       o   o
 
 def importer(name):
     """Handles strange import cases, like pxssh which might show
-    up in eithr the package pexpect or pxssh."""
+    up in eithr the package pexpect or pxssh.
+    """
 
     if name == 'pxssh':
         try:
@@ -843,7 +879,8 @@ class Annealer(object):
         return '%4i:%02i:%02i' % (h, m, s)
 
     def save_state(self, fname=None):
-        """Saves state"""
+        """Saves state
+        """
         if not fname:
             date = datetime.datetime.now().isoformat().split(".")[0]
             fname = date + "_loss_" + str(self.get_loss()) + ".state"
@@ -852,7 +889,8 @@ class Annealer(object):
             pickle.dump(self.state, fh)
 
     def move(self, state):
-        """Create a state change"""
+        """Create a state change
+        """
         move_step = np.random.rand(len(state)) * 2. - 1.
         move_step *= 0.0005
         for _ in range(len(state)):
@@ -860,7 +898,8 @@ class Annealer(object):
         return state
 
     def get_loss(self, state):
-        """Calculate state's loss"""
+        """Calculate state's loss
+        """
         lossfxn = \
             self.calc.model.lossfunction.get_loss(np.array(state),
                                                   lossprime=False,)['loss']
@@ -879,8 +918,8 @@ class Annealer(object):
         self.steps = int(schedule['steps'])
 
     def copy_state(self, state):
-        """Returns an exact copy of the provided state
-        Implemented according to self.copy_strategy, one of
+        """Returns an exact copy of the provided state Implemented according to
+        self.copy_strategy, one of
 
         * deepcopy : use copy.deepcopy (slow but reliable)
         * slice: use list slices (faster but only works if state is list-like)
@@ -894,23 +933,22 @@ class Annealer(object):
             return state.copy()
 
     def update(self, step, T, L, acceptance, improvement):
-        """Prints the current temperature, loss, acceptance rate,
-        improvement rate, elapsed time, and remaining time.
+        """Prints the current temperature, loss, acceptance rate, improvement
+        rate, elapsed time, and remaining time.
 
         The acceptance rate indicates the percentage of moves since the last
         update that were accepted by the Metropolis algorithm.  It includes
-        moves that decreased the loss, moves that left the loss
-        unchanged, and moves that increased the loss yet were reached by
-        thermal excitation.
+        moves that decreased the loss, moves that left the loss unchanged, and
+        moves that increased the loss yet were reached by thermal excitation.
 
-        The improvement rate indicates the percentage of moves since the
-        last update that strictly decreased the loss.  At high
-        temperatures it will include both moves that improved the overall
-        state and moves that simply undid previously accepted moves that
-        increased the loss by thermal excititation.  At low temperatures
-        it will tend toward zero as the moves that can decrease the loss
-        are exhausted and moves that would increase the loss are no longer
-        thermally accessible."""
+        The improvement rate indicates the percentage of moves since the last
+        update that strictly decreased the loss.  At high temperatures it will
+        include both moves that improved the overall state and moves that
+        simply undid previously accepted moves that increased the loss by
+        thermal excititation.  At low temperatures it will tend toward zero as
+        the moves that can decrease the loss are exhausted and moves that would
+        increase the loss are no longer thermally accessible.
+        """
 
         elapsed = time.time() - self.start
         if step == 0:
@@ -935,9 +973,11 @@ class Annealer(object):
         """Minimizes the loss of a system by simulated annealing.
 
         Parameters
+        ---------
         state : an initial arrangement of the system
 
         Returns
+        -------
         (state, loss): the best state and loss found.
         """
         step = 0
@@ -999,19 +1039,21 @@ class Annealer(object):
         return bestState, bestLoss
 
     def auto(self, minutes, steps=2000):
-        """Minimizes the loss of a system by simulated annealing with
-        automatic selection of the temperature schedule.
+        """Minimizes the loss of a system by simulated annealing with automatic
+        selection of the temperature schedule.
 
         Keyword arguments:
         state -- an initial arrangement of the system
         minutes -- time to spend annealing (after exploring temperatures)
         steps -- number of steps to spend on each stage of exploration
 
-        Returns the best state and loss found."""
+        Returns the best state and loss found.
+        """
 
         def run(T, steps):
             """Anneals a system at constant temperature and returns the state,
-            loss, rate of acceptance, and rate of improvement."""
+            loss, rate of acceptance, and rate of improvement.
+            """
             L = self.get_loss()
             prevState = self.copy_state(self.state)
             prevLoss = L
@@ -1079,5 +1121,6 @@ class Annealer(object):
 
 class MetaDict(dict):
     """Dictionary that can also store metadata. Useful for images dictionary
-    so that images can still be iterated by keys."""
+    so that images can still be iterated by keys.
+    """
     metadata = {}

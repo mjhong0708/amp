@@ -10,35 +10,34 @@ NeighborList = importer('NeighborList')
 
 class AtomCenteredExample(object):
 
-    """
-    Class that calculates fingerprints. This is an example class that
-    doesn't do much; it just shows the code structure. If making your own
-    module, you can copy and modify this one.
+    """Class that calculates fingerprints.
 
-    :param cutoff: Cutoff function. Can be also fed as a float representing the
-                   radius above which neighbor interactions are ignored.
-                   Default is 6.5 Angstroms.
-    :type cutoff: object or float
+    This is an example class that doesn't do much; it just shows the code
+    structure. If making your own module, you can copy and modify this one.
 
-    :param anotherparameter: Just an example.
-    :type anotherparameter: float
+    Parameters
+    ----------
+    cutoff : object or float
+        Cutoff function. Can be also fed as a float representing the radius
+        above which neighbor interactions are ignored.  Default is 6.5
+        Angstroms.
+    anotherparameter : float
+        Just an example.
+    dblabel : str
+        Optional separate prefix/location for database files, including
+        fingerprints, fingerprint derivatives, and neighborlists. This file
+        location can be shared between calculator instances to avoid
+        re-calculating redundant information. If not supplied, just uses the
+        value from label.
+    elements : list
+        List of allowed elements present in the system. If not provided, will
+        be found automatically.
+    version : str
+        Version of fingerprints.
 
-    :param dblabel: Optional separate prefix/location for database files,
-                    including fingerprints, fingerprint derivatives, and
-                    neighborlists. This file location can be shared between
-                    calculator instances to avoid re-calculating redundant
-                    information. If not supplied, just uses the value from
-                    label.
-    :type dblabel: str
-
-    :param elements: List of allowed elements present in the system. If not
-                     provided, will be found automatically.
-    :type elements: list
-
-    :param version: Version of fingerprints.
-    :type version: str
-
-    :raises: RuntimeError, TypeError
+    Raises
+    ------
+        RuntimeError, TypeError
     """
 
     def __init__(self, cutoff=Cosine(6.5), anotherparameter=12.2, dblabel=None,
@@ -162,7 +161,6 @@ class NeighborlistCalculator:
 
 
 class FingerprintCalculator:
-
     """For integration with .utilities.Data"""
 
     def __init__(self, neighborlist, anotherparamter, cutoff, cutofffn):
@@ -191,25 +189,30 @@ class FingerprintCalculator:
         return fingerprints
 
     def get_fingerprint(self, index, symbol, n_symbols, Rs):
-        """
-        Returns the fingerprint of symmetry function values for atom
-        specified by its index and symbol. n_symbols and Rs are lists of
-        neighbors' symbols and Cartesian positions, respectively.
+        """ Returns the fingerprint of symmetry function values for atom
+        specified by its index and symbol.
+
+        n_symbols and Rs are lists of neighbors' symbols and Cartesian
+        positions, respectively.
 
         This function doesn't actually do anything but sleep and return
         a vector of ones.
 
-        :param index: Index of the center atom.
-        :type index: int
-        :param symbol: Symbol of the center atom.
-        :type symbol: str
-        :param n_symbols: List of neighbors' symbols.
-        :type n_symbols: list of str
-        :param Rs: List of Cartesian atomic positions.
-        :type Rs: list of list of float
+        Parameters
+        ----------
+        index : int
+            index: Index of the center atom.
+        symbol: str
+            Symbol of the center atom.
+        n_symbols: list of str
+            List of neighbors' symbols.
+        Rs: list of list of float
+            List of Cartesian atomic positions.
 
-        :returns: list of float -- fingerprints for atom specified by its index
-                                    and symbol.
+        Returns
+        -------
+        symbols, fingerprints : list of float
+            Fingerprints for atom specified by its index and symbol.
         """
         time.sleep(1.0)  # Pretend to do some work.
         fingerprint = [1., 1., 1., 1.]
