@@ -26,11 +26,12 @@ def dict2cutoff(dct):
 
 
 class Cosine(object):
-
     """Cosine functional form suggested by Behler.
 
-    :param Rc: Radius above which neighbor interactions are ignored.
-    :type Rc: float
+    Parameters
+    ---------
+    Rc : float
+        Radius above which neighbor interactions are ignored.
     """
 
     def __init__(self, Rc):
@@ -39,10 +40,15 @@ class Cosine(object):
 
     def __call__(self, Rij):
         """
-        :param Rij: Distance between pair atoms.
-        :type Rij: float
+        Parameters
+        ----------
+        Rij : float
+            Distance between pair atoms.
 
-        :returns: float -- the vaule of the cutoff function.
+        Returns
+        -------
+        float
+            The vaule of the cutoff function.
         """
         if Rij > self.Rc:
             return 0.
@@ -50,13 +56,17 @@ class Cosine(object):
             return 0.5 * (np.cos(np.pi * Rij / self.Rc) + 1.)
 
     def prime(self, Rij):
-        """
-        Derivative of the Cosine cutoff function.
+        """Derivative of the Cosine cutoff function.
 
-        :param Rij: Distance between pair atoms.
-        :type Rij: float
+        Parameters
+        ----------
+        Rij : float
+            Distance between pair atoms.
 
-        :returns: float -- the vaule of derivative of the cutoff function.
+        Returns
+        -------
+        float
+            The vaule of derivative of the cutoff function.
         """
         if Rij > self.Rc:
             return 0.
@@ -73,14 +83,14 @@ class Cosine(object):
 
 
 class Polynomial(object):
-
     """Polynomial functional form suggested by Khorshidi and Peterson.
 
-    :param gamma: The power of polynomial.
-    :type gamma: float
-
-    :param Rc: Radius above which neighbor interactions are ignored.
-    :type Rc: float
+    Parameters
+    ----------
+    gamma : float
+        The power of polynomial.
+    Rc : float
+        Radius above which neighbor interactions are ignored.
     """
 
     def __init__(self, Rc, gamma=4):
@@ -89,10 +99,15 @@ class Polynomial(object):
 
     def __call__(self, Rij):
         """
-        :param Rij: Distance between pair atoms.
-        :type Rij: float
+        Parameters
+        ----------
+        Rij : float
+            Distance between pair atoms.
 
-        :returns: float -- the vaule of the cutoff function.
+        Returns
+        -------
+        float
+            The vaule of the cutoff function.
         """
         if Rij > self.Rc:
             return 0.
@@ -102,15 +117,19 @@ class Polynomial(object):
             return value
 
     def prime(self, Rij):
-        """
-        Derivative of the Cosine cutoff function.
+        """Derivative of the Cosine cutoff function.
 
-        :param Rc: Radius above which neighbor interactions are ignored.
-        :type Rc: float
-        :param Rij: Distance between pair atoms.
-        :type Rij: float
+        Parameters
+        ----------
+        Rc : float
+            Radius above which neighbor interactions are ignored.
+        Rij : float
+            Distance between pair atoms.
 
-        :returns: float -- the vaule of derivative of the cutoff function.
+        Returns
+        -------
+        float
+            The vaule of derivative of the cutoff function.
         """
         if Rij > self.Rc:
             return 0.
