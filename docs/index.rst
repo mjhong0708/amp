@@ -37,6 +37,7 @@ You can read about Amp in the below paper; if you find Amp useful, we would appr
    moredescriptor.rst
    moremodel.rst
    tensorflow.rst
+   databases.rst
    develop.rst
 
 **Module autodocumentation**:

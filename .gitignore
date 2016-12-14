@@ -3,3 +3,4 @@
 *.mod
 *.o
 *.py~
+*.py.swp
