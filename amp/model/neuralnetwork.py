@@ -131,7 +131,7 @@ class NeuralNetwork(Model):
             trainingimages,
             descriptor,
             log,
-            cores,
+            parallel,
             only_setup=False,
             ):
         """Fit the model parameters such that the fingerprints can be used to
@@ -147,19 +147,19 @@ class NeuralNetwork(Model):
         log : Logger object
             Write function at which to log data. Note this must be a callable
             function.
-        cores : int
-            Number of cores to parallelize over. If not specified, attempts to
-            determine from environment.
+        parallel: dict
+            Parallel configuration dictionary. Takes the same form as in
+            amp.Amp.
         only_setup : bool
             only_setup is primarily for debugging.  It initializes all
             variables but skips the last line of starting the regressor.
         """
 
         # Set all parameters and report to logfile.
-        self.cores = cores
+        self._parallel = parallel
 
         if self.lossfunction is None:
-            self.lossfunction = LossFunction(cores=self.cores)
+            self.lossfunction = LossFunction(parallel=parallel)
         if self.regressor is None:
             self.regressor = Regressor()
 

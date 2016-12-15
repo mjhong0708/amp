@@ -56,7 +56,7 @@ if purpose == 'calculate_loss_function':
     dictionary = string2dict(lossfunctionstring)
     log(str(dictionary))
     LossFunction = importhelper(dictionary.pop('importname'))
-    lossfunction = LossFunction(cores=1,
+    lossfunction = LossFunction(parallel={'cores': 1},
                                 raise_ConvergenceOccurred=False,
                                 d=d, **dictionary)
     log('loss function set up.')
