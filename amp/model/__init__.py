@@ -245,7 +245,7 @@ class LossFunction:
     This version is pure python and thus will be slow compared to a
     fortran/parallel implementation.
 
-    If cores is None, it will pull it from the model itself. Only use
+    If parallel is None, it will pull it from the model itself. Only use
     this keyword to override the model's specification.
 
     Also has parallelization methods built in.
@@ -262,9 +262,9 @@ class LossFunction:
     convergence : dict
         Dictionary of keys and values defining convergence.  Keys are
         'energy_rmse', 'energy_maxresid', 'force_rmse', and 'force_maxresid'.
-    cores : int
-        Can specify cores to use for parallel training; if None, will determine
-        from environment
+    parallel : dict
+        Parallel configuration dictionary. Will pull from model itself if
+        not specified.
     overfit : float
         Multiplier of the weights norm penalty term in the loss function.
     raise_ConvergenceOccurred : bool
@@ -284,7 +284,7 @@ class LossFunction:
                           }
 
     def __init__(self, energy_coefficient=1.0, force_coefficient=0.04,
-                 convergence=None, cores=None, overfit=0.,
+                 convergence=None, parallel=None, overfit=0.,
                  raise_ConvergenceOccurred=True, log_losses=True, d=None):
         p = self.parameters = Parameters(
             {'importname': '.model.LossFunction'})
@@ -302,7 +302,7 @@ class LossFunction:
         self._step = 0
         self._initialized = False
         self._data_sent = False
-        self._cores = cores
+        self._parallel = parallel
 
     def attach_model(self, model, fingerprints=None,
                      fingerprintprimes=None, images=None):
@@ -339,8 +339,8 @@ class LossFunction:
         if self._initialized is True:
             return
 
-        if self._cores is None:
-            self._cores = self._model.cores
+        if self._parallel is None:
+            self._parallel = self._model._parallel
         log = self._model.log
 
         if self.fingerprints is None:
@@ -355,9 +355,9 @@ class LossFunction:
         if self.images is None:
             self.images = self._model.trainingparameters.trainingimages
 
-        if self._cores != 1:  # Initialize workers.
+        if self._parallel['cores'] != 1:  # Initialize workers.
             workercommand = 'python -m %s' % self.__module__
-            server, connections, n_pids = setup_parallel(self._cores,
+            server, connections, n_pids = setup_parallel(self._parallel,
                                                          workercommand, log)
             self._sessions = {'master': server,
                               'connections': connections,  # SSH's/nodes
@@ -505,7 +505,7 @@ class LossFunction:
 
         self._initialize()
 
-        if self._cores == 1:
+        if self._parallel['cores'] == 1:
             if self._model.fortran:
                 self._model.vector = parametervector
                 self._send_data_to_fortran()

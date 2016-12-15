@@ -17,7 +17,7 @@ except ImportError:
     from ase.version import version as aseversion
 
 from .utilities import (make_filename, hash_images, Logger, string2dict,
-                           logo, now, assign_cores, TrainingConvergenceError)
+                        logo, now, assign_cores, TrainingConvergenceError)
 
 import warnings
 try:
@@ -56,6 +56,9 @@ class Amp(Calculator, object):
     cores : int
         Can specify cores to use for parallel training; if None, will determine
         from environment
+    envcommand : string
+        For parallel processing across nodes, a command can be supplied
+        here to load the appropriate environment before starting workers.
     atoms : object
         ASE atoms objects with positions, symbols, energy, and forces in ASE
         format.
@@ -63,11 +66,13 @@ class Amp(Calculator, object):
     implemented_properties = ['energy', 'forces']
 
     def __init__(self, descriptor, model, label='amp', dblabel=None,
-                 cores=None, atoms=None):
+                 cores=None, envcommand=None, atoms=None):
 
         Calculator.__init__(self, label=label, atoms=atoms)
         # Note self.log is set and self._printheader is called by above
         # call when it runs self.set_label.
+
+        self._parallel = {'envcommand': envcommand}
 
         # Note the following are properties: these are setter functions.
         self.descriptor = descriptor
@@ -88,7 +93,7 @@ class Amp(Calculator, object):
             specified, tries to determine from environment, using
             amp.utilities.assign_cores.
         """
-        return self._cores
+        return self._parallel['cores']
 
     @cores.setter
     def cores(self, cores):
@@ -102,7 +107,7 @@ class Amp(Calculator, object):
             specified, tries to determine from environment, using
             amp.utilities.assign_cores.
         """
-        self._cores = assign_cores(cores, log=self.log)
+        self._parallel['cores'] = assign_cores(cores, log=self.log)
 
     @property
     def descriptor(self):
@@ -292,7 +297,7 @@ class Amp(Calculator, object):
         calculate_derivatives = train_forces
         self.descriptor.calculate_fingerprints(
                 images=images,
-                cores=self.cores,
+                parallel=self._parallel,
                 log=log,
                 calculate_derivatives=calculate_derivatives)
 
@@ -300,7 +305,7 @@ class Amp(Calculator, object):
         result = self.model.fit(trainingimages=images,
                                 descriptor=self.descriptor,
                                 log=log,
-                                cores=self.cores)
+                                parallel=self._parallel)
 
         if result is True:
             log('Amp successfully trained. Saving current parameters.')
@@ -313,8 +318,8 @@ class Amp(Calculator, object):
         log("This file can be opened with `calc = Amp.load('%s')`" %
             filename)
         if result is False:
-            raise TrainingConvergenceError('Amp did not converge upon ' \
-                                           'training. See log file for' \
+            raise TrainingConvergenceError('Amp did not converge upon '
+                                           'training. See log file for'
                                            ' more information.')
 
     def save(self, filename, overwrite=False):

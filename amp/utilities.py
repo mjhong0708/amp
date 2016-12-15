@@ -121,7 +121,7 @@ def make_sublists(masterlist, n):
     return sublists
 
 
-def setup_parallel(cores, workercommand, log):
+def setup_parallel(parallel, workercommand, log):
     """Starts the worker processes and the master to control them.
 
     This makes an SSH connection to each node (including the one the master
@@ -129,7 +129,7 @@ def setup_parallel(cores, workercommand, log):
     node through its SSH connection. Then sets up ZMQ for efficienty
     communication between the worker processes and the master process.
 
-    Uses the cores dictionary. log is an Amp logger.
+    Uses the parallel dictionary as defined in amp.Amp. log is an Amp logger.
     module is the name of the module to be called, which is usually
     given by self.calc.__module, etc.
     workercommand is stub of the command used to start the servers,
@@ -166,17 +166,20 @@ def setup_parallel(cores, workercommand, log):
     log(' Establishing worker sessions.')
     connections = []
     pid_count = 0
-    for workerhostname, nprocesses in cores.iteritems():
+    for workerhostname, nprocesses in parallel['cores'].iteritems():
         pids = range(pid_count, pid_count + nprocesses)
         pid_count += nprocesses
         connections.append(start_workers(pids,
                                          workerhostname,
-                                         workercommand, log))
+                                         workercommand,
+                                         log,
+                                         parallel['envcommand']))
 
     return server, connections, pid_count
 
 
-def start_workers(process_ids, workerhostname, workercommand, log):
+def start_workers(process_ids, workerhostname, workercommand, log,
+                  envcommand):
     """A function to start a new SSH session and establish processes on
     that session.
     """
@@ -186,6 +189,10 @@ def start_workers(process_ids, workerhostname, workercommand, log):
         pxssh = importer('pxssh')
         ssh = pxssh.pxssh()
         ssh.login(workerhostname, getuser())
+        if envcommand is not None:
+            log('Environment command: %s' % envcommand)
+            ssh.sendline(envcommand)
+            ssh.readline()
         for process_id in process_ids:
             ssh.sendline(workercommand % process_id)
             ssh.expect('<amp-connect>')
@@ -343,7 +350,7 @@ class Data:
         self.filename = filename
         self.d = None
 
-    def calculate_items(self, images, cores=1, log=None):
+    def calculate_items(self, images, parallel, log=None):
         """Calculates the data value with 'calculator' for the specified
         images.
 
@@ -365,7 +372,7 @@ class Data:
         log(' %i new calculations needed.' % len(calcs_needed))
         if len(calcs_needed) == 0:
             return
-        if cores == 1:
+        if parallel['cores'] == 1:
             d = self.db.open(self.filename, 'c')  # FIXME/ap Need a lock?
             for key in calcs_needed:
                 d[key] = self.calc.calculate(images[key], key)
@@ -373,8 +380,8 @@ class Data:
             log(' Calculated %i new images.' % len(calcs_needed))
         else:
             workercommand = 'python -m %s' % self.calc.__module__
-            server, connections, n_pids = setup_parallel(cores, workercommand,
-                                                         log)
+            server, connections, n_pids = setup_parallel(parallel,
+                                                         workercommand, log)
 
             globals = self.calc.globals
             keyed = self.calc.keyed

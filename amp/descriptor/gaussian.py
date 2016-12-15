@@ -107,10 +107,9 @@ class Gaussian(object):
         """Returns an evaluatable representation of the calculator that can
         be used to restart the calculator.
         """
-        np.set_printoptions(precision=30)
         return self.parameters.tostring()
 
-    def calculate_fingerprints(self, images, cores=1, fortran=None,
+    def calculate_fingerprints(self, images, parallel=None, fortran=None,
                                log=None, calculate_derivatives=False):
         """Calculates the fingerpints of the images, for the ones not already
         done.
@@ -123,9 +122,9 @@ class Gaussian(object):
             also be the path to an ASE trajectory (.traj) or database (.db)
             file. Energies can be obtained from any reference, e.g. DFT
             calculations.
-        cores : int
-            Number of cores to parallelize over. If not specified, attempts to
-            determine from environment.
+        parallel : dict
+            Configuration for parallelization. Should be in same form as in
+            amp.Amp.
         fortran : bool
             If True, allows for extrapolation, if False, does not allow.
         log : Logger object
@@ -167,7 +166,7 @@ class Gaussian(object):
                 Data(filename='%s-neighborlists' % self.dblabel,
                      calculator=NeighborlistCalculator(
                          cutoff=p.cutoff['kwargs']['Rc']))
-        self.neighborlist.calculate_items(images, cores=cores, log=log)
+        self.neighborlist.calculate_items(images, parallel=parallel, log=log)
         log('...neighborlists calculated.', toc='nl')
 
         log('Fingerprinting images...', tic='fp')
@@ -179,7 +178,7 @@ class Gaussian(object):
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
                                      calculator=calc)
-        self.fingerprints.calculate_items(images, cores=cores, log=log)
+        self.fingerprints.calculate_items(images, parallel=parallel, log=log)
         log('...fingerprints calculated.', toc='fp')
 
         if calculate_derivatives:
@@ -196,7 +195,7 @@ class Gaussian(object):
                          % self.dblabel,
                          calculator=calc)
             self.fingerprintprimes.calculate_items(
-                images, cores=cores, log=log)
+                images, parallel=parallel, log=log)
             log('...fingerprint derivatives calculated.', toc='derfp')
 
 
@@ -283,7 +282,6 @@ class FingerprintCalculator:
         key : str
             key of the image after being hashed.
         """
-        np.set_printoptions(precision=30)
         self.atoms = image
         nl = self.keyed.neighborlist[key]
         fingerprints = []
@@ -401,7 +399,6 @@ class FingerprintPrimeCalculator:
         key : str
             key of the image after being hashed.
         """
-        np.set_printoptions(precision=30)
         self.atoms = image
         nl = self.keyed.neighborlist[key]
         fingerprintprimes = {}
@@ -589,7 +586,6 @@ def calculate_G2(neighborsymbols,
     ridge : float
         G2 fingerprint.
     """
-    np.set_printoptions(precision=30)
     if fortran:  # fortran version; faster
         G_number = [atomic_numbers[G_element]]
         neighbornumbers = \
@@ -658,7 +654,6 @@ def calculate_G4(neighborsymbols, neighborpositions,
     ridge : float
         G4 fingerprint.
     """
-    np.set_printoptions(precision=30)
     if fortran:  # fortran version; faster
         G_numbers = sorted([atomic_numbers[el] for el in G_elements])
         neighbornumbers = \
@@ -936,7 +931,6 @@ def dRij_dRml(i, j, Ri, Rj, m, l):
         The derivative of the noRi of position vector R_{ij} with respect to
         x_{l} of atomic index m.
     """
-    np.set_printoptions(precision=30)
     Rij = np.linalg.norm(Rj - Ri)
     if m == i and i != j:  # i != j is necessary for periodic systems
         dRij_dRml = -(Rj[l] - Ri[l]) / Rij
@@ -978,7 +972,6 @@ def dCos_theta_ijk_dR_ml(i, j, k, Ri, Rj, Rk, m, l):
     dCos_theta_ijk_dR_ml : float
         Derivative of Cos(theta_{ijk}) with respect to x_{l} of atomic index m.
     """
-    np.set_printoptions(precision=30)
     Rij_vector = Rj - Ri
     Rij = np.linalg.norm(Rij_vector)
     Rik_vector = Rk - Ri
@@ -1046,7 +1039,6 @@ def calculate_G2_prime(neighborindices, neighborsymbols, neighborpositions,
         Coordinate derivative of G2 symmetry function for atom at index a and
         position Ri with respect to coordinate x_{l} of atom index m.
     """
-    np.set_printoptions(precision=30)
     if fortran:  # fortran version; faster
         G_number = [atomic_numbers[G_element]]
         neighbornumbers = \
@@ -1131,7 +1123,6 @@ def calculate_G4_prime(neighborindices, neighborsymbols, neighborpositions,
         Coordinate derivative of G4 symmetry function for atom at index i and
         position Ri with respect to coordinate x_{l} of atom index m.
     """
-    np.set_printoptions(precision=30)
     if fortran:  # fortran version; faster
         G_numbers = sorted([atomic_numbers[el] for el in G_elements])
         neighbornumbers = [atomic_numbers[symbol]
