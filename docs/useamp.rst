@@ -72,11 +72,11 @@ Parallel processing
 ----------------------------------
 
 Most tasks in Amp are "embarrassingly parallel" and thus you should see a performance boost by specifying more cores.
-Our standard parallel processing approach requires the modules pxssh (part of Pexpect, establish SSH connections) and ZMQ (to pass messages between processes).
+Our standard parallel processing approach requires the modules ZMQ (to pass messages between processes) and pxssh (to establish SSH connections across nodes, and is only needed if parallelizing on more than one node).
 The code will try to automatically guess the parallel configuration from the environment variables that your batching system produces, using the function `amp.utilities.assign_cores`.
 (We only use SLURM on your system, so we welcome patches to get this utility working on other systems!)
 If you want to override the automatic guess, use the `cores` keyword when initializing Amp.
-To specify serial operation, use `cores=1`.
+To specify serial operation, use `cores=1`; to specify (for example) 8 cores on only a single node, use `cores=8` or `cores={'localhost': 8}`.
 For parallel operation, cores should be a dictionary where the keys are the hostnames and the values are the number of processors (cores) available on that node; e.g.,
 
 .. code-block:: python
@@ -84,7 +84,22 @@ For parallel operation, cores should be a dictionary where the keys are the host
    cores = {'node241': 16,
             'node242': 16}
 
-For this to work, you need to be able to freely SSH between nodes on your system; this is true even if you are running within only a single node. Typically, this means that once you are logged in to your cluster you have public/private keys in use to ssh between nodes. If you can run `ssh localhost` without it asking you for a password, this is likely to work for you. This also assumes that your environment is identical each time you SSH into a node; that is, all the packages such as ASE, Amp, ZMQ, etc., are available in the same version. Generally, if you are setting your environment with a .bashrc or .modules file this will work; if you are setting your environment on-the-fly as you submit jobs then you are more likely to encounter problems.
+(One of the keys in the dictionary could also be `localhost`, as in the single-node example. Using `localhost` just prevents it from establishing an extra SSH connection.)
+
+For this to work on multiple nodes, you need to be able to freely SSH between nodes on your system.
+Typically, this means that once you are logged in to your cluster you have public/private keys in use to ssh between nodes.
+If you can run `ssh localhost` without it asking you for a password, this is likely to work for you.
+
+This also assumes that your environment is identical each time you SSH into a node; that is, all the packages such as ASE, Amp, ZMQ, etc., are available in the same version.
+Generally, if you are setting your environment with a .bashrc or .modules file this will work.
+If you need to set environment variable on the machine that is being SSH'd to, you can do so with the `envcommand` keyword, as in
+
+.. code-block:: python
+
+   envcommand = 'export PYTHONPATH=/path/to/amp:$PYTHONPATH'
+
+Ultimately, Amp stores these and passes them around in a configuration dictionary called `parallel`, so if you are calling descriptor or model functions directly you may need to construct this dictionary, which has the form `parallel={'cores': ..., 'envcommand': ...}`.
+
 
 ----------------------------------
 Advanced use
