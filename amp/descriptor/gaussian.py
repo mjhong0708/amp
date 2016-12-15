@@ -741,7 +741,6 @@ def calculate_G5(neighborsymbols, neighborpositions,
     ridge : float
         G5 fingerprint.
     """
-    np.set_printoptions(precision=30)
     if fortran:  # fortran version; faster
         G_numbers = sorted([atomic_numbers[el] for el in G_elements])
         neighbornumbers = \
@@ -1252,7 +1251,6 @@ def calculate_G5_prime(neighborindices, neighborsymbols, neighborpositions,
         Coordinate derivative of G5 symmetry function for atom at index i and
         position Ri with respect to coordinate x_{l} of atom index m.
     """
-    np.set_printoptions(precision=30)
     if fortran:  # fortran version; faster
         G_numbers = sorted([atomic_numbers[el] for el in G_elements])
         neighbornumbers = [atomic_numbers[symbol]

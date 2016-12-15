@@ -646,7 +646,6 @@ def randomize_images(images, fraction=0.8):
     train_images, test_images : list
         Lists of train and test images.
     """
-    np.set_printoptions(precision=30)
     file_opened = False
     if type(images) == str:
         extension = os.path.splitext(images)[1]
@@ -817,7 +816,6 @@ class Annealer(object):
 
     def __init__(self, calc, images,
                  Tmax=None, Tmin=None, steps=None, updates=None):
-        np.set_printoptions(precision=30)
         if Tmax is not None:
             self.Tmax = Tmax
         if Tmin is not None:

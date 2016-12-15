@@ -340,7 +340,6 @@ def plot_error(load,
         Whether to return a reference to the figures and their data or not.
     """
 
-    np.set_printoptions(precision=30)
     if plotfile is None:
         plotfile = make_filename(label, 'plot.pdf')
 
@@ -599,7 +598,6 @@ def plot_convergence(logfile, plotfile='convergence.pdf'):
         Name or path to the plot file.
     """
 
-    np.set_printoptions(precision=30)
     data = read_trainlog(logfile)
 
     # Find if multiple runs contained in data set.

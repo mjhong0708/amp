@@ -17,7 +17,6 @@ class FingerprintPlot:
         from matplotlib import pyplot
         from matplotlib.backends.backend_pdf import PdfPages
 
-        np.set_printoptions(precision=30)
 
         self.compile_fingerprints(images)
 
@@ -59,7 +58,6 @@ class FingerprintPlot:
         """Calculates or looks up fingerprints and compiles them, per
         element, for the images.
         """
-        np.set_printoptions(precision=30)
         data = self.data = {}
         images = hash_images(images)
         self._calc.descriptor.calculate_fingerprints(images)

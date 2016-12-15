@@ -50,7 +50,6 @@ class Cosine(object):
         float
             The vaule of the cutoff function.
         """
-        np.set_printoptions(precision=30)
         if Rij > self.Rc:
             return 0.
         else:
@@ -69,7 +68,6 @@ class Cosine(object):
         float
             The vaule of derivative of the cutoff function.
         """
-        np.set_printoptions(precision=30)
         if Rij > self.Rc:
             return 0.
         else:

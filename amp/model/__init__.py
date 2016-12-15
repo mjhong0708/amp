@@ -40,7 +40,6 @@ class Model(object):
     def tostring(self):
         """Returns an evaluatable representation of the calculator that can
         be used to re-establish the calculator."""
-        np.set_printoptions(precision=30)
         return self.parameters.tostring()
 
     def get_energy(self, fingerprints):
@@ -53,7 +52,6 @@ class Model(object):
             Dictionary with images hashs as keys and the corresponding
             fingerprints as values.
         """
-        np.set_printoptions(precision=30)
 
         if self.parameters.mode == 'image-centered':
             raise NotImplementedError('This needs to be coded.')
@@ -586,7 +584,6 @@ class LossFunction:
             If True, will calculate and return dloss_dparameters, else will
             only return zero for dloss_dparameters.
         """
-        np.set_printoptions(precision=30)
         self._model.vector = parametervector
         p = self.parameters
         energyloss = 0.
@@ -706,7 +703,6 @@ class LossFunction:
             Dictionary containing arguments of the method to be called on each
             worker process.
         """
-        np.set_printoptions(precision=30)
         # For each process
         finished = np.array([False] * n_pids)
         results = {'loss': 0.,
@@ -785,7 +781,6 @@ class LossFunction:
         force_maxresid : float
             Maximum force residual.
         """
-        np.set_printoptions(precision=30)
         p = self.parameters
         energy_rmse_converged = True
         log = self._model.log

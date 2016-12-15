@@ -416,7 +416,6 @@ class NeuralNetwork(Model):
             The value of the derivative of energy square error with respect to
             variables.
         """
-        np.set_printoptions(precision=30)
         p = self.parameters
         scaling = p.scalings[symbol]
         # self.W dictionary initiated.
@@ -477,7 +476,6 @@ class NeuralNetwork(Model):
             The value of the derivative of force square error with respect to
             variables.
         """
-        np.set_printoptions(precision=30)
         p = self.parameters
         scaling = p.scalings[nsymbol]
         activation = p.activation
@@ -580,7 +578,6 @@ def calculate_nodal_outputs(parameters, afp, symbol,):
         Outputs of neural network nodes
     """
 
-    np.set_printoptions(precision=30)
     _afp = np.array(afp).copy()
     hiddenlayers = parameters.hiddenlayers[symbol]
     weight = parameters.weights[symbol]
@@ -676,7 +673,6 @@ def calculate_dOutputs_dInputs(parameters, derafp, outputs, nsymbol,):
         Derivatives of outputs of neural network nodes w.r.t.  inputs.
     """
 
-    np.set_printoptions(precision=30)
     _derafp = np.array(derafp).copy()
     hiddenlayers = parameters.hiddenlayers[nsymbol]
     weight = parameters.weights[nsymbol]
@@ -741,7 +737,6 @@ def calculate_ohat_D_delta(parameters, outputs, W):
         are deleted in W.
     """
 
-    np.set_printoptions(precision=30)
     activation = parameters.activation
 
     N = len(outputs) - 2  # number of hiddenlayers
@@ -821,7 +816,6 @@ def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
     float
         weights
     """
-    np.set_printoptions(precision=30)
     if activation == 'linear':
         arg_range = 0.3
     else:
@@ -998,7 +992,6 @@ class Raveler:
     weights, scalings are the variables to ravel and unravel
     """
 
-    np.set_printoptions(precision=30)
     def __init__(self, weights, scalings):
 
         self.count = 0
@@ -1167,6 +1160,5 @@ class NodePlot:
 
     def _finalize_table(self):
         """Converts the data table into a numpy array."""
-        np.set_printoptions(precision=30)
         for symbol in self.data:
             self.data[symbol]['table'] = np.array(self.data[symbol]['table'])
