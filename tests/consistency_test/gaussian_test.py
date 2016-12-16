@@ -82,7 +82,7 @@ def test():
             descriptor = Gaussian(fortran=fortran,
                                   dblabel='Gaussian-%s-%d' % (fortran, cores))
             descriptor.calculate_fingerprints(images,
-                                              cores=cores,
+                                              parallel={'cores': cores},
                                               fortran=fortran,
                                               log=None,
                                               calculate_derivatives=True)
