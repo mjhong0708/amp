@@ -1084,7 +1084,7 @@ class NodePlot:
         log = Logger('develop.log')
         images = hash_images(images, log=log)
         calc.descriptor.calculate_fingerprints(images=images,
-                                               cores=1,
+                                               parallel={'cores': 1},
                                                log=log,
                                                calculate_derivatives=False)
         for hash, image in images.iteritems():

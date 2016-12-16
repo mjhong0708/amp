@@ -102,7 +102,7 @@ class Zernike(object):
         be used to restart the calculator."""
         return self.parameters.tostring()
 
-    def calculate_fingerprints(self, images, cores=1, fortran=None,
+    def calculate_fingerprints(self, images, parallel=None, fortran=None,
                                log=None, calculate_derivatives=False):
         """Calculates the fingerpints of the images, for the ones not already
         done.
@@ -115,9 +115,9 @@ class Zernike(object):
             also be the path to an ASE trajectory (.traj) or database (.db)
             file. Energies can be obtained from any reference, e.g. DFT
             calculations.
-        cores : int
-            Number of cores to parallelize over. If not specified, attempts to
-            determine from environment.
+        parallel : dict
+            Configuration for parallelization. Should be in same form as in
+            amp.Amp.
         fortran : bool
             If True, allows for extrapolation, if False, does not allow.
         log : Logger object
@@ -188,7 +188,7 @@ class Zernike(object):
             self.neighborlist = Data(filename='%s-neighborlists'
                                      % self.dblabel,
                                      calculator=calc)
-        self.neighborlist.calculate_items(images, cores=cores, log=log)
+        self.neighborlist.calculate_items(images, parallel=parallel, log=log)
         log('...neighborlists calculated.', toc='nl')
 
         log('Fingerprinting images...', tic='fp')
@@ -202,7 +202,7 @@ class Zernike(object):
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
                                      calculator=calc)
-        self.fingerprints.calculate_items(images, cores=cores, log=log)
+        self.fingerprints.calculate_items(images, parallel=parallel, log=log)
         log('...fingerprints calculated.', toc='fp')
 
         if calculate_derivatives:
@@ -221,7 +221,7 @@ class Zernike(object):
                          % self.dblabel,
                          calculator=calc)
             self.fingerprintprimes.calculate_items(
-                images, cores=cores, log=log)
+                images, parallel=parallel, log=log)
             log('...fingerprint derivatives calculated.', toc='derfp')
 
 
