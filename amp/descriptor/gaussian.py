@@ -131,6 +131,8 @@ class Gaussian(object):
         """
         if fortran is None:
             fortran = self.fortran
+        if parallel is None:
+            parallel = {'cores': 1}
         log = Logger(file=None) if log is None else log
 
         if (self.dblabel is None) and hasattr(self.parent, 'dblabel'):
