@@ -126,6 +126,66 @@
               ridge = ridge * 2.0d0**(1.0d0 - g_zeta)
 
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      subroutine calculate_g5(neighbornumbers, neighborpositions, &
+      g_numbers, g_gamma, g_zeta, g_eta, rc, cutofffn, ri, &
+      num_neighbors, ridge)
+
+              implicit none
+              integer, dimension(num_neighbors):: neighbornumbers
+              integer, dimension(2):: g_numbers
+              double precision, dimension(num_neighbors, 3):: &
+              neighborpositions
+              double precision, dimension(3):: ri
+              integer:: num_neighbors
+              double precision:: g_gamma, g_zeta, g_eta, rc
+              character:: cutofffn
+              double precision:: ridge
+!f2py         intent(in):: neighbornumbers, neighborpositions
+!f2py         intent(in):: g_numbers, g_gamma, g_zeta
+!f2py         intent(in):: g_eta, rc, ri
+!f2py         intent(hide):: num_neighbors
+!f2py         intent(out):: ridge
+              integer:: j, k, match, xyz
+              double precision, dimension(3):: Rij_vector, Rik_vector
+              double precision, dimension(3):: Rjk_vector
+              double precision:: Rij, Rik, Rjk, costheta, term
+
+              print *, 'Fortran g5'
+              ridge = 0.0d0
+              do j = 1, num_neighbors
+                do k = (j + 1), num_neighbors
+                  match = compare(neighbornumbers(j), &
+                  neighbornumbers(k), g_numbers(1), g_numbers(2))
+                  if (match == 1) then
+                    do xyz = 1, 3
+                      Rij_vector(xyz) = &
+                      neighborpositions(j, xyz) - ri(xyz)
+                      Rik_vector(xyz) = &
+                      neighborpositions(k, xyz) - ri(xyz)
+                      Rjk_vector(xyz) = &
+                      neighborpositions(k, xyz) - &
+                      neighborpositions(j, xyz)
+                    end do
+                    Rij = sqrt(dot_product(Rij_vector, Rij_vector))
+                    Rik = sqrt(dot_product(Rik_vector, Rik_vector))
+                    Rjk = sqrt(dot_product(Rjk_vector, Rjk_vector))
+                    costheta = &
+                    dot_product(Rij_vector, Rik_vector) / Rij / Rik
+                    term = (1.0d0 + g_gamma * costheta)**g_zeta
+                    term = term*&
+                    exp(-g_eta*(Rij**2 + Rik**2)&
+                    /(rc ** 2.0d0))
+                    term = term*cutoff_fxn(Rij, rc)
+                    term = term*cutoff_fxn(Rik, rc)
+                    ridge = ridge + term
+                  end if
+                end do
+              end do
+              ridge = ridge * 2.0d0**(1.0d0 - g_zeta)
+
       CONTAINS
 
       function compare(try1, try2, val1, val2) result(match)
