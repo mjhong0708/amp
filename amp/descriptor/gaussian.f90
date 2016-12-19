@@ -125,6 +125,47 @@
               end do
               ridge = ridge * 2.0d0**(1.0d0 - g_zeta)
 
+      CONTAINS
+
+      function compare(try1, try2, val1, val2) result(match)
+!     Returns 1 if (try1, try2) is the same set as (val1, val2), 0 if not.
+              implicit none
+              integer, intent(in):: try1, try2, val1, val2
+              integer:: match
+              integer:: ntry1, ntry2, nval1, nval2
+              ! First sort to avoid endless logical loops.
+              if (try1 < try2) then
+                      ntry1 = try1
+                      ntry2 = try2
+              else
+                      ntry1 = try2
+                      ntry2 = try1
+              end if
+              if (val1 < val2) then
+                      nval1 = val1
+                      nval2 = val2
+              else
+                      nval1 = val2
+                      nval2 = val1
+              end if
+              if (ntry1 == nval1 .AND. ntry2 == nval2) then
+                      match = 1
+              else
+                      match = 0
+              end if
+      end function compare
+
+      function cutoff_fxn(r, rc)
+              double precision:: r, rc, cutoff_fxn, pi
+              if (r > rc) then
+                      cutoff_fxn = 0.0d0
+              else
+                      pi = 4.0d0 * datan(1.0d0)
+                      cutoff_fxn = 0.5d0 * (cos(pi*r/rc) + 1.0d0)
+              end if
+      end function
+
+      end subroutine calculate_g4
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -153,7 +194,7 @@
               double precision, dimension(3):: Rjk_vector
               double precision:: Rij, Rik, Rjk, costheta, term
 
-              print *, 'Fortran g5'
+              print *, 'Fortran g4'
               ridge = 0.0d0
               do j = 1, num_neighbors
                 do k = (j + 1), num_neighbors
@@ -226,7 +267,7 @@
               end if
       end function
 
-      end subroutine calculate_g4
+      end subroutine calculate_g5
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
