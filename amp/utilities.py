@@ -592,6 +592,7 @@ def hash_images(images, log=None, ordered=False):
     if images is None:
         return
     elif hasattr(images, 'keys'):
+        log(' %i unique images after hashing.' % len(images))
         return images  # Apparently already hashed.
     else:
         # Need to be hashed, and possibly read from file.
