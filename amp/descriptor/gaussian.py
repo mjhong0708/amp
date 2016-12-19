@@ -1264,7 +1264,7 @@ def calculate_G5_prime(neighborindices, neighborsymbols, neighborpositions,
             if cutofffn != 'Cosine':
                 raise NotImplementedError()
             Rc = cutoff['kwargs']['Rc']
-            ridge = fmodules.calculate_g4_prime(
+            ridge = fmodules.calculate_g5_prime(
                 neighborindices=list(neighborindices),
                 neighbornumbers=neighbornumbers,
                 neighborpositions=neighborpositions,

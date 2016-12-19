@@ -194,7 +194,7 @@
               double precision, dimension(3):: Rjk_vector
               double precision:: Rij, Rik, Rjk, costheta, term
 
-              print *, 'Fortran g4'
+              print *, 'Fortran g5'
               ridge = 0.0d0
               do j = 1, num_neighbors
                 do k = (j + 1), num_neighbors
