@@ -56,11 +56,13 @@ class Model(object):
         if self.parameters.mode == 'image-centered':
             raise NotImplementedError('This needs to be coded.')
         elif self.parameters.mode == 'atom-centered':
+            self.atomic_energies = []
             energy = 0.0
             for index, (symbol, afp) in enumerate(fingerprints):
                 atom_energy = self.get_atomic_energy(afp=afp,
                                                      index=index,
                                                      symbol=symbol)
+                self.atomic_energies.append(atom_energy)
                 energy += atom_energy
         return energy
 
