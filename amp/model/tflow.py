@@ -192,7 +192,7 @@ class NeuralNetwork:
                  scalings=None,
                  unit_type="float",
                  preLoadTrainingData=True,
-                 relativeForceCutoff=None,
+                 relativeForceCutoff=None
                 ):
         self.parameters = {} if parameters is None else parameters
         for prop in ['energyMeanScale',
