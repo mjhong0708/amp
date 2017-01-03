@@ -430,6 +430,8 @@ def importhelper(importname):
         from .descriptor.gaussian import Gaussian as Module
     elif importname == '.model.neuralnetwork.NeuralNetwork':
         from .model.neuralnetwork import NeuralNetwork as Module
+    elif importname == '.model.neuralnetwork.tflow':
+        from .model.tflow import NeuralNetwork as Module
     elif importname == '.model.LossFunction':
         from .model import LossFunction as Module
     else:
