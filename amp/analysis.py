@@ -111,8 +111,6 @@ def perturb_parameters(load, images, d=0.0001, overwrite=False, **kwargs):
     calc.log('Plotting loss function vs perturbed parameters...',
              tic='plot')
 
-    from matplotlib.backends.backend_pdf import PdfPages
-
     with PdfPages(filename) as pdf:
         count = 0
         for parameter in vector:
@@ -527,7 +525,14 @@ def read_trainlog(logfile):
             d['energy_rmse'] = float(line.split(':')[-1])
         elif 'force_rmse:' in line:
             ready[1] = True
-            d['force_rmse'] = float(line.split(':')[-1])
+            _ = line.split(':')[-1].strip()
+            if _ == 'None':
+                d['force_rmse'] = None
+                trainforces = False
+            else:
+                d['force_rmse'] = float(line.split(':')[-1])
+                trainforces = True
+            print('train forces: %s' % trainforces)
         elif 'force_coefficient:' in line:
             ready[2] = True
             d['force_coefficient'] = float(line.split(':')[-1])
@@ -541,7 +546,10 @@ def read_trainlog(logfile):
             break
 
     E = d['energy_rmse']**2 * no_images
-    F = d['force_rmse']**2 * no_images
+    if trainforces:
+        F = d['force_rmse']**2 * no_images
+    else:
+        F = 0.
     costfxngoal = d['energy_coefficient'] * E + d['force_coefficient'] * F
     d['costfxngoal'] = costfxngoal
 
@@ -557,24 +565,27 @@ def read_trainlog(logfile):
         elif 'Overwriting file' in line:
             index += 1
             continue
-        elif 'optimization completed successfully.' in line:
+        elif 'optimization completed successfully.' in line:  # old version
+            break
+        elif '...optimization successful.' in line:
             break
         elif 'could not find parameters for the' in line:
             break
         elif '...optimization unsuccessful.' in line:
             break
         print(line)
-        step, time, costfxn, e, _, _, _, f, _, _, _ = line.split()
-
-        fs.append(float(f))
+        if trainforces:
+            step, time, costfxn, e, _, _, _, f, _, _, _ = line.split()
+            fs.append(float(f))
+            F = float(f)**2 * no_images
+            costfxnFs.append(d['force_coefficient'] * F / float(costfxn))
+        else:
+            step, time, costfxn, e, _, _, _ = line.split()
         steps.append(int(step))
         es.append(float(e))
         costfxns.append(costfxn)
-
         E = float(e)**2 * no_images
-        F = float(f)**2 * no_images
         costfxnEs.append(d['energy_coefficient'] * E / float(costfxn))
-        costfxnFs.append(d['force_coefficient'] * F / float(costfxn))
         index += 1
     d['steps'] = steps
     d['es'] = es
