@@ -69,10 +69,9 @@ def assign_cores(cores, log=None):
         q = 'SLURM'
         try:
             nnodes = int(os.environ['SLURM_NNODES'])
-            nodes = os.environ['SLURM_NODELIST']
             taskspernode = int(os.environ['SLURM_NTASKS_PER_NODE'])
             if nnodes == 1:
-                cores = {nodes: taskspernode}
+                cores = {'localhost': taskspernode}
             else:
                 nodes = os.environ['SLURM_NODELIST']
                 if '[' in nodes:
