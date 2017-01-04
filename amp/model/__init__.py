@@ -40,6 +40,8 @@ class Model(object):
     def tostring(self):
         """Returns an evaluatable representation of the calculator that can
         be used to re-establish the calculator."""
+        # Make sure numpy prints out enough data.
+        np.set_printoptions(precision=30, threshold=999999999)
         return self.parameters.tostring()
 
     def get_energy(self, fingerprints):
