@@ -70,11 +70,19 @@ def assign_cores(cores, log=None):
         try:
             nnodes = int(os.environ['SLURM_NNODES'])
             nodes = os.environ['SLURM_NODELIST']
-            taskspernode = int(os.environ['SLURM_TASKS_PER_NODE'])
+            taskspernode = int(os.environ['SLURM_NTASKS_PER_NODE'])
             if nnodes == 1:
                 cores = {nodes: taskspernode}
             else:
-                fail(q)
+                nodes = os.environ['SLURM_NODELIST']
+                if '[' in nodes:
+                    # Formatted funny like 'node[572,578]'.
+                    prename, numbers = nodes.split('[')
+                    numbers = numbers[:-1].split(',')
+                    nodes = [prename + _ for _ in numbers]
+                else:
+                    nodes = nodes.split(',')
+                cores = {node: taskspernode for node in nodes}
         except:
             # Get the traceback to log it.
             fail(q, traceback_text=traceback.format_exc())
