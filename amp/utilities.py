@@ -9,6 +9,7 @@ import math
 import random
 import signal
 import tarfile
+import traceback
 import cPickle as pickle
 from datetime import datetime
 from getpass import getuser
@@ -26,15 +27,20 @@ def assign_cores(cores, log=None):
     """
     log = Logger(None) if log is None else log
 
-    def fail(q):
+    def fail(q, traceback_text=None):
         msg = ('Auto core detection is either not set up or not working for'
                ' your version of %s. You are invited to submit a patch to '
                'return a dictionary of the form {nodename: ncores} for this'
                ' batching system. The environment contents were dumped to '
-               'the log file.')
+               'the log file, as well as any traceback that caused the '
+               'error.')
+        log(msg % q)
         log('Environment dump:')
         for key, value in os.environ.iteritems():
             log('%s: %s' % (key, value))
+        if traceback_text:
+            log('\n' + '='*70 + '\nTraceback of last error encountered:')
+            log(traceback_text)
         raise NotImplementedError(msg % q)
 
     def success(q, cores, log):
@@ -61,13 +67,24 @@ def assign_cores(cores, log=None):
 
     if 'SLURM_NODELIST' in os.environ.keys():
         q = 'SLURM'
-        nnodes = int(os.environ['SLURM_NNODES'])
-        nodes = os.environ['SLURM_NODELIST']
-        taskspernode = int(os.environ['SLURM_TASKS_PER_NODE'])
-        if nnodes == 1:
-            cores = {nodes: taskspernode}
-        else:
-            fail(q)
+        try:
+            nnodes = int(os.environ['SLURM_NNODES'])
+            taskspernode = int(os.environ['SLURM_NTASKS_PER_NODE'])
+            if nnodes == 1:
+                cores = {'localhost': taskspernode}
+            else:
+                nodes = os.environ['SLURM_NODELIST']
+                if '[' in nodes:
+                    # Formatted funny like 'node[572,578]'.
+                    prename, numbers = nodes.split('[')
+                    numbers = numbers[:-1].split(',')
+                    nodes = [prename + _ for _ in numbers]
+                else:
+                    nodes = nodes.split(',')
+                cores = {node: taskspernode for node in nodes}
+        except:
+            # Get the traceback to log it.
+            fail(q, traceback_text=traceback.format_exc())
     elif 'PBS_NODEFILE' in os.environ.keys():
         fail(q='PBS')
     elif 'LOADL_PROCESSOR_LIST' in os.environ.keys():
