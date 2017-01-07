@@ -641,7 +641,7 @@ def plot_convergence(logfile, plotfile='convergence.pdf'):
     ax.semilogy([steps[0], steps[-1]], [d['costfxngoal']] * 2,
                 color='0.5', linestyle=':')
     ax.set_ylabel('error')
-    ax.set_xlabel('BFGS step')
+    ax.set_xlabel('loss function call')
     ax.legend(loc='best')
     if len(breaks) > 0:
         ylim = ax.get_ylim()
@@ -657,7 +657,7 @@ def plot_convergence(logfile, plotfile='convergence.pdf'):
                         np.array(d['costfxnFs']),
                         color='green')
         ax.set_ylabel('loss function component')
-        ax.set_xlabel('BFGS step')
+        ax.set_xlabel('loss function call')
         ax.set_ylim(0, 1)
 
     with PdfPages(plotfile) as pdf:
