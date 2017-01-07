@@ -11,25 +11,18 @@
 # accelerated.
 
 import numpy as np
-import tensorflow as tf
-import random
-import string
-import pickle
 import uuid
-import time
 from amp.model import LossFunction
-from ..utilities import now,ConvergenceOccurred
+from ..utilities import ConvergenceOccurred
 
 try:
     import tensorflow as tf
-    from  tensorflow.contrib.opt import ScipyOptimizerInterface
+    from tensorflow.contrib.opt import ScipyOptimizerInterface
     # This exception is just so the documentation can build even if
     # tensorflow is missing.
 except ImportError:
-    import warnings
-    warnings.warn('Please install tensorflow if you plan to use this '
-                  'module.')
-
+    raise RuntimeError('Please install tensorflow if you plan to use this '
+                       'Amp module.')
 
 
 class NeuralNetwork:
@@ -62,8 +55,8 @@ class NeuralNetwork:
         Batch size for minibatch (if miniBatch is set to True).
 
     initialTrainingRate
-        Initial training rate for SGD optimizers like ADAM.  See the TF
-        documentation for choose this value.  Likely between 1e-2 and 1e-5,
+        Initial training rate for SGD optimizers like ADAM. See the TF
+        documentation for choose this value. Likely between 1e-2 and 1e-5,
         depending on use case, whether mini-batch is on, etc.
 
     miniBatch : bool
@@ -78,8 +71,8 @@ class NeuralNetwork:
         tensorflow session, there will be collisions.
 
     parameters
-        Dictionary of parameters to be used in initialization.  Mostly these
-        are the same keywords as the keyword arguments in this function.  This
+        Dictionary of parameters to be used in initialization. Mostly these
+        are the same keywords as the keyword arguments in this function. This
         is primarily used to make saving/loading easier.
 
     sess
@@ -105,18 +98,18 @@ class NeuralNetwork:
         convergence criteria dictionary.
 
     optimizationMethod: string
-        Set the optimization method for the NN parameters.  Currently either
+        Set the optimization method for the NN parameters. Currently either
         'ADAM' for the ADAM optimizer in tensorflow, of 'l-BFGS-b' for the
-        deterministic l-BFGS-b method.  ADAM is usually faster per training step
-        has all of the benefits of being a stochastic optimizer, and allows for
-        mini-batch operation, but has more tunable parameters and can be harder
-        to get working well.  l-BFGS-b usually works for small/moderate network
-        sizes.
+        deterministic l-BFGS-b method. ADAM is usually faster per training
+        step, has all of the benefits of being a stochastic optimizer, and
+        allows for mini-batch operation, but has more tunable parameters and
+        can be harder to get working well. l-BFGS-b usually works for
+        small/moderate network sizes.
 
     input_keep_prob
         Dropout ratio on the first layer (from fingerprints to the neural
-        network. Rule of thumb is this should be 0 to 0.2.  Only applies when
-        using a SGD optimizer like ADAM.  BFGS ignores this.
+        network. Rule of thumb is this should be 0 to 0.2. Only applies when
+        using a SGD optimizer like ADAM. BFGS ignores this.
 
     ADAM_optimizer_params
         Dictionary of parameters to pass to the ADAM optimizer. See
@@ -128,41 +121,40 @@ class NeuralNetwork:
 
     fprange: dict
         This is a dictionary that contains the minimum and maximum values seen
-        for each fingerprint of each element.  These
+        for each fingerprint of each element. These
 
     weights: np array
-        Input that allows the NN weights (and biases) to be set directly.  This
+        Input that allows the NN weights (and biases) to be set directly. This
         is only used for verifying that the calculation is working correctly
-        in the CuOPd test case.  In general, don't use this except for testing
-        the code.  This argument is analagous to the original AMP NeuralNetwork
+        in the CuOPd test case. In general, don't use this except for testing
+        the code. This argument is analagous to the original AMP NeuralNetwork
         module.
 
     scalings
-        Input that allows the NN final scaling o be set directly.  This
+        Input that allows the NN final scaling o be set directly. This
         is only used for verifying that the calculation is working correctly
-        in the CuOPd test case.  In general, don't use this except for testing
+        in the CuOPd test case. In general, don't use this except for testing
         the code. This argument is analagous to the original AMP NeuralNetwork
         module.
 
     unit_type: string
-        Sets the internal datatype of the tensorflow model.  Either "float"
+        Sets the internal datatype of the tensorflow model. Either "float"
         for 32-bit FP precision, or "double" for 64-bit FP precision.
 
     preLoadTrainingData: bool
         Decides whether to run the training by preloading all training data
-        into tensorflow.  Doing so results in faster training if the entire
-        dataset can fit into memory.  This only works when not using mini-batch.
+        into tensorflow. Doing so results in faster training if the entire
+        dataset can fit into memory. This only works when not using mini-batch.
 
     relativeForceCutoff: float
         Parameter for controlling whether the force contribution to the trained
         cost function is absolute (just differences of force compared to
-        training forces) or relative for large values of the force.  This
+        training forces) or relative for large values of the force. This
         basically sets the upper limit on the forces that should be fitted
-        (e.g. if the force is >A, then the force is scaled).  This helps when a
+        (e.g. if the force is >A, then the force is scaled). This helps when a
         small number of images have very large forces that don't need to be
         reconstructed perfectly.
     """
-
 
     def __init__(self,
                  hiddenlayers=(5, 5),
@@ -183,7 +175,7 @@ class NeuralNetwork:
                  convergenceCriteria=None,
                  optimizationMethod='l-BFGS-b',
                  input_keep_prob=0.8,
-                 ADAM_optimizer_params={'beta1':0.9},
+                 ADAM_optimizer_params={'beta1': 0.9},
                  regularization_strength=None,
                  numTrainingImages={},
                  elementFingerprintLengths=None,
@@ -193,7 +185,7 @@ class NeuralNetwork:
                  unit_type="float",
                  preLoadTrainingData=True,
                  relativeForceCutoff=None
-                ):
+                 ):
         self.parameters = {} if parameters is None else parameters
         for prop in ['energyMeanScale',
                      'energyPerElement']:
@@ -206,31 +198,34 @@ class NeuralNetwork:
         if 'convergence' in self.parameters:
             1
         elif convergenceCriteria is None:
-            self.parameters['convergence']={'energy_rmse': 0.001,
-                                          'energy_maxresid': None,
-                                          'force_rmse': 0.005,
-                                          'force_maxresid': None}
+            self.parameters['convergence'] = {'energy_rmse': 0.001,
+                                              'energy_maxresid': None,
+                                              'force_rmse': 0.005,
+                                              'force_maxresid': None}
         else:
-            self.parameters['convergence']=convergenceCriteria
+            self.parameters['convergence'] = convergenceCriteria
 
         if 'energy_coefficient' not in self.parameters:
-            self.parameters['energy_coefficient']=energy_coefficient
+            self.parameters['energy_coefficient'] = energy_coefficient
         if 'force_coefficient' not in self.parameters:
-            self.parameters['force_coefficient']=force_coefficient
+            self.parameters['force_coefficient'] = force_coefficient
         if 'ADAM_optimizer_params' not in self.parameters:
-            self.parameters['ADAM_optimizer_params']=ADAM_optimizer_params
+            self.parameters['ADAM_optimizer_params'] = ADAM_optimizer_params
         if 'regularization_strength' not in self.parameters:
-            self.parameters['regularization_strength']=regularization_strength
+            self.parameters['regularization_strength'] =\
+                    regularization_strength
         if 'relativeForceCutoff' not in self.parameters:
-            self.parameters['relativeForceCutoff']=relativeForceCutoff
+            self.parameters['relativeForceCutoff'] = relativeForceCutoff
         if 'unit_type' not in self.parameters:
-            self.parameters['unit_type']=unit_type
+            self.parameters['unit_type'] = unit_type
         if 'preLoadTrainingData' not in self.parameters:
-            self.parameters['preLoadTrainingData']=preLoadTrainingData
+            self.parameters['preLoadTrainingData'] = preLoadTrainingData
         if 'fprange' not in self.parameters and fprange is not None:
-            self.parameters['fprange']={}
+            self.parameters['fprange'] = {}
             for element in fprange:
-                self.parameters['fprange'][element]=np.array([map(lambda x: x[0],fprange[element]),map(lambda x: x[1],fprange[element])])
+                _ = np.array([map(lambda x: x[0], fprange[element]),
+                              map(lambda x: x[1], fprange[element])])
+                self.parameters['fprange'][element] = _
 
         self.hiddenlayers = hiddenlayers
 
@@ -241,7 +236,7 @@ class NeuralNetwork:
             self.activation = activation
             self.activationName = activation.__name__
         self.keep_prob = keep_prob
-        self.input_keep_prob=input_keep_prob
+        self.input_keep_prob = input_keep_prob
 
         if saveVariableName is None:
             self.saveVariableName = str(uuid.uuid4())[:8]
@@ -251,25 +246,27 @@ class NeuralNetwork:
         if elementFingerprintLengths is not None:
             self.elements = elementFingerprintLengths.keys()
             self.elements.sort()
-            self.elementFingerprintLengths={}
+            self.elementFingerprintLengths = {}
             for element in self.elements:
-                self.elementFingerprintLengths[element] = elementFingerprintLengths[element]
-        self.weights=weights
-        self.scalings=scalings
+                self.elementFingerprintLengths[element] =\
+                        elementFingerprintLengths[element]
+        self.weights = weights
+        self.scalings = scalings
 
-        self.sess=sess
-        self.graph=None
-        if tfVars!=None:
-            self.constructSessGraphModel(tfVars,self.sess)
+        self.sess = sess
+        self.graph = None
+        if tfVars is not None:
+            self.constructSessGraphModel(tfVars, self.sess)
 
         if weights is not None:
-            self.elementFingerprintLengths={}
-            self.elements=weights.keys()
+            self.elementFingerprintLengths = {}
+            self.elements = weights.keys()
             for element in self.elements:
-                self.elementFingerprintLengths[element]=weights[element][1].shape[0]-1
+                self.elementFingerprintLengths[element] =\
+                        weights[element][1].shape[0] - 1
 
-            self.constructSessGraphModel(tfVars,self.sess)
-        self.tfVars=tfVars
+            self.constructSessGraphModel(tfVars, self.sess)
+        self.tfVars = tfVars
 
         self.maxTrainingEpochs = maxTrainingEpochs
         self.importname = '.model.neuralnetwork.tflow'
@@ -277,23 +274,27 @@ class NeuralNetwork:
         self.initialTrainingRate = initialTrainingRate
         self.miniBatch = miniBatch
 
-        #optimizer can be 'ADAM' or 'l-BFGS-b'
-        self.optimizationMethod=optimizationMethod
+        # Optimizer can be 'ADAM' or 'l-BFGS-b'.
+        self.optimizationMethod = optimizationMethod
 
-
-    def constructSessGraphModel(self,tfVars,sess,trainOnly=False,numElements=None,numTrainingImages=None,num_dgdx_Eindices=None,numTrainingAtoms=None):
-        self.graph=tf.Graph()
+    def constructSessGraphModel(self, tfVars, sess, trainOnly=False,
+                                numElements=None, numTrainingImages=None,
+                                num_dgdx_Eindices=None, numTrainingAtoms=None):
+        self.graph = tf.Graph()
         with self.graph.as_default():
             if sess is None:
                 self.sess = tf.InteractiveSession()
             else:
                 self.sess = sess
             if trainOnly:
-                self.constructModel(self.sess,self.graph,trainOnly,numElements,numTrainingImages,num_dgdx_Eindices,numTrainingAtoms)
+                self.constructModel(self.sess, self.graph, trainOnly,
+                                    numElements, numTrainingImages,
+                                    num_dgdx_Eindices, numTrainingAtoms)
             else:
-                self.constructModel(self.sess,self.graph)
-            trainvarlist=tf.trainable_variables()
-            trainvarlist=[a for a in trainvarlist if a.name[:8]==self.saveVariableName]
+                self.constructModel(self.sess, self.graph)
+            trainvarlist = tf.trainable_variables()
+            trainvarlist = [a for a in trainvarlist
+                            if a.name[:8] == self.saveVariableName]
             self.saver = tf.train.Saver(trainvarlist)
             if tfVars is not None:
                 self.sess.run(tf.initialize_all_variables())
@@ -533,7 +534,7 @@ class NeuralNetwork:
                           energycoefficient=1.,
                           forcecoefficient=None,training=True):
         """Generates the input dictionary that maps various inputs on
-        the python side to placeholders for the tensorflow model.  """
+        the python side to placeholders for the tensorflow model."""
 
         atomArraysFinal, dgdx_batch,dgdx_Eindices_batch,dgdx_Xindices_batch, atomInds = generateBatch(curinds,
                                                                          self.elements,
@@ -1004,7 +1005,7 @@ class NeuralNetwork:
         return var
 
     def get_forces(self, fingerprint, derfingerprint):
-    # get_forces function still needs to be implemented.  Can't do this
+    # get_forces function still needs to be implemented. Can't do this
     # without the fingerprint derivates working properly though
         key = '1'
         energies, forces = self.get_energy_list(
@@ -1182,7 +1183,7 @@ def generateTensorFlowArrays(fingerprintDB, elements, keylist,
     """
     This function generates the inputs to the tensorflow graph for the selected images.
     The essential problem is that each neural network is associated with a
-    specific element type.  Thus, atoms in each ASE image need to be sent to
+    specific element type. Thus, atoms in each ASE image need to be sent to
     different networks.
 
     Inputs:
