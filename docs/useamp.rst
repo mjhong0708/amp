@@ -128,6 +128,13 @@ Under the hood, the train function is pretty simple; it just runs:
 ----------------------------------
 Re-training
 ----------------------------------
+If training is successful, Amp saves the parameters into an 'amp.amp' file by default. You can load the pretrained calculator and re-train it further with tighter convergence criteria. You can specify if the pre-trained amp.amp will be overwritten by the re-trained one through the key word 'overwrite' (default is False). 
+
+.. code-block:: python
+
+   calc = Amp.load( './amp.amp' )
+   calc.model.lossfunction = LossFunction( convergence=convergence )
+   calc.train( overwrite=True or False )
 
 If training does not succeed, Amp raises a `TrainingConvergenceError`. You can use this within your scripts to catch when training succeeds or fails, for example:
 
