@@ -1,75 +1,95 @@
 import numpy as np
 from collections import OrderedDict
-
+import os
 from ase.calculators.calculator import Parameters
-from ..regression import Regressor
-from ..model import LossFunction, calculate_fingerprints_range
-from ..model import Model
-from ..utilities import Logger, hash_images, make_filename
+from amp.regression import Regressor
+from amp.model import LossFunction, calculate_fingerprints_range
+from amp.model import Model
+from amp.utilities import Logger, hash_images, make_filename
 
 
 class NeuralNetwork(Model):
 
-    """
-    Class that implements a basic feed-forward neural network.
+    """Class that implements a basic feed-forward neural network.
 
-    :param hiddenlayers: Dictionary of chemical element symbols and
-                         architectures of their corresponding hidden layers of
-                         the conventional neural network. Number of nodes of
-                         last layer is always one corresponding to energy.
-                         However, number of nodes of first layer is equal to
-                         three times number of atoms in the system in the case
-                         of no descriptor, and is equal to length of symmetry
-                         functions of the descriptor. Can be fed as:
+    Parameters
+    ----------
+    hiddenlayers : dict
+        Dictionary of chemical element symbols and architectures of their
+        corresponding hidden layers of the conventional neural network. Number
+        of nodes of last layer is always one corresponding to energy.  However,
+        number of nodes of first layer is equal to three times number of atoms
+        in the system in the case of no descriptor, and is equal to length of
+        symmetry functions of the descriptor. Can be fed as:
 
-                         >>> hiddenlayers = (3, 2,)
+        >>> hiddenlayers = (3, 2,)
 
-                         for example, in which a neural network with two hidden
-                         layers, the first one having three nodes and the
-                         second one having two nodes is assigned (to the whole
-                         atomic system in the no descriptor case, and to each
-                         chemical element in the fingerprinting scheme).
-                         In the fingerprinting scheme, neural network for each
-                         species can be assigned seperately, as:
+        for example, in which a neural network with two hidden
+        layers, the first one having three nodes and the
+        second one having two nodes is assigned (to the whole
+        atomic system in the no descriptor case, and to each
+        chemical element in the atom-centered mode).  In the
+        atom-centered mode, neural network for each species
+        can be assigned seperately, as:
 
-                         >>> hiddenlayers = {"O":(3,5), "Au":(5,6)}
+        >>> hiddenlayers = {"O":(3,5), "Au":(5,6)}
 
-                         for example.
-    :type hiddenlayers: dict
+        for example.
 
-    :param activation: Assigns the type of activation funtion. "linear" refers
-                       to linear function, "tanh" refers to tanh function, and
-                       "sigmoid" refers to sigmoid function.
-    :type activation: str
+    activation : str
+        Assigns the type of activation funtion. "linear" refers to linear
+        function, "tanh" refers to tanh function, and "sigmoid" refers to
+        sigmoid function.
+    weights : dict
+        In the case of no descriptor, keys correspond to layers and values are
+        two dimensional arrays of network weight.  In the atom-centered mode,
+        keys correspond to chemical elements and values are dictionaries with
+        layer keys and network weight two dimensional arrays as values. Arrays
+        are set up to connect node i in the previous layer with node j in the
+        current layer with indices w[i,j]. The last value for index i
+        corresponds to bias. If weights is not given, arrays will be randomly
+        generated.
+    scalings : dict
+        In the case of no descriptor, keys are "intercept" and "slope" and
+        values are real numbers. In the fingerprinting scheme, keys correspond
+        to chemical elements and values are dictionaries with "intercept" and
+        "slope" keys and real number values. If scalings is not given, it will
+        be randomly generated.
+    fprange : dict
+        Range of fingerprints of each chemical species.  Should be fed as
+        a dictionary of chemical species and a list of minimum and maximun,
+        e.g.:
 
-    :param weights: In the case of no descriptor, keys correspond to layers
-                    and values are two dimensional arrays of network weight.
-                    In the fingerprinting scheme, keys correspond to chemical
-                    elements and values are dictionaries with layer keys and
-                    network weight two dimensional arrays as values. Arrays are
-                    set up to connect node i in the previous layer with node j
-                    in the current layer with indices w[i,j]. The last value
-                    for index i corresponds to bias. If weights is not given,
-                    arrays will be randomly generated.
-    :type weights: dict
+        >>> fprange={"Pd": [0.31, 0.59], "O":[0.56, 0.72]}
 
-    :param scalings: In the case of no descriptor, keys are "intercept" and
-                     "slope" and values are real numbers. In the fingerprinting
-                     scheme, keys correspond to chemical elements and values
-                     are dictionaries with "intercept" and "slope" keys and
-                     real number values. If scalings is not given, it will be
-                     randomly generated.
-    :type scalings: dict
+    regressor : object
+        Regressor object for finding best fit model parameters, e.g. by loss
+        function optimization via amp.regression.Regressor.
+    mode : str
+        Can be either 'atom-centered' or 'image-centered'.
+    lossfunction : object
+        Loss function object, if at all desired by the user.
+    version : object
+        Version of this class.
+    fortran : bool
+        If True, allows for extrapolation, if False, does not allow.
+    checkpoints : int
+        Frequency with which to save parameter checkpoints upon training. E.g.,
+        100 saves a checpoint on each 100th training setp.  Specify None for no
+        checkpoints.
 
     .. note:: Dimensions of weight two dimensional arrays should be consistent
               with hiddenlayers.
 
-    :raises: RuntimeError, NotImplementedError
+    Raises
+    ------
+        RuntimeError, NotImplementedError
     """
 
     def __init__(self, hiddenlayers=(5, 5), activation='tanh', weights=None,
                  scalings=None, fprange=None, regressor=None, mode=None,
-                 lossfunction=None, version=None, fortran=True):
+                 lossfunction=None, version=None, fortran=True,
+                 checkpoints=100):
 
         # Version check, particularly if restarting.
         compatibleversions = ['2015.12', ]
@@ -105,27 +125,41 @@ class NeuralNetwork(Model):
         self.parent = None  # Can hold a reference to main Amp instance.
         self.lossfunction = lossfunction
         self.fortran = fortran
+        self.checkpoints = checkpoints
 
     def fit(self,
             trainingimages,
             descriptor,
             log,
-            cores,
+            parallel,
             only_setup=False,
             ):
         """Fit the model parameters such that the fingerprints can be used to
         describe the energies in trainingimages. log is the logging object.
         descriptor is a descriptor object, as would be in calc.descriptor.
 
-        only_setup is primarily for debugging. It initializes all variables
-        but skips the last line of starting the regressor.
+        Parameters
+        ----------
+        trainingimages : dict
+            Hashed dictionary of training images.
+        descriptor : object
+            Class representing local atomic environment.
+        log : Logger object
+            Write function at which to log data. Note this must be a callable
+            function.
+        parallel: dict
+            Parallel configuration dictionary. Takes the same form as in
+            amp.Amp.
+        only_setup : bool
+            only_setup is primarily for debugging.  It initializes all
+            variables but skips the last line of starting the regressor.
         """
 
         # Set all parameters and report to logfile.
-        self.cores = cores
+        self._parallel = parallel
 
         if self.lossfunction is None:
-            self.lossfunction = LossFunction(cores=self.cores)
+            self.lossfunction = LossFunction(parallel=parallel)
         if self.regressor is None:
             self.regressor = Regressor()
 
@@ -183,7 +217,7 @@ class NeuralNetwork(Model):
             return
 
         # Regress the model.
-        self.step = -1
+        self.step = 0
         result = self.regressor.regress(model=self, log=log)
         return result  # True / False
 
@@ -191,7 +225,8 @@ class NeuralNetwork(Model):
     def vector(self):
         """Access to get or set the model parameters (weights, scaling for
         each network) as a single vector, useful in particular for
-        regression."""
+        regression.
+        """
         if self.parameters['weights'] is None:
             return None
         p = self.parameters
@@ -201,6 +236,12 @@ class NeuralNetwork(Model):
 
     @vector.setter
     def vector(self, vector):
+        """
+        Parameters
+        ----------
+        vector : list
+            Parameters of the regression model in the form of a list.
+        """
         p = self.parameters
         if not hasattr(self, 'ravel'):
             self.ravel = Raveler(p.weights, p.scalings)
@@ -209,32 +250,57 @@ class NeuralNetwork(Model):
         p['scalings'] = scalings
 
     def get_loss(self, vector):
-        """
-        Method to be called by the regression master.
+        """Method to be called by the regression master.
+
         Takes one and only one input, a vector of parameters.
         Returns one output, the value of the loss (cost) function.
+
+        Parameters
+        ----------
+        vector : list
+            Parameters of the regression model in the form of a list.
         """
-        if self.step % 100 == 0:
-            self.parent.log('Saving checkpoint data.')
+        if self.step == 0:
             filename = make_filename(self.parent.label,
-                                     '-parameters-checkpoint.amp')
+                                     '-initial-parameters.amp')
             filename = self.parent.save(filename, overwrite=True)
+        if self.checkpoints:
+            if self.step % self.checkpoints == 0:
+                path = os.path.join(self.parent.label + '-checkpoints/')
+                if self.step == 0:
+                    if not os.path.exists(path):
+                        os.mkdir(path)
+                self.parent.log('Saving checkpoint data.')
+                filename = make_filename(path,
+                                         'parameters-checkpoint-%d.amp'
+                                         % self.step)
+                filename = self.parent.save(filename, overwrite=True)
+        loss = self.lossfunction.get_loss(vector, lossprime=False)['loss']
+        if hasattr(self, 'observer'):
+            self.observer(self, vector, loss)
         self.step += 1
-        return self.lossfunction.get_loss(vector, lossprime=False)['loss']
+        return loss
 
     def get_lossprime(self, vector):
-        """
-        Method to be called by the regression master.
-        Takes one and only one input, a vector of parameters.
-        Returns one output, the value of the derivative of the loss function
-        with respect to model parameters.
+        """Method to be called by the regression master.
+
+        Takes one and only one input, a vector of parameters.  Returns one
+        output, the value of the derivative of the loss function with respect
+        to model parameters.
+
+        Parameters
+        ----------
+        vector : list
+            Parameters of the regression model in the form of a list.
         """
         return self.lossfunction.get_loss(vector,
                                           lossprime=True)['dloss_dparameters']
 
     @property
     def lossfunction(self):
-        """Allows the user to set a custom loss function. For example,
+        """Allows the user to set a custom loss function.
+
+        For example,
         >>> from amp.model import LossFunction
         >>> lossfxn = LossFunction(energy_tol=0.0001)
         >>> calc.model.lossfunction = lossfxn
@@ -243,6 +309,12 @@ class NeuralNetwork(Model):
 
     @lossfunction.setter
     def lossfunction(self, lossfunction):
+        """
+        Parameters
+        ----------
+        lossfunction : object
+            Loss function object, if at all desired by the user.
+        """
         if hasattr(lossfunction, 'attach_model'):
             lossfunction.attach_model(self)  # Allows access to methods.
         self._lossfunction = lossfunction
@@ -253,15 +325,22 @@ class NeuralNetwork(Model):
         is calculated about the specified atom. The sum of these for all
         atoms is the total energy (in atom-centered mode).
 
-        :param index: Index of the atom for which atomic energy is calculated
-                      (only used in the fingerprinting scheme)
-        :type index: int
+        Parameters
+        ---------
+        afp : list
+            Atomic fingerprints in the form of a list to be used as input to
+            the neural network.
+        index: int
+            Index of the atom for which atomic energy is calculated (only used
+            in the atom-centered mode).
+        symbol : str
+            Symbol of the atom for which atomic energy is calculated (only used
+            in the atom-centered mode).
 
-        :param symbol: Index of the atom for which atomic energy is calculated
-                       (only used in the fingerprinting scheme)
-        :type symbol: str
-
-        :returns: float -- energy
+        Returns
+        -------
+        float
+            Energy.
         """
         assert self.parameters.mode == 'atom-centered', \
             'get_atomic_energy should only be called in atom-centered mode.'
@@ -277,22 +356,30 @@ class NeuralNetwork(Model):
     def get_force(self, afp, derafp,
                   direction,
                   nindex=None, nsymbol=None,):
-        """
-        Given derivative of input to the neural network, derivative of output
+        """Given derivative of input to the neural network, derivative of output
         (which corresponds to forces) is calculated.
 
-        :param direction: Direction of force.
-        :type direction: int
-        :param derafp: List of derivatives of inputs
-        :type derafp: list
-        :param nindex: Index of the neighbor atom which force is acting at.
-                        (only used in the fingerprinting scheme)
-        :type nindex: int
-        :param nsymbol: Symbol of the neighbor atom which force is acting at.
-                         (only used in the fingerprinting scheme)
-        :type nsymbol: str
+        Parameters
+        ----------
+        afp : list
+            Atomic fingerprints in the form of a list to be used as input to
+            the neural network.
+        derafp : list
+            Derivatives of atomic fingerprints in the form of a list to be used
+            as input to the neural network.
+        direction : int
+            Direction of force.
+        nindex : int
+            Index of the neighbor atom which force is acting at.  (only used in
+            the atom-centered mode)
+        nsymbol : str
+            Symbol of the neighbor atom which force is acting at.  (only used
+            in the atom-centered mode)
 
-        :returns: float -- force
+        Returns
+        -------
+        float
+            Force.
         """
 
         scaling = self.parameters.scalings[nsymbol]
@@ -308,19 +395,26 @@ class NeuralNetwork(Model):
         return force
 
     def get_dAtomicEnergy_dParameters(self, afp, index=None, symbol=None):
-        """
-        Returns the derivative of energy square error with respect to
+        """Returns the derivative of energy square error with respect to
         variables.
 
-        :param index: Index of the atom for which atomic energy is calculated
-                      (only used in the fingerprinting scheme)
-        :type index: int
-        :param symbol: Index of the atom for which atomic energy is calculated
-                       (only used in the fingerprinting scheme)
-        :type symbol: str
+        Parameters
+        ----------
+        afp : list
+            Atomic fingerprints in the form of a list to be used as input to
+            the neural network.
+        index : int
+            Index of the atom for which atomic energy is calculated (only used
+            in the atom-centered mode)
+        symbol : str
+            Symbol of the atom for which atomic energy is calculated (only used
+            in the atom-centered mode)
 
-        :returns: list of float -- the value of the derivative of energy square
-                                   error with respect to variables.
+        Returns
+        -------
+        list of float
+            The value of the derivative of energy square error with respect to
+            variables.
         """
         p = self.parameters
         scaling = p.scalings[symbol]
@@ -356,20 +450,31 @@ class NeuralNetwork(Model):
     def get_dForce_dParameters(self, afp, derafp,
                                direction,
                                nindex=None, nsymbol=None,):
-        """
-        Returns the derivative of force square error with respect to variables.
+        """Returns the derivative of force square error with respect to
+        variables.
 
-        :param direction: Direction of force.
-        :type direction: int
-        :param nindex: Index of the neighbor atom which force is acting at.
-                        (only used in the fingerprinting scheme)
-        :type nindex: int
-        :param nsymbol: Symbol of the neighbor atom which force is acting at.
-                         (only used in the fingerprinting scheme)
-        :type nsymbol: str
+        Parameters
+        ----------
+        afp : list
+            Atomic fingerprints in the form of a list to be used as input to
+            the neural network.
+        derafp : list
+            Derivatives of atomic fingerprints in the form of a list to be used
+            as input to the neural network.
+        direction : int
+            Direction of force.
+        nindex : int
+            Index of the neighbor atom which force is acting at.  (only used in
+            the atom-centered mode)
+        nsymbol : str
+            Symbol of the neighbor atom which force is acting at.  (only used
+            in the atom-centered mode)
 
-        :returns: list of float -- the value of the derivative of force square
-                                   error with respect to variables.
+        Returns
+        -------
+        list of float
+            The value of the derivative of force square error with respect to
+            variables.
         """
         p = self.parameters
         scaling = p.scalings[nsymbol]
@@ -456,15 +561,21 @@ def calculate_nodal_outputs(parameters, afp, symbol,):
     is calculated about the specified atom. The sum of these for all
     atoms is the total energy (in atom-centered mode).
 
-    :param index: Index of the atom for which atomic energy is calculated
-                      (only used in the fingerprinting scheme)
-    :type index: int
+    Parameters
+    ----------
+    parameters : dict
+        ASE dictionary object.
+    afp : list
+        Atomic fingerprints in the form of a list to be used as input to the
+        neural network.
+    symbol : str
+        Symbol of the atom for which atomic energy is calculated (only used in
+        the atom-centered mode)
 
-    :param symbol: Index of the atom for which atomic energy is calculated
-                    (only used in the fingerprinting scheme)
-    :type symbol: str
-
-    :returns: float -- energy
+    Returns
+    -------
+    dict
+        Outputs of neural network nodes
     """
 
     _afp = np.array(afp).copy()
@@ -542,6 +653,25 @@ def calculate_nodal_outputs(parameters, afp, symbol,):
 
 
 def calculate_dOutputs_dInputs(parameters, derafp, outputs, nsymbol,):
+    """
+    Parameters
+    ----------
+    parameters : dict
+        ASE dictionary object.
+    derafp : list
+        Derivatives of atomic fingerprints in the form of a list to be used as
+        input to the neural network.
+    outputs : dict
+        Outputs of neural network nodes.
+    nsymbol : str
+        Symbol of the atom for which atomic energy is calculated (only used in
+        the atom-centered mode)
+
+    Returns
+    -------
+    dict
+        Derivatives of outputs of neural network nodes w.r.t.  inputs.
+    """
 
     _derafp = np.array(derafp).copy()
     hiddenlayers = parameters.hiddenlayers[nsymbol]
@@ -590,15 +720,21 @@ def calculate_dOutputs_dInputs(parameters, derafp, outputs, nsymbol,):
 
 
 def calculate_ohat_D_delta(parameters, outputs, W):
-    """
-    Returns the derivative of energy square error with respect to variables.
+    """Calculates extra matrices ohat, D, delta needed in mathematical
+    manipulations.
 
-    :param symbol: Index of the atom for which atomic energy is calculated
-                       (only used in the fingerprinting scheme)
-    :type symbol: str
+    Notations are consistent with those of 'Rojas, R. Neural Networks
+    - A Systematic Introduction.  Springer-Verlag, Berlin, first edition 1996'
 
-    :returns: list of float -- the value of the derivative of energy square
-                                   error with respect to variables.
+    Parameters
+    ----------
+    parameters : dict
+        ASE dictionary object.
+    outputs : dict
+        Outputs of neural network nodes.
+    W : dict
+        The same as weight dictionary, but the last rows associated with biases
+        are deleted in W.
     """
 
     activation = parameters.activation
@@ -637,61 +773,48 @@ def calculate_ohat_D_delta(parameters, outputs, W):
 
 def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
                        fprange=None):
-    """
-    Generates random weight arrays from variables.
+    """Generates random weight arrays from variables.
 
-    :param hiddenlayers: Dictionary of chemical element symbols and
-                         architectures of their corresponding hidden layers of
-                         the conventional neural network. Number of nodes of
-                         last layer is always one corresponding to energy.
-                         However, number of nodes of first layer is equal to
-                         three times number of atoms in the system in the case
-                         of no descriptor, and is equal to length of symmetry
-                         functions in the fingerprinting scheme. Can be fed as:
+    hiddenlayers: dict
+        Dictionary of chemical element symbols and architectures of their
+        corresponding hidden layers of the conventional neural network. Number
+        of nodes of last layer is always one corresponding to energy.  However,
+        number of nodes of first layer is equal to three times number of atoms
+        in the system in the case of no descriptor, and is equal to length of
+        symmetry functions in the atom-centered mode. Can be fed as:
 
-                         >>> hiddenlayers = (3, 2,)
+        >>> hiddenlayers = (3, 2,)
 
-                         for example, in which a neural network with two hidden
-                         layers, the first one having three nodes and the
-                         second one having two nodes is assigned (to the whole
-                         atomic system in the case of no descriptor, and to
-                         each chemical element in the fingerprinting scheme).
-                         In the fingerprinting scheme, neural network for each
-                         species can be assigned seperately, as:
+        for example, in which a neural network with two hidden
+        layers, the first one having three nodes and the
+        second one having two nodes is assigned (to the whole
+        atomic system in the case of no descriptor, and to
+        each chemical element in the atom-centered mode).  In
+        the atom-centered mode, neural network for each
+        species can be assigned seperately, as:
 
-                         >>> hiddenlayers = {"O":(3,5), "Au":(5,6)}
+        >>> hiddenlayers = {"O":(3,5), "Au":(5,6)}
 
-                         for example.
-    :type hiddenlayers: dict
+        for example.
+    activation : str
+        Assigns the type of activation funtion. "linear" refers to linear
+        function, "tanh" refers to tanh function, and "sigmoid" refers to
+        sigmoid function.
+    no_of_atoms : int
+        Number of atoms in atomic systems; used only in the case of no
+        descriptor.
 
-    :param activation: Assigns the type of activation funtion. "linear" refers
-                       to linear function, "tanh" refers to tanh function, and
-                       "sigmoid" refers to sigmoid function.
-    :type activation: str
+    fprange : dict
+        Range of fingerprints of each chemical species.  Should be fed as
+        a dictionary of chemical species and a list of minimum and maximun,
+        e.g:
 
-    :param no_of_atoms: Number of atoms in atomic systems; used only in the
-                        case of no descriptor.
-    :type no_of_atoms: int
+        >>> fprange={"Pd": [0.31, 0.59], "O":[0.56, 0.72]}
 
-    :param Gs: Dictionary of symbols and lists of dictionaries for making
-               symmetry functions. Either auto-genetrated, or given in the
-               following form, for example:
-
-               >>> Gs = {"O": [{"type":"G2", "element":"O", "eta":10.},
-               ...             {"type":"G4", "elements":["O", "Au"],
-               ...              "eta":5., "gamma":1., "zeta":1.0}],
-               ...       "Au": [{"type":"G2", "element":"O", "eta":2.},
-               ...              {"type":"G4", "elements":["O", "Au"],
-               ...               "eta":2., "gamma":1., "zeta":5.0}]}
-
-               Used in the fingerprinting scheme only.
-    :type Gs: dict
-
-    :param elements: List of atom symbols; used in the fingerprinting scheme
-                     only.
-    :type elements: list of str
-
-    :returns: weights
+    Returns
+    -------
+    float
+        weights
     """
     if activation == 'linear':
         arg_range = 0.3
@@ -775,23 +898,22 @@ def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
 
 
 def get_random_scalings(images, activation, elements=None):
-    """
-    Generates initial scaling matrices, such that the range of activation
-    is scaled to the range of actual energies.
+    """Generates initial scaling matrices, such that the range of activation is
+    scaled to the range of actual energies.
 
-    :param images: ASE atoms objects (the training set).
-    :type images: dict
+    images : dict
+        ASE atoms objects (the training set).
+    activation: str
+        Assigns the type of activation funtion. "linear" refers to linear
+        function, "tanh" refers to tanh function, and "sigmoid" refers to
+        sigmoid function.
+    elements: list of str
+        List of atom symbols; used in the atom-centered mode only.
 
-    :param activation: Assigns the type of activation funtion. "linear" refers
-                       to linear function, "tanh" refers to tanh function, and
-                       "sigmoid" refers to sigmoid function.
-    :type activation: str
-
-    :param elements: List of atom symbols; used in the fingerprinting scheme
-                     only.
-    :type elements: list of str
-
-    :returns: scalings
+    Returns
+    -------
+    float
+        scalings
     """
     hashs = images.keys()
     no_of_images = len(hashs)
@@ -836,7 +958,7 @@ def get_random_scalings(images, activation, elements=None):
                 (max_act_energy_per_atom -
                  min_act_energy_per_atom) / 2.
 
-    else:  # fingerprinting scheme
+    else:  # atom-centered mode
 
         for element in elements:
             scaling[element] = {}
@@ -860,14 +982,14 @@ def get_random_scalings(images, activation, elements=None):
 
 
 class Raveler:
-
     """Class to ravel and unravel variable values into a single vector.
-    This is used for feeding into the optimizer. Feed in a list of
-    dictionaries to initialize the shape of the transformation. Note no
-    data is saved in the class; each time it is used it is passed either
-    the dictionaries or vector. The dictionaries for initialization should
-    be two levels deep.
-        weights, scalings: variables to ravel and unravel
+
+    This is used for feeding into the optimizer. Feed in a list of dictionaries
+    to initialize the shape of the transformation. Note no data is saved in the
+    class; each time it is used it is passed either the dictionaries or vector.
+    The dictionaries for initialization should be two levels deep.
+
+    weights, scalings are the variables to ravel and unravel
     """
 
     def __init__(self, weights, scalings):
@@ -962,7 +1084,7 @@ class NodePlot:
         log = Logger('develop.log')
         images = hash_images(images, log=log)
         calc.descriptor.calculate_fingerprints(images=images,
-                                               cores=1,
+                                               parallel={'cores': 1},
                                                log=log,
                                                calculate_derivatives=False)
         for hash, image in images.iteritems():

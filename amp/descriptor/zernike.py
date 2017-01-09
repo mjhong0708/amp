@@ -3,10 +3,10 @@ from numpy import sqrt
 
 from ase.data import atomic_numbers
 from ase.calculators.calculator import Parameters
-from ase.calculators.neighborlist import NeighborList
 from scipy.special import sph_harm
-from ..utilities import Data, Logger
-from .cutoffs import Cosine, Polynomial
+from amp.utilities import Data, Logger, importer
+from amp.descriptor.cutoffs import Cosine, Polynomial
+NeighborList = importer('NeighborList')
 try:
     from .. import fmodules
 except ImportError:
@@ -15,46 +15,43 @@ except ImportError:
 
 class Zernike(object):
 
-    """
-    Class that calculates Zernike fingerprints.
+    """Class that calculates Zernike fingerprints.
 
-    :param cutoff: Cutoff function. Can be also fed as a float representing the
-                   radius above which neighbor interactions are ignored.
-                   Default is 6.5 Angstroms.
-    :type cutoff: object or float
-
-    :param Gs: Dictionary of symbols and dictionaries for making symmetry
-                functions. Either auto-genetrated, or given in the following
-                form, for example:
+    Parameters
+    ----------
+    cutoff : object or float
+        Cutoff function. Can be also fed as a float representing the radius
+        above which neighbor interactions are ignored.  Default is 6.5
+        Angstroms.
+    Gs : dict
+        Dictionary of symbols and dictionaries for making symmetry functions.
+        Either auto-genetrated, or given in the following form, for example:
 
                >>> Gs = {"Au": {"Au": 3., "O": 2.}, "O": {"Au": 5., "O": 10.}}
 
-    :type Gs: dict
+    nmax : integer or dict
+        Maximum degree of Zernike polynomials that will be included in the
+        fingerprint vector. Can be different values for different species fed
+        as a dictionary with chemical elements as keys.
+    dblabel : str
+        Optional separate prefix/location for database files, including
+        fingerprints, fingerprint derivatives, and neighborlists. This file
+        location can be shared between calculator instances to avoid
+        re-calculating redundant information. If not supplied, just uses the
+        value from label.
+    elements : list
+        List of allowed elements present in the system. If not provided, will
+        be found automatically.
+    version : str
+        Version of fingerprints.
+    mode : str
+        Can be either 'atom-centered' or 'image-centered'.
+    fortran : bool
+        If True, will use fortran modules, if False, will not.
 
-    :param nmax: Maximum degree of Zernike polynomials that will be included in
-                 the fingerprint vector. Can be different values for different
-                 species fed as a dictionary with chemical elements as keys.
-    :type nmax: integer or dict
-
-    :param dblabel: Optional separate prefix/location for database files,
-                    including fingerprints, fingerprint derivatives, and
-                    neighborlists. This file location can be shared between
-                    calculator instances to avoid re-calculating redundant
-                    information. If not supplied, just uses the value from
-                    label.
-    :type dblabel: str
-
-    :param elements: List of allowed elements present in the system. If not
-                     provided, will be found automatically.
-    :type elements: list
-
-    :param version: Version of fingerprints.
-    :type version: str
-
-    :param fortran: If True, will use fortran modules, if False, will not.
-    :type fortran: bool
-
-    :raises: RuntimeError, TypeError
+    Raises
+    ------
+        RuntimeError, TypeError
     """
 
     def __init__(self, cutoff=Cosine(6.5), Gs=None, nmax=5, dblabel=None,
@@ -105,10 +102,30 @@ class Zernike(object):
         be used to restart the calculator."""
         return self.parameters.tostring()
 
-    def calculate_fingerprints(self, images, cores=1, fortran=None,
+    def calculate_fingerprints(self, images, parallel=None, fortran=None,
                                log=None, calculate_derivatives=False):
         """Calculates the fingerpints of the images, for the ones not already
-        done."""
+        done.
+
+        Parameters
+        ----------
+        images : list or str
+            List of ASE atoms objects with positions, symbols, energies, and
+            forces in ASE format. This is the training set of data. This can
+            also be the path to an ASE trajectory (.traj) or database (.db)
+            file. Energies can be obtained from any reference, e.g. DFT
+            calculations.
+        parallel : dict
+            Configuration for parallelization. Should be in same form as in
+            amp.Amp.
+        fortran : bool
+            If True, allows for extrapolation, if False, does not allow.
+        log : Logger object
+            Write function at which to log data. Note this must be a callable
+            function.
+        calculate_derivatives : bool
+            Decides whether or not fingerprintprimes should also be calculated.
+        """
         if fortran is None:
             fortran = self.fortran
         log = Logger(file=None) if log is None else log
@@ -171,7 +188,7 @@ class Zernike(object):
             self.neighborlist = Data(filename='%s-neighborlists'
                                      % self.dblabel,
                                      calculator=calc)
-        self.neighborlist.calculate_items(images, cores=cores, log=log)
+        self.neighborlist.calculate_items(images, parallel=parallel, log=log)
         log('...neighborlists calculated.', toc='nl')
 
         log('Fingerprinting images...', tic='fp')
@@ -185,7 +202,7 @@ class Zernike(object):
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
                                      calculator=calc)
-        self.fingerprints.calculate_items(images, cores=cores, log=log)
+        self.fingerprints.calculate_items(images, parallel=parallel, log=log)
         log('...fingerprints calculated.', toc='fp')
 
         if calculate_derivatives:
@@ -204,7 +221,7 @@ class Zernike(object):
                          % self.dblabel,
                          calculator=calc)
             self.fingerprintprimes.calculate_items(
-                images, cores=cores, log=log)
+                images, parallel=parallel, log=log)
             log('...fingerprint derivatives calculated.', toc='derfp')
 
 
@@ -213,10 +230,15 @@ class Zernike(object):
 
 # Neighborlist Calculator
 class NeighborlistCalculator:
-
     """For integration with .utilities.Data
+
     For each image fed to calculate, a list of neighbors with offset
     distances is returned.
+
+    Parameters
+    ----------
+    cutoff : float
+        Radius above which neighbor interactions are ignored.
     """
 
     def __init__(self, cutoff):
@@ -225,6 +247,17 @@ class NeighborlistCalculator:
         self.parallel_command = 'calculate_neighborlists'
 
     def calculate(self, image, key):
+        """For integration with .utilities.Data
+        For each image fed to calculate, a list of neighbors with offset
+        distances is returned.
+
+        Parameters
+        ----------
+        image : object
+            ASE atoms object.
+        key : str
+            Key of the image after being hashed.
+        """
         cutoff = self.globals.cutoff
         n = NeighborList(cutoffs=[cutoff / 2.] * len(image),
                          self_interaction=False,
@@ -235,7 +268,6 @@ class NeighborlistCalculator:
 
 
 class FingerprintCalculator:
-
     """For integration with .utilities.Data"""
 
     def __init__(self, neighborlist, Gs, nmax, cutoff, cutofffn, fortran):
@@ -259,6 +291,13 @@ class FingerprintCalculator:
 
     def calculate(self, image, key):
         """Makes a list of fingerprints, one per atom, for the fed image.
+
+        Parameters
+        ----------
+        image : object
+            ASE atoms object.
+        key : str
+            Key of the image after being hashed.
         """
         nl = self.keyed.neighborlist[key]
         fingerprints = []
@@ -276,31 +315,32 @@ class FingerprintCalculator:
         return fingerprints
 
     def get_fingerprint(self, index, symbol, n_symbols, Rs):
-        """
-        Returns the fingerprint of symmetry function values for atom
-        specified by its index and symbol. n_symbols and Rs are lists of
-        neighbors' symbols and Cartesian positions, respectively.
+        """Returns the fingerprint of symmetry function values for atom
+        specified by its index and symbol.
 
-        :param index: Index of the center atom.
-        :type index: int
+        n_symbols and Rs are lists of neighbors' symbols and Cartesian
+        positions, respectively.
 
-        :param symbol: Symbol of the center atom.
-        :type symbol: str
+        Parameters
+        ----------
+        index : int
+            Index of the center atom.
+        symbol : str
+            Symbol of the center atom.
+        n_symbols : list of str
+            List of neighbors' symbols.
+        Rs : list of list of float
+            List of Cartesian atomic positions of neighbors.
 
-        :param n_symbols: List of neighbors' symbols.
-        :type n_symbols: list of str
-
-        :param Rs: List of Cartesian atomic positions of neighbors.
-        :type Rs: list of list of float
-
-        :returns: list of float -- fingerprints for atom specified by its index
-                                    and symbol.
+        Returns
+        -------
+        symbols, fingerprints : list of float
+            Fingerprints for atom specified by its index and symbol.
         """
 
         home = self.atoms[index].position
         cutoff = self.globals.cutoff
         cutofffn = self.globals.cutofffn
-        print "cutofffn =", cutofffn
 
         if cutofffn == 'Cosine':
             cutoff_fxn = Cosine(cutoff)
@@ -375,7 +415,6 @@ class FingerprintCalculator:
 
 
 class FingerprintPrimeCalculator:
-
     """For integration with .utilities.Data"""
 
     def __init__(self, neighborlist, Gs, nmax, cutoff, cutofffn, fortran):
@@ -398,8 +437,16 @@ class FingerprintPrimeCalculator:
         self.factorial = [fac(0.5 * _) for _ in xrange(4 * nmax + 3)]
 
     def calculate(self, image, key):
-        """Makes a list of fingerprint derivatives, one per atom,
-        for the fed image."""
+        """Makes a list of fingerprint derivatives, one per atom, for the fed
+        image.
+
+        Parameters
+        ---------
+        image : object
+            ASE atoms object.
+        key : str
+            Key of the image after being hashed.
+        """
         self.atoms = image
         nl = self.keyed.neighborlist[key]
         fingerprintprimes = {}
@@ -466,31 +513,33 @@ class FingerprintPrimeCalculator:
 
     def get_fingerprintprime(self, index, symbol, n_indices, n_symbols, Rs,
                              p, q):
-        """
-        Returns the value of the derivative of G for atom with index and
+        """Returns the value of the derivative of G for atom with index and
         symbol with respect to coordinate x_{i} of atom index m. n_indices,
         n_symbols and Rs are lists of neighbors' indices, symbols and Cartesian
         positions, respectively.
 
-        :param index: Index of the center atom.
-        :type index: int
-        :param symbol: Symbol of the center atom.
-        :type symbol: str
-        :param n_indices: List of neighbors' indices.
-        :type n_indices: list of int
-        :param n_symbols: List of neighbors' symbols.
-        :type n_symbols: list of str
-        :param Rs: List of Cartesian atomic positions.
-        :type Rs: list of list of float
-        :param p: Index of the pair atom.
-        :type p: int
-        :param q: Direction of the derivative; is an integer from 0 to 2.
-        :type q: int
+        Parameters
+        ----------
+        index : int
+            Index of the center atom.
+        symbol : str
+            Symbol of the center atom.
+        n_indices : list of int
+            List of neighbors' indices.
+        n_symbols : list of str
+            List of neighbors' symbols.
+        Rs : list of list of float
+            List of Cartesian atomic positions.
+        p : int
+            Index of the pair atom.
+        q : int
+            Direction of the derivative; is an integer from 0 to 2.
 
-        :returns: list of float -- the value of the derivative of the
-                                   fingerprints for atom with index and symbol
-                                   with respect to coordinate x_{i} of atom
-                                   index m.
+        Returns
+        -------
+        fingerprint_prime : list of float
+            The value of the derivative of the fingerprints for atom with index
+            and symbol with respect to coordinate x_{i} of atom index m.
         """
         home = self.atoms[index].position
         cutoff = self.globals.cutoff
@@ -595,8 +644,7 @@ class FingerprintPrimeCalculator:
 
 
 def binomial(n, k, factorial):
-    """
-    Returns C(n,k) = n!/(k!(n-k)!).
+    """ Returns C(n,k) = n!/(k!(n-k)!).
     """
     assert n >= 0 and k >= 0 and n >= k, \
         'n and k should be non-negative integers with n >= k.'
@@ -607,8 +655,7 @@ def binomial(n, k, factorial):
 
 
 def calculate_R(n, l, rho, factorial):
-    """
-    Calculates R_{n}^{l}(rho) according to the last equation of wikipedia.
+    """Calculates R_{n}^{l}(rho) according to the last equation of wikipedia.
     """
     if (n - l) % 2 != 0:
         return 0
@@ -627,13 +674,16 @@ def calculate_R(n, l, rho, factorial):
 
 
 def generate_coefficients(elements):
-    """
-    Automatically generates coefficients if not given by the user.
+    """Automatically generates coefficients if not given by the user.
 
-    :param elements: List of symbols of all atoms.
-    :type elements: list of str
+    Parameters
+    ----------
+    elements : list of str
+        List of symbols of all atoms.
 
-    :returns: dict of dicts
+    Returns
+    -------
+    G : dict of dicts
     """
     _G = {}
     for element in elements:
@@ -645,15 +695,16 @@ def generate_coefficients(elements):
 
 
 def Kronecker(i, j):
-    """
-    Kronecker delta function.
+    """Kronecker delta function.
 
-    :param i: First index of Kronecker delta.
-    :type i: int
-    :param j: Second index of Kronecker delta.
-    :type j: int
+    i : int
+        First index of Kronecker delta.
+    j : int
+        Second index of Kronecker delta.
 
-    :returns: int -- the value of the Kronecker delta.
+    Returns
+    -------
+    Kronecker delta : int
     """
     if i == j:
         return 1
@@ -662,25 +713,29 @@ def Kronecker(i, j):
 
 
 def der_position(m, n, Rm, Rn, l, i):
-    """
-    Returns the derivative of the norm of position vector R_{mn} with
-        respect to x_{i} of atomic index l.
+    """Returns the derivative of the norm of position vector R_{mn} with
+    respect to x_{i} of atomic index l.
 
-    :param m: Index of the first atom.
-    :type m: int
-    :param n: Index of the second atom.
-    :type n: int
-    :param Rm: Position of the first atom.
-    :type Rm: float
-    :param Rn: Position of the second atom.
-    :type Rn: float
-    :param l: Index of the atom force is acting on.
-    :type l: int
-    :param i: Direction of force.
-    :type i: int
+    Parameters
+    ----------
+    m : int
+        Index of the first atom.
+    n : int
+        Index of the second atom.
+    Rm : float
+        Position of the first atom.
+    Rn : float
+        Position of the second atom.
+    l : int
+        Index of the atom force is acting on.
+    i : int
+        Direction of force.
 
-    :returns: list of float -- the derivative of the norm of position vector
-                               R_{mn} with respect to x_{i} of atomic index l.
+    Returns
+    -------
+    der_position : list of float
+        The derivative of the norm of position vector R_{mn} with respect to
+        x_{i} of atomic index l.
     """
     Rmn = np.linalg.norm(Rm - Rn)
     # mm != nn is necessary for periodic systems
@@ -694,10 +749,9 @@ def der_position(m, n, Rm, Rn, l, i):
 
 
 def calculate_q(nu, k, l, factorial):
-    """
-    Calculates q_{kl}^{nu} according to the unnumbered equation afer Eq. (7) of
-    "3D Zernike Descriptors for Content Based Shape Retrieval", Computer-Aided
-    Design 36 (2004) 1047-1062.
+    """Calculates q_{kl}^{nu} according to the unnumbered equation afer Eq. (7)
+    of "3D Zernike Descriptors for Content Based Shape Retrieval",
+    Computer-Aided Design 36 (2004) 1047-1062.
     """
     result = ((-1) ** (k + nu)) * sqrt((2. * l + 4. * k + 3.) / 3.) * \
         binomial(k, nu, factorial) * \
@@ -709,8 +763,7 @@ def calculate_q(nu, k, l, factorial):
 
 
 def calculate_Z(n, l, m, x, y, z, factorial):
-    """
-    Calculates Z_{nl}^{m}(x, y, z) according to the unnumbered equation afer
+    """Calculates Z_{nl}^{m}(x, y, z) according to the unnumbered equation afer
     Eq. (11) of "3D Zernike Descriptors for Content Based Shape Retrieval",
     Computer-Aided Design 36 (2004) 1047-1062.
     """
@@ -749,9 +802,8 @@ def calculate_Z(n, l, m, x, y, z, factorial):
 
 
 def calculate_Z_prime(n, l, m, x, y, z, p, factorial):
-    """
-    Calculates dZ_{nl}^{m}(x, y, z)/dR_{p} according to the unnumbered equation
-    afer Eq. (11) of "3D Zernike Descriptors for Content Based Shape
+    """Calculates dZ_{nl}^{m}(x, y, z)/dR_{p} according to the unnumbered
+    equation afer Eq. (11) of "3D Zernike Descriptors for Content Based Shape
     Retrieval", Computer-Aided Design 36 (2004) 1047-1062.
     """
     value = 0.
@@ -824,7 +876,7 @@ if __name__ == "__main__":
     print('<amp-connect>')  # Signal that program started.
     sys.stderr = tempfile.NamedTemporaryFile(mode='w', delete=False,
                                              suffix='.stderr')
-    print('stderr written to %s<stderr>' % sys.stderr.name)
+    print('Log and error written to %s<stderr>' % sys.stderr.name)
 
     # Establish client session via zmq; find purpose.
     context = zmq.Context()

@@ -1,5 +1,5 @@
-
-from amp.utilities import hash_images
+import matplotlib
+matplotlib.use('Agg')  # For headless operation.
 
 from ase.calculators.emt import EMT
 from ase.lattice.surface import fcc110
@@ -14,6 +14,7 @@ from amp.descriptor.gaussian import Gaussian
 from amp.model.neuralnetwork import NeuralNetwork
 from amp.model import LossFunction
 from amp.model.neuralnetwork import NodePlot
+from amp.utilities import hash_images
 
 
 def generate_data(count):
@@ -60,12 +61,12 @@ def train_data(images, setup_only=False):
         images = hash_images(train_images)
         calc.descriptor.calculate_fingerprints(images=images,
                                                log=calc.log,
-                                               cores=1,
+                                               parallel={'cores': 1},
                                                calculate_derivatives=False)
         calc.model.fit(trainingimages=images,
                        descriptor=calc.descriptor,
                        log=calc.log,
-                       cores=1,
+                       parallel={'cores': 1},
                        only_setup=True)
         return calc
 

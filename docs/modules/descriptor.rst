@@ -1,23 +1,37 @@
 Descriptor
 ==============
 
-Methods for describing local atomic environment are included in this module.
+The descriptor module contains methods for describing the local atomic environment; that is, feature fectors that can be fed to machine-learning modules.
 
 
-Module contents
----------------
+Gaussian
+--------
 
-.. automodule:: descriptor.gaussian
+.. automodule:: amp.descriptor.gaussian
     :members:
     :undoc-members:
     :show-inheritance:
 
-.. automodule:: descriptor.zernike
+Zernike
+-------
+
+.. automodule:: amp.descriptor.zernike
     :members:
     :undoc-members:
     :show-inheritance:
 
-.. automodule:: descriptor.bispectrum
+Bispectrum
+----------
+
+.. automodule:: amp.descriptor.bispectrum
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+Cutoff functions
+----------------
+
+.. automodule:: amp.descriptor.cutoffs
     :members:
     :undoc-members:
     :show-inheritance:

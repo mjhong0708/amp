@@ -10,8 +10,7 @@ Amp: Atomistic Machine-learning Package
 This project is being developed at Brown University in the School of Engineering, primarily by **Andrew Peterson** and **Alireza Khorshidi**,
 and is released under the GNU General Public License.
 
-This is a relatively new project, so things are constantly changing!
-Please see the project's `git repository <https://bitbucket.org/andrewpeterson/amp>`_ for the latest version and news.
+Please see the project's `git repository <https://bitbucket.org/andrewpeterson/amp>`_ for the latest version, news, or a place to report an issue.
 
 You can read about Amp in the below paper; if you find Amp useful, we would appreciate if you cite this work:
 
@@ -22,21 +21,26 @@ You can read about Amp in the below paper; if you find Amp useful, we would appr
 
    <a href="http://dx.doi.org/10.1016/j.cpc.2016.05.010" target="_blank">[DOI:10.1016/j.cpc.2016.05.010] </a>
 
-**Table of Contents**:
+**Manual**:
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    introduction.rst
    theory.rst
+   credits.rst
    installation.rst
    useamp.rst
    examplescripts.rst
+   neuralnetwork.rst
    building.rst
    moredescriptor.rst
+   moremodel.rst
+   tensorflow.rst
+   databases.rst
    develop.rst
 
-**List of All Methods**:
+**Module autodocumentation**:
 
 .. toctree::
    :maxdepth: 1
@@ -49,8 +53,7 @@ You can read about Amp in the below paper; if you find Amp useful, we would appr
    modules/analysis.rst
 
 
-Indices and tables
-==================
+**Indices and tables**
 
 * :ref:`genindex`
 * :ref:`modindex`

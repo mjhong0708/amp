@@ -1,10 +1,10 @@
 
 import numpy as np
 from ase.calculators.calculator import Parameters
-from ..utilities import (Logger, ConvergenceOccurred, make_sublists, now,
-                         importer, EstablishSSH)
+from amp.utilities import (Logger, ConvergenceOccurred, make_sublists, now,
+                           setup_parallel)
 try:
-    from .. import fmodules
+    from amp import fmodules
 except ImportError:
     fmodules = None
 
@@ -27,32 +27,59 @@ class Model(object):
 
     @log.setter
     def log(self, log):
+        """Log data
+
+        Parameters
+        ----------
+        log : Logger object
+            Write function at which to log data. Note this must be a callable
+            function.
+        """
         self._log = log
 
     def tostring(self):
         """Returns an evaluatable representation of the calculator that can
         be used to re-establish the calculator."""
+        # Make sure numpy prints out enough data.
+        np.set_printoptions(precision=30, threshold=999999999)
         return self.parameters.tostring()
 
     def get_energy(self, fingerprints):
         """Returns the model-predicted energy for an image, based on its
         fingerprint.
+
+        Parameters
+        ----------
+        fingerprints : dict
+            Dictionary with images hashs as keys and the corresponding
+            fingerprints as values.
         """
 
         if self.parameters.mode == 'image-centered':
             raise NotImplementedError('This needs to be coded.')
         elif self.parameters.mode == 'atom-centered':
+            self.atomic_energies = []
             energy = 0.0
             for index, (symbol, afp) in enumerate(fingerprints):
                 atom_energy = self.get_atomic_energy(afp=afp,
                                                      index=index,
                                                      symbol=symbol)
+                self.atomic_energies.append(atom_energy)
                 energy += atom_energy
         return energy
 
     def get_forces(self, fingerprints, fingerprintprimes):
         """Returns the model-predicted forces for an image, based on
         derivatives of fingerprints.
+
+        Parameters
+        ----------
+        fingerprints : dict
+            Dictionary with images hashs as keys and the corresponding
+            fingerprints as values.
+        fingerprintprimes : dict
+            Dictionary with images hashs as keys and the corresponding
+            fingerprint derivatives as values.
         """
 
         if self.parameters.mode == 'image-centered':
@@ -74,6 +101,12 @@ class Model(object):
     def get_dEnergy_dParameters(self, fingerprints):
         """Returns a list of floats corresponding to the derivative of
         model-predicted energy of an image with respect to model parameters.
+
+        Parameters
+        ----------
+        fingerprints : dict
+            Dictionary with images hashs as keys and the corresponding
+            fingerprints as values.
         """
 
         if self.parameters.mode == 'image-centered':
@@ -91,9 +124,18 @@ class Model(object):
         return denergy_dparameters
 
     def get_numerical_dEnergy_dParameters(self, fingerprints, d=0.00001):
-        """Evaluates dEnergy_dParameters using finite difference. This will
-        trigger two calls to get_energy(), with each parameter perturbed
-        plus/minus d.
+        """Evaluates dEnergy_dParameters using finite difference.
+
+        This will trigger two calls to get_energy(), with each parameter
+        perturbed plus/minus d.
+
+        Parameters
+        ----------
+        fingerprints : dict
+            Dictionary with images hashs as keys and the corresponding
+            fingerprints as values.
+        d : float
+            The amount of perturbation in each parameter.
         """
 
         if self.parameters.mode == 'image-centered':
@@ -118,6 +160,15 @@ class Model(object):
         """Returns an array of floats corresponding to the derivative of
         model-predicted atomic forces of an image with respect to model
         parameters.
+
+        Parameters
+        ----------
+        fingerprints : dict
+            Dictionary with images hashs as keys and the corresponding
+            fingerprints as values.
+        fingerprintprimes : dict
+            Dictionary with images hashs as keys and the corresponding
+            fingerprint derivatives as values.
         """
 
         if self.parameters.mode == 'image-centered':
@@ -146,6 +197,17 @@ class Model(object):
         """Evaluates dForces_dParameters using finite difference. This will
         trigger two calls to get_forces(), with each parameter perturbed
         plus/minus d.
+
+        Parameters
+        ---------
+        fingerprints : dict
+            Dictionary with images hashs as keys and the corresponding
+            fingerprints as values.
+        fingerprintprimes : dict
+            Dictionary with images hashs as keys and the corresponding
+            fingerprint derivatives as values.
+        d : float
+            The amount of perturbation in each parameter.
         """
 
         if self.parameters.mode == 'image-centered':
@@ -179,12 +241,13 @@ class Model(object):
 
 class LossFunction:
 
-    """Basic cost function, which can be used by the model.get_cost_function
+    """Basic loss function, which can be used by the model.get_loss_function
     method which is required in standard model classes.
+
     This version is pure python and thus will be slow compared to a
     fortran/parallel implementation.
 
-    If cores is None, it will pull it from the model itself. Only use
+    If parallel is None, it will pull it from the model itself. Only use
     this keyword to override the model's specification.
 
     Also has parallelization methods built in.
@@ -192,10 +255,28 @@ class LossFunction:
     See self.default_parameters for the default values of parameters
     specified as None.
 
-    :param d: If d is None, both loss function and its gradient are calculated
-              analytically. If d is a float, then gradient of the loss function
-              is calculated by perturbing each parameter plus/minus d.
-    :type d:  None or float
+    Parameters
+    ----------
+    energy_coefficient : float
+        Coefficient of the energy contribution in the loss function.
+    force_coefficient : float
+        Coefficient of the force contribution in the loss function.
+    convergence : dict
+        Dictionary of keys and values defining convergence.  Keys are
+        'energy_rmse', 'energy_maxresid', 'force_rmse', and 'force_maxresid'.
+    parallel : dict
+        Parallel configuration dictionary. Will pull from model itself if
+        not specified.
+    overfit : float
+        Multiplier of the weights norm penalty term in the loss function.
+    raise_ConvergenceOccurred : bool
+        If True will raise convergence notice.
+    log_losses : bool
+        If True will log the loss function value in the log file else will not.
+    d : None or float
+        If d is None, both loss function and its gradient are calculated
+        analytically. If d is a float, then gradient of the loss function is
+        calculated by perturbing each parameter plus/minus d.
     """
 
     default_parameters = {'convergence': {'energy_rmse': 0.001,
@@ -205,7 +286,7 @@ class LossFunction:
                           }
 
     def __init__(self, energy_coefficient=1.0, force_coefficient=0.04,
-                 convergence=None, cores=None, overfit=0.,
+                 convergence=None, parallel=None, overfit=0.,
                  raise_ConvergenceOccurred=True, log_losses=True, d=None):
         p = self.parameters = Parameters(
             {'importname': '.model.LossFunction'})
@@ -223,13 +304,32 @@ class LossFunction:
         self._step = 0
         self._initialized = False
         self._data_sent = False
-        self._cores = cores
+        self._parallel = parallel
 
     def attach_model(self, model, fingerprints=None,
                      fingerprintprimes=None, images=None):
-        """Attach the model to be used to the loss function. fingerprints and
-        training images need not be supplied if they are already attached to
-        the model via model.trainingparameters."""
+        """Attach the model to be used to the loss function.
+
+        fingerprints and training images need not be supplied if they are
+        already attached to the model via model.trainingparameters.
+
+        Parameters
+        ----------
+        model : object
+            Class representing the regression model.
+        fingerprints : dict
+            Dictionary with images hashs as keys and the corresponding
+            fingerprints as values.
+        fingerprintprimes : dict
+            Dictionary with images hashs as keys and the corresponding
+            fingerprint derivatives as values.
+        images : list or str
+            List of ASE atoms objects with positions, symbols, energies, and
+            forces in ASE format. This is the training set of data. This can
+            also be the path to an ASE trajectory (.traj) or database (.db)
+            file. Energies can be obtained from any reference, e.g. DFT
+            calculations.
+        """
         self._model = model
         self.fingerprints = fingerprints
         self.fingerprintprimes = fingerprintprimes
@@ -241,8 +341,8 @@ class LossFunction:
         if self._initialized is True:
             return
 
-        if self._cores is None:
-            self._cores = self._model.cores
+        if self._parallel is None:
+            self._parallel = self._model._parallel
         log = self._model.log
 
         if self.fingerprints is None:
@@ -257,43 +357,13 @@ class LossFunction:
         if self.images is None:
             self.images = self._model.trainingparameters.trainingimages
 
-        if self._cores != 1:  # Initialize workers.
-            import zmq
-            from socket import gethostname
-            from getpass import getuser
-            pxssh = importer('pxssh')
-            log(' Parallel processing.')
-            context = zmq.Context()
-            server = context.socket(zmq.REP)
-            serverport = server.bind_to_random_port('tcp://*')
-            serversocket = '%s:%s' % (gethostname(), serverport)
-            log('  Established server at %s' % serversocket)
-
-            module = self.__module__
-            workercommand = ('python -m %s %%s %s' %
-                             (module, serversocket))
-
-            # Create processes over SSH.
-            # 'processes' contains links to the actual processes;
-            # 'threads' is only used here to start all the SSH connections
-            # simultaneously.
-            log(' Establishing worker sessions.')
-            processes = []
-            threads = []  # Only used to start processes.
-            for workerhostname, nprocesses in self._cores.iteritems():
-                for pid in range(len(threads), len(threads) + nprocesses):
-                    threads.append(EstablishSSH(pid,
-                                                workerhostname,
-                                                workercommand, log))
-            for thread in threads:
-                thread.start()
-            for thread in threads:
-                thread.join()
-            for thread in threads:
-                processes.append(thread.ssh)
-
+        if self._parallel['cores'] != 1:  # Initialize workers.
+            workercommand = 'python -m %s' % self.__module__
+            server, connections, n_pids = setup_parallel(self._parallel,
+                                                         workercommand, log)
             self._sessions = {'master': server,
-                              'workers': processes}
+                              'connections': connections,  # SSH's/nodes
+                              'n_pids': n_pids}  # total no. of workers
 
         if self.log_losses:
             p = self.parameters
@@ -398,34 +468,46 @@ class LossFunction:
 
     def _cleanup(self):
         """Closes SSH sessions."""
+        # FIXME/ap: I don't think this is done in the utilities/Data
+        # routines. Does it need to be done here? If so, does it need
+        # to be done there? I think that when the ssh item is destroyed
+        # it automatically closes the connection. It may not properly
+        # log out, but I'm not sure that's a problem.
         self._initialized = False
         if not hasattr(self, '_sessions'):
             return
         server = self._sessions['master']
 
-        def process_parallels():
-            finished = np.array([False] * len(self._sessions['workers']))
-            while not finished.all():
-                message = server.recv_pyobj()
-                if (message['subject'] == '<request>' and
-                        message['data'] == 'parameters'):
-                    server.send_pyobj('<stop>')
-                    finished[int(message['id'])] = True
+        finished = np.array([False] * self._sessions['n_pids'])
+        while not finished.all():
+            message = server.recv_pyobj()
+            if (message['subject'] == '<request>' and
+                    message['data'] == 'parameters'):
+                server.send_pyobj('<stop>')
+                finished[int(message['id'])] = True
 
-        process_parallels()
-        for _ in self._sessions['workers']:
-            _.logout()
-        del self._sessions['workers']
+        for _ in self._sessions['connections']:
+            if hasattr(_, 'logout'):
+                _.logout()
+        del self._sessions['connections']
 
     def get_loss(self, parametervector, lossprime):
         """Returns the current value of the loss function for a given set of
         parameters, or, if the energy is less than the energy_tol raises a
         ConvergenceException.
+
+        Parameters
+        ----------
+        parametervector : list
+            Parameters of the regression model in the form of a list.
+        lossprime : bool
+            If True, will calculate and return dloss_dparameters, else will
+            only return zero for dloss_dparameters.
         """
 
         self._initialize()
 
-        if self._cores == 1:
+        if self._parallel['cores'] == 1:
             if self._model.fortran:
                 self._model.vector = parametervector
                 self._send_data_to_fortran()
@@ -442,17 +524,17 @@ class LossFunction:
                                         lossprime=lossprime)
         else:
             server = self._sessions['master']
-            processes = self._sessions['workers']
+            n_pids = self._sessions['n_pids']
 
             # Subdivide tasks.
-            keys = make_sublists(self.images.keys(), len(processes))
+            keys = make_sublists(self.images.keys(), n_pids)
 
             args = {'lossprime': lossprime,
                     'd': self.d}
 
             results = self.process_parallels(parametervector,
                                              server,
-                                             processes,
+                                             n_pids,
                                              keys,
                                              args=args)
             loss = results['loss']
@@ -474,18 +556,20 @@ class LossFunction:
             # convergence is checked and values are printed out in the log
             # file.
             if lossprime is False:
+                self._model.vector = parametervector
                 converged = self.check_convergence(loss,
                                                    energy_loss,
                                                    force_loss,
                                                    energy_maxresid,
                                                    force_maxresid)
                 if converged:
-                    self._model.vector = parametervector
                     self._cleanup()
                     raise ConvergenceOccurred()
 
         return {'loss': self.loss,
-                'dloss_dparameters': self.dloss_dparameters if lossprime is True else dloss_dparameters,
+                'dloss_dparameters': (self.dloss_dparameters
+                                      if lossprime is True
+                                      else dloss_dparameters),
                 'energy_loss': self.energy_loss,
                 'force_loss': self.force_loss,
                 'energy_maxresid': self.energy_maxresid,
@@ -494,6 +578,15 @@ class LossFunction:
     def calculate_loss(self, parametervector, lossprime):
         """Method that calculates the loss, derivative of the loss with respect
         to parameters (if requested), and max_residual.
+
+        Parameters
+        ----------
+        parametervector : list
+            Parameters of the regression model in the form of a list.
+
+        lossprime : bool
+            If True, will calculate and return dloss_dparameters, else will
+            only return zero for dloss_dparameters.
         """
         self._model.vector = parametervector
         p = self.parameters
@@ -526,10 +619,11 @@ class LossFunction:
                         denergy_dparameters = \
                             self._model.get_numerical_dEnergy_dParameters(
                                 self.fingerprints[hash], d=self.d)
-                    dloss_dparameters += p.energy_coefficient * 2. * \
+                    temp = p.energy_coefficient * 2. * \
                         (amp_energy - actual_energy) * \
                         denergy_dparameters / \
                         (no_of_atoms ** 2.)
+                    dloss_dparameters += temp
 
             if p.force_coefficient != 0.:
                 amp_forces = \
@@ -542,10 +636,10 @@ class LossFunction:
                                           actual_forces[index][i])
                         if force_resid > force_maxresid:
                             force_maxresid = force_resid
-                        forceloss += \
-                            (1. / 3.) * (amp_forces[index][i] -
-                                         actual_forces[index][i]) ** 2. / \
+                        temp = (1. / 3.) * (amp_forces[index][i] -
+                                            actual_forces[index][i]) ** 2. / \
                             no_of_atoms
+                        forceloss += temp
                 # Calculates derivative of the loss function with respect to
                 # parameters if lossprime is true
                 if lossprime:
@@ -565,12 +659,12 @@ class LossFunction:
                                     d=self.d)
                         for selfindex in range(no_of_atoms):
                             for i in range(3):
-                                dloss_dparameters += p.force_coefficient * \
-                                    (2.0 / 3.0) * \
+                                temp = p.force_coefficient * (2.0 / 3.0) * \
                                     (amp_forces[selfindex][i] -
                                      actual_forces[selfindex][i]) * \
                                     dforces_dparameters[(selfindex, i)] \
                                     / no_of_atoms
+                                dloss_dparameters += temp
 
         loss = p.energy_coefficient * energyloss + \
             p.force_coefficient * forceloss
@@ -596,9 +690,25 @@ class LossFunction:
     # d['subject']: what the message is asking for / telling you.
     # d['data']: optional data passed from worker.
 
-    def process_parallels(self, vector, server, processes, keys, args):
+    def process_parallels(self, vector, server, n_pids, keys, args):
+        """
+
+        Parameters
+        ----------
+        vector : list
+            Parameters of the regression model in the form of a list.
+        server : object
+            Master session of parallel processing.
+        processes: list of objects
+            Worker sessions for parallel processing.
+        keys : list
+            List of images keys for worker processes.
+        args : dict
+            Dictionary containing arguments of the method to be called on each
+            worker process.
+        """
         # For each process
-        finished = np.array([False] * len(processes))
+        finished = np.array([False] * n_pids)
         results = {'loss': 0.,
                    'dloss_dparameters': [0.] * len(vector),
                    'energy_loss': 0.,
@@ -626,8 +736,8 @@ class LossFunction:
                                        keys[int(message['id'])]})
                 elif request == 'fingerprintprimes':
                     if self.fingerprintprimes is not None:
-                        server.send_pyobj({k: self.fingerprintprimes[k] for k in
-                                           keys[int(message['id'])]})
+                        server.send_pyobj({k: self.fingerprintprimes[k] for k
+                                           in keys[int(message['id'])]})
                     else:
                         server.send_pyobj(None)
                 elif request == 'args':
@@ -652,12 +762,29 @@ class LossFunction:
                 if result['force_maxresid'] > results['force_maxresid']:
                     results['force_maxresid'] = result['force_maxresid']
                 finished[int(message['id'])] = True
+
         return results
 
     def check_convergence(self, loss, energy_loss, force_loss,
                           energy_maxresid, force_maxresid):
-        """Checks to see whether convergence is met; if it is, raises
-        ConvergenceException to stop the optimizer."""
+        """Check convergence
+
+        Checks to see whether convergence is met; if it is, raises
+        ConvergenceException to stop the optimizer.
+
+        Parameters
+        ----------
+        loss : float
+            Value of the loss function.
+        energy_loss : float
+            Value of the energy contribution of the loss function.
+        force_loss : float
+            Value of the force contribution of the loss function.
+        energy_maxresid : float
+            Maximum energy residual.
+        force_maxresid : float
+            Maximum force residual.
+        """
         p = self.parameters
         energy_rmse_converged = True
         log = self._model.log
@@ -681,15 +808,16 @@ class LossFunction:
                     force_maxresid_converged = False
 
             if self.log_losses:
-                log('%5i %19s %12.4e %10.4e %1s %10.4e %1s %10.4e %1s %10.4e %1s' %
+                log('%5i %19s %12.4e %10.4e %1s'
+                    ' %10.4e %1s %10.4e %1s %10.4e %1s' %
                     (self._step, now(), loss, energy_rmse,
-                     'C' if energy_rmse_converged else '',
+                     'C' if energy_rmse_converged else '-',
                      energy_maxresid,
-                     'C' if energy_maxresid_converged else '',
+                     'C' if energy_maxresid_converged else '-',
                      force_rmse,
-                     'C' if force_rmse_converged else '',
+                     'C' if force_rmse_converged else '-',
                      force_maxresid,
-                     'C' if force_maxresid_converged else ''))
+                     'C' if force_maxresid_converged else '-'))
 
             self._step += 1
             return energy_rmse_converged and energy_maxresid_converged and \
@@ -698,9 +826,9 @@ class LossFunction:
             if self.log_losses:
                 log('%5i %19s %12.4e %10.4e %1s %10.4e %1s' %
                     (self._step, now(), loss, energy_rmse,
-                     'C' if energy_rmse_converged else '',
+                     'C' if energy_rmse_converged else '-',
                      energy_maxresid,
-                     'C' if energy_maxresid_converged else ''))
+                     'C' if energy_maxresid_converged else '-'))
             self._step += 1
             return energy_rmse_converged and energy_maxresid_converged
 
@@ -744,6 +872,25 @@ def ravel_data(train_forces,
                fingerprintprimes,):
     """
     Reshapes data of images into lists.
+
+    Parameters
+    ---------
+    train_forces : bool
+        Determining whether forces are also trained or not.
+    mode : str
+        Can be either 'atom-centered' or 'image-centered'.
+    images : list or str
+        List of ASE atoms objects with positions, symbols, energies, and forces
+        in ASE format. This is the training set of data. This can also be the
+        path to an ASE trajectory (.traj) or database (.db) file. Energies can
+        be obtained from any reference, e.g. DFT calculations.
+
+    fingerprints : dict
+        Dictionary with images hashs as keys and the corresponding fingerprints
+        as values.
+    fingerprintprimes : dict
+        Dictionary with images hashs as keys and the corresponding fingerprint
+        derivatives as values.
     """
     from ase.data import atomic_numbers as an
 

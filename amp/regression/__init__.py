@@ -10,11 +10,17 @@ class Regressor:
     Global optimization conditioners (e.g., simulated annealing, etc.) can
     be built into this class.
 
-    :param lossprime: Decides whether or not the regressor needs to be fed in
-                      by gradient of the loss function as well as the loss
-                      function itself.
-    :type lossprime: boolean
-
+    Parameters
+    ----------
+    optimizer : str
+        The optimizer to use. Several defaults are available including
+        'L-BFGS-B', 'BFGS', 'TNC', or 'NCG'.  Alternatively, any function can
+        be supplied which behaves like scipy.optimize.fmin_bfgs.
+    optimizer_kwargs : dict
+        Optional keywords for the corresponding optimizer.
+    lossprime : boolean
+        Decides whether or not the regressor needs to be fed in by gradient of
+        the loss function as well as the loss function itself.
     """
 
     def __init__(self, optimizer='L-BFGS-B', optimizer_kwargs=None,
@@ -25,10 +31,14 @@ class Regressor:
         optimal paramters. Additional keyword arguments can be fed through
         the optimizer_kwargs dictionary."""
 
+        user_kwargs = optimizer_kwargs
+        optimizer_kwargs = {}
         if optimizer == 'L-BFGS-B':
             from scipy.optimize import fmin_l_bfgs_b as optimizer
             optimizer_kwargs = {'factr': 1e+02,
-                                'pgtol': 1e-08, }
+                                'pgtol': 1e-08,
+                                'maxfun': 1000000,
+                                'maxiter': 1000000}
             import scipy
             from distutils.version import StrictVersion
             if StrictVersion(scipy.__version__) >= StrictVersion('0.17.0'):
@@ -47,6 +57,8 @@ class Regressor:
             from scipy.optimize import fmin_ncg as optimizer
             optimizer_kwargs = {'avextol': 1e-15, }
 
+        if user_kwargs:
+            optimizer_kwargs.update(user_kwargs)
         self.optimizer = optimizer
         self.optimizer_kwargs = optimizer_kwargs
         self.lossprime = lossprime
@@ -56,6 +68,13 @@ class Regressor:
         which should return the current value of the loss function
         until convergence has been reached, at which point it should
         raise a amp.utilities.ConvergenceException.
+
+        Parameters
+        ----------
+        model : object
+            Class representing the regression model.
+        log : str
+            Name of script to log progress.
         """
         # FIXME/ap Optimizer also has space for fprime; needs
         # to be implemented. Especially important not to

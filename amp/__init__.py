@@ -16,14 +16,12 @@ except ImportError:
     # We're on ASE 3.9 or older
     from ase.version import version as aseversion
 
-from .utilities import make_filename
-from .utilities import hash_images
-from .utilities import Logger, string2dict, logo, now, assign_cores
-from .utilities import TrainingConvergenceError
+from .utilities import (make_filename, hash_images, Logger, string2dict,
+                        logo, now, assign_cores, TrainingConvergenceError)
 
 import warnings
 try:
-    from . import fmodules
+    from amp import fmodules
     fmodules_version = 8
     wrong_version = fmodules.check_version(version=fmodules_version)
     if wrong_version:
@@ -36,44 +34,45 @@ except ImportError:
 
 class Amp(Calculator, object):
 
-    """
-    Atomistic Machine-Learning Potential (Amp) ASE calculator
+    """Atomistic Machine-Learning Potential (Amp) ASE calculator
 
-    :param descriptor: Class representing local atomic environment.
-    :type descriptor: object
-
-    :param regression: Class representing the regression method. Can be only
-                       NeuralNetwork for now. Input arguments for NeuralNetwork
-                       are hiddenlayers, activation, weights, and scalings; for
-                       more information see docstring for the class
-                       NeuralNetwork.
-    :type regression: object
-
-    :param label: Default prefix/location used for all files.
-    :type label: str
-
-    :param dblabel: Optional separate prefix/location for database files,
-                    including fingerprints, fingerprint derivatives, and
-                    neighborlists. This file location can be shared between
-                    calculator instances to avoid re-calculating redundant
-                    information. If not supplied, just uses the value from
-                    label.
-    :type dblabel: str
-
-    :param cores: Can specify cores to use for parallel training;
-                  if None, will determine from environment
-    :type cores: int
-
-    :raises: RuntimeError.
+    Parameters
+    ----------
+    descriptor : object
+        Class representing local atomic environment.
+    model : object
+        Class representing the regression model. Can be only NeuralNetwork for
+        now. Input arguments for NeuralNetwork are hiddenlayers, activation,
+        weights, and scalings; for more information see docstring for the class
+        NeuralNetwork.
+    label : str
+        Default prefix/location used for all files.
+    dblabel : str
+        Optional separate prefix/location for database files, including
+        fingerprints, fingerprint derivatives, and neighborlists. This file
+        location can be shared between calculator instances to avoid
+        re-calculating redundant information. If not supplied, just uses the
+        value from label.
+    cores : int
+        Can specify cores to use for parallel training; if None, will determine
+        from environment
+    envcommand : string
+        For parallel processing across nodes, a command can be supplied
+        here to load the appropriate environment before starting workers.
+    atoms : object
+        ASE atoms objects with positions, symbols, energy, and forces in ASE
+        format.
     """
     implemented_properties = ['energy', 'forces']
 
     def __init__(self, descriptor, model, label='amp', dblabel=None,
-                 cores=None, atoms=None):
+                 cores=None, envcommand=None, atoms=None):
 
         Calculator.__init__(self, label=label, atoms=atoms)
         # Note self.log is set and self._printheader is called by above
         # call when it runs self.set_label.
+
+        self._parallel = {'envcommand': envcommand}
 
         # Note the following are properties: these are setter functions.
         self.descriptor = descriptor
@@ -84,11 +83,31 @@ class Amp(Calculator, object):
 
     @property
     def cores(self):
-        return self._cores
+        """
+        Parameters
+        ----------
+        cores : int or dictionary
+            Parallel configuration. If cores is an integer, parallelizes over
+            this many processes on machine localhost. cores can also be
+            a dictionary of the type {'node324': 16, 'node325': 16}. If not
+            specified, tries to determine from environment, using
+            amp.utilities.assign_cores.
+        """
+        return self._parallel['cores']
 
     @cores.setter
     def cores(self, cores):
-        self._cores = assign_cores(cores, log=self.log)
+        """
+        Parameters
+        ----------
+        cores : int or dict
+            Parallel configuration. If cores is an integer, parallelizes over
+            this many processes on machine localhost. cores can also be
+            a dictionary of the type {'node324': 16, 'node325': 16}. If not
+            specified, tries to determine from environment, using
+            amp.utilities.assign_cores.
+        """
+        self._parallel['cores'] = assign_cores(cores, log=self.log)
 
     @property
     def descriptor(self):
@@ -96,6 +115,12 @@ class Amp(Calculator, object):
 
     @descriptor.setter
     def descriptor(self, descriptor):
+        """
+        Parameters
+        ----------
+        descriptor : object
+            Class representing local atomic environment.
+        """
         descriptor.parent = self  # gives the descriptor object a reference to
         # the main Amp instance. Then descriptor can pull parameters directly
         # from Amp without needing them to be passed in each method call.
@@ -108,6 +133,12 @@ class Amp(Calculator, object):
 
     @model.setter
     def model(self, model):
+        """
+        Parameters
+        ----------
+        model : object
+            Class representing the regression model.
+        """
         model.parent = self  # gives the model object a reference to the main
         # Amp instance. Then model can pull parameters directly from Amp
         # without needing them to be passed in each method call.
@@ -117,14 +148,24 @@ class Amp(Calculator, object):
     @classmethod
     def load(Cls, file, Descriptor=None, Model=None, **kwargs):
         """Attempts to load calculators and return a new instance of Amp.
+
         Only a filename or file-like object is required, in typical cases.
 
-        If using a home-rolled descriptor or model, also supply
-        uninstantiated classes to those models, as in Model=MyModel.
-        (Not as Model=MyModel()!)
+        If using a home-rolled descriptor or model, also supply uninstantiated
+        classes to those models, as in Model=MyModel.  (Not as
+        Model=MyModel()!)
 
         Any additional keyword arguments (such as label or dblabel) can be
         fed through to Amp.
+
+        Parameters
+        ----------
+        file : str
+            Name of the file to load data from.
+        Descriptor : object
+            Class representing local atomic environment.
+        Model : object
+            Class representing the regression model.
         """
         if hasattr(file, 'read'):
             text = file.read()
@@ -156,20 +197,22 @@ class Amp(Calculator, object):
         return calc
 
     def set(self, **kwargs):
-        """
-        Function to set parameters. For now, this doesn't do anything
-        as all parameters are within the model and descriptor.
+        """Function to set parameters.
+
+        For now, this doesn't do anything as all parameters are within the
+        model and descriptor.
         """
         changed_parameters = Calculator.set(self, **kwargs)
         if len(changed_parameters) > 0:
             self.reset()
 
     def set_label(self, label):
-        """
-        Sets label, ensuring that any needed directories are made.
+        """Sets label, ensuring that any needed directories are made.
 
-        :param label: Default prefix/location used for all files.
-        :type label: str
+        Parameters
+        ----------
+        label : str
+            Default prefix/location used for all files.
         """
         Calculator.set_label(self, label)
 
@@ -186,8 +229,8 @@ class Amp(Calculator, object):
         self._printheader(log)
 
     def calculate(self, atoms, properties, system_changes):
-        """
-        Calculation of the energy of system and forces of all atoms.
+        """Calculation of the energy of system and forces of all atoms.
+
         """
         # The inherited method below just sets the atoms object,
         # if specified, to self.atoms.
@@ -224,25 +267,27 @@ class Amp(Calculator, object):
               overwrite=False,
               train_forces=True,
               ):
-        """
-        Fits the model to the training images.
+        """Fits the model to the training images.
 
-        :param images: List of ASE atoms objects with positions, symbols,
-                       energies, and forces in ASE format. This is the training
-                       set of data. This can also be the path to an ASE
-                       trajectory (.traj) or database (.db) file. Energies can
-                       be obtained from any reference, e.g. DFT calculations.
-        :type images: list or str
-
-        :param overwrite: If a trained output file with the same name exists,
-                          overwrite it.
-        :type overwrite: bool
+        Parameters
+        ----------
+        images : list or str
+            List of ASE atoms objects with positions, symbols, energies, and
+            forces in ASE format. This is the training set of data. This can
+            also be the path to an ASE trajectory (.traj) or database (.db)
+            file. Energies can be obtained from any reference, e.g. DFT
+            calculations.
+        overwrite : bool
+            If an output file with the same name exists, overwrite it.
+        train_forces : bool
+            Determining whether forces are also trained or not.
         """
 
         log = self.log
         log('\nAmp training started. ' + now() + '\n')
-        log('Descriptor: %s' % self.descriptor.__class__.__name__)
-        log('Model: %s' % self.model.__class__.__name__)
+        log('Descriptor: %s\n  (%s)' % (self.descriptor.__class__.__name__,
+                                        self.descriptor))
+        log('Model: %s\n  (%s)' % (self.model.__class__.__name__, self.model))
 
         images = hash_images(images, log=log)
 
@@ -252,7 +297,7 @@ class Amp(Calculator, object):
         calculate_derivatives = train_forces
         self.descriptor.calculate_fingerprints(
                 images=images,
-                cores=self.cores,
+                parallel=self._parallel,
                 log=log,
                 calculate_derivatives=calculate_derivatives)
 
@@ -260,7 +305,7 @@ class Amp(Calculator, object):
         result = self.model.fit(trainingimages=images,
                                 descriptor=self.descriptor,
                                 log=log,
-                                cores=self.cores)
+                                parallel=self._parallel)
 
         if result is True:
             log('Amp successfully trained. Saving current parameters.')
@@ -278,8 +323,16 @@ class Amp(Calculator, object):
                                            ' more information.')
 
     def save(self, filename, overwrite=False):
-        """Saves the calculator in way that it can be re-opened with
-        load."""
+        """Saves the calculator in a way that it can be re-opened with
+        load.
+
+        Parameters
+        ----------
+        filename : str
+            File object or path to the file to write to.
+        overwrite : bool
+            If an output file with the same name exists, overwrite it.
+        """
         if os.path.exists(filename):
             if overwrite is False:
                 oldfilename = filename
@@ -303,17 +356,19 @@ class Amp(Calculator, object):
         return filename
 
     def _printheader(self, log):
-        """Prints header to log file; inspired by that in GPAW."""
+        """Prints header to log file; inspired by that in GPAW.
+        """
         log(logo)
         log('Amp: Atomistic Machine-learning Package')
         log('Developed by Andrew Peterson, Alireza Khorshidi, and others,')
         log('Brown University.')
-        log(' PI Website: http://brown.edu/go/catalyst')
-        log(' Official repository: http://bitbucket.org/andrewpeterson/amp')
-        log(' Official documentation: http://amp.readthedocs.org/')
-        log(' Citation:')
-        log('  Khorshidi & Peterson, Computer Physics Communications')
-        log('  doi:10.1016/j.cpc.2016.05.010 (2016)')
+        log('PI Website: http://brown.edu/go/catalyst')
+        log('Official repository: http://bitbucket.org/andrewpeterson/amp')
+        log('Official documentation: http://amp.readthedocs.org/')
+        log('Citation:')
+        log('  Alireza Khorshidi & Andrew A. Peterson,')
+        log('  Computer Physics Communications 207: 310-324 (2016).')
+        log('  http://doi.org/10.1016/j.cpc.2016.05.010')
         log('=' * 70)
         log('User: %s' % getuser())
         log('Hostname: %s' % gethostname())
@@ -360,13 +415,13 @@ class Amp(Calculator, object):
                 import pexpect
                 log('pxssh (via pexpect v%s): %s' %
                     (pexpect.__version__, pxssh.__file__))
-
         log('=' * 70)
 
 
 def importhelper(importname):
-    """Manually compiled list of available modules. This is to prevent the
-    execution of arbitrary (potentially malicious) code.
+    """Manually compiled list of available modules.
+
+    This is to prevent the execution of arbitrary (potentially malicious) code.
 
     However, since there is an `eval` statement in string2dict maybe this
     is silly.
@@ -375,6 +430,8 @@ def importhelper(importname):
         from .descriptor.gaussian import Gaussian as Module
     elif importname == '.model.neuralnetwork.NeuralNetwork':
         from .model.neuralnetwork import NeuralNetwork as Module
+    elif importname == '.model.neuralnetwork.tflow':
+        from .model.tflow import NeuralNetwork as Module
     elif importname == '.model.LossFunction':
         from .model import LossFunction as Module
     else:
@@ -389,7 +446,8 @@ def importhelper(importname):
 
 
 def get_git_commit(ampdirectory):
-    """Attempts to get the last git commit from the amp directory."""
+    """Attempts to get the last git commit from the amp directory.
+    """
     pwd = os.getcwd()
     os.chdir(ampdirectory)
     try:

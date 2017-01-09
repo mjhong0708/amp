@@ -1,0 +1,19 @@
+#!/usr/bin/env python
+"""Tool to compress Amp FileDatabase objects."""
+
+import os
+from optparse import OptionParser
+
+from amp.utilities import FileDatabase
+
+
+parser = OptionParser(
+    usage='usage: %prog [options] [filename(s)]\n Compress .ampdb'
+          ' files(Amp FileDatabase objects).')
+options, args = parser.parse_args()
+
+for filename in args:
+    filename = filename.rstrip(os.path.sep)
+    assert filename.endswith('.ampdb')
+    assert 'loose' in os.listdir(filename)
+    FileDatabase(filename).archive()

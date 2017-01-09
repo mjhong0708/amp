@@ -10,7 +10,7 @@ This page contains standard practices for developing Amp, focusing on repositori
 Repositories and branching
 ----------------------------------
 
-The main Amp repository lives on bitbucket, andrewpeterson/amp.
+The main Amp repository lives on bitbucket, `andrewpeterson/amp <https://bitbucket.org/andrewpeterson/amp>`_ .
 We employ a branching model where the `master` branch is the main development branch, containing day-to-day commits from the core developers and honoring merge requests from others. From time to time, we create a new branch that corresponds to a release. This release branch contains only the tagged release and any bug fixes.
 
    .. image:: _static/branches.svg
@@ -40,6 +40,7 @@ To build a local copy, cd into the docs directory and try a command such as
 .. code-block:: bash
 
    sphinx-build . /tmp/ampdocs
+   firefox /tmp/ampdocs/index.html &  # View the local copy.
 
 This uses the style "bizstyle"; if you find this is missing on your system, you can likely install it with
 
@@ -56,9 +57,9 @@ To create a release, we go through the following steps.
 
 * Create a new branch on the bitbucket repository with the version name, as in `v0.5`. (Don't create a separate branch if this is a bugfix release, e.g., v0.5.1 --- just add those to the v0.5 branch.) All subsequent work is in the new branch.
 
-* Change `docs/conf.py`'s version information to match the new version number. 
+* Change `docs/conf.py`'s version information to match the new version number.
 
-* Change the version that prints out in the Amp headers. 
+* Change the version that prints out in the Amp headers.
 
 * Add the version to readthedocs' available versions.
 

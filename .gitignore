@@ -2,3 +2,5 @@
 *.so
 *.mod
 *.o
+*.py~
+*.py.swp

@@ -1,7 +1,7 @@
 Main
 ==============
 
-This module is the main part of Amp package.
+This module is the main part of the Amp package.
 
 
 Module contents

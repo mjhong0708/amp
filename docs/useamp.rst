@@ -5,7 +5,7 @@ Using Amp
 ==================================
 
 If you are familiar with ASE, the use of Amp should be intuitive.
-At it's most basic, Amp behaves like any other ASE calculator, except that it has a key extra method, called `train`, which allows you to fit the calculator to a set of atomic images.
+At its most basic, Amp behaves like any other ASE calculator, except that it has a key extra method, called `train`, which allows you to fit the calculator to a set of atomic images.
 This means you can use Amp as a substitute for an expensive calculator in any atomistic routine, such as molecular dynamics, global optimization, transition-state searches, normal-mode analyses, phonon analyses, etc.
 
 ----------------------------------
@@ -49,7 +49,13 @@ To control how tightly the energy is converged, you can adjust the `LossFunction
    convergence = {'energy_rmse': 0.02, 'force_rmse': 0.04}
    calc.model.lossfunction = LossFunction(convergence=convergence)
 
-You can see the adjustable parameters and their default values in the dictionary `LossFunction.default_parameters`.
+You can see the adjustable parameters and their default values in the dictionary `LossFunction.default_parameters`:
+
+.. code-block:: python
+
+    >>> LossFunction.default_parameters
+    {'convergence': {'energy_rmse': 0.001, 'force_rmse': 0.005, 'energy_maxresid': None, 'force_maxresid': None}}
+
 
 To change how the code manages the regression process, you can use the `Regressor` class. For example, to switch from the scipy's fmin_bfgs optimizer (the default) to scipy's basin hopping optimizer, try inserting the following lines before initializing training:
 
@@ -66,11 +72,11 @@ Parallel processing
 ----------------------------------
 
 Most tasks in Amp are "embarrassingly parallel" and thus you should see a performance boost by specifying more cores.
-Our standard parallel processing approach requires the modules pxssh (part of Pexpect, establish SSH connections) and ZMQ (to pass messages between processes).
+Our standard parallel processing approach requires the modules ZMQ (to pass messages between processes) and pxssh (to establish SSH connections across nodes, and is only needed if parallelizing on more than one node).
 The code will try to automatically guess the parallel configuration from the environment variables that your batching system produces, using the function `amp.utilities.assign_cores`.
 (We only use SLURM on your system, so we welcome patches to get this utility working on other systems!)
 If you want to override the automatic guess, use the `cores` keyword when initializing Amp.
-To specify serial operation, use `cores=1`.
+To specify serial operation, use `cores=1`; to specify (for example) 8 cores on only a single node, use `cores=8` or `cores={'localhost': 8}`.
 For parallel operation, cores should be a dictionary where the keys are the hostnames and the values are the number of processors (cores) available on that node; e.g.,
 
 .. code-block:: python
@@ -78,7 +84,22 @@ For parallel operation, cores should be a dictionary where the keys are the host
    cores = {'node241': 16,
             'node242': 16}
 
-For this to work, you need to be able to freely SSH between nodes on your system; this is true even if you are running within only a single node. Typically, this means that once you are logged in to your cluster you have public/private keys in use to ssh between nodes. If you can run `ssh localhost` without it asking you for a password, this is likely to work for you. This also assumes that your environment is identical each time you SSH into a node; that is, all the packages such as ASE, Amp, ZMQ, etc., are available in the same version. Generally, if you are setting your environment with a .bashrc or .modules file this will work; if you are setting your environment on-the-fly as you submit jobs then you are more likely to encounter problems.
+(One of the keys in the dictionary could also be `localhost`, as in the single-node example. Using `localhost` just prevents it from establishing an extra SSH connection.)
+
+For this to work on multiple nodes, you need to be able to freely SSH between nodes on your system.
+Typically, this means that once you are logged in to your cluster you have public/private keys in use to ssh between nodes.
+If you can run `ssh localhost` without it asking you for a password, this is likely to work for you.
+
+This also assumes that your environment is identical each time you SSH into a node; that is, all the packages such as ASE, Amp, ZMQ, etc., are available in the same version.
+Generally, if you are setting your environment with a .bashrc or .modules file this will work.
+If you need to set environment variable on the machine that is being SSH'd to, you can do so with the `envcommand` keyword, as in
+
+.. code-block:: python
+
+   envcommand = 'export PYTHONPATH=/path/to/amp:$PYTHONPATH'
+
+Ultimately, Amp stores these and passes them around in a configuration dictionary called `parallel`, so if you are calling descriptor or model functions directly you may need to construct this dictionary, which has the form `parallel={'cores': ..., 'envcommand': ...}`.
+
 
 ----------------------------------
 Advanced use
@@ -103,3 +124,29 @@ Under the hood, the train function is pretty simple; it just runs:
 * In the third line, the model (e.g., a neural network) is fit to the data. As it is passed a reference to `self.descriptor`, it has access to the fingerprints as well as the mode. Many options are available to customize this in terms of the loss function, the regression method, etc.
 
 * In the final pair of lines, if the target fit was achieved, the model is saved to disk.
+
+----------------------------------
+Re-training
+----------------------------------
+If training is successful, Amp saves the parameters into an 'amp.amp' file by default. You can load the pretrained calculator and re-train it further with tighter convergence criteria. You can specify if the pre-trained amp.amp will be overwritten by the re-trained one through the key word 'overwrite' (default is False). 
+
+.. code-block:: python
+
+   calc = Amp.load( './amp.amp' )
+   calc.model.lossfunction = LossFunction( convergence=convergence )
+   calc.train( overwrite=True or False )
+
+If training does not succeed, Amp raises a `TrainingConvergenceError`. You can use this within your scripts to catch when training succeeds or fails, for example:
+
+.. code-block:: python
+
+    from amp.utilities import TrainingConvergenceError
+
+    ...
+
+    try:
+        calc.train(images)
+    except TrainingConvergenceError:
+        # Whatever you want to happen if training fails;
+        # e.g., refresh parameters and train again.
+
