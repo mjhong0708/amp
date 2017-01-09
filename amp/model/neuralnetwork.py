@@ -157,6 +157,7 @@ class NeuralNetwork(Model):
 
         # Set all parameters and report to logfile.
         self._parallel = parallel
+        self._log = log
 
         if self.lossfunction is None:
             self.lossfunction = LossFunction(parallel=parallel)
@@ -270,7 +271,7 @@ class NeuralNetwork(Model):
                 if self.step == 0:
                     if not os.path.exists(path):
                         os.mkdir(path)
-                self.parent.log('Saving checkpoint data.')
+                self._log('Saving checkpoint data.')
                 filename = make_filename(path,
                                          'parameters-checkpoint-%d.amp'
                                          % self.step)
