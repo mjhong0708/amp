@@ -660,6 +660,5 @@ def plot_convergence(logfile, plotfile='convergence.pdf'):
         ax.set_xlabel('loss function call')
         ax.set_ylim(0, 1)
 
-    with PdfPages(plotfile) as pdf:
-        pdf.savefig(fig)
-        pyplot.close(fig)
+    fig.savefig(plotfile)
+    pyplot.close(fig)
