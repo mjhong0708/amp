@@ -867,17 +867,16 @@ class Annealer(object):
         # True.
         calculate_derivatives = True
         self.calc.descriptor.calculate_fingerprints(
-                images=images,
-                cores=self.calc.cores,
-                log=self.calc.log,
-                calculate_derivatives=calculate_derivatives)
+            images=images,
+            parallel=self.calc._parallel,
+            log=self.calc.log,
+            calculate_derivatives=calculate_derivatives)
         # Setting up calc.model.vector()
-        self.calc.model.fit(images,
-                            self.calc.descriptor,
-                            self.calc.log,
-                            self.calc.cores,
-                            only_setup=True,
-                            )
+        self.calc.model.fit(trainingimages=images,
+                            descriptor=self.calc.descriptor,
+                            log=self.calc.log,
+                            parallel=self.calc._parallel,
+                            only_setup=True,)
         # Truning off ConvergenceOccured exception and log_losses
         initial_raise_ConvergenceOccurred = \
             self.calc.model.lossfunction.raise_ConvergenceOccurred
