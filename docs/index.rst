@@ -32,6 +32,7 @@ You can read about Amp in the below paper; if you find Amp useful, we would appr
    installation.rst
    useamp.rst
    examplescripts.rst
+   analysis.rst
    neuralnetwork.rst
    building.rst
    moredescriptor.rst
