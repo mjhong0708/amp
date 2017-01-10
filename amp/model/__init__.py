@@ -44,8 +44,8 @@ class Model(object):
         np.set_printoptions(precision=30, threshold=999999999)
         return self.parameters.tostring()
 
-    def get_energy(self, fingerprints):
-        """Returns the model-predicted energy for an image, based on its
+    def calculate_energy(self, fingerprints):
+        """Calculates the model-predicted energy for an image, based on its
         fingerprint.
 
         Parameters
@@ -68,8 +68,8 @@ class Model(object):
                 energy += atom_energy
         return energy
 
-    def get_forces(self, fingerprints, fingerprintprimes):
-        """Returns the model-predicted forces for an image, based on
+    def calculate_forces(self, fingerprints, fingerprintprimes):
+        """Calculates the model-predicted forces for an image, based on
         derivatives of fingerprints.
 
         Parameters
@@ -98,8 +98,8 @@ class Model(object):
                 forces[selfindex][i] += dforce
         return forces
 
-    def get_dEnergy_dParameters(self, fingerprints):
-        """Returns a list of floats corresponding to the derivative of
+    def calculate_dEnergy_dParameters(self, fingerprints):
+        """Calculates a list of floats corresponding to the derivative of
         model-predicted energy of an image with respect to model parameters.
 
         Parameters
@@ -123,7 +123,7 @@ class Model(object):
                     denergy_dparameters += temp
         return denergy_dparameters
 
-    def get_numerical_dEnergy_dParameters(self, fingerprints, d=0.00001):
+    def calculate_numerical_dEnergy_dParameters(self, fingerprints, d=0.00001):
         """Evaluates dEnergy_dParameters using finite difference.
 
         This will trigger two calls to get_energy(), with each parameter
@@ -156,7 +156,7 @@ class Model(object):
             denergy_dparameters = np.array(denergy_dparameters)
         return denergy_dparameters
 
-    def get_dForces_dParameters(self, fingerprints, fingerprintprimes):
+    def calculate_dForces_dParameters(self, fingerprints, fingerprintprimes):
         """Returns an array of floats corresponding to the derivative of
         model-predicted atomic forces of an image with respect to model
         parameters.
@@ -192,8 +192,8 @@ class Model(object):
                     dforces_dparameters[(selfindex, i)] += temp
         return dforces_dparameters
 
-    def get_numerical_dForces_dParameters(self, fingerprints,
-                                          fingerprintprimes, d=0.00001):
+    def calculate_numerical_dForces_dParameters(self, fingerprints,
+                                                fingerprintprimes, d=0.00001):
         """Evaluates dForces_dParameters using finite difference. This will
         trigger two calls to get_forces(), with each parameter perturbed
         plus/minus d.

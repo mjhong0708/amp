@@ -253,7 +253,8 @@ class Amp(Calculator, object):
             self.descriptor.calculate_fingerprints(images=images,
                                                    log=log,
                                                    calculate_derivatives=False)
-            energy = self.model.get_energy(self.descriptor.fingerprints[key])
+            energy = self.model.calculate_energy(
+                self.descriptor.fingerprints[key])
             self.results['energy'] = energy
             log('...potential energy calculated.', toc='pot-energy')
 
@@ -263,8 +264,9 @@ class Amp(Calculator, object):
                                                    log=log,
                                                    calculate_derivatives=True)
             forces = \
-                self.model.get_forces(self.descriptor.fingerprints[key],
-                                      self.descriptor.fingerprintprimes[key])
+                self.model.calculate_forces(
+                    self.descriptor.fingerprints[key],
+                    self.descriptor.fingerprintprimes[key])
             self.results['forces'] = forces
             log('...forces calculated.', toc='forces')
 
