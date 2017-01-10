@@ -157,6 +157,7 @@ class NeuralNetwork(Model):
 
         # Set all parameters and report to logfile.
         self._parallel = parallel
+        self._log = log
 
         if self.lossfunction is None:
             self.lossfunction = LossFunction(parallel=parallel)
@@ -270,7 +271,7 @@ class NeuralNetwork(Model):
                 if self.step == 0:
                     if not os.path.exists(path):
                         os.mkdir(path)
-                self.parent.log('Saving checkpoint data.')
+                self._log('Saving checkpoint data.')
                 filename = make_filename(path,
                                          'parameters-checkpoint-%d.amp'
                                          % self.step)
@@ -319,7 +320,7 @@ class NeuralNetwork(Model):
             lossfunction.attach_model(self)  # Allows access to methods.
         self._lossfunction = lossfunction
 
-    def get_atomic_energy(self, afp, index, symbol,):
+    def calculate_atomic_energy(self, afp, index, symbol,):
         """
         Given input to the neural network, output (which corresponds to energy)
         is calculated about the specified atom. The sum of these for all
@@ -343,7 +344,7 @@ class NeuralNetwork(Model):
             Energy.
         """
         assert self.parameters.mode == 'atom-centered', \
-            'get_atomic_energy should only be called in atom-centered mode.'
+            'calculate_atomic_energy should only be called in atom-centered mode.'
 
         scaling = self.parameters.scalings[symbol]
         outputs = calculate_nodal_outputs(self.parameters, afp, symbol,)
@@ -353,9 +354,9 @@ class NeuralNetwork(Model):
 
         return atomic_amp_energy
 
-    def get_force(self, afp, derafp,
-                  direction,
-                  nindex=None, nsymbol=None,):
+    def calculate_force(self, afp, derafp,
+                        direction,
+                        nindex=None, nsymbol=None,):
         """Given derivative of input to the neural network, derivative of output
         (which corresponds to forces) is calculated.
 
@@ -394,7 +395,7 @@ class NeuralNetwork(Model):
 
         return force
 
-    def get_dAtomicEnergy_dParameters(self, afp, index=None, symbol=None):
+    def calculate_dAtomicEnergy_dParameters(self, afp, index=None, symbol=None):
         """Returns the derivative of energy square error with respect to
         variables.
 
@@ -447,9 +448,9 @@ class NeuralNetwork(Model):
 
         return dAtomicEnergy_dParameters
 
-    def get_dForce_dParameters(self, afp, derafp,
-                               direction,
-                               nindex=None, nsymbol=None,):
+    def calculate_dForce_dParameters(self, afp, derafp,
+                                     direction,
+                                     nindex=None, nsymbol=None,):
         """Returns the derivative of force square error with respect to
         variables.
 
@@ -982,6 +983,7 @@ def get_random_scalings(images, activation, elements=None):
 
 
 class Raveler:
+
     """Class to ravel and unravel variable values into a single vector.
 
     This is used for feeding into the optimizer. Feed in a list of dictionaries

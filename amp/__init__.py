@@ -59,6 +59,8 @@ class Amp(Calculator, object):
     envcommand : string
         For parallel processing across nodes, a command can be supplied
         here to load the appropriate environment before starting workers.
+    logging : boolean
+        Option to turn off logging; e.g., to speed up force calls.
     atoms : object
         ASE atoms objects with positions, symbols, energy, and forces in ASE
         format.
@@ -66,10 +68,11 @@ class Amp(Calculator, object):
     implemented_properties = ['energy', 'forces']
 
     def __init__(self, descriptor, model, label='amp', dblabel=None,
-                 cores=None, envcommand=None, atoms=None):
+                 cores=None, envcommand=None, logging=True, atoms=None):
 
+        self.logging = logging
         Calculator.__init__(self, label=label, atoms=atoms)
-        # Note self.log is set and self._printheader is called by above
+        # Note self._log is set and self._printheader is called by above
         # call when it runs self.set_label.
 
         self._parallel = {'envcommand': envcommand}
@@ -107,7 +110,7 @@ class Amp(Calculator, object):
             specified, tries to determine from environment, using
             amp.utilities.assign_cores.
         """
-        self._parallel['cores'] = assign_cores(cores, log=self.log)
+        self._parallel['cores'] = assign_cores(cores, log=self._log)
 
     @property
     def descriptor(self):
@@ -193,7 +196,7 @@ class Amp(Calculator, object):
 
         # Instantiate Amp.
         calc = Cls(descriptor=descriptor, model=model, **kwargs)
-        calc.log('Loaded file: %s' % file)
+        calc._log('Loaded file: %s' % file)
         return calc
 
     def set(self, **kwargs):
@@ -224,9 +227,12 @@ class Amp(Calculator, object):
                     not os.path.isdir(self.directory)):
                 os.makedirs(self.directory)
 
-        log = Logger(make_filename(self.label, '-log.txt'))
-        self.log = log
-        self._printheader(log)
+        if self.logging is True:
+            self._log = Logger(make_filename(self.label, '-log.txt'))
+        else:
+            self._log = Logger(None)
+
+        self._printheader(self._log)
 
     def calculate(self, atoms, properties, system_changes):
         """Calculation of the energy of system and forces of all atoms.
@@ -236,7 +242,7 @@ class Amp(Calculator, object):
         # if specified, to self.atoms.
         Calculator.calculate(self, atoms, properties, system_changes)
 
-        log = self.log
+        log = self._log
         log('Calculation requested.')
 
         images = hash_images([self.atoms])
@@ -247,7 +253,8 @@ class Amp(Calculator, object):
             self.descriptor.calculate_fingerprints(images=images,
                                                    log=log,
                                                    calculate_derivatives=False)
-            energy = self.model.get_energy(self.descriptor.fingerprints[key])
+            energy = self.model.calculate_energy(
+                self.descriptor.fingerprints[key])
             self.results['energy'] = energy
             log('...potential energy calculated.', toc='pot-energy')
 
@@ -257,8 +264,8 @@ class Amp(Calculator, object):
                                                    log=log,
                                                    calculate_derivatives=True)
             forces = \
-                self.model.get_forces(self.descriptor.fingerprints[key],
-                                      self.descriptor.fingerprintprimes[key])
+                self.model.calculate_forces(self.descriptor.fingerprints[key],
+                                            self.descriptor.fingerprintprimes[key])
             self.results['forces'] = forces
             log('...forces calculated.', toc='forces')
 
@@ -283,7 +290,7 @@ class Amp(Calculator, object):
             Determining whether forces are also trained or not.
         """
 
-        log = self.log
+        log = self._log
         log('\nAmp training started. ' + now() + '\n')
         log('Descriptor: %s\n  (%s)' % (self.descriptor.__class__.__name__,
                                         self.descriptor))
@@ -338,15 +345,15 @@ class Amp(Calculator, object):
                 oldfilename = filename
                 filename = tempfile.NamedTemporaryFile(mode='w', delete=False,
                                                        suffix='.amp').name
-                self.log('File "%s" exists. Instead saving to "%s".' %
-                         (oldfilename, filename))
+                self._log('File "%s" exists. Instead saving to "%s".' %
+                          (oldfilename, filename))
             else:
                 oldfilename = tempfile.NamedTemporaryFile(mode='w',
                                                           delete=False,
                                                           suffix='.amp').name
 
-                self.log('Overwriting file: "%s". Moving original to "%s".'
-                         % (filename, oldfilename))
+                self._log('Overwriting file: "%s". Moving original to "%s".'
+                          % (filename, oldfilename))
                 shutil.move(filename, oldfilename)
         descriptor = self.descriptor.tostring()
         model = self.model.tostring()
@@ -430,6 +437,8 @@ def importhelper(importname):
         from .descriptor.gaussian import Gaussian as Module
     elif importname == '.model.neuralnetwork.NeuralNetwork':
         from .model.neuralnetwork import NeuralNetwork as Module
+    elif importname == '.model.neuralnetwork.tflow':
+        from .model.tflow import NeuralNetwork as Module
     elif importname == '.model.LossFunction':
         from .model import LossFunction as Module
     else:

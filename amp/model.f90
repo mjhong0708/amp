@@ -201,7 +201,7 @@
         end if
         actual_energy = actual_energies(image_no)
         ! calculates amp_energy
-        call get_energy(image_no)
+        call calculate_energy(image_no)
         ! calculates energy_maxresid
         residual_per_atom = ABS(amp_energy - actual_energy) / num_atoms
         if (residual_per_atom .GT. energy_maxresid) then
@@ -213,16 +213,16 @@
             ! calculates denergy_dparameters
             if (mode_signal == 1) then ! image-centered mode
                 denergy_dparameters = &
-                get_denergy_dparameters_(num_inputs, inputs, &
+                calculate_denergy_dparameters_(num_inputs, inputs, &
                 num_parameters, parameters)
             else  ! atom-centered mode
 				do j = 1, num_parameters
 					denergy_dparameters(j) = 0.0d0
 				end do
                 if (numericprime .EQV. .FALSE.) then
-                    call get_denergy_dparameters(image_no)
+                    call calculate_denergy_dparameters(image_no)
                 else
-                    call get_numerical_denergy_dparameters(image_no)
+                    call calculate_numerical_denergy_dparameters(image_no)
                 end if
             end if
 			! calculates contribution of energyloss to dloss_dparameters
@@ -243,7 +243,7 @@
                 end do
             end do
             ! calculates amp_forces
-            call get_forces(image_no)
+            call calculate_forces(image_no)
 			! calculates forceloss
             do selfindex = 1, num_atoms
                 do i = 1, 3
@@ -278,9 +278,9 @@
 				end do
                 ! calculates dforces_dparameters  
                 if (numericprime .EQV. .FALSE.) then
-                    call get_dforces_dparameters(image_no)
+                    call calculate_dforces_dparameters(image_no)
                 else
-                    call get_numerical_dforces_dparameters(image_no)
+                    call calculate_numerical_dforces_dparameters(image_no)
                 end if
                 ! calculates contribution of forceloss to
                 ! dloss_dparameters 
@@ -393,11 +393,11 @@
  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       ! calculates amp_energy
-      subroutine get_energy(image_no)
+      subroutine calculate_energy(image_no)
  
       if (mode_signal == 1) then
         amp_energy = &
-        get_image_energy(num_inputs, inputs, num_parameters, &
+        calculate_image_energy(num_inputs, inputs, num_parameters, &
         parameters)
       else
         amp_energy = 0.0d0
@@ -417,7 +417,7 @@
                 image_no)%onedarray(index)%onedarray(p)
             end do
 
-            atom_energy = get_atomic_energy(symbol, &
+            atom_energy = calculate_atomic_energy(symbol, &
             len_of_fingerprint, fingerprint, num_elements, &
             elements_numbers, num_parameters, parameters)
             deallocate(fingerprint)
@@ -425,12 +425,12 @@
         end do
       end if
 
-      end subroutine get_energy
+      end subroutine calculate_energy
 
  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
  
       ! calculates amp_forces
-      subroutine get_forces(image_no)
+      subroutine calculate_forces(image_no)
 
       allocate(amp_forces(num_atoms, 3))
       do selfindex = 1, num_atoms
@@ -446,7 +446,7 @@
                     inputs_(p) = 0.0d0
                 end do
                 inputs_(3 * (selfindex - 1) + i) = 1.0d0
-                amp_forces(selfindex, i) = get_force_(num_inputs, &
+                amp_forces(selfindex, i) = calculate_force_(num_inputs, &
                 inputs, inputs_, num_parameters, parameters)
             end do
         else
@@ -485,7 +485,7 @@
                         image_no)%onedarray(&
                         selfindex)%onedarray(l)%twodarray(i, p)
                     end do
-                    dforce = get_force(nsymbol, len_of_fingerprint, &
+                    dforce = calculate_force(nsymbol, len_of_fingerprint, &
                             fingerprint, fingerprintprime, &
                             num_elements, elements_numbers, &
                             num_parameters, parameters)
@@ -499,13 +499,13 @@
         end if
       end do
 
-      end subroutine get_forces
+      end subroutine calculate_forces
 
  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       ! calculates analytical denergy_dparameters in
       ! the atom-centered mode.
-      subroutine get_denergy_dparameters(image_no)
+      subroutine calculate_denergy_dparameters(image_no)
 
       do index = 1, num_atoms
           symbol = unraveled_atomic_numbers(image_no)%onedarray(index)
@@ -520,7 +520,7 @@
               fingerprint(p) = unraveled_fingerprints(&
               image_no)%onedarray(index)%onedarray(p)
           end do
-          daenergy_dparameters = get_datomicenergy_dparameters(&
+          daenergy_dparameters = calculate_datomicenergy_dparameters(&
           symbol, len_of_fingerprint, fingerprint, &
           num_elements, elements_numbers, num_parameters, parameters)
           deallocate(fingerprint)
@@ -530,34 +530,34 @@
           end do
       end do
 
-      end subroutine get_denergy_dparameters
+      end subroutine calculate_denergy_dparameters
 
  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       ! calculates numerical denergy_dparameters in the
       ! atom-centered mode.
-      subroutine get_numerical_denergy_dparameters(image_no)
+      subroutine calculate_numerical_denergy_dparameters(image_no)
 
       double precision:: eplus, eminus
       
       do j = 1, num_parameters
           parameters(j) = parameters(j) + d
-          call get_energy(image_no)
+          call calculate_energy(image_no)
           eplus = amp_energy
           parameters(j) = parameters(j) - 2.0d0 * d
-          call get_energy(image_no)
+          call calculate_energy(image_no)
           eminus = amp_energy
           denergy_dparameters(j) = (eplus - eminus) / (2.0d0 * d)
           parameters(j) = parameters(j) + d
       end do
-      call get_energy(image_no)
+      call calculate_energy(image_no)
 
-      end subroutine get_numerical_denergy_dparameters
+      end subroutine calculate_numerical_denergy_dparameters
 
  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       ! calculates dforces_dparameters.
-      subroutine get_dforces_dparameters(image_no)
+      subroutine calculate_dforces_dparameters(image_no)
 
       if (mode_signal == 1) then ! image-centered mode
           do selfindex = 1, num_atoms
@@ -566,7 +566,7 @@
                     inputs_(p) = 0.0d0
                 end do
                 inputs_(3 * (selfindex - 1) + i) = 1.0d0
-                dforce_dparameters = get_dforce_dparameters_(&
+                dforce_dparameters = calculate_dforce_dparameters_(&
                 num_inputs, inputs, inputs_, num_parameters, parameters)
                 do j = 1, num_parameters
                     dforces_dparameters(selfindex)%twodarray(i, j) = &
@@ -610,7 +610,7 @@
                           image_no)%onedarray(selfindex)%onedarray(&
                           l)%twodarray(i, p)
                       end do
-                      dforce_dparameters = get_dforce_dparameters(&
+                      dforce_dparameters = calculate_dforce_dparameters(&
                       nsymbol, len_of_fingerprint, fingerprint, &
                       fingerprintprime, num_elements, &
                       elements_numbers, num_parameters, parameters)
@@ -629,20 +629,20 @@
           end do
       end if
 
-      end subroutine get_dforces_dparameters
+      end subroutine calculate_dforces_dparameters
 
  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       ! calculates numerical dforces_dparameters in the
       ! atom-centered mode.
-      subroutine get_numerical_dforces_dparameters(image_no)
+      subroutine calculate_numerical_dforces_dparameters(image_no)
 
       double precision, allocatable:: fplus(:, :), fminus(:, :)
       
       do j = 1, num_parameters
           parameters(j) = parameters(j) + d
           deallocate(amp_forces)
-          call get_forces(image_no)
+          call calculate_forces(image_no)
 		  allocate(fplus(num_atoms, 3))
 		  do selfindex = 1, num_atoms
 			do i = 1, 3
@@ -651,7 +651,7 @@
 		  end do
           parameters(j) = parameters(j) - 2.0d0 * d
           deallocate(amp_forces)
-          call get_forces(image_no)
+          call calculate_forces(image_no)
 		  allocate(fminus(num_atoms, 3))
 		  do selfindex = 1, num_atoms
 			do i = 1, 3
@@ -670,9 +670,9 @@
           deallocate(fminus)
       end do
       deallocate(amp_forces)
-      call get_forces(image_no)
+      call calculate_forces(image_no)
 
-      end subroutine get_numerical_dforces_dparameters
+      end subroutine calculate_numerical_dforces_dparameters
 
  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 

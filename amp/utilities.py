@@ -90,7 +90,18 @@ def assign_cores(cores, log=None):
     elif 'LOADL_PROCESSOR_LIST' in os.environ.keys():
         fail(q='LOADL')
     elif 'PE_HOSTFILE' in os.environ.keys():
-        fail(q='SGE')
+        q = 'SGE'
+        try:
+            hostfile = os.getenv('PE_HOSTFILE')
+            cores = {}
+            with open(hostfile) as f:
+                for i, istr in enumerate(f):
+                    hostname, nc = istr.split()[0:2]
+                    nc = int(nc)
+                    cores[hostname] = nc
+        except:
+            # Get the traceback to log it.
+            fail(q, traceback_text=traceback.format_exc())
     else:
         import multiprocessing
         ncores = multiprocessing.cpu_count()

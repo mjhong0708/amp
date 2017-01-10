@@ -9,7 +9,7 @@ Example scripts
 A basic fitting script
 ----------------------------------
 
-The below script uses Gaussian descriptors with a neural network backend --- the Behler-Parinello approach --- to train both energy and forces to a training set made by the script. Note this may take some time to run, which will depend upon the initial guess for the neural network parameters that is randomly generated. Try decreasing the `force_rmse` convergence parameter if you would like faster results.
+The below script uses Gaussian descriptors with a neural network backend --- the Behler-Parrinello approach --- to train both energy and forces to a training set made by the script. Note this may take some time to run, which will depend upon the initial guess for the neural network parameters that is randomly generated. Try decreasing the `force_rmse` convergence parameter if you would like faster results.
 
 Note it is usually safe to delete the `cores` keyword and let the code try to determine from your environment how many cores to use.
 
@@ -18,16 +18,15 @@ Note it is usually safe to delete the `cores` keyword and let the code try to de
  """Simple test of the Amp calculator, using Gaussian descriptors and neural
  network model. Randomly generates data with the EMT potential in MD
  simulations."""
- 
+
  import os
+ from ase import Atoms, Atom, units
+ import ase.io
  from ase.calculators.emt import EMT
  from ase.lattice.surface import fcc110
- from ase import Atoms, Atom
  from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
- from ase import units
  from ase.md import VelocityVerlet
  from ase.constraints import FixAtoms
- from ase import io
  
  from amp import Amp
  from amp.descriptor.gaussian import Gaussian
@@ -38,45 +37,32 @@ Note it is usually safe to delete the `cores` keyword and let the code try to de
  def generate_data(count, filename='training.traj'):
      """Generates test or training data with a simple MD simulation."""
      if os.path.exists(filename):
-         images = io.read(filename, index=':')
-         return images
+         return
+     traj = ase.io.Trajectory(filename, 'w')
      atoms = fcc110('Pt', (2, 2, 2), vacuum=7.)
-     adsorbate = Atoms([Atom('Cu', atoms[7].position + (0., 0., 2.5)),
-                        Atom('Cu', atoms[7].position + (0., 0., 5.))])
-     atoms.extend(adsorbate)
+     atoms.extend(Atoms([Atom('Cu', atoms[7].position + (0., 0., 2.5)),
+                         Atom('Cu', atoms[7].position + (0., 0., 5.))]))
      atoms.set_constraint(FixAtoms(indices=[0, 2]))
      atoms.set_calculator(EMT())
+     atoms.get_potential_energy()
+     traj.write(atoms)
      MaxwellBoltzmannDistribution(atoms, 300. * units.kB)
      dyn = VelocityVerlet(atoms, dt=1. * units.fs)
-     newatoms = atoms.copy()
-     newatoms.set_calculator(EMT())
-     newatoms.get_potential_energy()
-     images = [newatoms]
      for step in range(count - 1):
          dyn.run(50)
-         newatoms = atoms.copy()
-         newatoms.set_calculator(EMT())
-         newatoms.get_potential_energy()
-         images.append(newatoms)
-     traj = io.Trajectory(filename, 'w')
-     for image in images:
-         traj.write(image)
-     traj.close()
-     return images
+         traj.write(atoms)
  
  
- label = 'calc'
  train_images = generate_data(20)
  
  calc = Amp(descriptor=Gaussian(),
-            model=NeuralNetwork(hiddenlayers=(10, 10, 10)),
-            label=label,
-            cores=1)
- calc.model.lossfunction = LossFunction(
-         convergence={'energy_rmse': 0.02,
-                      'force_rmse': 0.02})
- calc.train(images=train_images)
+            model=NeuralNetwork(hiddenlayers=(10, 10, 10)))
+ calc.model.lossfunction = LossFunction(convergence={'energy_rmse': 0.02,
+                                                     'force_rmse': 0.02})
+ calc.train(images='training.traj')
 
+ 
+Note you can monitor the progress of the training by typing `amp-plotconvergence amp-log.txt`, which will create a file called `convergence.pdf`.
 
 
 

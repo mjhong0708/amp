@@ -3,14 +3,12 @@
 import os
 import numpy as np
 import matplotlib
-matplotlib.use('Agg')
 from matplotlib import rcParams
 from matplotlib import pyplot
 from matplotlib.backends.backend_pdf import PdfPages
-
 from amp import Amp
 from amp.utilities import now, hash_images, make_filename, Logger
-
+matplotlib.use('Agg')
 rcParams.update({'figure.autolayout': True})
 
 
@@ -215,7 +213,8 @@ def plot_parity(load,
     log('Calculating potential energies...', tic='pot-energy')
     energy_data = {}
     for hash, image in images.iteritems():
-        amp_energy = calc.model.get_energy(calc.descriptor.fingerprints[hash])
+        amp_energy = calc.model.calculate_energy(
+            calc.descriptor.fingerprints[hash])
         actual_energy = image.get_potential_energy(apply_constraint=False)
         energy_data[hash] = [actual_energy, amp_energy]
     log('...potential energies calculated.', toc='pot-energy')
@@ -252,7 +251,7 @@ def plot_parity(load,
         force_data = {}
         for hash, image in images.iteritems():
             amp_forces = \
-                calc.model.get_forces(
+                calc.model.calculate_forces(
                     calc.descriptor.fingerprints[hash],
                     calc.descriptor.fingerprintprimes[hash])
             actual_forces = image.get_forces(apply_constraint=False)
@@ -370,7 +369,6 @@ def plot_error(load,
     energy_data = {}
     for hash, image in images.iteritems():
         no_of_atoms = len(image)
-        amp_energy = calc.model.get_energy(calc.descriptor.fingerprints[hash])
         actual_energy = image.get_potential_energy(apply_constraint=False)
         act_energy_per_atom = actual_energy / no_of_atoms
         energy_error = abs(amp_energy - actual_energy) / no_of_atoms
@@ -420,7 +418,7 @@ def plot_error(load,
         force_data = {}
         for hash, image in images.iteritems():
             amp_forces = \
-                calc.model.get_forces(
+                calc.model.calculate_forces(
                     calc.descriptor.fingerprints[hash],
                     calc.descriptor.fingerprintprimes[hash])
             actual_forces = image.get_forces(apply_constraint=False)
@@ -641,7 +639,7 @@ def plot_convergence(logfile, plotfile='convergence.pdf'):
     ax.semilogy([steps[0], steps[-1]], [d['costfxngoal']] * 2,
                 color='0.5', linestyle=':')
     ax.set_ylabel('error')
-    ax.set_xlabel('BFGS step')
+    ax.set_xlabel('loss function call')
     ax.legend(loc='best')
     if len(breaks) > 0:
         ylim = ax.get_ylim()
@@ -657,7 +655,7 @@ def plot_convergence(logfile, plotfile='convergence.pdf'):
                         np.array(d['costfxnFs']),
                         color='green')
         ax.set_ylabel('loss function component')
-        ax.set_xlabel('BFGS step')
+        ax.set_xlabel('loss function call')
         ax.set_ylim(0, 1)
 
     with PdfPages(plotfile) as pdf:
