@@ -418,9 +418,10 @@ class LossFunction:
         else:
             train_forces = True
         mode = self._model.parameters.mode
-        # FIXME: Should be corrected for image-centered:
         if mode == 'atom-centered':
             num_atoms = None
+        elif mode == 'image-centered':
+            raise NotImplementedError('Image-centered mode is not coded yet.')
 
         (actual_energies, actual_forces, elements, atomic_positions,
          num_images_atoms, atomic_numbers, raveled_fingerprints, num_neighbors,

@@ -595,9 +595,10 @@ def calculate_nodal_outputs(parameters, afp, symbol,):
     o = {}  # node values
     layer = 1  # input layer
     net = {}  # excitation
-    ohat = {}  # FIXME/ap need description
+    ohat = {}  # ohat is the nodal output matrix o concatenated by 1 for biases
 
     len_of_afp = len(_afp)
+    # a temp variable is defined to construct the output matix o
     temp = np.zeros((1, len_of_afp + 1))
     for _ in xrange(len_of_afp):
         temp[0, _] = _afp[_]
@@ -645,7 +646,7 @@ def calculate_nodal_outputs(parameters, afp, symbol,):
     del hiddenlayers, weight, ohat, net
 
     len_of_afp = len(_afp)
-    temp = np.zeros((1, len_of_afp))  # FIXME/ap Need descriptive name
+    temp = np.zeros((1, len_of_afp))
     for _ in xrange(len_of_afp):
         temp[0, _] = _afp[_]
     o[0] = temp
