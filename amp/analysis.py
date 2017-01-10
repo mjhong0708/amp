@@ -3,12 +3,14 @@
 import os
 import numpy as np
 import matplotlib
+# The 'Agg' command must be *before* all other matplotlib imports for
+# headless operation.
+matplotlib.use('Agg')
 from matplotlib import rcParams
 from matplotlib import pyplot
 from matplotlib.backends.backend_pdf import PdfPages
 from amp import Amp
 from amp.utilities import now, hash_images, make_filename, Logger
-matplotlib.use('Agg')
 rcParams.update({'figure.autolayout': True})
 
 
