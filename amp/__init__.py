@@ -264,9 +264,8 @@ class Amp(Calculator, object):
                                                    log=log,
                                                    calculate_derivatives=True)
             forces = \
-                self.model.calculate_forces(
-                    self.descriptor.fingerprints[key],
-                    self.descriptor.fingerprintprimes[key])
+                self.model.calculate_forces(self.descriptor.fingerprints[key],
+                                            self.descriptor.fingerprintprimes[key])
             self.results['forces'] = forces
             log('...forces calculated.', toc='forces')
 

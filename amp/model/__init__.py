@@ -61,9 +61,9 @@ class Model(object):
             self.atomic_energies = []
             energy = 0.0
             for index, (symbol, afp) in enumerate(fingerprints):
-                atom_energy = self.get_atomic_energy(afp=afp,
-                                                     index=index,
-                                                     symbol=symbol)
+                atom_energy = self.calculate_atomic_energy(afp=afp,
+                                                           index=index,
+                                                           symbol=symbol)
                 self.atomic_energies.append(atom_energy)
                 energy += atom_energy
         return energy
@@ -90,11 +90,11 @@ class Model(object):
             for (selfindex, selfsymbol, nindex, nsymbol, i), derafp in \
                     fingerprintprimes.iteritems():
                 afp = fingerprints[nindex][1]
-                dforce = self.get_force(afp=afp,
-                                        derafp=derafp,
-                                        nindex=nindex,
-                                        nsymbol=nsymbol,
-                                        direction=i,)
+                dforce = self.calculate_force(afp=afp,
+                                              derafp=derafp,
+                                              nindex=nindex,
+                                              nsymbol=nsymbol,
+                                              direction=i,)
                 forces[selfindex][i] += dforce
         return forces
 
@@ -114,9 +114,9 @@ class Model(object):
         elif self.parameters.mode == 'atom-centered':
             denergy_dparameters = None
             for index, (symbol, afp) in enumerate(fingerprints):
-                temp = self.get_dAtomicEnergy_dParameters(afp=afp,
-                                                          index=index,
-                                                          symbol=symbol)
+                temp = self.calculate_dAtomicEnergy_dParameters(afp=afp,
+                                                                index=index,
+                                                                symbol=symbol)
                 if denergy_dparameters is None:
                     denergy_dparameters = temp
                 else:
@@ -126,7 +126,7 @@ class Model(object):
     def calculate_numerical_dEnergy_dParameters(self, fingerprints, d=0.00001):
         """Evaluates dEnergy_dParameters using finite difference.
 
-        This will trigger two calls to get_energy(), with each parameter
+        This will trigger two calls to calculate_energy(), with each parameter
         perturbed plus/minus d.
 
         Parameters
@@ -146,10 +146,10 @@ class Model(object):
             for _ in range(len(vector)):
                 vector[_] += d
                 self.vector = vector
-                eplus = self.get_energy(fingerprints)
+                eplus = self.calculate_energy(fingerprints)
                 vector[_] -= 2 * d
                 self.vector = vector
-                eminus = self.get_energy(fingerprints)
+                eminus = self.calculate_energy(fingerprints)
                 denergy_dparameters += [(eplus - eminus) / (2 * d)]
                 vector[_] += d
                 self.vector = vector
@@ -157,7 +157,7 @@ class Model(object):
         return denergy_dparameters
 
     def calculate_dForces_dParameters(self, fingerprints, fingerprintprimes):
-        """Returns an array of floats corresponding to the derivative of
+        """Calculates an array of floats corresponding to the derivative of
         model-predicted atomic forces of an image with respect to model
         parameters.
 
@@ -181,11 +181,11 @@ class Model(object):
             for (selfindex, selfsymbol, nindex, nsymbol, i), derafp in \
                     fingerprintprimes.iteritems():
                 afp = fingerprints[nindex][1]
-                temp = self.get_dForce_dParameters(afp=afp,
-                                                   derafp=derafp,
-                                                   direction=i,
-                                                   nindex=nindex,
-                                                   nsymbol=nsymbol,)
+                temp = self.calculate_dForce_dParameters(afp=afp,
+                                                         derafp=derafp,
+                                                         direction=i,
+                                                         nindex=nindex,
+                                                         nsymbol=nsymbol,)
                 if dforces_dparameters[(selfindex, i)] is None:
                     dforces_dparameters[(selfindex, i)] = temp
                 else:
@@ -195,7 +195,7 @@ class Model(object):
     def calculate_numerical_dForces_dParameters(self, fingerprints,
                                                 fingerprintprimes, d=0.00001):
         """Evaluates dForces_dParameters using finite difference. This will
-        trigger two calls to get_forces(), with each parameter perturbed
+        trigger two calls to calculate_forces(), with each parameter perturbed
         plus/minus d.
 
         Parameters
@@ -221,10 +221,10 @@ class Model(object):
             for _ in range(len(vector)):
                 vector[_] += d
                 self.vector = vector
-                fplus = self.get_forces(fingerprints, fingerprintprimes)
+                fplus = self.calculate_forces(fingerprints, fingerprintprimes)
                 vector[_] -= 2 * d
                 self.vector = vector
-                fminus = self.get_forces(fingerprints, fingerprintprimes)
+                fminus = self.calculate_forces(fingerprints, fingerprintprimes)
                 for selfindex in selfindices:
                     for i in range(3):
                         dforces_dparameters[(selfindex, i)] += \
@@ -241,7 +241,7 @@ class Model(object):
 
 class LossFunction:
 
-    """Basic loss function, which can be used by the model.get_loss_function
+    """Basic loss function, which can be used by the model.get_loss
     method which is required in standard model classes.
 
     This version is pure python and thus will be slow compared to a
@@ -597,7 +597,7 @@ class LossFunction:
         dloss_dparameters = np.array([0.] * len(parametervector))
         for hash, image in self.images.iteritems():
             no_of_atoms = len(image)
-            amp_energy = self._model.get_energy(self.fingerprints[hash])
+            amp_energy = self._model.calculate_energy(self.fingerprints[hash])
             actual_energy = image.get_potential_energy(apply_constraint=False)
             residual_per_atom = abs(amp_energy - actual_energy) / \
                 len(image)
@@ -613,11 +613,11 @@ class LossFunction:
                 elif self._model.parameters.mode == 'atom-centered':
                     if self.d is None:
                         denergy_dparameters = \
-                            self._model.get_dEnergy_dParameters(
+                            self._model.calculate_dEnergy_dParameters(
                                 self.fingerprints[hash])
                     else:
                         denergy_dparameters = \
-                            self._model.get_numerical_dEnergy_dParameters(
+                            self._model.calculate_numerical_dEnergy_dParameters(
                                 self.fingerprints[hash], d=self.d)
                     temp = p.energy_coefficient * 2. * \
                         (amp_energy - actual_energy) * \
@@ -627,8 +627,8 @@ class LossFunction:
 
             if p.force_coefficient != 0.:
                 amp_forces = \
-                    self._model.get_forces(self.fingerprints[hash],
-                                           self.fingerprintprimes[hash])
+                    self._model.calculate_forces(self.fingerprints[hash],
+                                                 self.fingerprintprimes[hash])
                 actual_forces = image.get_forces(apply_constraint=False)
                 for index in xrange(no_of_atoms):
                     for i in xrange(3):
@@ -648,12 +648,12 @@ class LossFunction:
                     elif self._model.parameters.mode == 'atom-centered':
                         if self.d is None:
                             dforces_dparameters = \
-                                self._model.get_dForces_dParameters(
+                                self._model.calculate_dForces_dParameters(
                                     self.fingerprints[hash],
                                     self.fingerprintprimes[hash])
                         else:
                             dforces_dparameters = \
-                                self._model.get_numerical_dForces_dParameters(
+                                self._model.calculate_numerical_dForces_dParameters(
                                     self.fingerprints[hash],
                                     self.fingerprintprimes[hash],
                                     d=self.d)
