@@ -1,11 +1,11 @@
+import os
 import numpy as np
 from collections import OrderedDict
-import os
 from ase.calculators.calculator import Parameters
-from amp.regression import Regressor
-from amp.model import LossFunction, calculate_fingerprints_range
-from amp.model import Model
-from amp.utilities import Logger, hash_images, make_filename
+
+from . import LossFunction, calculate_fingerprints_range, Model
+from ..regression import Regressor
+from ..utilities import Logger, hash_images, make_filename
 
 
 class NeuralNetwork(Model):

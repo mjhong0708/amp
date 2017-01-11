@@ -2,8 +2,8 @@ import numpy as np
 
 from ase.data import atomic_numbers
 from ase.calculators.calculator import Parameters
-from amp.utilities import Data, Logger, importer
-from amp.descriptor.cutoffs import Cosine, dict2cutoff
+from ..utilities import Data, Logger, importer
+from .cutoffs import Cosine, dict2cutoff
 NeighborList = importer('NeighborList')
 try:
     from .. import fmodules

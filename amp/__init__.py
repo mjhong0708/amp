@@ -7,6 +7,7 @@ import platform
 from getpass import getuser
 from socket import gethostname
 import subprocess
+import warnings
 
 import ase
 from ase.calculators.calculator import Calculator, Parameters
@@ -19,17 +20,17 @@ except ImportError:
 from .utilities import (make_filename, hash_images, Logger, string2dict,
                         logo, now, assign_cores, TrainingConvergenceError)
 
-import warnings
 try:
     from amp import fmodules
+except ImportError:
+    warnings.warn('Did not find fortran modules.')
+else:
     fmodules_version = 8
     wrong_version = fmodules.check_version(version=fmodules_version)
     if wrong_version:
         raise RuntimeError('fortran modules are not updated. Recompile'
                            'with f2py as described in the README. '
                            'Correct version is %i.' % fmodules_version)
-except ImportError:
-    warnings.warn('Did not find fortran modules.')
 
 
 class Amp(Calculator, object):

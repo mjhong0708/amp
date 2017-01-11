@@ -9,8 +9,12 @@ matplotlib.use('Agg')
 from matplotlib import rcParams
 from matplotlib import pyplot
 from matplotlib.backends.backend_pdf import PdfPages
-from amp import Amp
-from amp.utilities import now, hash_images, make_filename, Logger
+
+from . import Amp
+from .utilities import now, hash_images, make_filename, Logger
+
+# FIXME/ap: below sets this globally. Can't it be done just for the
+# figure that needs it?
 rcParams.update({'figure.autolayout': True})
 
 

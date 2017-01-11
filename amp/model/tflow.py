@@ -12,7 +12,8 @@
 
 import numpy as np
 import uuid
-from amp.model import LossFunction
+
+from . import LossFunction
 from ..utilities import ConvergenceOccurred
 
 try:

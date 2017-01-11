@@ -1,5 +1,5 @@
 import numpy as np
-from amp.utilities import hash_images, hash_image
+from ..utilities import hash_images, hash_image
 
 
 class FingerprintPlot:

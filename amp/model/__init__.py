@@ -1,10 +1,10 @@
 
 import numpy as np
 from ase.calculators.calculator import Parameters
-from amp.utilities import (Logger, ConvergenceOccurred, make_sublists, now,
-                           setup_parallel)
+from ..utilities import (Logger, ConvergenceOccurred, make_sublists, now,
+                         setup_parallel)
 try:
-    from amp import fmodules
+    from .. import fmodules
 except ImportError:
     fmodules = None
 
