@@ -5,6 +5,11 @@
 More on descriptors
 ==================================
 
+
+----------------------------------
+Fingerprint ranges
+----------------------------------
+
 It is often useful to examine your fingerprints more closely. There is a utility that can help with that, an example of its use is below. This assumes you have open a calculator called "calc.amp" and you want to examine the fingerprint ranges for your training data.
 
 .. code-block:: python
@@ -25,3 +30,5 @@ This will create a plot that looks something like below, here showing the finger
 .. image:: _static/fpranges.svg
    :scale: 80 %
    :align: center
+
+You can also overlay a specific image's fingerprint on to the fingerprint plot by using the `overlay` keyword when calling fpplot.
