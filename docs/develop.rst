@@ -59,7 +59,7 @@ To create a release, we go through the following steps.
 
 * Change `docs/conf.py`'s version information to match the new version number.
 
-* Change the version that prints out in the Amp headers.
+* Change the version that prints out in the Amp headers by changing the `_ampversion` variable in `amp/__init__.py`.
 
 * Add the version to readthedocs' available versions.
 

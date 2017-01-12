@@ -32,6 +32,8 @@ else:
                            'with f2py as described in the README. '
                            'Correct version is %i.' % fmodules_version)
 
+_ampversion = '(development)'
+
 
 class Amp(Calculator, object):
 
@@ -384,7 +386,7 @@ class Amp(Calculator, object):
         uname = platform.uname()
         log('Architecture: %s' % uname[4])
         log('PID: %s' % os.getpid())
-        log('Amp version: %s' % 'NOT NUMBERED YET.')  # FIXME/ap. Look at GPAW
+        log('Amp version: %s' % _ampversion)
         ampdirectory = os.path.dirname(os.path.abspath(__file__))
         log('Amp directory: %s' % ampdirectory)
         commithash, commitdate = get_git_commit(ampdirectory)
