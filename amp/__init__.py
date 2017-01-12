@@ -223,8 +223,7 @@ class Amp(Calculator, object):
         Calculator.set_label(self, label)
 
         # Create directories for output structure if needed.
-        # FIXME/ap Do we need the extra part below in addition
-        # to what's in ASE Calculator?
+        # Note ASE doesn't do this for us.
         if self.label:
             if (self.directory != os.curdir and
                     not os.path.isdir(self.directory)):
