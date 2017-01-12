@@ -1,10 +1,9 @@
 import time
 import numpy as np
 
-from ase.data import atomic_numbers
 from ase.calculators.calculator import Parameters
 from ..utilities import Data, Logger, importer
-from .cutoffs import Cosine, Polynomial
+from .cutoffs import Cosine
 NeighborList = importer('NeighborList')
 
 
@@ -42,7 +41,6 @@ class AtomCenteredExample(object):
 
     def __init__(self, cutoff=Cosine(6.5), anotherparameter=12.2, dblabel=None,
                  elements=None, version=None, mode='atom-centered'):
-        # FIXME/ap add some example keywords, get rid of these.
 
         # Check of the version of descriptor, particularly if restarting.
         compatibleversions = ['2016.02', ]
@@ -70,8 +68,7 @@ class AtomCenteredExample(object):
         # to produce a compatible descriptor; that is, one that gives
         # an identical fingerprint when fed an ASE image.
         p = self.parameters = Parameters(
-            {'importname': '.descriptor.gaussian.Gaussian',
-                # FIXME/ap: Above should not be gaussian
+            {'importname': '.descriptor.example.AtomCenteredExample',
              'mode': 'atom-centered'})
         p.version = version
         p.cutoff = cutoff.Rc
