@@ -60,7 +60,7 @@ def train_data(images, setup_only=False):
     else:
         images = hash_images(train_images)
         calc.descriptor.calculate_fingerprints(images=images,
-                                               log=calc.log,
+                                               log=calc._log,
                                                parallel={'cores': 1},
                                                calculate_derivatives=False)
         calc.model.fit(trainingimages=images,
