@@ -2,6 +2,11 @@
 network model. Randomly generates data with the EMT potential in MD
 simulations."""
 
+import matplotlib
+# The 'Agg' command must be *before* all other matplotlib imports for
+# headless operation.
+matplotlib.use('Agg')
+
 import os
 from ase import Atoms, Atom, units
 import ase.io
