@@ -401,7 +401,7 @@ class Data:
         if len(calcs_needed) == 0:
             return
         if parallel['cores'] == 1:
-            d = self.db.open(self.filename, 'c')  # FIXME/ap Need a lock?
+            d = self.db.open(self.filename, 'c')
             for key in calcs_needed:
                 d[key] = self.calc.calculate(images[key], key)
             d.close()  # Necessary to get out of write mode and unlock?
@@ -453,7 +453,7 @@ class Data:
             log('  %i new results.' % len(results))
             log(' ...parallel calculations finished.', toc='parallel')
             log(' Adding new results to database.')
-            d = self.db.open(self.filename, 'c')  # FIXME/ap Need a lock?
+            d = self.db.open(self.filename, 'c')
             d.update(results)
             d.close()  # Necessary to get out of write mode and unlock?
 
