@@ -9,10 +9,6 @@ from matplotlib.backends.backend_pdf import PdfPages
 from . import Amp
 from .utilities import now, hash_images, make_filename, Logger
 
-# FIXME/ap: below sets this globally. Can't it be done just for the
-# figure that needs it?
-rcParams.update({'figure.autolayout': True})
-
 
 def perturb_parameters(load, images, d=0.0001, overwrite=False, **kwargs):
     """Returns the plot of loss function in terms of perturbed parameters.
