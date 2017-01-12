@@ -550,7 +550,7 @@ def calculate_G2(neighborsymbols,
     eta : float
         Parameter of Gaussian symmetry functions.
     cutoff : float
-        Radius above which neighbor interactions are ignored. #FIXME
+        Radius above which neighbor interactions are ignored.
     Ri : int
         Index of the center atom.
     fortran : bool
@@ -617,7 +617,7 @@ def calculate_G4(neighborsymbols, neighborpositions,
         Parameter of Gaussian symmetry functions.
     eta : float
         Parameter of Gaussian symmetry functions.
-    cutoff : float #FIXME
+    cutoff : float
         Radius above which neighbor interactions are ignored.
     Ri : int
         Index of the center atom.
@@ -896,7 +896,7 @@ def calculate_G2_prime(neighborindices, neighborsymbols, neighborpositions,
         Symmetry functions of the center atom.
     eta : float
         Parameter of Behler symmetry functions.
-    cutoff : float #FIXME
+    cutoff : float
         Radius above which neighbor interactions are ignored.
     i : int
         Index of the center atom.
@@ -980,7 +980,7 @@ def calculate_G4_prime(neighborindices, neighborsymbols, neighborpositions,
         Parameter of Behler symmetry functions.
     eta : float
         Parameter of Behler symmetry functions.
-    cutoff : float #FIXME
+    cutoff : float
         Radius above which neighbor interactions are ignored.
     i : int
         Index of the center atom.
