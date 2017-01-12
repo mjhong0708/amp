@@ -701,14 +701,6 @@ def randomize_images(images, fraction=0.8):
     return train_images, test_images
 
 # Custom exceptions ##########################################################
-# FIXME/ap Make sure these are all still imported somewhere.
-
-
-class FingerprintsError(Exception):
-    """ Error in case functional form of fingerprints has changed.
-    """
-    pass
-
 
 class ConvergenceOccurred(Exception):
     """ Kludge to decide when scipy's optimizers are complete.
@@ -718,18 +710,6 @@ class ConvergenceOccurred(Exception):
 
 class TrainingConvergenceError(Exception):
     """Error to be raised if training does not converge.
-    """
-    pass
-
-
-class ExtrapolateError(Exception):
-    """Error class in the case of extrapolation.
-    """
-    pass
-
-
-class UntrainedError(Exception):
-    """Error class in the case of unsuccessful training.
     """
     pass
 
