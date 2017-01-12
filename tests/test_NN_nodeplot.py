@@ -65,7 +65,7 @@ def train_data(images, setup_only=False):
                                                calculate_derivatives=False)
         calc.model.fit(trainingimages=images,
                        descriptor=calc.descriptor,
-                       log=calc.log,
+                       log=calc._log,
                        parallel={'cores': 1},
                        only_setup=True)
         return calc
