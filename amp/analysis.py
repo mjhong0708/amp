@@ -2,10 +2,6 @@
 
 import os
 import numpy as np
-import matplotlib
-# The 'Agg' command must be *before* all other matplotlib imports for
-# headless operation.
-matplotlib.use('Agg')
 from matplotlib import rcParams
 from matplotlib import pyplot
 from matplotlib.backends.backend_pdf import PdfPages
