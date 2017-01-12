@@ -2,7 +2,6 @@
 
 import os
 import numpy as np
-from matplotlib import rcParams
 from matplotlib import pyplot
 from matplotlib.backends.backend_pdf import PdfPages
 
@@ -637,7 +636,6 @@ def plot_convergence(logfile, plotfile='convergence.pdf'):
     ax.semilogy([steps[0], steps[-1]], [d['costfxngoal']] * 2,
                 color='0.5', linestyle=':')
     ax.set_ylabel('error')
-    ax.set_xlabel('loss function call')
     ax.legend(loc='best')
     if len(breaks) > 0:
         ylim = ax.get_ylim()
@@ -645,16 +643,18 @@ def plot_convergence(logfile, plotfile='convergence.pdf'):
             ax.plot([b] * 2, ylim, '--k')
 
     if d['force_rmse']:
-        ax = fig.add_axes((lm, bm, 1. - lm - rm, bottomaxheight))
-        ax.fill_between(x=np.array(steps), y1=d['costfxnEs'],
-                        color='blue')
-        ax.fill_between(x=np.array(steps), y1=d['costfxnEs'],
-                        y2=np.array(d['costfxnEs']) +
-                        np.array(d['costfxnFs']),
-                        color='green')
-        ax.set_ylabel('loss function component')
+        axf = fig.add_axes((lm, bm, 1. - lm - rm, bottomaxheight))
+        axf.fill_between(x=np.array(steps), y1=d['costfxnEs'],
+                         color='blue')
+        axf.fill_between(x=np.array(steps), y1=d['costfxnEs'],
+                         y2=np.array(d['costfxnEs']) +
+                         np.array(d['costfxnFs']),
+                         color='green')
+        axf.set_ylabel('loss function component')
+        axf.set_xlabel('loss function call')
+        axf.set_ylim(0, 1)
+    else:
         ax.set_xlabel('loss function call')
-        ax.set_ylim(0, 1)
 
     fig.savefig(plotfile)
     pyplot.close(fig)
