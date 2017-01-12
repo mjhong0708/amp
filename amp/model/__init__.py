@@ -469,11 +469,6 @@ class LossFunction:
 
     def _cleanup(self):
         """Closes SSH sessions."""
-        # FIXME/ap: I don't think this is done in the utilities/Data
-        # routines. Does it need to be done here? If so, does it need
-        # to be done there? I think that when the ssh item is destroyed
-        # it automatically closes the connection. It may not properly
-        # log out, but I'm not sure that's a problem.
         self._initialized = False
         if not hasattr(self, '_sessions'):
             return
