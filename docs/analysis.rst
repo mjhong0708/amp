@@ -14,7 +14,7 @@ You can use the tool called `amp-plotconvergence` to help you examine the output
 You can also access this tool as `plot_convergence` from the `amp.analysis` module.
 
    .. image:: _static/convergence.svg
-      :scale: 100 %
+      :width: 600 px
       :align: center
 
 ----------------------------------

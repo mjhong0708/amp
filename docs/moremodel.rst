@@ -21,7 +21,7 @@ It can be useful to visualize the neural network model to see how it is behaving
 This will create a plot that looks something like below. Note that one such series of plots is made for each element. Here, Layer 0 is the input layer, from the fingerprints. Layer 1 and Layer 2 are the hidden layers. Layer 3 is the output layer; that is, the contribution of Pt to the potential energy (before it is multiplied by and added to a parameter to bring it to the correct magnitude).
 
 .. image:: _static/nodeplot-Pt.svg
-   :scale: 80 %
+   :width: 1000 px
    :align: center
 
 Calling an observer during training

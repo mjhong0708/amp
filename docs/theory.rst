@@ -96,7 +96,7 @@ pair atoms :math:`i` and :math:`j` and valence angle :math:`\theta_{ijk}` betwee
 atoms :math:`i`, :math:`j`, and :math:`k` with central atom :math:`i`:
 
 .. image:: _static/gaussian.svg
-   :scale: 80 %
+   :width: 800 px
    :align: center
 
 ******
@@ -134,7 +134,7 @@ note that components of the Gaussian descriptor discussed above are
 non-sensitive to the four-atom dehidral angle of the following figure.
 
 .. image:: _static/zernike.svg
-   :scale: 80 %
+   :width: 1200 px
    :align: center
 
 ******
@@ -187,7 +187,7 @@ scale neural network outputs to the range of reference values. For our purpose, 
 of neural network represents energy of atomic system.
 
 .. image:: _static/nn.svg
-   :scale: 05 %
+   :width: 500 px
    :align: center
 
 **References:**

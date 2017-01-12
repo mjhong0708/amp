@@ -28,7 +28,7 @@ It is often useful to examine your fingerprints more closely. There is a utility
 This will create a plot that looks something like below, here showing the fingerprint ranges for the specified element. 
 
 .. image:: _static/fpranges.svg
-   :scale: 80 %
+   :width: 1000 px
    :align: center
 
 You can also overlay a specific image's fingerprint on to the fingerprint plot by using the `overlay` keyword when calling fpplot.
