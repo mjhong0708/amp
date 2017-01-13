@@ -2,7 +2,7 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
        subroutine calculate_g2(neighbornumbers, neighborpositions, &
-       g_number, g_eta, rc, cutofffn, ri, num_neighbors, ridge)
+       g_number, g_eta, p_gamma, rc, cutofffn, ri, num_neighbors, ridge)
 
               implicit none
               integer, dimension(num_neighbors):: neighbornumbers
@@ -11,8 +11,8 @@
               neighborpositions
               double precision, dimension(3):: ri
               integer:: num_neighbors
-              double precision::  g_eta, rc
-              character:: cutofffn
+              double precision::  g_eta, rc, p_gamma
+              character(len=20):: cutofffn
               double precision:: ridge
 !f2py         intent(in):: neighbornumbers, neighborpositions, g_number
 !f2py         intent(in):: g_eta, rc, ri
@@ -53,12 +53,25 @@
 
       function cutoff_fxn(r, rc)
               double precision:: r, rc, cutoff_fxn, pi
+!     To avoid noise, for each call of this function, it is better to
+!     set returned variables to 0.0d0.
+        cutoff_fxn = 0.0d0
+          if (cutofffn == 'Cosine') then
               if (r > rc) then
                       cutoff_fxn = 0.0d0
               else
                       pi = 4.0d0 * datan(1.0d0)
                       cutoff_fxn = 0.5d0 * (cos(pi*r/rc) + 1.0d0)
               end if
+          elseif (cutofffn == 'Polynomial') then
+              if (r > rc) then
+                  cutoff_fxn = 0.0d0
+              else
+                  cutoff_fxn = 1. + p_gamma &
+                      * (r / rc) ** (p_gamma + 1) &
+                      - (p_gamma + 1) * (r / rc) ** p_gamma
+              end if
+          endif
       end function
 
       end subroutine calculate_g2
@@ -68,7 +81,7 @@
 
       subroutine calculate_g4(neighbornumbers, neighborpositions, &
       g_numbers, g_gamma, g_zeta, g_eta, rc, cutofffn, ri, &
-      num_neighbors, ridge)
+      num_neighbors, ridge, p_gamma)
 
               implicit none
               integer, dimension(num_neighbors):: neighbornumbers
@@ -77,8 +90,8 @@
               neighborpositions
               double precision, dimension(3):: ri
               integer:: num_neighbors
-              double precision:: g_gamma, g_zeta, g_eta, rc
-              character:: cutofffn
+              double precision:: g_gamma, g_zeta, g_eta, rc, p_gamma
+              character(len=20):: cutofffn
               double precision:: ridge
 !f2py         intent(in):: neighbornumbers, neighborpositions
 !f2py         intent(in):: g_numbers, g_gamma, g_zeta
@@ -156,12 +169,25 @@
 
       function cutoff_fxn(r, rc)
               double precision:: r, rc, cutoff_fxn, pi
+!     To avoid noise, for each call of this function, it is better to
+!     set returned variables to 0.0d0.
+        cutoff_fxn = 0.0d0
+          if (cutofffn == 'Cosine') then
               if (r > rc) then
                       cutoff_fxn = 0.0d0
               else
                       pi = 4.0d0 * datan(1.0d0)
                       cutoff_fxn = 0.5d0 * (cos(pi*r/rc) + 1.0d0)
               end if
+          elseif (cutofffn == 'Polynomial') then
+              if (r > rc) then
+                  cutoff_fxn = 0.0d0
+              else
+                  cutoff_fxn = 1. + p_gamma &
+                      * (r / rc) ** (p_gamma + 1) &
+                      - (p_gamma + 1) * (r / rc) ** p_gamma
+              end if
+          endif
       end function
 
       end subroutine calculate_g4
@@ -171,7 +197,7 @@
 
        subroutine calculate_g2_prime(neighborindices, neighbornumbers, &
        neighborpositions, g_number, g_eta, rc, cutofffn, i, ri, m, l, &
-       num_neighbors, ridge)
+       num_neighbors, ridge, p_gamma)
 
               implicit none
               integer, dimension(num_neighbors):: neighborindices
@@ -181,8 +207,8 @@
               neighborpositions
               double precision, dimension(3):: ri, Rj
               integer:: num_neighbors, m, l, i
-              double precision::  g_eta, rc
-              character:: cutofffn
+              double precision::  g_eta, rc, p_gamma
+              character(len=20):: cutofffn
               double precision:: ridge
 !f2py         intent(in):: neighborindices, neighbornumbers
 !f2py         intent(in):: neighborpositions, g_number
@@ -230,16 +256,33 @@
 
       function cutoff_fxn(r, rc)
               double precision:: r, rc, cutoff_fxn, pi
+!     To avoid noise, for each call of this function, it is better to
+!     set returned variables to 0.0d0.
+        cutoff_fxn = 0.0d0
+          if (cutofffn == 'Cosine') then
               if (r > rc) then
                       cutoff_fxn = 0.0d0
               else
                       pi = 4.0d0 * datan(1.0d0)
                       cutoff_fxn = 0.5d0 * (cos(pi*r/rc) + 1.0d0)
               end if
+          elseif (cutofffn == 'Polynomial') then
+              if (r > rc) then
+                  cutoff_fxn = 0.0d0
+              else
+                  cutoff_fxn = 1. + p_gamma &
+                      * (r / rc) ** (p_gamma + 1) &
+                      - (p_gamma + 1) * (r / rc) ** p_gamma
+              end if
+          endif
       end function
 
       function cutoff_fxn_prime(r, rc)
               double precision:: r, rc, cutoff_fxn_prime, pi
+
+          cutoff_fxn_prime = 0.0d0
+
+          if (cutofffn == 'Cosine') then
               if (r > rc) then
                       cutoff_fxn_prime = 0.0d0
               else
@@ -247,6 +290,15 @@
                       cutoff_fxn_prime = -0.5d0 * pi * sin(pi*r/rc) &
                        / rc
               end if
+          elseif (cutofffn == 'Polynomial') then
+              if (r > rc) then
+                  cutoff_fxn_prime = 0.0d0
+              else
+            cutoff_fxn_prime = (p_gamma * (p_gamma + 1) &
+                / rc) *  ((r / rc) ** p_gamma - (r / rc)  &
+                ** (p_gamma - 1))
+              end if
+          end if
       end function
 
       function dRij_dRml(i, j, Ri, Rj, m, l)
@@ -273,7 +325,7 @@
 
       subroutine calculate_g4_prime(neighborindices, neighbornumbers, &
       neighborpositions, g_numbers, g_gamma, g_zeta, g_eta, rc, &
-      cutofffn, i, ri, m, l, num_neighbors, ridge)
+      cutofffn, i, ri, m, l, num_neighbors, ridge, p_gamma)
 
               implicit none
               integer, dimension(num_neighbors):: neighborindices
@@ -283,8 +335,8 @@
               neighborpositions
               double precision, dimension(3):: ri, Rj, Rk
               integer:: num_neighbors, i, m, l
-              double precision:: g_gamma, g_zeta, g_eta, rc
-              character:: cutofffn
+              double precision:: g_gamma, g_zeta, g_eta, rc, p_gamma
+              character(len=20):: cutofffn
               double precision:: ridge
 !f2py         intent(in):: neighbornumbers, neighborpositions
 !f2py         intent(in):: g_numbers, g_gamma, g_zeta
@@ -407,16 +459,33 @@
 
       function cutoff_fxn(r, rc)
               double precision:: r, rc, cutoff_fxn, pi
+!     To avoid noise, for each call of this function, it is better to
+!     set returned variables to 0.0d0.
+        cutoff_fxn = 0.0d0
+          if (cutofffn == 'Cosine') then
               if (r > rc) then
                       cutoff_fxn = 0.0d0
               else
                       pi = 4.0d0 * datan(1.0d0)
                       cutoff_fxn = 0.5d0 * (cos(pi*r/rc) + 1.0d0)
               end if
+          elseif (cutofffn == 'Polynomial') then
+              if (r > rc) then
+                  cutoff_fxn = 0.0d0
+              else
+                  cutoff_fxn = 1. + p_gamma &
+                      * (r / rc) ** (p_gamma + 1) &
+                      - (p_gamma + 1) * (r / rc) ** p_gamma
+              end if
+          endif
       end function
 
       function cutoff_fxn_prime(r, rc)
               double precision:: r, rc, cutoff_fxn_prime, pi
+
+          cutoff_fxn_prime = 0.0d0
+
+          if (cutofffn == 'Cosine') then
               if (r > rc) then
                       cutoff_fxn_prime = 0.0d0
               else
@@ -424,6 +493,15 @@
                       cutoff_fxn_prime = -0.5d0 * pi * sin(pi*r/rc) &
                        / rc
               end if
+          elseif (cutofffn == 'Polynomial') then
+              if (r > rc) then
+                  cutoff_fxn_prime = 0.0d0
+              else
+            cutoff_fxn_prime = (p_gamma * (p_gamma + 1) &
+                / rc) *  ((r / rc) ** p_gamma - (r / rc)  &
+                ** (p_gamma - 1))
+              end if
+          end if
       end function
 
       function dRij_dRml(i, j, Ri, Rj, m, l)

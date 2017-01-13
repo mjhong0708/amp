@@ -1,10 +1,10 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
- 
+
       subroutine calculate_zernike_prime(n, l, n_length, n_indices, &
 							numbers, rs, g_numbers, cutoff, indexx, &
 							home, p, q, fac_length, factorial, &
-							norm_prime)
+							norm_prime, cutofffn, p_gamma)
           implicit none
           integer::  n, l
           integer::  indexx, p, q, n_length, fac_length
@@ -12,7 +12,8 @@
           double precision, dimension(n_length, 3)::  rs
           double precision, dimension(3)::  home
           double precision, dimension(fac_length)::  factorial
-          double precision::  cutoff
+          double precision::  cutoff, p_gamma
+          character(len=20):: cutofffn
           complex*16::  norm_prime
 !f2py     intent(in)::  n, l, n_indices, numbers, g_numbers, rs
 !f2py     intent(in)::  home, indexx, p, q, cutoff, n_length, fac_length
@@ -38,13 +39,13 @@
 			  y = (neighbor(2) - home(2)) / cutoff
 			  z = (neighbor(3) - home(3)) / cutoff
 			  rho = (x ** 2.0d0 + y ** 2.0d0 + z ** 2.0d0) ** 0.5d0
-				  
+
 			  call calculate_z(n, l, m, x, y, z, factorial, &
 			  fac_length, z_nlm_)
-				  
+
 			  ! Calculate z_nlm
 			  z_nlm = z_nlm_ * cutoff_fxn(rho * cutoff, cutoff)
-				  
+
 			  ! Calculates z_nlm_prime
 			  z_nlm_prime = z_nlm_ * &
 			  cutoff_fxn_prime(rho * cutoff, cutoff) * &
@@ -60,7 +61,7 @@
 				z_nlm_prime = z_nlm_prime - &
 				cutoff_fxn(rho * cutoff, cutoff) * z_nlm_prime_ / cutoff
 			  end if
-				  
+
 			  ! sum over neighbors
 			  c_nlm = c_nlm + g_numbers(iter) * conjg(z_nlm)
 			  c_nlm_prime = c_nlm_prime + &
@@ -81,22 +82,47 @@
 		function cutoff_fxn(r, cutoff)
 		  implicit none
 		  double precision::  r, cutoff, cutoff_fxn, pi
-          if (r > cutoff) then
-			cutoff_fxn = 0.0d0
-          else
-			pi = 4.0d0 * datan(1.0d0)
-            cutoff_fxn = 0.5d0 * (cos(pi * r / cutoff) + 1.0d0)
-          end if
+        cutoff_fxn = 0.0d0
+          if (cutofffn == 'Cosine') then
+              if (r > cutoff) then
+                      cutoff_fxn = 0.0d0
+              else
+                      pi = 4.0d0 * datan(1.0d0)
+                      cutoff_fxn = 0.5d0 * (cos(pi*r/cutoff) + 1.0d0)
+              end if
+          elseif (cutofffn == 'Polynomial') then
+              if (r > cutoff) then
+                  cutoff_fxn = 0.0d0
+              else
+                  cutoff_fxn = 1. + p_gamma &
+                      * (r / cutoff) ** (p_gamma + 1) &
+                      - (p_gamma + 1) * (r / cutoff) ** p_gamma
+              end if
+          endif
 		end function
-      
+
 		function cutoff_fxn_prime(r, cutoff)
 		  implicit none
 		  double precision::  r, cutoff, cutoff_fxn_prime, pi
-		  if (r > cutoff) then
-			cutoff_fxn_prime = 0.0d0
-          else
-			pi = 4.0d0 * datan(1.0d0)
-            cutoff_fxn_prime = -0.5d0 * pi * sin(pi*r/cutoff) / cutoff
+
+          cutoff_fxn_prime = 0.0d0
+
+          if (cutofffn == 'Cosine') then
+              if (r > cutoff) then
+                      cutoff_fxn_prime = 0.0d0
+              else
+                      pi = 4.0d0 * datan(1.0d0)
+                      cutoff_fxn_prime = -0.5d0 * pi * sin(pi*r/cutoff) &
+                       / cutoff
+              end if
+          elseif (cutofffn == 'Polynomial') then
+              if (r > cutoff) then
+                  cutoff_fxn_prime = 0.0d0
+              else
+            cutoff_fxn_prime = (p_gamma * (p_gamma + 1) &
+                / cutoff) *  ((r / cutoff) ** p_gamma - (r / cutoff)  &
+                ** (p_gamma - 1))
+              end if
           end if
 		end function
 
@@ -128,7 +154,7 @@
 			kronecker = 0
 		  end if
 		end function
-      
+
       end subroutine calculate_zernike_prime
 
 	  subroutine calculate_z(n, l, m, x, y, z, factorial, length, &
@@ -151,7 +177,7 @@
 		  factorial(int(2 * (l + m)) + 1) * &
           factorial(int(2 * (l - m)) + 1)) / factorial(int(2 * l) + 1)
 		  term2 = 2.0d0 ** (-m)
-		  
+
 		  ii = (0.0d0, 1.0d0)
 
 		  k = int((n - l) / 2.0d0)
@@ -229,7 +255,7 @@
                 term3 = q * b1 * b2
                 do u = 0, m
                   call binomial(float(m), float(u), factorial, length, &
-                  b3) 
+                  b3)
                   term4 = ((-1.0d0)**(m - u)) * b3 * (ii**u)
                   do mu = 0, int((l - m) / 2.)
                     call binomial(float(l), float(mu), factorial, &

@@ -570,14 +570,17 @@ def calculate_G2(neighborsymbols,
         else:
 
             cutofffn = cutoff['name']
-            if cutofffn != 'Cosine':
-                raise NotImplementedError()
             Rc = cutoff['kwargs']['Rc']
+            if cutofffn == 'Cosine': #FIXME find a cleaner way to do this.
+                p_gamma = 1
+            else:
+                p_gamma = cutoff['kwargs']['gamma']
             ridge = fmodules.calculate_g2(neighbornumbers=neighbornumbers,
                                           neighborpositions=neighborpositions,
                                           g_number=G_number, g_eta=eta,
-                                          rc=Rc, cutofffn=cutofffn,
+                                          rc=Rc, cutofffn=cutofffn, p_gamma=p_gamma,
                                           ri=Ri)
+
     else:
         Rc = cutoff['kwargs']['Rc']
         cutoff_fxn = dict2cutoff(cutoff)
@@ -637,14 +640,16 @@ def calculate_G4(neighborsymbols, neighborpositions,
             return 0.
         else:
             cutofffn = cutoff['name']
-            if cutofffn != 'Cosine':
-                raise NotImplementedError()
             Rc = cutoff['kwargs']['Rc']
+            if cutofffn == 'Cosine': #FIXME find a cleaner way to do this.
+                p_gamma = 1
+            else:
+                p_gamma = cutoff['kwargs']['gamma']
             return fmodules.calculate_g4(neighbornumbers=neighbornumbers,
                                          neighborpositions=neighborpositions,
                                          g_numbers=G_numbers, g_gamma=gamma,
                                          g_zeta=zeta, g_eta=eta,
-                                         rc=Rc, cutofffn=cutofffn,
+                                         rc=Rc, cutofffn=cutofffn, p_gamma=p_gamma,
                                          ri=Ri)
     else:
         Rc = cutoff['kwargs']['Rc']
@@ -923,9 +928,12 @@ def calculate_G2_prime(neighborindices, neighborsymbols, neighborpositions,
             ridge = 0.
         else:
             cutofffn = cutoff['name']
-            if cutofffn != 'Cosine':
-                raise NotImplementedError()
             Rc = cutoff['kwargs']['Rc']
+            if cutofffn == 'Cosine':
+                p_gamma = 1
+            else:
+                p_gamma = cutoff['kwargs']['gamma']
+
             ridge = fmodules.calculate_g2_prime(
                 neighborindices=list(neighborindices),
                 neighbornumbers=neighbornumbers,
@@ -933,7 +941,7 @@ def calculate_G2_prime(neighborindices, neighborsymbols, neighborpositions,
                 g_number=G_number,
                 g_eta=eta, rc=Rc,
                 cutofffn=cutofffn,
-                i=i, ri=Ri, m=m,
+                i=i, ri=Ri, m=m, p_gamma=p_gamma,
                 l=l)
     else:
         Rc = cutoff['kwargs']['Rc']
@@ -1007,9 +1015,13 @@ def calculate_G4_prime(neighborindices, neighborsymbols, neighborpositions,
             ridge = 0.
         else:
             cutofffn = cutoff['name']
-            if cutofffn != 'Cosine':
-                raise NotImplementedError()
             Rc = cutoff['kwargs']['Rc']
+
+            if cutofffn == 'Cosine':
+                p_gamma = 1
+            else:
+                p_gamma = cutoff['kwargs']['gamma']
+
             ridge = fmodules.calculate_g4_prime(
                 neighborindices=list(neighborindices),
                 neighbornumbers=neighbornumbers,
@@ -1018,7 +1030,7 @@ def calculate_G4_prime(neighborindices, neighborsymbols, neighborpositions,
                 g_gamma=gamma,
                 g_zeta=zeta, g_eta=eta,
                 rc=Rc,
-                cutofffn=cutofffn,
+                cutofffn=cutofffn, p_gamma=p_gamma,
                 i=i,
                 ri=Ri, m=m,
                 l=l)
