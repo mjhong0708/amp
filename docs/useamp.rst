@@ -74,7 +74,7 @@ Parallel processing
 Most tasks in Amp are "embarrassingly parallel" and thus you should see a performance boost by specifying more cores.
 Our standard parallel processing approach requires the modules ZMQ (to pass messages between processes) and pxssh (to establish SSH connections across nodes, and is only needed if parallelizing on more than one node).
 The code will try to automatically guess the parallel configuration from the environment variables that your batching system produces, using the function `amp.utilities.assign_cores`.
-(We only use SLURM on your system, so we welcome patches to get this utility working on other systems!)
+(We only use SLURM on our system, so we welcome patches to get this utility working on other systems!)
 If you want to override the automatic guess, use the `cores` keyword when initializing Amp.
 To specify serial operation, use `cores=1`; to specify (for example) 8 cores on only a single node, use `cores=8` or `cores={'localhost': 8}`.
 For parallel operation, cores should be a dictionary where the keys are the hostnames and the values are the number of processors (cores) available on that node; e.g.,

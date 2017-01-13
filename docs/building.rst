@@ -68,6 +68,27 @@ The specific requirements, illustrated above, are:
   That is, the first item is the element of the atom, and the second is a 1-dimensional array which is that atom's fingerprint.
    Thus, `calc.descriptor.fingerprints[hash]` gives a list of fingerprints, in the same order the atoms appear in the image they were fingerprinted from.
 
+  If you want to train your model to forces also (besides energies), your "calculate_fingerprints" method needs to calculate derivatives of the fingerprints with respect to coordinates as well.
+  This is because forces (as the minus of coordinate-gradient of the potential energy) can be written, according to the chain rule of calculus, as the derivative of your model output (which represents energy here) with respect to model inputs (which is fingerprints) times the derivative of fingerprints with respect to coordinates. 
+  These derivatives are calculated for each image for each possible pair of atoms (within the cutoff distance in the **atom-centered** mode).
+  They can be calculated analytically, or simply numerically with finite-difference method.
+  If a piece of code is written to calculate coordinate-derivative of fingerprints, then the "calculate_fingerprints" method can save it as a sub-attribute `self.fingerprintprimes` (which will be accessible in the main *Amp* instance as `calc.descriptor.fingerprintprimes`) along with `self.fingerprints`.
+  `self.fingerprintprimes` is a dictionary-like object, indexed by the same keys that were in the images dictionary.
+  Ideally, `descriptor.fingerprintprimes` is an instance of `amp.utilities.Data`, but probably any mapping (dictionary-like) object will do.
+
+  Calling `calc.descriptor.fingerprintprimes[key]` returns the derivatives of fingerprints for the image key of interest.
+  This is a dictionary where each key is a tuple representing the indices of the derivative, and each value is a list of finperprintprimes.
+  (This list has the same length as the fingerprints.)
+  For example, to retrieve derivatives of the fingerprints of atom indexed 2 (which is say Pt) with respect to :math:`x` coordinate of atom indexed 1 (which is say Cu), we should do
+
+  >>> calc.descriptor.fingerprintprimes[key][(1, 'Cu', 2, 'Pt', 0)]
+  >>> [-1.202, 0.130, 4.511, -0.721]
+
+  Or to retrieve derivatives of the fingerprints of atom indexed 1 with respect to :math:`z` coordinate of atom indexed 1, we do
+
+  >>> calc.descriptor.fingerprintprimes[key][(1, 'Cu', 1, 'Cu', 2)]
+  >>> [3.48, -1.343, -2.561, -8.412]
+
 ----------------------------------
 Descriptor: standard practices
 ----------------------------------
