@@ -99,7 +99,7 @@ Another more general choice for the cutoff function is the following polynomial 
      0&\text{if}\;\: r> R_{c},\\
     \end{cases}
 
-with a user-specified parameter :math:`\gamma` that determines the rate of decay of the cutoff fuction as it extends from :math:`r=0` to :math:`r=R_c`.
+with a user-specified parameter :math:`\gamma` that determines the rate of decay of the cutoff function as it extends from :math:`r=0` to :math:`r=R_c`.
 Figure below shows how components of fingerprints :math:`\textbf{G}_{i}^{I}` and
 :math:`\textbf{G}_{i}^{II}` change with, respectively, distance :math:`R_{ij}` between
 pair atoms :math:`i` and :math:`j` and valence angle :math:`\theta_{ijk}` between triplet of

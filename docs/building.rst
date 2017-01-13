@@ -69,10 +69,10 @@ The specific requirements, illustrated above, are:
    Thus, `calc.descriptor.fingerprints[hash]` gives a list of fingerprints, in the same order the atoms appear in the image they were fingerprinted from.
 
   If you want to train your model to forces also (besides energies), your "calculate_fingerprints" method needs to calculate derivatives of the fingerprints with respect to coordinates as well.
-  This is because forces (as the minus of coordinate-gradient of the potential energy) can be written, according to the chain rule of calculus, as the derivative of your model output (which represents energy here) with respect to model inputs (which is fingerprints) times the derivative of fingerprints with respect to coordinates. 
+  This is because forces (as the minus of coordinate-gradient of the potential energy) can be written, according to the chain rule of calculus, as the derivative of your model output (which represents energy here) with respect to model inputs (which is fingerprints) times the derivative of fingerprints with respect to spatial coordinates. 
   These derivatives are calculated for each image for each possible pair of atoms (within the cutoff distance in the **atom-centered** mode).
-  They can be calculated analytically, or simply numerically with finite-difference method.
-  If a piece of code is written to calculate coordinate-derivative of fingerprints, then the "calculate_fingerprints" method can save it as a sub-attribute `self.fingerprintprimes` (which will be accessible in the main *Amp* instance as `calc.descriptor.fingerprintprimes`) along with `self.fingerprints`.
+  They can be calculated either analytically or simply numerically with finite-difference method.
+  If a piece of code is written to calculate coordinate-derivatives of fingerprints, then the "calculate_fingerprints" method can save it as a sub-attribute `self.fingerprintprimes` (which will be accessible in the main *Amp* instance as `calc.descriptor.fingerprintprimes`) along with `self.fingerprints`.
   `self.fingerprintprimes` is a dictionary-like object, indexed by the same keys that were in the images dictionary.
   Ideally, `descriptor.fingerprintprimes` is an instance of `amp.utilities.Data`, but probably any mapping (dictionary-like) object will do.
 
