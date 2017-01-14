@@ -983,7 +983,7 @@ class NeuralNetwork:
 
         return energies, force
 
-    def get_energy(self, fingerprint):
+    def calculate_energy(self, fingerprint):
         """Get the energy by feeding in a list to the get_list version (which
         is more efficient for anything greater than 1 image)."""
         key = '1'
@@ -1005,8 +1005,8 @@ class NeuralNetwork:
             var=np.var(energies)
         return var
 
-    def get_forces(self, fingerprint, derfingerprint):
-    # get_forces function still needs to be implemented. Can't do this
+    def calculate_forces(self, fingerprint, derfingerprint):
+    # calculate_forces function still needs to be implemented. Can't do this
     # without the fingerprint derivates working properly though
         key = '1'
         energies, forces = self.get_energy_list(
