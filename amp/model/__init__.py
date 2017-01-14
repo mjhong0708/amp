@@ -348,8 +348,9 @@ class LossFunction:
         if self.fingerprints is None:
             self.fingerprints = \
                 self._model.trainingparameters.descriptor.fingerprints
-        # FIXME: AKh: ap, should it decide whether or not to train forces based
-        # on the value of force_coefficient?
+
+        # May also make sense to decide whether or not to calculate
+        # fingerprintprimes based on the value of train_forces.
         if ((self.parameters.force_coefficient != 0.) and
                 (self.fingerprintprimes is None)):
             self.fingerprintprimes = \
