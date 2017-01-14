@@ -26,6 +26,6 @@ These modules should produce plots like below; in the order parity, error, and s
 See the module autodocumentation for details.
 
    .. image:: _static/parity_error_sensitivity.svg
-      :width: 600 px
+      :width: 950 px
       :align: center
 
