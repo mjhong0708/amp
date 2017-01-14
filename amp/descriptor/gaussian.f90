@@ -11,7 +11,8 @@
               neighborpositions
               double precision, dimension(3):: ri
               integer:: num_neighbors
-              double precision::  g_eta, rc, p_gamma
+              double precision::  g_eta, rc
+              double precision,optional :: p_gamma
               character(len=20):: cutofffn
               double precision:: ridge
 !f2py         intent(in):: neighbornumbers, neighborpositions, g_number
@@ -21,6 +22,10 @@
               integer:: j, match, xyz
               double precision, dimension(3):: Rij_vector
               double precision:: Rij, term
+
+              if(present(p_gamma))then
+                  p_gamma = p_gamma
+              endif
 
               ridge = 0.0d0
               do j = 1, num_neighbors
@@ -90,7 +95,8 @@
               neighborpositions
               double precision, dimension(3):: ri
               integer:: num_neighbors
-              double precision:: g_gamma, g_zeta, g_eta, rc, p_gamma
+              double precision:: g_gamma, g_zeta, g_eta, rc
+              double precision,optional :: p_gamma
               character(len=20):: cutofffn
               double precision:: ridge
 !f2py         intent(in):: neighbornumbers, neighborpositions
@@ -102,6 +108,10 @@
               double precision, dimension(3):: Rij_vector, Rik_vector
               double precision, dimension(3):: Rjk_vector
               double precision:: Rij, Rik, Rjk, costheta, term
+
+              if(present(p_gamma))then
+                  p_gamma = p_gamma
+              endif
 
               ridge = 0.0d0
               do j = 1, num_neighbors
@@ -172,6 +182,8 @@
 !     To avoid noise, for each call of this function, it is better to
 !     set returned variables to 0.0d0.
         cutoff_fxn = 0.0d0
+
+
           if (cutofffn == 'Cosine') then
               if (r > rc) then
                       cutoff_fxn = 0.0d0
@@ -207,7 +219,8 @@
               neighborpositions
               double precision, dimension(3):: ri, Rj
               integer:: num_neighbors, m, l, i
-              double precision::  g_eta, rc, p_gamma
+              double precision::  g_eta, rc
+              double precision,optional :: p_gamma
               character(len=20):: cutofffn
               double precision:: ridge
 !f2py         intent(in):: neighborindices, neighbornumbers
@@ -218,6 +231,10 @@
               integer:: j, match, xyz
               double precision, dimension(3):: Rij_vector
               double precision:: Rij, term1, dRijdRml
+
+              if(present(p_gamma))then
+                  p_gamma = p_gamma
+              endif
 
               ridge = 0.0d0
               do j = 1, num_neighbors
@@ -335,7 +352,8 @@
               neighborpositions
               double precision, dimension(3):: ri, Rj, Rk
               integer:: num_neighbors, i, m, l
-              double precision:: g_gamma, g_zeta, g_eta, rc, p_gamma
+              double precision:: g_gamma, g_zeta, g_eta, rc
+              double precision,optional :: p_gamma
               character(len=20):: cutofffn
               double precision:: ridge
 !f2py         intent(in):: neighbornumbers, neighborpositions
@@ -352,6 +370,10 @@
               double precision:: dRijdRml, dRikdRml, dRjkdRml
               double precision:: term1, term2, term3, term4, term5
               double precision:: term6
+
+              if(present(p_gamma))then
+                  p_gamma = p_gamma
+              endif
 
               ridge = 0.0d0
               do j = 1, num_neighbors

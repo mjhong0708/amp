@@ -571,15 +571,20 @@ def calculate_G2(neighborsymbols,
 
             cutofffn = cutoff['name']
             Rc = cutoff['kwargs']['Rc']
-            if cutofffn == 'Cosine': #FIXME find a cleaner way to do this.
-                p_gamma = 1
-            else:
-                p_gamma = cutoff['kwargs']['gamma']
-            ridge = fmodules.calculate_g2(neighbornumbers=neighbornumbers,
-                                          neighborpositions=neighborpositions,
-                                          g_number=G_number, g_eta=eta,
-                                          rc=Rc, cutofffn=cutofffn, p_gamma=p_gamma,
-                                          ri=Ri)
+
+            args_calculate_g2 = dict(
+                    neighbornumbers=neighbornumbers,
+                    neighborpositions=neighborpositions,
+                    g_number=G_number,
+                    g_eta=eta,
+                    rc=Rc,
+                    cutofffn=cutofffn,
+                    ri=Ri
+                    )
+            if cutofffn ==  'Polynomial':
+                args_calculate_g2['p_gamma'] = cutoff['kwargs']['gamma']
+
+            ridge = fmodules.calculate_g2(**args_calculate_g2)
 
     else:
         Rc = cutoff['kwargs']['Rc']
@@ -641,16 +646,22 @@ def calculate_G4(neighborsymbols, neighborpositions,
         else:
             cutofffn = cutoff['name']
             Rc = cutoff['kwargs']['Rc']
-            if cutofffn == 'Cosine': #FIXME find a cleaner way to do this.
-                p_gamma = 1
-            else:
-                p_gamma = cutoff['kwargs']['gamma']
-            return fmodules.calculate_g4(neighbornumbers=neighbornumbers,
-                                         neighborpositions=neighborpositions,
-                                         g_numbers=G_numbers, g_gamma=gamma,
-                                         g_zeta=zeta, g_eta=eta,
-                                         rc=Rc, cutofffn=cutofffn, p_gamma=p_gamma,
-                                         ri=Ri)
+
+            args_calculate_g4 = dict(
+                    neighbornumbers=neighbornumbers,
+                    neighborpositions=neighborpositions,
+                    g_numbers=G_numbers,
+                    g_gamma=gamma,
+                    g_zeta=zeta,
+                    g_eta=eta,
+                    rc=Rc,
+                    cutofffn=cutofffn,
+                    ri=Ri
+                    )
+            if cutofffn ==  'Polynomial':
+                args_calculate_g4['p_gamma'] = cutoff['kwargs']['gamma']
+
+            return fmodules.calculate_g4(**args_calculate_g4)
     else:
         Rc = cutoff['kwargs']['Rc']
         cutoff_fxn = dict2cutoff(cutoff)
@@ -929,20 +940,24 @@ def calculate_G2_prime(neighborindices, neighborsymbols, neighborpositions,
         else:
             cutofffn = cutoff['name']
             Rc = cutoff['kwargs']['Rc']
-            if cutofffn == 'Cosine':
-                p_gamma = 1
-            else:
-                p_gamma = cutoff['kwargs']['gamma']
 
-            ridge = fmodules.calculate_g2_prime(
-                neighborindices=list(neighborindices),
-                neighbornumbers=neighbornumbers,
-                neighborpositions=neighborpositions,
-                g_number=G_number,
-                g_eta=eta, rc=Rc,
-                cutofffn=cutofffn,
-                i=i, ri=Ri, m=m, p_gamma=p_gamma,
-                l=l)
+            args_calculate_g2_prime = dict(
+                    neighborindices=list(neighborindices),
+                    neighbornumbers=neighbornumbers,
+                    neighborpositions=neighborpositions,
+                    g_number=G_number,
+                    g_eta=eta,
+                    rc=Rc,
+                    cutofffn=cutofffn,
+                    i=i,
+                    ri=Ri,
+                    m=m,
+                    l=l
+                    )
+            if cutofffn ==  'Polynomial':
+                args_calculate_g2_prime['p_gamma'] = cutoff['kwargs']['gamma']
+
+            ridge = fmodules.calculate_g2_prime(**args_calculate_g2_prime)
     else:
         Rc = cutoff['kwargs']['Rc']
         cutoff_fxn = dict2cutoff(cutoff)
@@ -1017,23 +1032,25 @@ def calculate_G4_prime(neighborindices, neighborsymbols, neighborpositions,
             cutofffn = cutoff['name']
             Rc = cutoff['kwargs']['Rc']
 
-            if cutofffn == 'Cosine':
-                p_gamma = 1
-            else:
-                p_gamma = cutoff['kwargs']['gamma']
+            args_calculate_g4_prime = dict(
+                    neighborindices=list(neighborindices),
+                    neighbornumbers=neighbornumbers,
+                    neighborpositions=neighborpositions,
+                    g_numbers=G_numbers,
+                    g_gamma=gamma,
+                    g_zeta=zeta,
+                    g_eta=eta,
+                    rc=Rc,
+                    cutofffn=cutofffn,
+                    i=i,
+                    ri=Ri,
+                    m=m,
+                    l=l
+                    )
+            if cutofffn ==  'Polynomial':
+                args_calculate_g4_prime['p_gamma'] = cutoff['kwargs']['gamma']
 
-            ridge = fmodules.calculate_g4_prime(
-                neighborindices=list(neighborindices),
-                neighbornumbers=neighbornumbers,
-                neighborpositions=neighborpositions,
-                g_numbers=G_numbers,
-                g_gamma=gamma,
-                g_zeta=zeta, g_eta=eta,
-                rc=Rc,
-                cutofffn=cutofffn, p_gamma=p_gamma,
-                i=i,
-                ri=Ri, m=m,
-                l=l)
+            ridge = fmodules.calculate_g4_prime(**args_calculate_g4_prime)
     else:
         Rc = cutoff['kwargs']['Rc']
         cutoff_fxn = dict2cutoff(cutoff)
