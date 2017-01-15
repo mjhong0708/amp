@@ -21,7 +21,7 @@ You can also access this tool as `plot_convergence` from the `amp.analysis` modu
 Other plots
 ----------------------------------
 
-There are several other plotting tools within this module, including `plot_parity` for making parity plots, `plot_error` for making error plots, and `perturb_parameters` for examining the sensitivity of the model output to the model parameters.
+There are several other plotting tools within this module, including `plot_parity` for making parity plots, `plot_error` for making error plots, and `plot_sensitivity` for examining the sensitivity of the model output to the model parameters.
 These modules should produce plots like below; in the order parity, error, and sensitivity from left to right.
 See the module autodocumentation for details.
 
