@@ -835,26 +835,26 @@ class Annealer(object):
             self.updates = updates
         self.calc = calc
 
-        self.calc.log('\nAmp simulated annealer started. ' + now() + '\n')
-        self.calc.log('Descriptor: %s' %
+        self.calc._log('\nAmp simulated annealer started. ' + now() + '\n')
+        self.calc._log('Descriptor: %s' %
                       self.calc.descriptor.__class__.__name__)
-        self.calc.log('Model: %s' % self.calc.model.__class__.__name__)
+        self.calc._log('Model: %s' % self.calc.model.__class__.__name__)
 
-        images = hash_images(images, log=self.calc.log)
+        images = hash_images(images, log=self.calc._log)
 
-        self.calc.log('\nDescriptor\n==========')
+        self.calc._log('\nDescriptor\n==========')
         # Derivatives of fingerprints need to be calculated if train_forces is
         # True.
         calculate_derivatives = True
         self.calc.descriptor.calculate_fingerprints(
             images=images,
             parallel=self.calc._parallel,
-            log=self.calc.log,
+            log=self.calc._log,
             calculate_derivatives=calculate_derivatives)
         # Setting up calc.model.vector()
         self.calc.model.fit(trainingimages=images,
                             descriptor=self.calc.descriptor,
-                            log=self.calc.log,
+                            log=self.calc._log,
                             parallel=self.calc._parallel,
                             only_setup=True,)
         # Truning off ConvergenceOccured exception and log_losses
@@ -867,7 +867,7 @@ class Annealer(object):
         self.state = self.copy_state(initial_state)
 
         signal.signal(signal.SIGINT, self.set_user_exit)
-        self.calc.log('\nAnnealing\n=========\n')
+        self.calc._log('\nAnnealing\n=========\n')
         bestState, bestLoss = self.anneal()
         # Taking the best state
         self.calc.model.vector = np.array(bestState)
@@ -967,19 +967,19 @@ class Annealer(object):
 
         elapsed = time.time() - self.start
         if step == 0:
-            self.calc.log('\n')
+            self.calc._log('\n')
             header = ' %5s %12s %12s %7s %7s %10s %10s'
-            self.calc.log(header % ('Step', 'Temperature', 'Loss (SSD)',
+            self.calc._log(header % ('Step', 'Temperature', 'Loss (SSD)',
                                     'Accept', 'Improve', 'Elapsed',
                                     'Remaining'))
-            self.calc.log(header % ('=' * 5, '=' * 12, '=' * 12,
+            self.calc._log(header % ('=' * 5, '=' * 12, '=' * 12,
                                     '=' * 7, '=' * 7, '=' * 10,
                                     '=' * 10,))
-            self.calc.log(' %5i %12.2e %12.4e                   %s            '
+            self.calc._log(' %5i %12.2e %12.4e                   %s            '
                           % (step, T, L, self.time_string(elapsed)))
         else:
             remain = (self.steps - step) * (elapsed / step)
-            self.calc.log(' %5i %12.2e %12.4e %7.2f%% %7.2f%% %s %s' %
+            self.calc._log(' %5i %12.2e %12.4e %7.2f%% %7.2f%% %s %s' %
                           (step, T, L, 100.0 * acceptance, 100.0 * improvement,
                            self.time_string(
                                elapsed), self.time_string(remain))),

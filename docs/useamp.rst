@@ -150,3 +150,37 @@ If training does not succeed, Amp raises a `TrainingConvergenceError`. You can u
         # Whatever you want to happen if training fails;
         # e.g., refresh parameters and train again.
 
+----------------------------------
+Global search in the parameter space
+----------------------------------
+If the model is trained with minimizing a loss function which has a non-convex form, it might be desirable to perform a global search in the parameter space in prior to a gradient-descent optimization algorithm.
+That is, in first step we do a search in an area of parameter space including multiple basins (each basin has a local minimum).
+Next we take the parameters corresponding to the minimum loss function found, and start a gradient-descent optimization to find the local minimum of the basin found in the first step.
+Currently there exists a built-in global-search optimizer inside Amp which uses simulated-annealing algorithm.
+The module is based on the open-source simulated-annealing code of Wagner and Perry [1], but has been brought into the context of Amp.
+To use this module, the calculator object should be initiated as usual:  
+
+.. code-block:: python
+
+    from amp import Amp
+    from amp.descriptor.gaussian import Gaussian
+    from amp.model.neuralnetwork import NeuralNetwork
+    calc = Amp(descriptor=Gaussian(), model=NeuralNetwork())
+    images = ...
+
+Then the calculator object and the images are passed to the `Annealer` module and the simulated-annealing search is performed by reducing the temperature from initial maximum value `Tmax` to final minimum value `Tmin` in number of steps `steps`.
+If `Tmax` takes a small value (greater than zero), then the algorithm reduces to the simple random-walk search:
+
+.. code-block:: python
+
+    from amp.utilities import Annealer
+    Annealer(calc=calc, images=images, Tmax=20, Tmin=1, steps=4000)
+
+Finally the usual `train` module is called to continue from the best parameters found in the last step:
+
+.. code-block:: python
+    calc.train(images=images,)
+
+**References:**
+
+1. https://github.com/perrygeo/simanneal.
