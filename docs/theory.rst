@@ -45,9 +45,9 @@ as the input of regression operator:
 .. math::
   \textbf{R}\xrightarrow{\textbf{G}}\textbf{G}\left(\textbf{R}\right)\xrightarrow{\text{regression}}E_\text{atom}=E_\text{atom}\left(\textbf{G}\left(\textbf{R}\right)\right).
 
-******
+********
 Gaussian
-******
+********
 
 Gaussian descriptor :math:`\textbf{G}` as a function of pair-atom distances and
 three-atom angles, has been suggested by Behler [1], and is implemented within
@@ -109,9 +109,9 @@ atoms :math:`i`, :math:`j`, and :math:`k` with central atom :math:`i`:
    :width: 800 px
    :align: center
 
-******
+*******
 Zernike
-******
+*******
 
 Three-dimensional Zernike descriptor is also available inside Amp, and can be
 used as the atomic environment descriptor. Zernike-type descriptor has been
@@ -147,9 +147,9 @@ non-sensitive to the four-atom dehidral angle of the following figure.
    :width: 1200 px
    :align: center
 
-******
+**********
 Bispectrum
-******
+**********
 
 Bispectrum of four-dimensional spherical harmonics have been suggested by
 Bartok et al. [3] to be invariant under rotation of local atomic environment.
