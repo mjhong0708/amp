@@ -19,11 +19,12 @@ from ..utilities import ConvergenceOccurred
 try:
     import tensorflow as tf
     from tensorflow.contrib.opt import ScipyOptimizerInterface
-    # This exception is just so the documentation can build even if
-    # tensorflow is missing.
 except ImportError:
-    raise RuntimeError('Please install tensorflow if you plan to use this '
-                       'Amp module.')
+    # A warning is raised instead of an error so that documentation can
+    # build without tensorflow installed.
+    import warnings
+    warnings.warn('Please install tensorflow if you plan to use this '
+                  'Amp module.')
 
 
 class NeuralNetwork:

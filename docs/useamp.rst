@@ -150,9 +150,9 @@ If training does not succeed, Amp raises a `TrainingConvergenceError`. You can u
         # Whatever you want to happen if training fails;
         # e.g., refresh parameters and train again.
 
-----------------------------------
+------------------------------------
 Global search in the parameter space
-----------------------------------
+------------------------------------
 If the model is trained with minimizing a loss function which has a non-convex form, it might be desirable to perform a global search in the parameter space in prior to a gradient-descent optimization algorithm.
 That is, in the first step we do a random search in an area of parameter space including multiple basins (each basin has a local minimum).
 Next we take the parameters corresponding to the minimum loss function found, and start a gradient-descent optimization to find the local minimum of the basin found in the first step.
