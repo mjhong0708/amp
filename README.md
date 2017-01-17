@@ -31,44 +31,13 @@ License
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-Recommended step: Compiling Fortran modules:
-============================================
+Installation and documentation
+==============================
 
-Amp works in pure python, however, it will be annoyingly slow unless
-the associated Fortran 90 modules are compiled to speed up
-several parts of the code. The compilation of the Fortran 90 code
-and integration with the python parts is accomplished with f2py,
-which is part of NumPy. A Fortran 90 compiler will also be necessary
-on the system; a reasonable open-source option is GNU Fortran, or
-gfortran. This compiler will generate Fortran modules (.mod).
-gfortran will also be used by f2py to generate extension module
-fmodules.so on Linux or fmodules.pyd on Windows. In order to
-prepare the extension module the following steps need to be taken:
+You can find the installation instructions for this version of Amp in the
+file `docs/installation.rst`. You can find instructions to build a local
+copy of the documentation in the file `docs/README.md`.
 
-1- Compile model Fortran subroutines inside the model folder by:
+We currently host multiple versions of the documentation, which includes
+installation instructions, at http://amp.readthedocs.io. 
 
-    $ cd <installation-directory>/amp/model
-
-    $ gfortran -c neuralnetwork.f90
-
-
-2- Move the module "neuralnetwork.mod" created in the last step, to the parent directory
-by:
-
-
-    $ mv neuralnetwork.mod ../
-
-
-3- Go back to the parent directory and compile the model Fortran subroutines in companion with the descriptor and neuralnetwork subroutines by something like:
-
-    $ cd ../
-
-    $ f2py -c -m fmodules model.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90
-
-or on a Windows machine by:
-
-    $ f2py -c -m fmodules model.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90 --fcompiler=gnu95 --compiler=mingw32
-
-If the version of fmodules.f90 is not updated, an exception
-will be raised which tells user which version number should be
-employed.
