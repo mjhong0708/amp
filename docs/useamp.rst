@@ -13,7 +13,7 @@ Basic use
 ----------------------------------
 
 To use Amp, you need to specify a `descriptor` and a `model`.
-The below shows a basic example of training Amp with Gaussian descriptors and a neural network model---the Behler-Parinello scheme.
+The below shows a basic example of training Amp with Gaussian descriptors and a neural network model---the Behler-Parrinello scheme.
 
 .. code-block:: python
 
@@ -128,7 +128,7 @@ Under the hood, the train function is pretty simple; it just runs:
 ----------------------------------
 Re-training
 ----------------------------------
-If training is successful, Amp saves the parameters into an 'amp.amp' file by default. You can load the pretrained calculator and re-train it further with tighter convergence criteria. You can specify if the pre-trained amp.amp will be overwritten by the re-trained one through the key word 'overwrite' (default is False). 
+If training is successful, Amp saves the parameters into an 'amp.amp' file by default. You can load the pretrained calculator and re-train it further with tighter convergence criteria. You can specify if the pre-trained amp.amp will be overwritten by the re-trained one through the key word 'overwrite' (default is False).
 
 .. code-block:: python
 

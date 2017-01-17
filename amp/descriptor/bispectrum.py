@@ -5,6 +5,10 @@ from ase.calculators.calculator import Parameters
 from ..utilities import Data, Logger, importer
 from ..descriptor.cutoffs import Cosine, Polynomial
 NeighborList = importer('NeighborList')
+try:
+    from .. import fmodules
+except ImportError:
+    fmodules = None
 
 
 class Bispectrum(object):
@@ -43,7 +47,7 @@ class Bispectrum(object):
     """
 
     def __init__(self, cutoff=Cosine(6.5), Gs=None, jmax=5, dblabel=None,
-                 elements=None, version='2016.02', mode='atom-centered'):
+                 elements=None, version='2016.02', mode='atom-centered', fortran=True):
 
         # Check of the version of descriptor, particularly if restarting.
         compatibleversions = ['2016.02', ]
@@ -79,6 +83,7 @@ class Bispectrum(object):
         p.Gs = Gs
         p.jmax = jmax
         p.elements = elements
+        p.fortran = fortran
 
         self.dblabel = dblabel
         self.parent = None  # Can hold a reference to main Amp instance.
@@ -88,7 +93,7 @@ class Bispectrum(object):
         be used to restart the calculator."""
         return self.parameters.tostring()
 
-    def calculate_fingerprints(self, images, cores=1, fortran=False,
+    def calculate_fingerprints(self, images, parallel=None, fortran=False,
                                log=None, calculate_derivatives=False):
         """Calculates the fingerpints of the images, for the ones not already
         done."""
@@ -157,7 +162,7 @@ class Bispectrum(object):
             self.neighborlist = Data(filename='%s-neighborlists'
                                      % self.dblabel,
                                      calculator=calc)
-        self.neighborlist.calculate_items(images, cores=cores, log=log)
+        self.neighborlist.calculate_items(images, parallel=parallel, log=log)
         log('...neighborlists calculated.', toc='nl')
 
         log('Fingerprinting images...', tic='fp')
@@ -166,11 +171,12 @@ class Bispectrum(object):
                                          Gs=p.Gs,
                                          jmax=p.jmax,
                                          cutoff=p.cutoff,
-                                         cutofffn=p.cutofffn)
+                                         cutofffn=p.cutofffn,
+                                         fortran=p.fortran)
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
                                      calculator=calc)
-        self.fingerprints.calculate_items(images, cores=cores, log=log)
+        self.fingerprints.calculate_items(images, parallel=parallel, log=log)
         log('...fingerprints calculated.', toc='fp')
 
 
@@ -204,13 +210,14 @@ class FingerprintCalculator:
     """For integration with .utilities.Data
     """
 
-    def __init__(self, neighborlist, Gs, jmax, cutoff, cutofffn):
+    def __init__(self, neighborlist, Gs, jmax, cutoff, cutofffn, fortran):
         self.globals = Parameters({'cutoff': cutoff,
                                    'cutofffn': cutofffn,
                                    'Gs': Gs,
                                    'jmax': jmax})
         self.keyed = Parameters({'neighborlist': neighborlist})
         self.parallel_command = 'calculate_fingerprints'
+        self.fortran = fortran
 
         self.factorial = [1]
         for _ in xrange(int(3. * jmax) + 2):
@@ -306,11 +313,50 @@ class FingerprintCalculator:
             j1 = 0.5 * _2j1
             j2 = 0.5 * _2j1
             for j in xrange(int(min(_2j1, jmax)) + 1):
-                value = calculate_B(j1, j2, 1.0 * j, self.globals.Gs[symbol],
-                                    cutoff, cutofffn, self.factorial, n_symbols,
-                                    rs, psis, thetas, phis)
-                value = value.real
-                fingerprint.append(value)
+                print(self.fortran)
+                if self.fortran:
+                    types = [j1, j2, 1.0 * j, self.globals.Gs[symbol],
+                                        cutoff, cutofffn, self.factorial, n_symbols,
+                                        rs, psis, thetas, phis]
+                    types_s = ['j1', 'j2', '1.0 * j', 'self.globals.Gs[symbol]',
+                                        'cutoff', 'cutofffn', 'self.factorial', 'n_symbols',
+                                        'rs', 'psis', 'thetas', 'phis']
+                    for index, e in enumerate(types):
+                        print(types_s[index], type(e))
+                        print(e)
+                    print('Not implemented yet.')
+                    # fmodules call has to be with lowercase b, otherwise, it cannot call
+                    # the fortran function correctly.
+                    print(self.globals.Gs[symbol])
+                    fac_length = len(self.factorial)
+                    phis_length = len(phis)
+                    thetas_length = len(thetas)
+                    psis_length = len(psis)
+                    rs_length = len(rs)
+                    value = fmodules.calculate_b(
+                            j1,
+                            j2,
+                            1.0 * j,
+                            self.globals.Gs[symbol],
+                            cutoff,
+                            cutofffn,
+                            self.factorial,
+                            fac_length,
+                            n_symbols,
+                            rs_length,
+                            rs,
+                            psis_length,
+                            psis,
+                            thetas_length,
+                            thetas,
+                            phis_length,
+                            phis)
+                else:
+                    value = calculate_B(j1, j2, 1.0 * j, self.globals.Gs[symbol],
+                                        cutoff, cutofffn, self.factorial, n_symbols,
+                                        rs, psis, thetas, phis)
+                    value = value.real
+                    fingerprint.append(value)
 
         return symbol, fingerprint
 
@@ -325,6 +371,10 @@ def calculate_B(j1, j2, j, G_element, cutoff, cutofffn, factorial, n_symbols,
     """
 
     mvals = m_values(j)
+    print('j')
+    print(j)
+    print('mvals')
+    print(mvals)
     B = 0.
     for m in mvals:
         for mp in mvals:

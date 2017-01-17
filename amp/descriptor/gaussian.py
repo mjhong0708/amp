@@ -75,6 +75,7 @@ class Gaussian(object):
                                'in atom-centered mode. %s '
                                'specified.' % mode)
 
+        print(cutoff)
         # If the cutoff is provided as a number, Cosine function will be used
         # by default.
         if isinstance(cutoff, int) or isinstance(cutoff, float):
