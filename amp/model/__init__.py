@@ -359,7 +359,8 @@ class LossFunction:
 
         # May also make sense to decide whether or not to calculate
         # fingerprintprimes based on the value of train_forces.
-        if self.parameters.force_coefficient is not None:
+        if ((self.parameters.force_coefficient is not None) and
+            (self.fingerprintprimes is None)):
             self.fingerprintprimes = \
                 self._model.trainingparameters.descriptor.fingerprintprimes
         if self.images is None:
