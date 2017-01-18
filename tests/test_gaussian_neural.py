@@ -4,7 +4,7 @@ network model. Randomly generates data with the EMT potential in MD
 simulations."""
 
 from ase.calculators.emt import EMT
-from ase.lattice.surface import fcc110
+from ase.build import fcc110
 from ase import Atoms, Atom
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase import units
@@ -54,8 +54,15 @@ def train_test():
 
     calc.train(images=train_images,)
     for image in train_images:
-        print "energy =", calc.get_potential_energy(image)
-        print "forces =", calc.get_forces(image)
+        print("energy = %s" % str(calc.get_potential_energy(image)))
+        print("forces = %s" % str(calc.get_forces(image)))
+
+    # Test that we can re-load this calculator and call it again.
+    del calc
+    calc2 = Amp.load(label + '.amp')
+    for image in train_images:
+        print("energy = %s" % str(calc2.get_potential_energy(image)))
+        print("forces = %s" % str(calc2.get_forces(image)))
 
 
 if __name__ == '__main__':

@@ -132,7 +132,7 @@ If training is successful, Amp saves the parameters into an 'amp.amp' file by de
 
 .. code-block:: python
 
-   calc = Amp.load( './amp.amp' )
+   calc = Amp.load( 'amp.amp' )
    calc.model.lossfunction = LossFunction( convergence=convergence )
    calc.train( overwrite=True or False )
 
