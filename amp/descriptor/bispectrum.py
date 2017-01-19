@@ -88,11 +88,30 @@ class Bispectrum(object):
         be used to restart the calculator."""
         return self.parameters.tostring()
 
-    def calculate_fingerprints(self, images, cores=1, fortran=False,
-                               log=None, calculate_derivatives=False):
+    def calculate_fingerprints(self, images, parallel=None, log=None,
+                               calculate_derivatives=False):
         """Calculates the fingerpints of the images, for the ones not already
-        done."""
+        done.
 
+        Parameters
+        ----------
+        images : list or str
+            List of ASE atoms objects with positions, symbols, energies, and
+            forces in ASE format. This is the training set of data. This can
+            also be the path to an ASE trajectory (.traj) or database (.db)
+            file. Energies can be obtained from any reference, e.g. DFT
+            calculations.
+        parallel : dict
+            Configuration for parallelization. Should be in same form as in
+            amp.Amp.
+        log : Logger object
+            Write function at which to log data. Note this must be a callable
+            function.
+        calculate_derivatives : bool
+            Decides whether or not fingerprintprimes should also be calculated.
+        """
+        if parallel is None:
+            parallel = {'cores': 1}
         if calculate_derivatives is True:
             import warnings
             warnings.warn('Zernike descriptor cannot train forces yet. '
@@ -157,7 +176,7 @@ class Bispectrum(object):
             self.neighborlist = Data(filename='%s-neighborlists'
                                      % self.dblabel,
                                      calculator=calc)
-        self.neighborlist.calculate_items(images, cores=cores, log=log)
+        self.neighborlist.calculate_items(images, parallel=parallel, log=log)
         log('...neighborlists calculated.', toc='nl')
 
         log('Fingerprinting images...', tic='fp')
@@ -170,7 +189,7 @@ class Bispectrum(object):
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
                                      calculator=calc)
-        self.fingerprints.calculate_items(images, cores=cores, log=log)
+        self.fingerprints.calculate_items(images, parallel=parallel, log=log)
         log('...fingerprints calculated.', toc='fp')
 
 
@@ -219,6 +238,13 @@ class FingerprintCalculator:
 
     def calculate(self, image, key):
         """Makes a list of fingerprints, one per atom, for the fed image.
+
+        Parameters
+        ----------
+        image : object
+            ASE atoms object.
+        key : str
+            key of the image after being hashed.
         """
         nl = self.keyed.neighborlist[key]
         fingerprints = []

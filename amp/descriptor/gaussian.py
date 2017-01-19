@@ -137,6 +137,7 @@ class Gaussian(object):
 
         p = self.parameters
 
+        log('Cutoff radius: %.2f' % p.cutoff)
         log('Cutoff function: %s' % repr(dict2cutoff(p.cutoff)))
 
         if p.elements is None:
