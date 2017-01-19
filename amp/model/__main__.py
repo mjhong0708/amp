@@ -9,9 +9,10 @@ itself with id. Instructions on what to do will come from the socket.
 import sys
 import tempfile
 import zmq
-from amp.utilities import MessageDictionary, string2dict, Logger
-from amp import importhelper
-from amp.model import ravel_data, send_data_to_fortran
+
+from ..utilities import MessageDictionary, string2dict, Logger
+from .. import importhelper
+from . import ravel_data, send_data_to_fortran
 
 
 hostsocket = sys.argv[-1]
@@ -101,9 +102,10 @@ if purpose == 'calculate_loss_function':
         else:
             train_forces = True
 
-        # FIXME: Should be corrected for image-centered:
         if mode == 'atom-centered':
             num_atoms = None
+        elif mode == 'image-centered':
+            raise NotImplementedError('Image-centered mode is not coded yet.')
 
         (actual_energies, actual_forces, elements, atomic_positions,
          num_images_atoms, atomic_numbers, raveled_fingerprints, num_neighbors,

@@ -1,10 +1,10 @@
 
 import numpy as np
 from ase.calculators.calculator import Parameters
-from amp.utilities import (Logger, ConvergenceOccurred, make_sublists, now,
-                           setup_parallel)
+from ..utilities import (Logger, ConvergenceOccurred, make_sublists, now,
+                         setup_parallel)
 try:
-    from amp import fmodules
+    from .. import fmodules
 except ImportError:
     fmodules = None
 
@@ -261,9 +261,12 @@ class LossFunction:
         Coefficient of the energy contribution in the loss function.
     force_coefficient : float
         Coefficient of the force contribution in the loss function.
+        Can set to None as shortcut to turn off force training.
     convergence : dict
         Dictionary of keys and values defining convergence.  Keys are
         'energy_rmse', 'energy_maxresid', 'force_rmse', and 'force_maxresid'.
+        If 'force_rmse' and 'force_maxresid' are both set to None, force
+        training is turned off and force_coefficient is set to None.
     parallel : dict
         Parallel configuration dictionary. Will pull from model itself if
         not specified.
@@ -291,7 +294,7 @@ class LossFunction:
         p = self.parameters = Parameters(
             {'importname': '.model.LossFunction'})
         # 'dict' creates a copy; otherwise mutable in class.
-        p['convergence'] = dict(self.default_parameters['convergence'])
+        c = p['convergence'] = dict(self.default_parameters['convergence'])
         if convergence is not None:
             for key, value in convergence.iteritems():
                 p['convergence'][key] = value
@@ -305,6 +308,11 @@ class LossFunction:
         self._initialized = False
         self._data_sent = False
         self._parallel = parallel
+        if (c['force_rmse'] is None) and (c['force_maxresid'] is None):
+            p['force_coefficient'] = None
+        if p['force_coefficient'] is None:
+            c['force_rmse'] = None
+            c['force_maxresid'] = None
 
     def attach_model(self, model, fingerprints=None,
                      fingerprintprimes=None, images=None):
@@ -348,10 +356,11 @@ class LossFunction:
         if self.fingerprints is None:
             self.fingerprints = \
                 self._model.trainingparameters.descriptor.fingerprints
-        # FIXME: AKh: ap, should it decide whether or not to train forces based
-        # on the value of force_coefficient?
-        if ((self.parameters.force_coefficient != 0.) and
-                (self.fingerprintprimes is None)):
+
+        # May also make sense to decide whether or not to calculate
+        # fingerprintprimes based on the value of train_forces.
+        if ((self.parameters.force_coefficient is not None) and
+            (self.fingerprintprimes is None)):
             self.fingerprintprimes = \
                 self._model.trainingparameters.descriptor.fingerprintprimes
         if self.images is None:
@@ -378,8 +387,7 @@ class LossFunction:
             log('  force_coefficient: ' + str(p.force_coefficient))
             log('  overfit: ' + str(p.overfit))
             log('\n')
-            if (convergence['force_rmse'] is None) and \
-                    (convergence['force_maxresid'] is None):
+            if p.force_coefficient is None:
                 header = '%5s %19s %12s %12s %12s'
                 log(header %
                     ('', '', '', '', 'Energy'))
@@ -411,16 +419,18 @@ class LossFunction:
         num_images = len(self.images)
         p = self.parameters
         energy_coefficient = p.energy_coefficient
-        force_coefficient = p.force_coefficient
         overfit = p.overfit
-        if force_coefficient == 0.:
+        if p.force_coefficient is None:
             train_forces = False
+            force_coefficient = 0.
         else:
             train_forces = True
+            force_coefficient = p.force_coefficient
         mode = self._model.parameters.mode
-        # FIXME: Should be corrected for image-centered:
         if mode == 'atom-centered':
             num_atoms = None
+        elif mode == 'image-centered':
+            raise NotImplementedError('Image-centered mode is not coded yet.')
 
         (actual_energies, actual_forces, elements, atomic_positions,
          num_images_atoms, atomic_numbers, raveled_fingerprints, num_neighbors,
@@ -468,11 +478,6 @@ class LossFunction:
 
     def _cleanup(self):
         """Closes SSH sessions."""
-        # FIXME/ap: I don't think this is done in the utilities/Data
-        # routines. Does it need to be done here? If so, does it need
-        # to be done there? I think that when the ssh item is destroyed
-        # it automatically closes the connection. It may not properly
-        # log out, but I'm not sure that's a problem.
         self._initialized = False
         if not hasattr(self, '_sessions'):
             return
@@ -595,9 +600,10 @@ class LossFunction:
         energy_maxresid = 0.
         force_maxresid = 0.
         dloss_dparameters = np.array([0.] * len(parametervector))
+        model = self._model
         for hash, image in self.images.iteritems():
             no_of_atoms = len(image)
-            amp_energy = self._model.calculate_energy(self.fingerprints[hash])
+            amp_energy = model.calculate_energy(self.fingerprints[hash])
             actual_energy = image.get_potential_energy(apply_constraint=False)
             residual_per_atom = abs(amp_energy - actual_energy) / \
                 len(image)
@@ -608,16 +614,16 @@ class LossFunction:
             # Calculates derivative of the loss function with respect to
             # parameters if lossprime is true
             if lossprime:
-                if self._model.parameters.mode == 'image-centered':
+                if model.parameters.mode == 'image-centered':
                     raise NotImplementedError('This needs to be coded.')
-                elif self._model.parameters.mode == 'atom-centered':
+                elif model.parameters.mode == 'atom-centered':
                     if self.d is None:
                         denergy_dparameters = \
-                            self._model.calculate_dEnergy_dParameters(
+                            model.calculate_dEnergy_dParameters(
                                 self.fingerprints[hash])
                     else:
                         denergy_dparameters = \
-                            self._model.calculate_numerical_dEnergy_dParameters(
+                            model.calculate_numerical_dEnergy_dParameters(
                                 self.fingerprints[hash], d=self.d)
                     temp = p.energy_coefficient * 2. * \
                         (amp_energy - actual_energy) * \
@@ -625,10 +631,10 @@ class LossFunction:
                         (no_of_atoms ** 2.)
                     dloss_dparameters += temp
 
-            if p.force_coefficient != 0.:
+            if p.force_coefficient is not None:
                 amp_forces = \
-                    self._model.calculate_forces(self.fingerprints[hash],
-                                                 self.fingerprintprimes[hash])
+                    model.calculate_forces(self.fingerprints[hash],
+                                           self.fingerprintprimes[hash])
                 actual_forces = image.get_forces(apply_constraint=False)
                 for index in xrange(no_of_atoms):
                     for i in xrange(3):
@@ -643,17 +649,17 @@ class LossFunction:
                 # Calculates derivative of the loss function with respect to
                 # parameters if lossprime is true
                 if lossprime:
-                    if self._model.parameters.mode == 'image-centered':
+                    if model.parameters.mode == 'image-centered':
                         raise NotImplementedError('This needs to be coded.')
-                    elif self._model.parameters.mode == 'atom-centered':
+                    elif model.parameters.mode == 'atom-centered':
                         if self.d is None:
                             dforces_dparameters = \
-                                self._model.calculate_dForces_dParameters(
+                                model.calculate_dForces_dParameters(
                                     self.fingerprints[hash],
                                     self.fingerprintprimes[hash])
                         else:
                             dforces_dparameters = \
-                                self._model.calculate_numerical_dForces_dParameters(
+                                model.calculate_numerical_dForces_dParameters(
                                     self.fingerprints[hash],
                                     self.fingerprintprimes[hash],
                                     d=self.d)
@@ -666,8 +672,9 @@ class LossFunction:
                                     / no_of_atoms
                                 dloss_dparameters += temp
 
-        loss = p.energy_coefficient * energyloss + \
-            p.force_coefficient * forceloss
+        loss = p.energy_coefficient * energyloss
+        if p.force_coefficient is not None:
+            loss += p.force_coefficient * forceloss
         dloss_dparameters = np.array(dloss_dparameters)
 
         # if overfit coefficient is more than zero, overfit contribution to
@@ -796,7 +803,7 @@ class LossFunction:
         if p.convergence['energy_maxresid'] is not None:
             if energy_maxresid > p.convergence['energy_maxresid']:
                 energy_maxresid_converged = False
-        if p.force_coefficient != 0.:
+        if p.force_coefficient is not None:
             force_rmse_converged = True
             if p.convergence['force_rmse'] is not None:
                 force_rmse = np.sqrt(force_loss / len(self.images))

@@ -1,18 +1,25 @@
 import numpy as np
-from amp.utilities import hash_images
+from ..utilities import hash_images, hash_image
 
 
 class FingerprintPlot:
     """Create plots of fingerprint ranges.
+
     Initialize with an Amp calculator object.
     """
 
     def __init__(self, calc):
         self._calc = calc
 
-    def __call__(self, images, name='fingerprints.pdf'):
-        """Creates a violin plot of fingerprints for each element type in
-        the fed images; saves to specified filename."""
+    def __call__(self, images, name='fingerprints.pdf', overlay=None):
+        """Creates a violin plot of fingerprints for each element type in the
+        fed images; saves to specified filename.
+
+        Optionally, the user can supply either an ase.Atoms or a list of
+        ase.Atom objects with the overlay keyword; this will result in
+        points being added to the fingerprints indicating the values for
+        that atom or atoms object.
+        """
 
         from matplotlib import pyplot
         from matplotlib.backends.backend_pdf import PdfPages
@@ -48,6 +55,28 @@ class FingerprintPlot:
                          'fingerprints shown.)',
                          ha='center')
             fig.text(0.5, 0.95, element, ha='center')
+
+        if overlay:
+            # Find all atoms.
+            images = [atom.atoms for atom in overlay]
+            images = hash_images(images)
+            self._calc.descriptor.calculate_fingerprints(images)
+            for atom in overlay:
+                key = hash_image(atom.atoms)
+                fingerprints = self._calc.descriptor.fingerprints[key]
+                fingerprint = fingerprints[atom.index]
+                fig = self.figures[fingerprint[0]]
+                ax = fig.axes[0]
+                ax.plot(range(1, len(fingerprint[1]) + 1),
+                        fingerprint[1], '.b')
+                fprange = self._calc.model.parameters.fprange[atom.symbol]
+                fprange = np.array(fprange)
+                fprange.transpose()
+                scaled = ((np.array(fingerprint[1]) - fprange[:, 0]) /
+                          (fprange[:, 1] - fprange[:, 0]) * 2.0 - 1.0)
+                ax = fig.axes[1]
+                ax.plot(range(1, len(fingerprint[1]) + 1),
+                        scaled, '.b')
 
         with PdfPages(name) as pdf:
             for fig in self.figures.values():

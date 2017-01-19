@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 """Tool to compress Amp FileDatabase objects."""
 
-import os
 from optparse import OptionParser
 
 from amp.analysis import plot_convergence
@@ -10,7 +9,7 @@ from amp.analysis import plot_convergence
 parser = OptionParser(
     usage='usage: %prog logfile [plotfile]\n Create convergence plot'
           ' logfile is amp log file; plotfile is an optional filename '
-          ' for the output that must end in ".pdf".')
+          ' for the output that takes any allowable matplotlib format.')
 options, args = parser.parse_args()
 
 if len(args) not in [1, 2]:

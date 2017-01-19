@@ -68,13 +68,31 @@ To change how the code manages the regression process, you can use the `Regresso
    calc.model.regressor = regressor
 
 ----------------------------------
+Turning on/off force training
+----------------------------------
+
+Most electronic structure codes also give forces (in addition to potential energy) for each image, and you can get a much more predictive fit if you include this information while training.
+This is the default behavior in Amp.
+However, this can create issues: training will be much slower, convergence will be more difficult, and if there are inconsistencies in the training data (say if the calculator reports 0K-extrapolated energies rather than force-consistent ones), you might not be able to train at all.
+In these and many other cases you might want to turn off force training.
+To do this in the standard neural network model, you can do it through the `force_coefficient` keyword to the `LossFunction`; for example:
+
+.. code-block:: python
+
+   from amp.model import LossFunction
+
+   convergence = {'energy_rmse': 0.001}
+   calc.model.lossfunction = LossFunction(convergence=convergence,
+                                          force_coefficient=None)
+
+----------------------------------
 Parallel processing
 ----------------------------------
 
 Most tasks in Amp are "embarrassingly parallel" and thus you should see a performance boost by specifying more cores.
 Our standard parallel processing approach requires the modules ZMQ (to pass messages between processes) and pxssh (to establish SSH connections across nodes, and is only needed if parallelizing on more than one node).
 The code will try to automatically guess the parallel configuration from the environment variables that your batching system produces, using the function `amp.utilities.assign_cores`.
-(We only use SLURM on your system, so we welcome patches to get this utility working on other systems!)
+(We only use SLURM on our system, so we welcome patches to get this utility working on other systems!)
 If you want to override the automatic guess, use the `cores` keyword when initializing Amp.
 To specify serial operation, use `cores=1`; to specify (for example) 8 cores on only a single node, use `cores=8` or `cores={'localhost': 8}`.
 For parallel operation, cores should be a dictionary where the keys are the hostnames and the values are the number of processors (cores) available on that node; e.g.,
@@ -128,11 +146,12 @@ Under the hood, the train function is pretty simple; it just runs:
 ----------------------------------
 Re-training
 ----------------------------------
+
 If training is successful, Amp saves the parameters into an 'amp.amp' file by default. You can load the pretrained calculator and re-train it further with tighter convergence criteria. You can specify if the pre-trained amp.amp will be overwritten by the re-trained one through the key word 'overwrite' (default is False). 
 
 .. code-block:: python
 
-   calc = Amp.load( './amp.amp' )
+   calc = Amp.load( 'amp.amp' )
    calc.model.lossfunction = LossFunction( convergence=convergence )
    calc.train( overwrite=True or False )
 
@@ -150,3 +169,37 @@ If training does not succeed, Amp raises a `TrainingConvergenceError`. You can u
         # Whatever you want to happen if training fails;
         # e.g., refresh parameters and train again.
 
+------------------------------------
+Global search in the parameter space
+------------------------------------
+
+If the model is trained with minimizing a loss function which has a non-convex form, it might be desirable to perform a global search in the parameter space in prior to a gradient-descent optimization algorithm.
+That is, in the first step we do a random search in an area of parameter space including multiple basins (each basin has a local minimum).
+Next we take the parameters corresponding to the minimum loss function found, and start a gradient-descent optimization to find the local minimum of the basin found in the first step.
+Currently there exists a built-in global-search optimizer inside Amp which uses simulated-annealing algorithm.
+The module is based on the open-source simulated-annealing code of Wagner and Perry [1], but has been brought into the context of Amp.
+To use this module, the calculator object should be initiated as usual:  
+
+.. code-block:: python
+
+    from amp import Amp
+    calc = Amp(descriptor=..., model=...)
+    images = ...
+
+Then the calculator object and the images are passed to the `Annealer` module and the simulated-annealing search is performed by reducing the temperature from the initial maximum value `Tmax` to the final minimum value `Tmin` in number of steps `steps`:
+
+.. code-block:: python
+
+    from amp.utilities import Annealer
+    Annealer(calc=calc, images=images, Tmax=20, Tmin=1, steps=4000)
+
+If `Tmax` takes a small value (greater than zero), then the algorithm reduces to the simple random-walk search.
+Finally the usual `train` module is called to continue from the best parameters found in the last step:
+
+.. code-block:: python
+
+    calc.train(images=images,)
+
+**References:**
+
+1. https://github.com/perrygeo/simanneal.

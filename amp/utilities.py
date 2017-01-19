@@ -401,7 +401,7 @@ class Data:
         if len(calcs_needed) == 0:
             return
         if parallel['cores'] == 1:
-            d = self.db.open(self.filename, 'c')  # FIXME/ap Need a lock?
+            d = self.db.open(self.filename, 'c')
             for key in calcs_needed:
                 d[key] = self.calc.calculate(images[key], key)
             d.close()  # Necessary to get out of write mode and unlock?
@@ -453,7 +453,7 @@ class Data:
             log('  %i new results.' % len(results))
             log(' ...parallel calculations finished.', toc='parallel')
             log(' Adding new results to database.')
-            d = self.db.open(self.filename, 'c')  # FIXME/ap Need a lock?
+            d = self.db.open(self.filename, 'c')
             d.update(results)
             d.close()  # Necessary to get out of write mode and unlock?
 
@@ -701,14 +701,6 @@ def randomize_images(images, fraction=0.8):
     return train_images, test_images
 
 # Custom exceptions ##########################################################
-# FIXME/ap Make sure these are all still imported somewhere.
-
-
-class FingerprintsError(Exception):
-    """ Error in case functional form of fingerprints has changed.
-    """
-    pass
-
 
 class ConvergenceOccurred(Exception):
     """ Kludge to decide when scipy's optimizers are complete.
@@ -718,18 +710,6 @@ class ConvergenceOccurred(Exception):
 
 class TrainingConvergenceError(Exception):
     """Error to be raised if training does not converge.
-    """
-    pass
-
-
-class ExtrapolateError(Exception):
-    """Error class in the case of extrapolation.
-    """
-    pass
-
-
-class UntrainedError(Exception):
-    """Error class in the case of unsuccessful training.
     """
     pass
 
@@ -855,29 +835,28 @@ class Annealer(object):
             self.updates = updates
         self.calc = calc
 
-        self.calc.log('\nAmp simulated annealer started. ' + now() + '\n')
-        self.calc.log('Descriptor: %s' %
+        self.calc._log('\nAmp simulated annealer started. ' + now() + '\n')
+        self.calc._log('Descriptor: %s' %
                       self.calc.descriptor.__class__.__name__)
-        self.calc.log('Model: %s' % self.calc.model.__class__.__name__)
+        self.calc._log('Model: %s' % self.calc.model.__class__.__name__)
 
-        images = hash_images(images, log=self.calc.log)
+        images = hash_images(images, log=self.calc._log)
 
-        self.calc.log('\nDescriptor\n==========')
+        self.calc._log('\nDescriptor\n==========')
         # Derivatives of fingerprints need to be calculated if train_forces is
         # True.
         calculate_derivatives = True
         self.calc.descriptor.calculate_fingerprints(
-                images=images,
-                cores=self.calc.cores,
-                log=self.calc.log,
-                calculate_derivatives=calculate_derivatives)
+            images=images,
+            parallel=self.calc._parallel,
+            log=self.calc._log,
+            calculate_derivatives=calculate_derivatives)
         # Setting up calc.model.vector()
-        self.calc.model.fit(images,
-                            self.calc.descriptor,
-                            self.calc.log,
-                            self.calc.cores,
-                            only_setup=True,
-                            )
+        self.calc.model.fit(trainingimages=images,
+                            descriptor=self.calc.descriptor,
+                            log=self.calc._log,
+                            parallel=self.calc._parallel,
+                            only_setup=True,)
         # Truning off ConvergenceOccured exception and log_losses
         initial_raise_ConvergenceOccurred = \
             self.calc.model.lossfunction.raise_ConvergenceOccurred
@@ -888,7 +867,7 @@ class Annealer(object):
         self.state = self.copy_state(initial_state)
 
         signal.signal(signal.SIGINT, self.set_user_exit)
-        self.calc.log('\nAnnealing\n=========\n')
+        self.calc._log('\nAnnealing\n=========\n')
         bestState, bestLoss = self.anneal()
         # Taking the best state
         self.calc.model.vector = np.array(bestState)
@@ -988,19 +967,19 @@ class Annealer(object):
 
         elapsed = time.time() - self.start
         if step == 0:
-            self.calc.log('\n')
+            self.calc._log('\n')
             header = ' %5s %12s %12s %7s %7s %10s %10s'
-            self.calc.log(header % ('Step', 'Temperature', 'Loss (SSD)',
+            self.calc._log(header % ('Step', 'Temperature', 'Loss (SSD)',
                                     'Accept', 'Improve', 'Elapsed',
                                     'Remaining'))
-            self.calc.log(header % ('=' * 5, '=' * 12, '=' * 12,
+            self.calc._log(header % ('=' * 5, '=' * 12, '=' * 12,
                                     '=' * 7, '=' * 7, '=' * 10,
                                     '=' * 10,))
-            self.calc.log(' %5i %12.2e %12.4e                   %s            '
+            self.calc._log(' %5i %12.2e %12.4e                   %s            '
                           % (step, T, L, self.time_string(elapsed)))
         else:
             remain = (self.steps - step) * (elapsed / step)
-            self.calc.log(' %5i %12.2e %12.4e %7.2f%% %7.2f%% %s %s' %
+            self.calc._log(' %5i %12.2e %12.4e %7.2f%% %7.2f%% %s %s' %
                           (step, T, L, 100.0 * acceptance, 100.0 * improvement,
                            self.time_string(
                                elapsed), self.time_string(remain))),

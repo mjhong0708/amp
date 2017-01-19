@@ -1,18 +1,24 @@
 #!/usr/bin/env python
 
+from . import Amp
+from .utilities import now, hash_images, make_filename
 import os
 import numpy as np
-import matplotlib
-from matplotlib import rcParams
 from matplotlib import pyplot
 from matplotlib.backends.backend_pdf import PdfPages
-from amp import Amp
-from amp.utilities import now, hash_images, make_filename, Logger
-matplotlib.use('Agg')
+from matplotlib import rcParams
 rcParams.update({'figure.autolayout': True})
 
 
-def perturb_parameters(load, images, d=0.0001, overwrite=False, **kwargs):
+def plot_sensitivity(load,
+                     images,
+                     d=0.0001,
+                     label='sensitivity',
+                     dblabel=None,
+                     plotfile=None,
+                     overwrite=False,
+                     energy_coefficient=1.0,
+                     force_coefficient=0.04):
     """Returns the plot of loss function in terms of perturbed parameters.
 
     Takes the load file and images. Any other keyword taken by the Amp
@@ -30,63 +36,86 @@ def perturb_parameters(load, images, d=0.0001, overwrite=False, **kwargs):
         e.g. DFT calculations.
     d : float
         The amount of perturbation in each parameter.
+    label : str
+        Default prefix/location used for all files.
+    dblabel : str
+        Optional separate prefix/location of database files, including
+        fingerprints, fingerprint primes, and neighborlists, to avoid
+        calculating them. If not supplied, just uses the value from label.
+    plotfile : Object
+        File for the plot.
     overwrite : bool
         If a plot or an script containing values found overwrite it.
+    energy_coefficient : float
+        Coefficient of energy loss in the total loss function.
+    force_coefficient : float
+        Coefficient of force loss in the total loss function.
     """
 
     from amp.model import LossFunction
 
     calc = Amp.load(file=load)
 
-    filename = make_filename(calc.label, '-perturbed-parameters.pdf')
-    if (not overwrite) and os.path.exists(filename):
+    if plotfile is None:
+        plotfile = make_filename(label, '-plot.pdf')
+
+    if (not overwrite) and os.path.exists(plotfile):
         raise IOError('File exists: %s.\nIf you want to overwrite,'
-                      ' set overwrite=True or manually delete.' % filename)
+                      ' set overwrite=True or manually delete.' % plotfile)
+
+    calc.dblabel = label if dblabel is None else dblabel
+
+    if force_coefficient == 0.:
+        calculate_derivatives = False
+    else:
+        calculate_derivatives = True
+
+    calc._log('\nAmp sensitivity analysis started. ' + now() + '\n')
+    calc._log('Descriptor: %s' % calc.descriptor.__class__.__name__)
+    calc._log('Model: %s' % calc.model.__class__.__name__)
 
     images = hash_images(images)
 
-    # FIXME: AKh: Should read from filename, after it is saved.
-    train_forces = True
-    calculate_derivatives = train_forces
+    calc._log('\nDescriptor\n==========')
     calc.descriptor.calculate_fingerprints(
             images=images,
-            cores=calc.cores,
-            log=calc.log,
+            parallel=calc._parallel,
+            log=calc._log,
             calculate_derivatives=calculate_derivatives)
 
     vector = calc.model.vector.copy()
 
-    # FIXME: AKh: Should read from filename, after it is saved.
-    lossfunction = LossFunction(energy_coefficient=1.0,
-                                force_coefficient=0.05,
-                                cores=calc.cores,
+    lossfunction = LossFunction(energy_coefficient=energy_coefficient,
+                                force_coefficient=force_coefficient,
+                                parallel=calc._parallel,
                                 )
     calc.model.lossfunction = lossfunction
 
     # Set up local loss function.
-    lossfunction.attach_model(
-            calc.model,
-            fingerprints=calc.descriptor.fingerprints,
-            fingerprintprimes=calc.descriptor.fingerprintprimes,
-            images=images)
+    calc.model.lossfunction.attach_model(
+                calc.model,
+                fingerprints=calc.descriptor.fingerprints,
+                fingerprintprimes=calc.descriptor.fingerprintprimes,
+                images=images)
 
-    originalloss = calc.model.get_loss(vector,
-                                       complete_output=False)
+    originalloss = calc.model.lossfunction.get_loss(
+        vector, lossprime=False)['loss']
 
-    calc.log('\n Perturbing parameters...', tic='perturb')
+    calc._log('\n Perturbing parameters...', tic='perturb')
 
     allparameters = []
     alllosses = []
     num_parameters = len(vector)
 
     for count in range(num_parameters):
-        calc.log('parameter %i out of %i' % (count + 1, num_parameters))
+        calc._log('parameter %i out of %i' % (count + 1, num_parameters))
         parameters = []
         losses = []
         # parameter is perturbed -d and loss function calculated.
         vector[count] -= d
         parameters.append(vector[count])
-        perturbedloss = calc.model.get_loss(vector, complete_output=False)
+        perturbedloss = calc.model.lossfunction.get_loss(
+            vector, lossprime=False)['loss']
         losses.append(perturbedloss)
 
         vector[count] += d
@@ -95,7 +124,8 @@ def perturb_parameters(load, images, d=0.0001, overwrite=False, **kwargs):
         # parameter is perturbed +d and loss function calculated.
         vector[count] += d
         parameters.append(vector[count])
-        perturbedloss = calc.model.get_loss(vector, complete_output=False)
+        perturbedloss = calc.model.lossfunction.get_loss(
+            vector, lossprime=False)['loss']
         losses.append(perturbedloss)
 
         allparameters.append(parameters)
@@ -103,13 +133,13 @@ def perturb_parameters(load, images, d=0.0001, overwrite=False, **kwargs):
         # returning back to the original value.
         vector[count] -= d
 
-    calc.log('...parameters perturbed and loss functions calculated',
-             toc='perturb')
+    calc._log('...parameters perturbed and loss functions calculated',
+              toc='perturb')
 
-    calc.log('Plotting loss function vs perturbed parameters...',
-             tic='plot')
+    calc._log('Plotting loss function vs perturbed parameters...',
+              tic='plot')
 
-    with PdfPages(filename) as pdf:
+    with PdfPages(plotfile) as pdf:
         count = 0
         for parameter in vector:
             fig = pyplot.figure()
@@ -135,7 +165,7 @@ def perturb_parameters(load, images, d=0.0001, overwrite=False, **kwargs):
             pyplot.close(fig)
             count += 1
 
-    calc.log(' ...loss functions plotted.', toc='plot')
+    calc._log(' ...loss functions plotted.', toc='plot')
 
 
 def plot_parity(load,
@@ -145,9 +175,10 @@ def plot_parity(load,
                 plot_forces=True,
                 plotfile=None,
                 color='b.',
-                cores=None,
                 overwrite=False,
-                returndata=False):
+                returndata=False,
+                energy_coefficient=1.0,
+                force_coefficient=0.04):
     """Makes a parity plot of Amp energies and forces versus real energies and
     forces.
 
@@ -170,54 +201,57 @@ def plot_parity(load,
     plot_forces : bool
         Determines whether or not forces should be plotted as well.
     plotfile : Object
-        File for plots.
+        File for the plot.
     color : str
         Plot color.
-    cores : int
-        Can specify cores to use for parallel training; if None, will determine
-        from environment
     overwrite : bool
         If a plot or an script containing values found overwrite it.
     returndata : bool
         Whether to return a reference to the figures and their data or not.
+    energy_coefficient : float
+        Coefficient of energy loss in the total loss function.
+    force_coefficient : float
+        Coefficient of force loss in the total loss function.
     """
 
+    calc = Amp.load(file=load)
+
     if plotfile is None:
-        plotfile = make_filename(label, 'plot.pdf')
+        plotfile = make_filename(label, '-plot.pdf')
 
     if (not overwrite) and os.path.exists(plotfile):
         raise IOError('File exists: %s.\nIf you want to overwrite,'
                       ' set overwrite=True or manually delete.'
                       % plotfile)
 
-    log = Logger(make_filename(label, '-log.txt'))
-
-    calc = Amp.load(file=load)
-    calc.cores = cores
     calc.dblabel = label if dblabel is None else dblabel
 
-    log('\nAmp parity plot started. ' + now() + '\n')
-    log('Descriptor: %s' % calc.descriptor.__class__.__name__)
-    log('Model: %s' % calc.model.__class__.__name__)
+    if (force_coefficient != 0.) or (plot_forces is True):
+        calculate_derivatives = True
+    else:
+        calculate_derivatives = False
 
-    images = hash_images(images, log=log)
+    calc._log('\nAmp parity plot started. ' + now() + '\n')
+    calc._log('Descriptor: %s' % calc.descriptor.__class__.__name__)
+    calc._log('Model: %s' % calc.model.__class__.__name__)
 
-    log('\nDescriptor\n==========')
-    # Derivatives of fingerprints need to be calculated if plot_forces is True.
+    images = hash_images(images, log=calc._log)
+
+    calc._log('\nDescriptor\n==========')
     calc.descriptor.calculate_fingerprints(
-        images=images,
-        cores=calc.cores,
-        log=log,
-        calculate_derivatives=plot_forces)
+            images=images,
+            parallel=calc._parallel,
+            log=calc._log,
+            calculate_derivatives=calculate_derivatives)
 
-    log('Calculating potential energies...', tic='pot-energy')
+    calc._log('Calculating potential energies...', tic='pot-energy')
     energy_data = {}
     for hash, image in images.iteritems():
         amp_energy = calc.model.calculate_energy(
             calc.descriptor.fingerprints[hash])
         actual_energy = image.get_potential_energy(apply_constraint=False)
         energy_data[hash] = [actual_energy, amp_energy]
-    log('...potential energies calculated.', toc='pot-energy')
+    calc._log('...potential energies calculated.', toc='pot-energy')
 
     min_act_energy = min([energy_data[hash][0]
                          for hash, image in images.iteritems()])
@@ -231,7 +265,7 @@ def plot_parity(load,
         fig = pyplot.figure(figsize=(5., 10.))
         ax = fig.add_subplot(211)
 
-    log('Plotting energies...', tic='energy-plot')
+    calc._log('Plotting energies...', tic='energy-plot')
     for hash, image in images.iteritems():
         ax.plot(energy_data[hash][0], energy_data[hash][1], color)
     # draw line
@@ -242,12 +276,12 @@ def plot_parity(load,
     ax.set_xlabel("ab initio energy, eV")
     ax.set_ylabel("Amp energy, eV")
     ax.set_title("Energies")
-    log('...energies plotted.', toc='energy-plot')
+    calc._log('...energies plotted.', toc='energy-plot')
 
     if plot_forces is True:
         ax = fig.add_subplot(212)
 
-        log('Calculating forces...', tic='forces')
+        calc._log('Calculating forces...', tic='forces')
         force_data = {}
         for hash, image in images.iteritems():
             amp_forces = \
@@ -256,7 +290,7 @@ def plot_parity(load,
                     calc.descriptor.fingerprintprimes[hash])
             actual_forces = image.get_forces(apply_constraint=False)
             force_data[hash] = [actual_forces, amp_forces]
-        log('...forces calculated.', toc='forces')
+        calc._log('...forces calculated.', toc='forces')
 
         min_act_force = min([force_data[hash][0][index][k]
                             for hash, image in images.iteritems()
@@ -268,7 +302,7 @@ def plot_parity(load,
                             for index in range(len(image))
                             for k in range(3)])
 
-        log('Plotting forces...', tic='force-plot')
+        calc._log('Plotting forces...', tic='force-plot')
         for hash, image in images.iteritems():
             for index in range(len(image)):
                 for k in range(3):
@@ -282,7 +316,7 @@ def plot_parity(load,
         ax.set_xlabel("ab initio force, eV/Ang")
         ax.set_ylabel("Amp force, eV/Ang")
         ax.set_title("Forces")
-        log('...forces plotted.', toc='force-plot')
+        calc._log('...forces plotted.', toc='force-plot')
 
     fig.savefig(plotfile)
 
@@ -295,14 +329,15 @@ def plot_parity(load,
 
 def plot_error(load,
                images,
-               label='parity',
+               label='error',
                dblabel=None,
                plot_forces=True,
                plotfile=None,
                color='b.',
-               cores=None,
                overwrite=False,
-               returndata=False):
+               returndata=False,
+               energy_coefficient=1.0,
+               force_coefficient=0.04):
     """Makes an error plot of Amp energies and forces versus real energies and
     forces.
 
@@ -325,55 +360,60 @@ def plot_error(load,
     plot_forces : bool
         Determines whether or not forces should be plotted as well.
     plotfile : Object
-        File for plots.
+        File for the plot.
     color : str
         Plot color.
-    cores : int
-        Can specify cores to use for parallel training; if None, will determine
-        from environment
     overwrite : bool
         If a plot or an script containing values found overwrite it.
     returndata : bool
         Whether to return a reference to the figures and their data or not.
+    energy_coefficient : float
+        Coefficient of energy loss in the total loss function.
+    force_coefficient : float
+        Coefficient of force loss in the total loss function.
     """
 
+    calc = Amp.load(file=load)
+
     if plotfile is None:
-        plotfile = make_filename(label, 'plot.pdf')
+        plotfile = make_filename(label, '-plot.pdf')
 
     if (not overwrite) and os.path.exists(plotfile):
         raise IOError('File exists: %s.\nIf you want to overwrite,'
                       ' set overwrite=True or manually delete.'
                       % plotfile)
 
-    log = Logger(make_filename(label, '-log.txt'))
-
-    calc = Amp.load(file=load)
-    calc.cores = cores
     calc.dblabel = label if dblabel is None else dblabel
 
-    log('\nAmp error plot started. ' + now() + '\n')
-    log('Descriptor: %s' % calc.descriptor.__class__.__name__)
-    log('Model: %s' % calc.model.__class__.__name__)
+    if (force_coefficient != 0.) or (plot_forces is True):
+        calculate_derivatives = True
+    else:
+        calculate_derivatives = False
 
-    images = hash_images(images, log=log)
+    calc._log('\nAmp error plot started. ' + now() + '\n')
+    calc._log('Descriptor: %s' % calc.descriptor.__class__.__name__)
+    calc._log('Model: %s' % calc.model.__class__.__name__)
 
-    log('\nDescriptor\n==========')
-    # Derivatives of fingerprints need to be calculated if plot_forces is True.
+    images = hash_images(images, log=calc._log)
+
+    calc._log('\nDescriptor\n==========')
     calc.descriptor.calculate_fingerprints(
-        images=images,
-        cores=calc.cores,
-        log=log,
-        calculate_derivatives=plot_forces)
+            images=images,
+            parallel=calc._parallel,
+            log=calc._log,
+            calculate_derivatives=calculate_derivatives)
 
-    log('Calculating potential energy errors...', tic='pot-energy')
+    calc._log('Calculating potential energy errors...', tic='pot-energy')
     energy_data = {}
     for hash, image in images.iteritems():
         no_of_atoms = len(image)
+        amp_energy = calc.model.calculate_energy(
+            calc.descriptor.fingerprints[hash])
         actual_energy = image.get_potential_energy(apply_constraint=False)
         act_energy_per_atom = actual_energy / no_of_atoms
         energy_error = abs(amp_energy - actual_energy) / no_of_atoms
         energy_data[hash] = [act_energy_per_atom, energy_error]
-    log('...potential energy errors calculated.', toc='pot-energy')
+    calc._log('...potential energy errors calculated.', toc='pot-energy')
 
     # calculating energy per atom rmse
     energy_square_error = 0.
@@ -393,7 +433,7 @@ def plot_error(load,
         fig = pyplot.figure(figsize=(5., 10.))
         ax = fig.add_subplot(211)
 
-    log('Plotting energy errors...', tic='energy-plot')
+    calc._log('Plotting energy errors...', tic='energy-plot')
     for hash, image in images.iteritems():
         ax.plot(energy_data[hash][0], energy_data[hash][1], color)
     # draw horizontal line for rmse
@@ -409,12 +449,12 @@ def plot_error(load,
     ax.set_xlabel("ab initio energy (eV) per atom")
     ax.set_ylabel("$|$ab initio energy - Amp energy$|$ / number of atoms")
     ax.set_title("Energies")
-    log('...energy errors plotted.', toc='energy-plot')
+    calc._log('...energy errors plotted.', toc='energy-plot')
 
     if plot_forces is True:
         ax = fig.add_subplot(212)
 
-        log('Calculating force errors...', tic='forces')
+        calc._log('Calculating force errors...', tic='forces')
         force_data = {}
         for hash, image in images.iteritems():
             amp_forces = \
@@ -425,7 +465,7 @@ def plot_error(load,
             force_data[hash] = [
                 actual_forces,
                 abs(np.array(amp_forces) - np.array(actual_forces))]
-        log('...force errors calculated.', toc='forces')
+        calc._log('...force errors calculated.', toc='forces')
 
         # calculating force rmse
         force_square_error = 0.
@@ -448,7 +488,7 @@ def plot_error(load,
                             for index in range(len(image))
                             for k in range(3)])
 
-        log('Plotting force errors...', tic='force-plot')
+        calc._log('Plotting force errors...', tic='force-plot')
         for hash, image in images.iteritems():
             for index in range(len(image)):
                 for k in range(3):
@@ -469,7 +509,7 @@ def plot_error(load,
         ax.set_xlabel("ab initio force, eV/Ang")
         ax.set_ylabel("$|$ab initio force - Amp force$|$")
         ax.set_title("Forces")
-        log('...force errors plotted.', toc='force-plot')
+        calc._log('...force errors plotted.', toc='force-plot')
 
     fig.savefig(plotfile)
 
@@ -639,7 +679,6 @@ def plot_convergence(logfile, plotfile='convergence.pdf'):
     ax.semilogy([steps[0], steps[-1]], [d['costfxngoal']] * 2,
                 color='0.5', linestyle=':')
     ax.set_ylabel('error')
-    ax.set_xlabel('loss function call')
     ax.legend(loc='best')
     if len(breaks) > 0:
         ylim = ax.get_ylim()
@@ -647,17 +686,18 @@ def plot_convergence(logfile, plotfile='convergence.pdf'):
             ax.plot([b] * 2, ylim, '--k')
 
     if d['force_rmse']:
-        ax = fig.add_axes((lm, bm, 1. - lm - rm, bottomaxheight))
-        ax.fill_between(x=np.array(steps), y1=d['costfxnEs'],
-                        color='blue')
-        ax.fill_between(x=np.array(steps), y1=d['costfxnEs'],
-                        y2=np.array(d['costfxnEs']) +
-                        np.array(d['costfxnFs']),
-                        color='green')
-        ax.set_ylabel('loss function component')
+        axf = fig.add_axes((lm, bm, 1. - lm - rm, bottomaxheight))
+        axf.fill_between(x=np.array(steps), y1=d['costfxnEs'],
+                         color='blue')
+        axf.fill_between(x=np.array(steps), y1=d['costfxnEs'],
+                         y2=np.array(d['costfxnEs']) +
+                         np.array(d['costfxnFs']),
+                         color='green')
+        axf.set_ylabel('loss function component')
+        axf.set_xlabel('loss function call')
+        axf.set_ylim(0, 1)
+    else:
         ax.set_xlabel('loss function call')
-        ax.set_ylim(0, 1)
 
-    with PdfPages(plotfile) as pdf:
-        pdf.savefig(fig)
-        pyplot.close(fig)
+    fig.savefig(plotfile)
+    pyplot.close(fig)

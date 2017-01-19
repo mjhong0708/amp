@@ -83,7 +83,6 @@ def test():
                                   dblabel='Gaussian-%s-%d' % (fortran, cores))
             descriptor.calculate_fingerprints(images,
                                               parallel={'cores': cores},
-                                              fortran=fortran,
                                               log=None,
                                               calculate_derivatives=True)
             for hash, image in images.items():

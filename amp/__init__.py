@@ -7,6 +7,7 @@ import platform
 from getpass import getuser
 from socket import gethostname
 import subprocess
+import warnings
 
 import ase
 from ase.calculators.calculator import Calculator, Parameters
@@ -19,17 +20,19 @@ except ImportError:
 from .utilities import (make_filename, hash_images, Logger, string2dict,
                         logo, now, assign_cores, TrainingConvergenceError)
 
-import warnings
 try:
     from amp import fmodules
+except ImportError:
+    warnings.warn('Did not find fortran modules.')
+else:
     fmodules_version = 8
     wrong_version = fmodules.check_version(version=fmodules_version)
     if wrong_version:
         raise RuntimeError('fortran modules are not updated. Recompile'
                            'with f2py as described in the README. '
                            'Correct version is %i.' % fmodules_version)
-except ImportError:
-    warnings.warn('Did not find fortran modules.')
+
+_ampversion = '(development)'
 
 
 class Amp(Calculator, object):
@@ -220,8 +223,7 @@ class Amp(Calculator, object):
         Calculator.set_label(self, label)
 
         # Create directories for output structure if needed.
-        # FIXME/ap Do we need the extra part below in addition
-        # to what's in ASE Calculator?
+        # Note ASE doesn't do this for us.
         if self.label:
             if (self.directory != os.curdir and
                     not os.path.isdir(self.directory)):
@@ -264,15 +266,15 @@ class Amp(Calculator, object):
                                                    log=log,
                                                    calculate_derivatives=True)
             forces = \
-                self.model.calculate_forces(self.descriptor.fingerprints[key],
-                                            self.descriptor.fingerprintprimes[key])
+                self.model.calculate_forces(
+                    self.descriptor.fingerprints[key],
+                    self.descriptor.fingerprintprimes[key])
             self.results['forces'] = forces
             log('...forces calculated.', toc='forces')
 
     def train(self,
               images,
               overwrite=False,
-              train_forces=True,
               ):
         """Fits the model to the training images.
 
@@ -286,8 +288,6 @@ class Amp(Calculator, object):
             calculations.
         overwrite : bool
             If an output file with the same name exists, overwrite it.
-        train_forces : bool
-            Determining whether forces are also trained or not.
         """
 
         log = self._log
@@ -299,6 +299,7 @@ class Amp(Calculator, object):
         images = hash_images(images, log=log)
 
         log('\nDescriptor\n==========')
+        train_forces = self.model.forcetraining
         # Derivatives of fingerprints need to be calculated if train_forces is
         # True.
         calculate_derivatives = train_forces
@@ -383,7 +384,7 @@ class Amp(Calculator, object):
         uname = platform.uname()
         log('Architecture: %s' % uname[4])
         log('PID: %s' % os.getpid())
-        log('Amp version: %s' % 'NOT NUMBERED YET.')  # FIXME/ap. Look at GPAW
+        log('Amp version: %s' % _ampversion)
         ampdirectory = os.path.dirname(os.path.abspath(__file__))
         log('Amp directory: %s' % ampdirectory)
         commithash, commitdate = get_git_commit(ampdirectory)

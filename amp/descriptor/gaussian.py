@@ -2,8 +2,8 @@ import numpy as np
 
 from ase.data import atomic_numbers
 from ase.calculators.calculator import Parameters
-from amp.utilities import Data, Logger, importer
-from amp.descriptor.cutoffs import Cosine, dict2cutoff
+from ..utilities import Data, Logger, importer
+from .cutoffs import Cosine, dict2cutoff
 NeighborList = importer('NeighborList')
 try:
     from .. import fmodules
@@ -109,8 +109,8 @@ class Gaussian(object):
         """
         return self.parameters.tostring()
 
-    def calculate_fingerprints(self, images, parallel=None, fortran=None,
-                               log=None, calculate_derivatives=False):
+    def calculate_fingerprints(self, images, parallel=None, log=None,
+                               calculate_derivatives=False):
         """Calculates the fingerpints of the images, for the ones not already
         done.
 
@@ -125,16 +125,12 @@ class Gaussian(object):
         parallel : dict
             Configuration for parallelization. Should be in same form as in
             amp.Amp.
-        fortran : bool
-            If True, allows for extrapolation, if False, does not allow.
         log : Logger object
             Write function at which to log data. Note this must be a callable
             function.
         calculate_derivatives : bool
             Decides whether or not fingerprintprimes should also be calculated.
         """
-        if fortran is None:
-            fortran = self.fortran
         if parallel is None:
             parallel = {'cores': 1}
         log = Logger(file=None) if log is None else log
@@ -145,6 +141,7 @@ class Gaussian(object):
 
         p = self.parameters
 
+        log('Cutoff radius: %.2f' % p.cutoff)
         log('Cutoff function: %s' % repr(dict2cutoff(p.cutoff)))
 
         if p.elements is None:
@@ -176,7 +173,7 @@ class Gaussian(object):
             calc = FingerprintCalculator(neighborlist=self.neighborlist,
                                          Gs=p.Gs,
                                          cutoff=p.cutoff,
-                                         fortran=fortran)
+                                         fortran=self.fortran)
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
                                      calculator=calc)
@@ -191,7 +188,7 @@ class Gaussian(object):
                     FingerprintPrimeCalculator(neighborlist=self.neighborlist,
                                                Gs=p.Gs,
                                                cutoff=p.cutoff,
-                                               fortran=fortran)
+                                               fortran=self.fortran)
                 self.fingerprintprimes = \
                     Data(filename='%s-fingerprint-primes'
                          % self.dblabel,
@@ -577,7 +574,7 @@ def calculate_G2(neighborsymbols,
     eta : float
         Parameter of Gaussian symmetry functions.
     cutoff : float
-        Radius above which neighbor interactions are ignored. #FIXME
+        Radius above which neighbor interactions are ignored.
     Ri : int
         Index of the center atom.
     fortran : bool
@@ -644,7 +641,7 @@ def calculate_G4(neighborsymbols, neighborpositions,
         Parameter of Gaussian symmetry functions.
     eta : float
         Parameter of Gaussian symmetry functions.
-    cutoff : float #FIXME
+    cutoff : float
         Radius above which neighbor interactions are ignored.
     Ri : int
         Index of the center atom.
@@ -1021,7 +1018,7 @@ def calculate_G2_prime(neighborindices, neighborsymbols, neighborpositions,
         Symmetry functions of the center atom.
     eta : float
         Parameter of Behler symmetry functions.
-    cutoff : float #FIXME
+    cutoff : float
         Radius above which neighbor interactions are ignored.
     i : int
         Index of the center atom.
@@ -1105,7 +1102,7 @@ def calculate_G4_prime(neighborindices, neighborsymbols, neighborpositions,
         Parameter of Behler symmetry functions.
     eta : float
         Parameter of Behler symmetry functions.
-    cutoff : float #FIXME
+    cutoff : float
         Radius above which neighbor interactions are ignored.
     i : int
         Index of the center atom.

@@ -126,5 +126,5 @@ Note that most of the lines of code below are either making the atoms or making 
 
 
 .. image:: _static/animation.gif
-   :scale: 80 %
+   :width: 600 px
    :align: center

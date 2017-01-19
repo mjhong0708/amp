@@ -76,9 +76,6 @@ class Regressor:
         log : str
             Name of script to log progress.
         """
-        # FIXME/ap Optimizer also has space for fprime; needs
-        # to be implemented. Especially important not to
-        # call model functions twice to make this happen.
         log('Starting parameter optimization.', tic='opt')
         log(' Optimizer: %s' % self.optimizer)
         log(' Optimizer kwargs: %s' % self.optimizer_kwargs)
