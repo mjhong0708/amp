@@ -47,7 +47,7 @@ class Bispectrum(object):
     """
 
     def __init__(self, cutoff=Cosine(6.5), Gs=None, jmax=5, dblabel=None,
-                 elements=None, version='2016.02', mode='atom-centered', fortran=True):
+                 elements=None, version='2016.02', mode='atom-centered'):
 
         # Check of the version of descriptor, particularly if restarting.
         compatibleversions = ['2016.02', ]
@@ -83,7 +83,6 @@ class Bispectrum(object):
         p.Gs = Gs
         p.jmax = jmax
         p.elements = elements
-        p.fortran = fortran
 
         self.dblabel = dblabel
         self.parent = None  # Can hold a reference to main Amp instance.
@@ -93,11 +92,30 @@ class Bispectrum(object):
         be used to restart the calculator."""
         return self.parameters.tostring()
 
-    def calculate_fingerprints(self, images, parallel=None, fortran=False,
-                               log=None, calculate_derivatives=False):
+    def calculate_fingerprints(self, images, parallel=None, log=None,
+                               calculate_derivatives=False):
         """Calculates the fingerpints of the images, for the ones not already
-        done."""
+        done.
 
+        Parameters
+        ----------
+        images : list or str
+            List of ASE atoms objects with positions, symbols, energies, and
+            forces in ASE format. This is the training set of data. This can
+            also be the path to an ASE trajectory (.traj) or database (.db)
+            file. Energies can be obtained from any reference, e.g. DFT
+            calculations.
+        parallel : dict
+            Configuration for parallelization. Should be in same form as in
+            amp.Amp.
+        log : Logger object
+            Write function at which to log data. Note this must be a callable
+            function.
+        calculate_derivatives : bool
+            Decides whether or not fingerprintprimes should also be calculated.
+        """
+        if parallel is None:
+            parallel = {'cores': 1}
         if calculate_derivatives is True:
             import warnings
             warnings.warn('Zernike descriptor cannot train forces yet. '
@@ -171,8 +189,7 @@ class Bispectrum(object):
                                          Gs=p.Gs,
                                          jmax=p.jmax,
                                          cutoff=p.cutoff,
-                                         cutofffn=p.cutofffn,
-                                         fortran=p.fortran)
+                                         cutofffn=p.cutofffn)
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
                                      calculator=calc)
@@ -210,14 +227,13 @@ class FingerprintCalculator:
     """For integration with .utilities.Data
     """
 
-    def __init__(self, neighborlist, Gs, jmax, cutoff, cutofffn, fortran):
+    def __init__(self, neighborlist, Gs, jmax, cutoff, cutofffn):
         self.globals = Parameters({'cutoff': cutoff,
                                    'cutofffn': cutofffn,
                                    'Gs': Gs,
                                    'jmax': jmax})
         self.keyed = Parameters({'neighborlist': neighborlist})
         self.parallel_command = 'calculate_fingerprints'
-        self.fortran = fortran
 
         self.factorial = [1]
         for _ in xrange(int(3. * jmax) + 2):
@@ -226,6 +242,13 @@ class FingerprintCalculator:
 
     def calculate(self, image, key):
         """Makes a list of fingerprints, one per atom, for the fed image.
+
+        Parameters
+        ----------
+        image : object
+            ASE atoms object.
+        key : str
+            key of the image after being hashed.
         """
         nl = self.keyed.neighborlist[key]
         fingerprints = []

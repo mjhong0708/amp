@@ -126,6 +126,8 @@ class NeuralNetwork(Model):
         self.lossfunction = lossfunction
         self.fortran = fortran
         self.checkpoints = checkpoints
+        if self.lossfunction is None:
+            self.lossfunction = LossFunction()
 
     def fit(self,
             trainingimages,
@@ -159,8 +161,6 @@ class NeuralNetwork(Model):
         self._parallel = parallel
         self._log = log
 
-        if self.lossfunction is None:
-            self.lossfunction = LossFunction(parallel=parallel)
         if self.regressor is None:
             self.regressor = Regressor()
 
@@ -221,6 +221,18 @@ class NeuralNetwork(Model):
         self.step = 0
         result = self.regressor.regress(model=self, log=log)
         return result  # True / False
+
+    @property
+    def forcetraining(self):
+        """Returns true if forcetraining is turned on (as determined by
+        examining the convergence criteria in the loss function), else
+        returns False.
+        """
+        if self.lossfunction.parameters['force_coefficient'] is None:
+            forcetraining = False
+        elif self.lossfunction.parameters['force_coefficient'] > 0.:
+            forcetraining = True
+        return forcetraining
 
     @property
     def vector(self):
@@ -343,8 +355,9 @@ class NeuralNetwork(Model):
         float
             Energy.
         """
-        assert self.parameters.mode == 'atom-centered', \
-            'calculate_atomic_energy should only be called in atom-centered mode.'
+        if self.parameters.mode != 'atom-centered':
+            raise AssertionError('calculate_atomic_energy should only be '
+                                 ' called in atom-centered mode.')
 
         scaling = self.parameters.scalings[symbol]
         outputs = calculate_nodal_outputs(self.parameters, afp, symbol,)
@@ -395,7 +408,8 @@ class NeuralNetwork(Model):
 
         return force
 
-    def calculate_dAtomicEnergy_dParameters(self, afp, index=None, symbol=None):
+    def calculate_dAtomicEnergy_dParameters(self, afp, index=None,
+                                            symbol=None):
         """Returns the derivative of energy square error with respect to
         variables.
 

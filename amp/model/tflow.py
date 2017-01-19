@@ -91,10 +91,10 @@ class NeuralNetwork:
         Used to adjust the loss function; this is the weight applied to the
         energy component.
 
-    force_coefficient : float
+    force_coefficient : float or None
         Used to adjust the loss function; this is the weight applied to the
-        force component. Note you must turn on train_forces when calling
-        Amp.train (or model.fit) if you want to use force training.
+        force component. Note you can turn off force training by setting
+        this to None.
 
     convergenceCriteria: dict
         Dictionary of convergence criteria, analagous to the main AMP
@@ -279,6 +279,14 @@ class NeuralNetwork:
 
         # Optimizer can be 'ADAM' or 'l-BFGS-b'.
         self.optimizationMethod = optimizationMethod
+        
+        # self.forcetraining is queried by the main Amp instance.
+        if self.parameters['force_coefficient'] is None:
+            self.forcetraining = False
+            self.parameters['convergence']['force_rmse'] = None
+            self.parameters['convergence']['force_maxresid'] = None
+        else:
+            self.forcetraining = True
 
     def constructSessGraphModel(self, tfVars, sess, trainOnly=False,
                                 numElements=None, numTrainingImages=None,
@@ -864,36 +872,19 @@ class NeuralNetwork:
             self.elements.sort()
             self.constructSessGraphModel(self.tfVars, self.sess)
 
-        # The force_coefficient was moved out of Amp.train; pull from the
-        # initialization variables. This doesn't catch if the user sends
-        # train_forces=False in Amp.train, but an issue is filed to fix
-        # this.
-
         self.log = log
-        tempconvergence = self.parameters['convergence'].copy()
-        if self.parameters['force_coefficient'] < 1e-5:
-            tempconvergence['force_rmse'] = None
-            tempconvergence['force_maxresid'] = None
 
-        if self.parameters['force_coefficient'] > 1e-5:
-            lf = \
-                LossFunction(convergence=tempconvergence,
-                             energy_coefficient=self.parameters[
-                                 'energy_coefficient'],
-                             force_coefficient=self.parameters[
-                                 'force_coefficient'],
-                             parallel={'cores': 1})
+        params = self.parameters
+        lf = LossFunction(convergence=params['convergence'],
+                          energy_coefficient=params['energy_coefficient'],
+                          force_coefficient=params['force_coefficient'],
+                          parallel={'cores': 1})
+        if params['force_coefficient'] is not None:
             lf.attach_model(self,
                             images=trainingimages,
                             fingerprints=descriptor.fingerprints,
                             fingerprintprimes=descriptor.fingerprintprimes)
         else:
-            lf = \
-                LossFunction(convergence=tempconvergence,
-                             energy_coefficient=self.parameters[
-                                 'energy_coefficient'],
-                             force_coefficient=0.,
-                             parallel={'cores': 1})
             lf.attach_model(self,
                             images=trainingimages,
                             fingerprints=descriptor.fingerprints)
@@ -901,7 +892,7 @@ class NeuralNetwork:
         # Inputs:
         # trainingimages:
         batchsize = self.batchsize
-        if self.parameters['force_coefficient'] == 0.:
+        if self.parameters['force_coefficient'] is None:
             fingerprintDerDB = None
         else:
             fingerprintDerDB = descriptor.fingerprintprimes
@@ -1041,7 +1032,7 @@ class NeuralNetwork:
                             self.preLoadFeed(feedinput)
 
                     # run a training step with the inputs.
-                    if (self.parameters['force_coefficient'] < 1.e-5):
+                    if self.parameters['force_coefficient'] is None:
                         self.sess.run(self.train_step, feed_dict=feedinput)
                     else:
                         self.sess.run(self.train_step_forces,
@@ -1084,7 +1075,7 @@ class NeuralNetwork:
                         self.input_keep_prob_in]
                     feedinput[self.keep_prob_in] = 1.
                     feedinput[self.input_keep_prob_in] = 1.
-                    if self.parameters['force_coefficient'] > 1.e-5:
+                    if self.parameters['force_coefficient'] is not None:
                         converge_save.append(
                             [self.sess.run(self.loss, feed_dict=feedinput),
                              self.sess.run(
@@ -1156,7 +1147,7 @@ class NeuralNetwork:
                 if converged:
                     raise ConvergenceOccurred()
 
-            if (self.parameters['force_coefficient'] < 1.e-5):
+            if self.parameters['force_coefficient'] is None:
                 step_callbackfun = step_callbackfun_noforces
                 curloss = self.energy_loss
             else:

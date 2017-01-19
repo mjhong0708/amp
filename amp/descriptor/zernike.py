@@ -105,8 +105,8 @@ class Zernike(object):
         be used to restart the calculator."""
         return self.parameters.tostring()
 
-    def calculate_fingerprints(self, images, parallel=None, fortran=None,
-                               log=None, calculate_derivatives=False):
+    def calculate_fingerprints(self, images, parallel=None, log=None,
+                               calculate_derivatives=False):
         """Calculates the fingerpints of the images, for the ones not already
         done.
 
@@ -121,16 +121,14 @@ class Zernike(object):
         parallel : dict
             Configuration for parallelization. Should be in same form as in
             amp.Amp.
-        fortran : bool
-            If True, allows for extrapolation, if False, does not allow.
-        log : Logger object
+         log : Logger object
             Write function at which to log data. Note this must be a callable
             function.
         calculate_derivatives : bool
             Decides whether or not fingerprintprimes should also be calculated.
         """
-        if fortran is None:
-            fortran = self.fortran
+        if parallel is None:
+            parallel = {'cores': 1}
         log = Logger(file=None) if log is None else log
 
         if (self.dblabel is None) and hasattr(self.parent, 'dblabel'):
@@ -141,7 +139,6 @@ class Zernike(object):
 
         if p.cutofffn == 'Cosine':
             log('Cutoff radius: %.2f ' % p.cutoff )
-            p.gamma = 1
         else:
             log('Cutoff radius: %.2f and gamma=%i ' % (p.cutoff, p.gamma))
         log('Cutoff function: %s' % p.cutofffn)
@@ -206,7 +203,7 @@ class Zernike(object):
                                          cutoff=p.cutoff,
                                          p_gamma=p.gamma,
                                          cutofffn=p.cutofffn,
-                                         fortran=fortran)
+                                         fortran=self.fortran)
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
                                      calculator=calc)
@@ -224,7 +221,7 @@ class Zernike(object):
                                                cutoff=p.cutoff,
                                                cutofffn=p.cutofffn,
                                                p_gamma=p.gamma,
-                                               fortran=fortran)
+                                               fortran=self.fortran)
                 self.fingerprintprimes = \
                     Data(filename='%s-fingerprint-primes'
                          % self.dblabel,
@@ -288,6 +285,7 @@ class FingerprintCalculator:
         self.keyed = Parameters({'neighborlist': neighborlist})
         self.parallel_command = 'calculate_fingerprints'
         self.fortran = fortran
+
         try:  # for scipy v <= 0.90
             from scipy import factorial as fac
         except ImportError:
@@ -369,6 +367,7 @@ class FingerprintCalculator:
                             y = (neighbor[1] - home[1]) / cutoff
                             z = (neighbor[2] - home[2]) / cutoff
                             rho = np.linalg.norm([x, y, z])
+
                             if self.fortran:
                                 c_args = [cutoff * rho]
                                 if cutofffn == 'Polynomial':
@@ -560,6 +559,7 @@ class FingerprintPrimeCalculator:
         """
         home = self.atoms[index].position
         cutoff = self.globals.cutoff
+        # Cutofffn should be also added.
         cutofffn = self.globals.cutofffn
         p_gamma = self.globals.p_gamma
 

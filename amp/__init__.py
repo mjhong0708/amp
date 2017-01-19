@@ -266,15 +266,15 @@ class Amp(Calculator, object):
                                                    log=log,
                                                    calculate_derivatives=True)
             forces = \
-                self.model.calculate_forces(self.descriptor.fingerprints[key],
-                                            self.descriptor.fingerprintprimes[key])
+                self.model.calculate_forces(
+                    self.descriptor.fingerprints[key],
+                    self.descriptor.fingerprintprimes[key])
             self.results['forces'] = forces
             log('...forces calculated.', toc='forces')
 
     def train(self,
               images,
               overwrite=False,
-              train_forces=True,
               ):
         """Fits the model to the training images.
 
@@ -288,8 +288,6 @@ class Amp(Calculator, object):
             calculations.
         overwrite : bool
             If an output file with the same name exists, overwrite it.
-        train_forces : bool
-            Determining whether forces are also trained or not.
         """
 
         log = self._log
@@ -301,6 +299,7 @@ class Amp(Calculator, object):
         images = hash_images(images, log=log)
 
         log('\nDescriptor\n==========')
+        train_forces = self.model.forcetraining
         # Derivatives of fingerprints need to be calculated if train_forces is
         # True.
         calculate_derivatives = train_forces

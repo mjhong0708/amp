@@ -13,7 +13,7 @@ Basic use
 ----------------------------------
 
 To use Amp, you need to specify a `descriptor` and a `model`.
-The below shows a basic example of training Amp with Gaussian descriptors and a neural network model---the Behler-Parrinello scheme.
+The below shows a basic example of training Amp with Gaussian descriptors and a neural network model---the Behler-Parinello scheme.
 
 .. code-block:: python
 
@@ -66,6 +66,24 @@ To change how the code manages the regression process, you can use the `Regresso
 
    regressor = Regressor(optimizer=basinhopping)
    calc.model.regressor = regressor
+
+----------------------------------
+Turning on/off force training
+----------------------------------
+
+Most electronic structure codes also give forces (in addition to potential energy) for each image, and you can get a much more predictive fit if you include this information while training.
+This is the default behavior in Amp.
+However, this can create issues: training will be much slower, convergence will be more difficult, and if there are inconsistencies in the training data (say if the calculator reports 0K-extrapolated energies rather than force-consistent ones), you might not be able to train at all.
+In these and many other cases you might want to turn off force training.
+To do this in the standard neural network model, you can do it through the `force_coefficient` keyword to the `LossFunction`; for example:
+
+.. code-block:: python
+
+   from amp.model import LossFunction
+
+   convergence = {'energy_rmse': 0.001}
+   calc.model.lossfunction = LossFunction(convergence=convergence,
+                                          force_coefficient=None)
 
 ----------------------------------
 Parallel processing
@@ -128,11 +146,12 @@ Under the hood, the train function is pretty simple; it just runs:
 ----------------------------------
 Re-training
 ----------------------------------
-If training is successful, Amp saves the parameters into an 'amp.amp' file by default. You can load the pretrained calculator and re-train it further with tighter convergence criteria. You can specify if the pre-trained amp.amp will be overwritten by the re-trained one through the key word 'overwrite' (default is False).
+
+If training is successful, Amp saves the parameters into an 'amp.amp' file by default. You can load the pretrained calculator and re-train it further with tighter convergence criteria. You can specify if the pre-trained amp.amp will be overwritten by the re-trained one through the key word 'overwrite' (default is False). 
 
 .. code-block:: python
 
-   calc = Amp.load( './amp.amp' )
+   calc = Amp.load( 'amp.amp' )
    calc.model.lossfunction = LossFunction( convergence=convergence )
    calc.train( overwrite=True or False )
 
@@ -153,6 +172,7 @@ If training does not succeed, Amp raises a `TrainingConvergenceError`. You can u
 ------------------------------------
 Global search in the parameter space
 ------------------------------------
+
 If the model is trained with minimizing a loss function which has a non-convex form, it might be desirable to perform a global search in the parameter space in prior to a gradient-descent optimization algorithm.
 That is, in the first step we do a random search in an area of parameter space including multiple basins (each basin has a local minimum).
 Next we take the parameters corresponding to the minimum loss function found, and start a gradient-descent optimization to find the local minimum of the basin found in the first step.

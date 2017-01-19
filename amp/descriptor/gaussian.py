@@ -106,8 +106,8 @@ class Gaussian(object):
         """
         return self.parameters.tostring()
 
-    def calculate_fingerprints(self, images, parallel=None, fortran=None,
-                               log=None, calculate_derivatives=False):
+    def calculate_fingerprints(self, images, parallel=None, log=None,
+                               calculate_derivatives=False):
         """Calculates the fingerpints of the images, for the ones not already
         done.
 
@@ -122,16 +122,12 @@ class Gaussian(object):
         parallel : dict
             Configuration for parallelization. Should be in same form as in
             amp.Amp.
-        fortran : bool
-            If True, allows for extrapolation, if False, does not allow.
         log : Logger object
             Write function at which to log data. Note this must be a callable
             function.
         calculate_derivatives : bool
             Decides whether or not fingerprintprimes should also be calculated.
         """
-        if fortran is None:
-            fortran = self.fortran
         if parallel is None:
             parallel = {'cores': 1}
         log = Logger(file=None) if log is None else log
@@ -142,6 +138,7 @@ class Gaussian(object):
 
         p = self.parameters
 
+        log('Cutoff radius: %.2f' % p.cutoff)
         log('Cutoff function: %s' % repr(dict2cutoff(p.cutoff)))
 
         if p.elements is None:
@@ -173,7 +170,7 @@ class Gaussian(object):
             calc = FingerprintCalculator(neighborlist=self.neighborlist,
                                          Gs=p.Gs,
                                          cutoff=p.cutoff,
-                                         fortran=fortran)
+                                         fortran=self.fortran)
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
                                      calculator=calc)
@@ -188,7 +185,7 @@ class Gaussian(object):
                     FingerprintPrimeCalculator(neighborlist=self.neighborlist,
                                                Gs=p.Gs,
                                                cutoff=p.cutoff,
-                                               fortran=fortran)
+                                               fortran=self.fortran)
                 self.fingerprintprimes = \
                     Data(filename='%s-fingerprint-primes'
                          % self.dblabel,
