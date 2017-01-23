@@ -31,6 +31,7 @@
                       - (p_gamma + 1) * (r / rc) ** p_gamma
               end if
           endif
+          print*, r, rc, cutofffn, p_gamma
       end subroutine cutoff_fxn
 
       subroutine cutoff_fxn_prime(r, rc, cutofffn, p_gamma)
@@ -68,4 +69,5 @@
                 ** (p_gamma - 1))
               end if
           end if
+          print*, r, rc, cutofffn, p_gamma
       end subroutine cutoff_fxn_prime
