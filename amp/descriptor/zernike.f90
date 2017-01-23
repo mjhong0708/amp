@@ -50,15 +50,22 @@
                                 p_gamma =p_gamma
 			    z_nlm = z_nlm_ * cutoff_fxn(rho * cutoff, &
                             cutoff, cutofffn, p_gamma)
-                          else
-			    z_nlm = z_nlm_ * cutoff_fxn(rho * cutoff, &
-                            cutoff, cutofffn)
-                          endif
 
 			  ! Calculates z_nlm_prime
 			  z_nlm_prime = z_nlm_ * &
-			  cutoff_fxn_prime(rho * cutoff, cutoff) * &
+			  cutoff_fxn_prime(rho * cutoff, cutoff, &
+                          cutofffn, p_gamma) * &
 			  der_position(indexx, n_index, home, neighbor, p, q)
+                          else
+			    z_nlm = z_nlm_ * cutoff_fxn(rho * cutoff, &
+                            cutoff, cutofffn)
+			  ! Calculates z_nlm_prime
+			  z_nlm_prime = z_nlm_ * &
+			  cutoff_fxn_prime(rho * cutoff, cutoff, &
+                          cutofffn) * &
+			  der_position(indexx, n_index, home, neighbor, p, q)
+                          endif
+
 			  call calculate_z_prime(n, l, m, x, y, z, q, factorial, &
 			  fac_length, z_nlm_prime_)
 			  if (kronecker(n_index, p) - &
