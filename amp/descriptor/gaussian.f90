@@ -11,7 +11,7 @@
               neighborpositions
               double precision, dimension(3):: ri
               integer:: num_neighbors
-              double precision::  g_eta, rc
+              double precision::  g_eta, rc, cutoff_fxn
               double precision,optional :: p_gamma
               character(len=20):: cutofffn
               double precision:: ridge
@@ -23,9 +23,6 @@
               double precision, dimension(3):: Rij_vector
               double precision:: Rij, term
 
-              if(present(p_gamma))then
-                  p_gamma = p_gamma
-              endif
 
               ridge = 0.0d0
               do j = 1, num_neighbors
@@ -37,7 +34,13 @@
                     end do
                     Rij = sqrt(dot_product(Rij_vector, Rij_vector))
                     term = exp(-g_eta*(Rij**2.0d0) / (rc ** 2.0d0))
-                    term = term * cutoff_fxn(Rij, rc)
+                    if(present(p_gamma))then
+                        p_gamma = p_gamma
+                        term = term * cutoff_fxn(Rij, rc, cutofffn, &
+                            p_gamma)
+                    else
+                        term = term * cutoff_fxn(Rij, rc, cutofffn)
+                    endif
                     ridge = ridge + term
                   end if
               end do
@@ -55,29 +58,6 @@
                       match = 0
               end if
       end function compare
-
-      function cutoff_fxn(r, rc)
-              double precision:: r, rc, cutoff_fxn, pi
-!     To avoid noise, for each call of this function, it is better to
-!     set returned variables to 0.0d0.
-        cutoff_fxn = 0.0d0
-          if (cutofffn == 'Cosine') then
-              if (r > rc) then
-                      cutoff_fxn = 0.0d0
-              else
-                      pi = 4.0d0 * datan(1.0d0)
-                      cutoff_fxn = 0.5d0 * (cos(pi*r/rc) + 1.0d0)
-              end if
-          elseif (cutofffn == 'Polynomial') then
-              if (r > rc) then
-                  cutoff_fxn = 0.0d0
-              else
-                  cutoff_fxn = 1. + p_gamma &
-                      * (r / rc) ** (p_gamma + 1) &
-                      - (p_gamma + 1) * (r / rc) ** p_gamma
-              end if
-          endif
-      end function
 
       end subroutine calculate_g2
 
@@ -98,7 +78,7 @@
               double precision:: g_gamma, g_zeta, g_eta, rc
               double precision,optional :: p_gamma
               character(len=20):: cutofffn
-              double precision:: ridge
+              double precision:: ridge, cutoff_fxn
 !f2py         intent(in):: neighbornumbers, neighborpositions
 !f2py         intent(in):: g_numbers, g_gamma, g_zeta
 !f2py         intent(in):: g_eta, rc, ri
@@ -108,10 +88,6 @@
               double precision, dimension(3):: Rij_vector, Rik_vector
               double precision, dimension(3):: Rjk_vector
               double precision:: Rij, Rik, Rjk, costheta, term
-
-              if(present(p_gamma))then
-                  p_gamma = p_gamma
-              endif
 
               ridge = 0.0d0
               do j = 1, num_neighbors
@@ -137,9 +113,19 @@
                     term = term*&
                     exp(-g_eta*(Rij**2 + Rik**2 + Rjk**2)&
                     /(rc ** 2.0d0))
-                    term = term*cutoff_fxn(Rij, rc)
-                    term = term*cutoff_fxn(Rik, rc)
-                    term = term*cutoff_fxn(Rjk, rc)
+                    if(present(p_gamma))then
+                        p_gamma = p_gamma
+                        term = term*cutoff_fxn(Rij, rc, cutofffn, &
+                            p_gamma)
+                        term = term*cutoff_fxn(Rik, rc, cutofffn, &
+                            p_gamma)
+                        term = term*cutoff_fxn(Rjk, rc, cutofffn, &
+                            p_gamma)
+                    else
+                        term = term*cutoff_fxn(Rij, rc, cutofffn)
+                        term = term*cutoff_fxn(Rik, rc, cutofffn)
+                        term = term*cutoff_fxn(Rjk, rc, cutofffn)
+                    endif
                     ridge = ridge + term
                   end if
                 end do
@@ -177,31 +163,6 @@
               end if
       end function compare
 
-      function cutoff_fxn(r, rc)
-              double precision:: r, rc, cutoff_fxn, pi
-!     To avoid noise, for each call of this function, it is better to
-!     set returned variables to 0.0d0.
-        cutoff_fxn = 0.0d0
-
-
-          if (cutofffn == 'Cosine') then
-              if (r > rc) then
-                      cutoff_fxn = 0.0d0
-              else
-                      pi = 4.0d0 * datan(1.0d0)
-                      cutoff_fxn = 0.5d0 * (cos(pi*r/rc) + 1.0d0)
-              end if
-          elseif (cutofffn == 'Polynomial') then
-              if (r > rc) then
-                  cutoff_fxn = 0.0d0
-              else
-                  cutoff_fxn = 1. + p_gamma &
-                      * (r / rc) ** (p_gamma + 1) &
-                      - (p_gamma + 1) * (r / rc) ** p_gamma
-              end if
-          endif
-      end function
-
       end subroutine calculate_g4
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -222,7 +183,7 @@
               double precision::  g_eta, rc
               double precision,optional :: p_gamma
               character(len=20):: cutofffn
-              double precision:: ridge
+              double precision:: ridge, cutoff_fxn_prime
 !f2py         intent(in):: neighborindices, neighbornumbers
 !f2py         intent(in):: neighborpositions, g_number
 !f2py         intent(in):: g_eta, rc, i, ri, m, l
@@ -230,11 +191,7 @@
 !f2py         intent(out):: ridge
               integer:: j, match, xyz
               double precision, dimension(3):: Rij_vector
-              double precision:: Rij, term1, dRijdRml
-
-              if(present(p_gamma))then
-                  p_gamma = p_gamma
-              endif
+              double precision:: Rij, term1, dRijdRml, cutoff_fxn
 
               ridge = 0.0d0
               do j = 1, num_neighbors
@@ -247,12 +204,23 @@
                     dRijdRml = &
                      dRij_dRml(i, neighborindices(j), ri, Rj, m, l)
                     if (dRijdRml /= 0.0d0) then
-					  Rij = sqrt(dot_product(Rij_vector, Rij_vector))
-                      term1 = - 2.0d0 * g_eta * Rij * &
-                      cutoff_fxn(Rij, rc) / (rc ** 2.0d0) + &
-                      cutoff_fxn_prime(Rij, rc)
-                      ridge = ridge + exp(- g_eta * (Rij**2.0d0) / &
-                      (rc ** 2.0d0)) * term1 * dRijdRml
+                        Rij = sqrt(dot_product(Rij_vector, Rij_vector))
+
+                        if(present(p_gamma))then
+                            p_gamma = p_gamma
+                            term1 = - 2.0d0 * g_eta * Rij * &
+                            cutoff_fxn(Rij, rc, cutofffn, p_gamma) / &
+                            (rc ** 2.0d0) + cutoff_fxn_prime(Rij, rc, &
+                            cutofffn, p_gamma)
+                        else
+                            term1 = - 2.0d0 * g_eta * Rij * &
+                            cutoff_fxn(Rij, rc, cutofffn) / &
+                            (rc ** 2.0d0) + cutoff_fxn_prime(Rij, rc, &
+                            cutofffn)
+                        endif
+
+                        ridge = ridge + exp(- g_eta * (Rij**2.0d0) / &
+                        (rc ** 2.0d0)) * term1 * dRijdRml
                     end if
                   end if
               end do
@@ -271,52 +239,6 @@
               end if
       end function compare
 
-      function cutoff_fxn(r, rc)
-              double precision:: r, rc, cutoff_fxn, pi
-!     To avoid noise, for each call of this function, it is better to
-!     set returned variables to 0.0d0.
-        cutoff_fxn = 0.0d0
-          if (cutofffn == 'Cosine') then
-              if (r > rc) then
-                      cutoff_fxn = 0.0d0
-              else
-                      pi = 4.0d0 * datan(1.0d0)
-                      cutoff_fxn = 0.5d0 * (cos(pi*r/rc) + 1.0d0)
-              end if
-          elseif (cutofffn == 'Polynomial') then
-              if (r > rc) then
-                  cutoff_fxn = 0.0d0
-              else
-                  cutoff_fxn = 1. + p_gamma &
-                      * (r / rc) ** (p_gamma + 1) &
-                      - (p_gamma + 1) * (r / rc) ** p_gamma
-              end if
-          endif
-      end function
-
-      function cutoff_fxn_prime(r, rc)
-              double precision:: r, rc, cutoff_fxn_prime, pi
-
-          cutoff_fxn_prime = 0.0d0
-
-          if (cutofffn == 'Cosine') then
-              if (r > rc) then
-                      cutoff_fxn_prime = 0.0d0
-              else
-                      pi = 4.0d0 * datan(1.0d0)
-                      cutoff_fxn_prime = -0.5d0 * pi * sin(pi*r/rc) &
-                       / rc
-              end if
-          elseif (cutofffn == 'Polynomial') then
-              if (r > rc) then
-                  cutoff_fxn_prime = 0.0d0
-              else
-            cutoff_fxn_prime = (p_gamma * (p_gamma + 1) &
-                / rc) *  ((r / rc) ** p_gamma - (r / rc)  &
-                ** (p_gamma - 1))
-              end if
-          end if
-      end function
 
       function dRij_dRml(i, j, Ri, Rj, m, l)
               integer i, j, m, l
@@ -369,11 +291,7 @@
               double precision:: fcRijfcRikfcRjk, dCosthetadRml
               double precision:: dRijdRml, dRikdRml, dRjkdRml
               double precision:: term1, term2, term3, term4, term5
-              double precision:: term6
-
-              if(present(p_gamma))then
-                  p_gamma = p_gamma
-              endif
+              double precision:: term6, cutoff_fxn, cutoff_fxn_prime
 
               ridge = 0.0d0
               do j = 1, num_neighbors
@@ -394,9 +312,18 @@
                     costheta = &
                     dot_product(Rij_vector, Rik_vector) / Rij / Rik
                     c1 = (1.0d0 + g_gamma * costheta)
-                    fcRij = cutoff_fxn(Rij, rc)
-                    fcRik = cutoff_fxn(Rik, rc)
-                    fcRjk = cutoff_fxn(Rjk, rc)
+                    if(present(p_gamma))then
+                        p_gamma = p_gamma
+                        fcRij = cutoff_fxn(Rij, rc, cutofffn, p_gamma)
+                        fcRik = cutoff_fxn(Rik, rc, cutofffn, p_gamma)
+                        fcRjk = cutoff_fxn(Rjk, rc, cutofffn, p_gamma)
+                    else
+                        fcRij = cutoff_fxn(Rij, rc, cutofffn)
+                        fcRik = cutoff_fxn(Rik, rc, cutofffn)
+                        fcRjk = cutoff_fxn(Rjk, rc, cutofffn)
+                    endif
+
+
                     if (g_zeta == 1.0d0) then
                         term1 = exp(-g_eta*(Rij**2 + Rik**2 + Rjk**2)&
                         / (rc ** 2.0d0))
@@ -436,12 +363,29 @@
                         / (rc ** 2.0d0)
                     end if
                     term3 = fcRijfcRikfcRjk * term2
-                    term4 = &
-                    cutoff_fxn_prime(Rij, rc) * dRijdRml * fcRik * fcRjk
-                    term5 = &
-                    fcRij * cutoff_fxn_prime(Rik, rc) * dRikdRml * fcRjk
-                    term6 = &
-                    fcRij * fcRik * cutoff_fxn_prime(Rjk, rc) * dRjkdRml
+
+                    if(present(p_gamma))then
+                        p_gamma = p_gamma
+                        term4 = &
+                        cutoff_fxn_prime(Rij, rc, cutofffn, p_gamma) * &
+                        dRijdRml * fcRik * fcRjk
+                        term5 = &
+                        fcRij * cutoff_fxn_prime(Rik, rc, cutofffn, &
+                        p_gamma) * dRikdRml * fcRjk
+                        term6 = &
+                        fcRij * fcRik * cutoff_fxn_prime(Rjk, rc, &
+                        cutofffn, p_gamma) * dRjkdRml
+                    else
+                        term4 = &
+                        cutoff_fxn_prime(Rij, rc, cutofffn) * &
+                        dRijdRml * fcRik * fcRjk
+                        term5 = &
+                        fcRij * cutoff_fxn_prime(Rik, rc, cutofffn) * &
+                        dRikdRml * fcRjk
+                        term6 = &
+                        fcRij * fcRik * cutoff_fxn_prime(Rjk, rc, &
+                        cutofffn) * dRjkdRml
+                    endif
                     ridge = ridge + &
                     term1 * (term3 + c1 * (term4 + term5 + term6))
                   end if
@@ -478,53 +422,6 @@
                       match = 0
               end if
       end function compare
-
-      function cutoff_fxn(r, rc)
-              double precision:: r, rc, cutoff_fxn, pi
-!     To avoid noise, for each call of this function, it is better to
-!     set returned variables to 0.0d0.
-        cutoff_fxn = 0.0d0
-          if (cutofffn == 'Cosine') then
-              if (r > rc) then
-                      cutoff_fxn = 0.0d0
-              else
-                      pi = 4.0d0 * datan(1.0d0)
-                      cutoff_fxn = 0.5d0 * (cos(pi*r/rc) + 1.0d0)
-              end if
-          elseif (cutofffn == 'Polynomial') then
-              if (r > rc) then
-                  cutoff_fxn = 0.0d0
-              else
-                  cutoff_fxn = 1. + p_gamma &
-                      * (r / rc) ** (p_gamma + 1) &
-                      - (p_gamma + 1) * (r / rc) ** p_gamma
-              end if
-          endif
-      end function
-
-      function cutoff_fxn_prime(r, rc)
-              double precision:: r, rc, cutoff_fxn_prime, pi
-
-          cutoff_fxn_prime = 0.0d0
-
-          if (cutofffn == 'Cosine') then
-              if (r > rc) then
-                      cutoff_fxn_prime = 0.0d0
-              else
-                      pi = 4.0d0 * datan(1.0d0)
-                      cutoff_fxn_prime = -0.5d0 * pi * sin(pi*r/rc) &
-                       / rc
-              end if
-          elseif (cutofffn == 'Polynomial') then
-              if (r > rc) then
-                  cutoff_fxn_prime = 0.0d0
-              else
-            cutoff_fxn_prime = (p_gamma * (p_gamma + 1) &
-                / rc) *  ((r / rc) ** p_gamma - (r / rc)  &
-                ** (p_gamma - 1))
-              end if
-          end if
-      end function
 
       function dRij_dRml(i, j, Ri, Rj, m, l)
               integer i, j, m, l

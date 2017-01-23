@@ -12,7 +12,8 @@
           double precision, dimension(n_length, 3)::  rs
           double precision, dimension(3)::  home
           double precision, dimension(fac_length)::  factorial
-          double precision::  cutoff, p_gamma
+          double precision::  cutoff
+          double precision, optional:: p_gamma
           character(len=20):: cutofffn
           complex*16::  norm_prime
 !f2py     intent(in)::  n, l, n_indices, numbers, g_numbers, rs
@@ -24,6 +25,7 @@
           integer::  n_index, n_symbol, iter
           double precision, dimension(3)::  neighbor
           double precision::  x, y, z, rho
+          double precision :: cutoff_fxn, cutoff_fxn_prime
 
           norm_prime = (0.0d0, 0.0d0)
           do m = 0, l
@@ -44,7 +46,14 @@
 			  fac_length, z_nlm_)
 
 			  ! Calculate z_nlm
-			  z_nlm = z_nlm_ * cutoff_fxn(rho * cutoff, cutoff)
+                          if(present(p_gamma))then
+                                p_gamma =p_gamma
+			    z_nlm = z_nlm_ * cutoff_fxn(rho * cutoff, &
+                            cutoff, cutofffn, p_gamma)
+                          else
+			    z_nlm = z_nlm_ * cutoff_fxn(rho * cutoff, &
+                            cutoff, cutofffn)
+                          endif
 
 			  ! Calculates z_nlm_prime
 			  z_nlm_prime = z_nlm_ * &
@@ -54,12 +63,29 @@
 			  fac_length, z_nlm_prime_)
 			  if (kronecker(n_index, p) - &
 			  kronecker(indexx, p) == 1) then
+                            if (present(p_gamma)) then
+                                p_gamma =p_gamma
 				z_nlm_prime = z_nlm_prime + &
-				cutoff_fxn(rho * cutoff, cutoff) * z_nlm_prime_ / cutoff
+				cutoff_fxn(rho * cutoff, cutoff, &
+                                cutofffn, p_gamma) * z_nlm_prime_ / &
+                                cutoff
+                            else
+				z_nlm_prime = z_nlm_prime + &
+				cutoff_fxn(rho * cutoff, cutoff, &
+                                cutofffn) * z_nlm_prime_ / cutoff
+                            end if
 			  else if (kronecker(n_index, p) - &
 			  kronecker(indexx, p) == -1) then
 				z_nlm_prime = z_nlm_prime - &
-				cutoff_fxn(rho * cutoff, cutoff) * z_nlm_prime_ / cutoff
+                            if (present(p_gamma)) then
+                                p_gamma = p_gamma
+				cutoff_fxn(rho * cutoff, cutoff, &
+                                cutofffn, p_gamma) * z_nlm_prime_ / &
+                                cutoff
+                            else
+				cutoff_fxn(rho * cutoff, cutoff, &
+                                cutofffn) * z_nlm_prime_ / cutoff
+                            end if
 			  end if
 
 			  ! sum over neighbors
@@ -78,53 +104,6 @@
 		enddo
 
 		CONTAINS
-
-		function cutoff_fxn(r, cutoff)
-		  implicit none
-		  double precision::  r, cutoff, cutoff_fxn, pi
-        cutoff_fxn = 0.0d0
-          if (cutofffn == 'Cosine') then
-              if (r > cutoff) then
-                      cutoff_fxn = 0.0d0
-              else
-                      pi = 4.0d0 * datan(1.0d0)
-                      cutoff_fxn = 0.5d0 * (cos(pi*r/cutoff) + 1.0d0)
-              end if
-          elseif (cutofffn == 'Polynomial') then
-              if (r > cutoff) then
-                  cutoff_fxn = 0.0d0
-              else
-                  cutoff_fxn = 1. + p_gamma &
-                      * (r / cutoff) ** (p_gamma + 1) &
-                      - (p_gamma + 1) * (r / cutoff) ** p_gamma
-              end if
-          endif
-		end function
-
-		function cutoff_fxn_prime(r, cutoff)
-		  implicit none
-		  double precision::  r, cutoff, cutoff_fxn_prime, pi
-
-          cutoff_fxn_prime = 0.0d0
-
-          if (cutofffn == 'Cosine') then
-              if (r > cutoff) then
-                      cutoff_fxn_prime = 0.0d0
-              else
-                      pi = 4.0d0 * datan(1.0d0)
-                      cutoff_fxn_prime = -0.5d0 * pi * sin(pi*r/cutoff) &
-                       / cutoff
-              end if
-          elseif (cutofffn == 'Polynomial') then
-              if (r > cutoff) then
-                  cutoff_fxn_prime = 0.0d0
-              else
-            cutoff_fxn_prime = (p_gamma * (p_gamma + 1) &
-                / cutoff) *  ((r / cutoff) ** p_gamma - (r / cutoff)  &
-                ** (p_gamma - 1))
-              end if
-          end if
-		end function
 
 		function der_position(mm, nn, Rm, Rn, ll, ii)
 		  implicit none
