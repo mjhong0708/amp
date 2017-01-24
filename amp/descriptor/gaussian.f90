@@ -725,10 +725,10 @@
                     cutoff_fxn_prime(Rij, rc) * dRijdRml * fcRik! * fcRjk
                     term5 = &
                     fcRij * cutoff_fxn_prime(Rik, rc) * dRikdRml! * fcRjk
-                    term6 = &
-                    fcRij * fcRik !* cutoff_fxn_prime(Rjk, rc) * dRjkdRml
+                    !term6 = &
+                    !fcRij * fcRik * cutoff_fxn_prime(Rjk, rc) * dRjkdRml
                     ridge = ridge + &
-                    term1 * (term3 + c1 * (term4 + term5 + term6))
+                    term1 * (term3 + c1 * (term4 + term5))! + term6))
                   end if
                 end do
               end do

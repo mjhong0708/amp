@@ -1329,9 +1329,9 @@ def calculate_G5_prime(neighborindices, neighborsymbols, neighborpositions,
                 term3 = fcRijfcRik * term2
                 term4 = cutoff_fxn.prime(Rij) * dRijdRml * fcRik #* fcRjk
                 term5 = fcRij * cutoff_fxn.prime(Rik) * dRikdRml #* fcRjk
-                term6 = fcRij * fcRik #* cutoff_fxn.prime(Rjk) * dRjkdRml
+                #term6 = fcRij * fcRik * cutoff_fxn.prime(Rjk) * dRjkdRml
 
-                ridge += term1 * (term3 + c1 * (term4 + term5 + term6))
+                ridge += term1 * (term3 + c1 * (term4 + term5))# + term6))
         ridge *= 2. ** (1. - zeta)
 
     return ridge
