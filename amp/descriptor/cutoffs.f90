@@ -1,9 +1,11 @@
-      subroutine cutoff_fxn(r, rc, cutofffn, p_gamma)
-          double precision:: r, rc, cutofffxn, pi
+      module cutoffs
+          implicit none
+
+          contains
+      function cutoff_fxn(r, rc, cutofffn, p_gamma)
+          double precision:: r, rc, cutofffxn, pi, cutoff_fxn
           double precision,optional:: p_gamma
           character(len=20):: cutofffn
-!f2py         intent(in):: r, rc, cutofffn, p_gamma
-!f2py         intent(out):: cutofffxn
 
 !       To avoid noise, for each call of this function, it is better to
 !       set returned variables to 0.0d0.
@@ -31,15 +33,14 @@
                       - (p_gamma + 1) * (r / rc) ** p_gamma
               end if
           endif
-          print*, r, rc, cutofffn, p_gamma
-      end subroutine cutoff_fxn
+          print*, r, rc, cutofffn, p_gamma, cutofffxn
+      end function cutoff_fxn
 
-      subroutine cutoff_fxn_prime(r, rc, cutofffn, p_gamma)
+      function cutoff_fxn_prime(r, rc, cutofffn, p_gamma)
           double precision:: r, rc, cutofffxn_prime, pi
+          double precision:: cutoff_fxn_prime
           double precision,optional:: p_gamma
           character(len=20):: cutofffn
-!f2py         intent(in):: r, rc, cutofffn, p_gamma
-!f2py         intent(out):: cutofffxn_prime
 
 !       To avoid noise, for each call of this function, it is better to
 !       set returned variables to 0.0d0.
@@ -69,5 +70,7 @@
                 ** (p_gamma - 1))
               end if
           end if
-          print*, r, rc, cutofffn, p_gamma
-      end subroutine cutoff_fxn_prime
+          print*, r, rc, cutofffn, p_gamma, cutofffxn_prime
+      end function cutoff_fxn_prime
+
+      end module cutoffs

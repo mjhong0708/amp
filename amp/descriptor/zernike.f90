@@ -4,6 +4,7 @@
         subroutine calculate_zernike_prime(n, l, n_length, n_indices, &
               numbers, rs, g_numbers, cutoff, indexx,  home, p, q, &
               fac_length, factorial, norm_prime, cutofffn, p_gamma)
+        use cutoffs
         implicit none
         integer::  n, l
         integer::  indexx, p, q, n_length, fac_length
@@ -24,7 +25,6 @@
         integer::  n_index, n_symbol, iter
         double precision, dimension(3)::  neighbor
         double precision::  x, y, z, rho
-        double precision :: cutoff_fxn, cutoff_fxn_prime
 
         norm_prime = (0.0d0, 0.0d0)
 

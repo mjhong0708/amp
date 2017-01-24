@@ -4,6 +4,7 @@
        subroutine calculate_g2(neighbornumbers, neighborpositions, &
        g_number, g_eta, p_gamma, rc, cutofffn, ri, num_neighbors, ridge)
 
+              use cutoffs
               implicit none
               integer, dimension(num_neighbors):: neighbornumbers
               integer, dimension(1):: g_number
@@ -11,7 +12,7 @@
               neighborpositions
               double precision, dimension(3):: ri
               integer:: num_neighbors
-              double precision::  g_eta, rc, cutoff_fxn
+              double precision::  g_eta, rc
               double precision,optional :: p_gamma
               character(len=20):: cutofffn
               double precision:: ridge
@@ -21,7 +22,7 @@
 !f2py         intent(out):: ridge
               integer:: j, match, xyz
               double precision, dimension(3):: Rij_vector
-              double precision:: Rij, term
+              double precision:: Rij, term, cut
 
 
               ridge = 0.0d0
@@ -36,12 +37,16 @@
                     term = exp(-g_eta*(Rij**2.0d0) / (rc ** 2.0d0))
                     if(present(p_gamma))then
                         p_gamma = p_gamma
-                        term = term * cutoff_fxn(Rij, rc, cutofffn, &
-                            p_gamma)
+                        cut = cutoff_fxn(Rij, rc, cutofffn, p_gamma)
+                        term = term * cut
+                        print*,'cut', cut
                     else
-                        term = term * cutoff_fxn(Rij, rc, cutofffn)
+                        cut = cutoff_fxn(Rij, rc, cutofffn)
+                        print*, 'Received cutoff g2 f', cut
+                        term = term * cut
                     endif
                     ridge = ridge + term
+                    print*, 'ridge printed in f'
                   end if
               end do
 
@@ -68,6 +73,7 @@
       g_numbers, g_gamma, g_zeta, g_eta, rc, cutofffn, ri, &
       num_neighbors, ridge, p_gamma)
 
+              use cutoffs
               implicit none
               integer, dimension(num_neighbors):: neighbornumbers
               integer, dimension(2):: g_numbers
@@ -78,7 +84,7 @@
               double precision:: g_gamma, g_zeta, g_eta, rc
               double precision,optional :: p_gamma
               character(len=20):: cutofffn
-              double precision:: ridge, cutoff_fxn
+              double precision:: ridge
 !f2py         intent(in):: neighbornumbers, neighborpositions
 !f2py         intent(in):: g_numbers, g_gamma, g_zeta
 !f2py         intent(in):: g_eta, rc, ri
@@ -172,6 +178,7 @@
        neighborpositions, g_number, g_eta, rc, cutofffn, i, ri, m, l, &
        num_neighbors, ridge, p_gamma)
 
+              use cutoffs
               implicit none
               integer, dimension(num_neighbors):: neighborindices
               integer, dimension(num_neighbors):: neighbornumbers
@@ -183,7 +190,7 @@
               double precision::  g_eta, rc
               double precision,optional :: p_gamma
               character(len=20):: cutofffn
-              double precision:: ridge, cutoff_fxn_prime
+              double precision:: ridge
 !f2py         intent(in):: neighborindices, neighbornumbers
 !f2py         intent(in):: neighborpositions, g_number
 !f2py         intent(in):: g_eta, rc, i, ri, m, l
@@ -191,7 +198,7 @@
 !f2py         intent(out):: ridge
               integer:: j, match, xyz
               double precision, dimension(3):: Rij_vector
-              double precision:: Rij, term1, dRijdRml, cutoff_fxn
+              double precision:: Rij, term1, dRijdRml
 
               ridge = 0.0d0
               do j = 1, num_neighbors
@@ -266,6 +273,7 @@
       neighborpositions, g_numbers, g_gamma, g_zeta, g_eta, rc, &
       cutofffn, i, ri, m, l, num_neighbors, ridge, p_gamma)
 
+              use cutoffs
               implicit none
               integer, dimension(num_neighbors):: neighborindices
               integer, dimension(num_neighbors):: neighbornumbers
@@ -291,7 +299,7 @@
               double precision:: fcRijfcRikfcRjk, dCosthetadRml
               double precision:: dRijdRml, dRikdRml, dRjkdRml
               double precision:: term1, term2, term3, term4, term5
-              double precision:: term6, cutoff_fxn, cutoff_fxn_prime
+              double precision:: term6
 
               ridge = 0.0d0
               do j = 1, num_neighbors
@@ -367,8 +375,8 @@
                     if(present(p_gamma))then
                         p_gamma = p_gamma
                         term4 = &
-                        cutoff_fxn_prime(Rij, rc, cutofffn, p_gamma) * &
-                        dRijdRml * fcRik * fcRjk
+                        cutoff_fxn_prime(Rij, rc, cutofffn, p_gamma) &
+                        * dRijdRml * fcRik * fcRjk
                         term5 = &
                         fcRij * cutoff_fxn_prime(Rik, rc, cutofffn, &
                         p_gamma) * dRikdRml * fcRjk
@@ -377,11 +385,11 @@
                         cutofffn, p_gamma) * dRjkdRml
                     else
                         term4 = &
-                        cutoff_fxn_prime(Rij, rc, cutofffn) * &
-                        dRijdRml * fcRik * fcRjk
+                        cutoff_fxn_prime(Rij, rc, cutofffn) &
+                        * dRijdRml * fcRik * fcRjk
                         term5 = &
-                        fcRij * cutoff_fxn_prime(Rik, rc, cutofffn) * &
-                        dRikdRml * fcRjk
+                        fcRij * cutoff_fxn_prime(Rik, rc, cutofffn) &
+                        * dRikdRml * fcRjk
                         term6 = &
                         fcRij * fcRik * cutoff_fxn_prime(Rjk, rc, &
                         cutofffn) * dRjkdRml
@@ -394,6 +402,7 @@
               ridge = ridge * (2.0d0**(1.0d0 - g_zeta))
 
       CONTAINS
+
 
       function compare(try1, try2, val1, val2) result(match)
 !     Returns 1 if (try1, try2) is the same set as (val1, val2), 0 if not.
