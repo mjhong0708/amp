@@ -157,10 +157,10 @@ class Gaussian(object):
 
         log('Calculating neighborlists...', tic='nl')
         if not hasattr(self, 'neighborlist'):
+            calc = NeighborlistCalculator(cutoff=p.cutoff['kwargs']['Rc'])
             self.neighborlist = \
                 Data(filename='%s-neighborlists' % self.dblabel,
-                     calculator=NeighborlistCalculator(
-                         cutoff=p.cutoff['kwargs']['Rc']))
+                     calculator=calc)
         self.neighborlist.calculate_items(images, parallel=parallel, log=log)
         log('...neighborlists calculated.', toc='nl')
 
@@ -614,8 +614,11 @@ def calculate_G4(neighborsymbols, neighborpositions,
         Parameter of Gaussian symmetry functions.
     eta : float
         Parameter of Gaussian symmetry functions.
-    cutoff : float
-        Radius above which neighbor interactions are ignored.
+    cutoff : object or float
+        Cutoff function, typically from amp.descriptor.cutoffs.  Can be also
+        fed as a float representing the radius above which neighbor
+        interactions are ignored; in this case a cosine cutoff function will be
+        employed.  Default is a 6.5-Angstrom cosine cutoff.
     Ri : int
         Index of the center atom.
     fortran : bool
@@ -893,8 +896,11 @@ def calculate_G2_prime(neighborindices, neighborsymbols, neighborpositions,
         Symmetry functions of the center atom.
     eta : float
         Parameter of Behler symmetry functions.
-    cutoff : float
-        Radius above which neighbor interactions are ignored.
+    cutoff : object or float
+        Cutoff function, typically from amp.descriptor.cutoffs.  Can be also
+        fed as a float representing the radius above which neighbor
+        interactions are ignored; in this case a cosine cutoff function will be
+        employed.  Default is a 6.5-Angstrom cosine cutoff.
     i : int
         Index of the center atom.
     Ri : float
@@ -977,8 +983,11 @@ def calculate_G4_prime(neighborindices, neighborsymbols, neighborpositions,
         Parameter of Behler symmetry functions.
     eta : float
         Parameter of Behler symmetry functions.
-    cutoff : float
-        Radius above which neighbor interactions are ignored.
+    cutoff : object or float
+        Cutoff function, typically from amp.descriptor.cutoffs.  Can be also
+        fed as a float representing the radius above which neighbor
+        interactions are ignored; in this case a cosine cutoff function will be
+        employed.  Default is a 6.5-Angstrom cosine cutoff.
     i : int
         Index of the center atom.
     Ri : float
