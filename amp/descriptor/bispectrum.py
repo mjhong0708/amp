@@ -17,8 +17,10 @@ class Bispectrum(object):
     Parameters
     ----------
     cutoff : object or float
-        Cutoff function. Can be also fed as a float representing the radius above
-        which neighbor interactions are ignored.  Default is 6.5 Angstroms.
+        Cutoff function, typically from amp.descriptor.cutoffs.  Can be also
+        fed as a float representing the radius above which neighbor
+        interactions are ignored; in this case a cosine cutoff function will be
+        employed.  Default is a 6.5-Angstrom cosine cutoff.
     Gs : dict
         Dictionary of symbols and dictionaries for making fingerprints.  Either
         auto-genetrated, or given in the following form, for example:
@@ -70,6 +72,10 @@ class Bispectrum(object):
         # by default.
         if isinstance(cutoff, int) or isinstance(cutoff, float):
             cutoff = Cosine(cutoff)
+        # If the cutoff is provided as a dictionary, assume we need to load it
+        # with dict2cutoff.
+        if type(cutoff) is dict:
+            cutoff = dict2cutoff(cutoff)
 
         # The parameters dictionary contains the minimum information
         # to produce a compatible descriptor; that is, one that gives
@@ -291,6 +297,11 @@ class FingerprintCalculator:
         cutoff = self.globals.cutoff
         Rc = cutoff['kwargs']['Rc']
         jmax = self.globals.jmax
+
+        if cutoff['name'] == 'Cosine':
+            cutoff_fxn = Cosine(Rc)
+        elif cutoff['name'] == 'Polynomial':
+            cutoff_fxn = Polynomial(cutoff)
 
         rs = []
         psis = []
@@ -692,8 +703,6 @@ if __name__ == "__main__":
         # Request variables.
         socket.send_pyobj(msg('<request>', 'cutoff'))
         cutoff = socket.recv_pyobj()
-        socket.send_pyobj(msg('<request>', 'cutofffn'))
-        cutofffn = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'Gs'))
         Gs = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'jmax'))
@@ -703,7 +712,7 @@ if __name__ == "__main__":
         socket.send_pyobj(msg('<request>', 'images'))
         images = socket.recv_pyobj()
 
-        calc = FingerprintCalculator(neighborlist, Gs, jmax, cutoff, cutofffn)
+        calc = FingerprintCalculator(neighborlist, Gs, jmax, cutoff)
         result = {}
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.

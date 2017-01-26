@@ -21,9 +21,10 @@ class Zernike(object):
     Parameters
     ----------
     cutoff : object or float
-        Cutoff function. Can be also fed as a float representing the radius
-        above which neighbor interactions are ignored.  Default is 6.5
-        Angstroms.
+        Cutoff function, typically from amp.descriptor.cutoffs.  Can be also
+        fed as a float representing the radius above which neighbor
+        interactions are ignored; in this case a cosine cutoff function will be
+        employed.  Default is a 6.5-Angstrom cosine cutoff.
     Gs : dict
         Dictionary of symbols and dictionaries for making symmetry functions.
         Either auto-genetrated, or given in the following form, for example:
@@ -80,6 +81,10 @@ class Zernike(object):
         # by default.
         if isinstance(cutoff, int) or isinstance(cutoff, float):
             cutoff = Cosine(cutoff)
+        # If the cutoff is provided as a dictionary, assume we need to load it
+        # with dict2cutoff.
+        if type(cutoff) is dict:
+            cutoff = dict2cutoff(cutoff)
 
         # The parameters dictionary contains the minimum information
         # to produce a compatible descriptor; that is, one that gives
@@ -120,7 +125,7 @@ class Zernike(object):
         parallel : dict
             Configuration for parallelization. Should be in same form as in
             amp.Amp.
-         log : Logger object
+        log : Logger object
             Write function at which to log data. Note this must be a callable
             function.
         calculate_derivatives : bool
@@ -233,6 +238,7 @@ class Zernike(object):
 
 # Neighborlist Calculator
 class NeighborlistCalculator:
+
     """For integration with .utilities.Data
 
     For each image fed to calculate, a list of neighbors with offset
@@ -240,8 +246,11 @@ class NeighborlistCalculator:
 
     Parameters
     ----------
-    cutoff : float
-        Radius above which neighbor interactions are ignored.
+    cutoff : object or float
+        Cutoff function, typically from amp.descriptor.cutoffs.  Can be also
+        fed as a float representing the radius above which neighbor
+        interactions are ignored; in this case a cosine cutoff function will be
+        employed.  Default is a 6.5-Angstrom cosine cutoff.
     """
 
     def __init__(self, cutoff):
@@ -381,10 +390,10 @@ class FingerprintCalculator:
 #                                Z_nlm = self.globals.Gs[symbol][n_symbol] * \
 #                                    calculate_Z(n, l, m, x, y, z,
 #                                                self.factorial) * \
-#                                    cutoff_fxn(rho * cutoff)
+#                                    cutoff_fxn(rho * Rc)
 #                                Z_nlm = self.globals.Gs[symbol][n_symbol] * \
 #                                    calculate_Z2(n, l, m, x, y, z) * \
-#                                    cutoff_fxn(rho * cutoff)
+#                                    cutoff_fxn(rho * Rc)
 
                                 if rho > 0.:
                                     theta = np.arccos(z / rho)
