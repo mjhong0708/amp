@@ -88,9 +88,8 @@ class Zernike(object):
             {'importname': '.descriptor.zernike.Zernike',
              'mode': 'atom-centered'})
         p.version = version
-        p.cutoff = cutoff.Rc
-        p.cutofffn = cutoff.__class__.__name__
-        if p.cutofffn == 'Polynomial':
+        p.cutoff = cutoff.todict()
+        if p.cutoff['name'] == 'Polynomial':
             p.gamma = cutoff.gamma
         p.Gs = Gs
         p.nmax = nmax
@@ -137,11 +136,11 @@ class Zernike(object):
 
         p = self.parameters
 
-        if p.cutofffn == 'Cosine':
-            log('Cutoff radius: %.2f ' % p.cutoff )
+        if p.cutoff['name'] == 'Cosine':
+            log('Cutoff radius: %.2f ' % p.cutoff['kwargs']['Rc'])
         else:
             log('Cutoff radius: %.2f and gamma=%i ' % (p.cutoff, p.gamma))
-        log('Cutoff function: %s' % p.cutofffn)
+        log('Cutoff function: %s' % repr(dict2cutoff(p.cutoff)))
 
         if p.elements is None:
             log('Finding unique set of elements in training data.')
@@ -188,7 +187,7 @@ class Zernike(object):
 
         log('Calculating neighborlists...', tic='nl')
         if not hasattr(self, 'neighborlist'):
-            calc = NeighborlistCalculator(cutoff=p.cutoff)
+            calc = NeighborlistCalculator(cutoff=p.cutoff['kwargs']['Rc'])
             self.neighborlist = Data(filename='%s-neighborlists'
                                      % self.dblabel,
                                      calculator=calc)
@@ -202,7 +201,6 @@ class Zernike(object):
                                          nmax=p.nmax,
                                          cutoff=p.cutoff,
                                          p_gamma=p.gamma,
-                                         cutofffn=p.cutofffn,
                                          fortran=self.fortran)
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
@@ -219,7 +217,6 @@ class Zernike(object):
                                                Gs=p.Gs,
                                                nmax=p.nmax,
                                                cutoff=p.cutoff,
-                                               cutofffn=p.cutofffn,
                                                p_gamma=p.gamma,
                                                fortran=self.fortran)
                 self.fingerprintprimes = \
@@ -276,9 +273,8 @@ class NeighborlistCalculator:
 class FingerprintCalculator:
     """For integration with .utilities.Data"""
 
-    def __init__(self, neighborlist, Gs, nmax, cutoff, p_gamma, cutofffn, fortran):
+    def __init__(self, neighborlist, Gs, nmax, cutoff, p_gamma, fortran):
         self.globals = Parameters({ 'cutoff': cutoff,
-                                    'cutofffn': cutofffn,
                                     'p_gamma': p_gamma,
                                     'Gs': Gs,
                                     'nmax': nmax})
@@ -347,13 +343,13 @@ class FingerprintCalculator:
 
         home = self.atoms[index].position
         cutoff = self.globals.cutoff
-        cutofffn = self.globals.cutofffn
         p_gamma = self.globals.p_gamma
+        Rc = cutoff['kwargs']['Rc']
 
-        if cutofffn == 'Cosine':
-            cutoff_fxn = Cosine(cutoff)
-        elif cutofffn == 'Polynomial':
-            cutoff_fxn = Polynomial(cutoff, gamma=p_gamma)
+        if cutoff['name'] == 'Cosine':
+            cutoff_fxn = Cosine(Rc)
+        elif cutoff['name'] == 'Polynomial':
+            cutoff_fxn = Polynomial(Rc, gamma=p_gamma)
 
         fingerprint = []
         for n in xrange(self.globals.nmax + 1):
@@ -363,14 +359,14 @@ class FingerprintCalculator:
                     for m in xrange(l + 1):
                         c_nlm = 0.
                         for n_symbol, neighbor in zip(n_symbols, Rs):
-                            x = (neighbor[0] - home[0]) / cutoff
-                            y = (neighbor[1] - home[1]) / cutoff
-                            z = (neighbor[2] - home[2]) / cutoff
+                            x = (neighbor[0] - home[0]) / Rc
+                            y = (neighbor[1] - home[1]) / Rc
+                            z = (neighbor[2] - home[2]) / Rc
                             rho = np.linalg.norm([x, y, z])
 
                             if self.fortran:
-                                c_args = [cutoff * rho]
-                                if cutofffn == 'Polynomial':
+                                c_args = [Rc * rho]
+                                if cutoff['name'] == 'Polynomial':
                                     c_args.append(p_gamma)
                                 Z_nlm = fmodules.calculate_z(n=n, l=l, m=m,
                                                              x=x, y=y, z=z,
@@ -407,8 +403,8 @@ class FingerprintCalculator:
                                 else:
                                     phi = 0.
 
-                                c_args = [cutoff * rho]
-                                if cutofffn == 'Polynomial':
+                                c_args = [Rc * rho]
+                                if cutoff['name'] == 'Polynomial':
                                     c_args.append(p_gamma)
 
                                 Z_nlm = self.globals.Gs[symbol][n_symbol] * \
@@ -432,9 +428,8 @@ class FingerprintCalculator:
 class FingerprintPrimeCalculator:
     """For integration with .utilities.Data"""
 
-    def __init__(self, neighborlist, Gs, nmax, cutoff, p_gamma, cutofffn, fortran):
+    def __init__(self, neighborlist, Gs, nmax, cutoff, p_gamma, fortran):
         self.globals = Parameters({'cutoff': cutoff,
-                                   'cutofffn': cutofffn,
                                    'p_gamma': p_gamma,
                                    'Gs': Gs,
                                    'nmax': nmax})
@@ -559,13 +554,12 @@ class FingerprintPrimeCalculator:
         """
         home = self.atoms[index].position
         cutoff = self.globals.cutoff
-        # Cutofffn should be also added.
-        cutofffn = self.globals.cutofffn
+        Rc = cutoff['kwargs']['Rc']
         p_gamma = self.globals.p_gamma
 
-        if cutofffn is 'Cosine':
+        if cutoff['name'] is 'Cosine':
             cutoff_fxn = Cosine(cutoff)
-        elif cutofffn is 'Polynomial':
+        elif cutoff['name'] is 'Polynomial':
             cutoff_fxn = Polynomial(cutoff, gamma=p_gamma)
 
         fingerprint_prime = []
@@ -587,8 +581,8 @@ class FingerprintPrimeCalculator:
                                                                  numbers=numbers,
                                                                  rs=Rs,
                                                                  g_numbers=G_numbers,
-                                                                 cutoff=cutoff,
-                                                                 cutofffn=cutofffn,
+                                                                 cutoff=Rc,
+                                                                 cutofffn=cutoff['name'],
                                                                  p_gamma=p_gamma,
                                                                  indexx=index,
                                                                  home=home,
@@ -604,12 +598,12 @@ class FingerprintPrimeCalculator:
                             for n_index, n_symbol, neighbor in zip(n_indices,
                                                                    n_symbols,
                                                                    Rs):
-                                x = (neighbor[0] - home[0]) / cutoff
-                                y = (neighbor[1] - home[1]) / cutoff
-                                z = (neighbor[2] - home[2]) / cutoff
+                                x = (neighbor[0] - home[0]) / Rc
+                                y = (neighbor[1] - home[1]) / Rc
+                                z = (neighbor[2] - home[2]) / Rc
                                 rho = np.linalg.norm([x, y, z])
-                                c_args = [rho * cutoff]
-                                if cutofffn == 'Polynomial':
+                                c_args = [rho * Rc]
+                                if cutoff['name'] == 'Polynomial':
                                     c_args.append(p_gamma)
 
                                 _Z_nlm = calculate_Z(n, l, m,
@@ -633,12 +627,12 @@ class FingerprintPrimeCalculator:
                                    Kronecker(index, p)) == 1:
                                     Z_nlm_prime += \
                                         cutoff_fxn(*c_args) * \
-                                        _Z_nlm_prime / cutoff
+                                        _Z_nlm_prime / Rc
                                 elif (Kronecker(n_index, p) -
                                       Kronecker(index, p)) == -1:
                                     Z_nlm_prime -= \
                                         cutoff_fxn(*c_args) * \
-                                        _Z_nlm_prime / cutoff
+                                        _Z_nlm_prime / Rc
 
                                 # sum over neighbors
                                 c_nlm += self.globals.Gs[symbol][
@@ -928,8 +922,6 @@ if __name__ == "__main__":
         # Request variables.
         socket.send_pyobj(msg('<request>', 'cutoff'))
         cutoff = socket.recv_pyobj()
-        socket.send_pyobj(msg('<request>', 'cutofffn'))
-        cutofffn = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'Gs'))
         Gs = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'nmax'))
@@ -940,7 +932,7 @@ if __name__ == "__main__":
         images = socket.recv_pyobj()
 
         calc = FingerprintCalculator(neighborlist, Gs, nmax,
-                                     cutoff, cutofffn, fortran)
+                                     cutoff, fortran)
         result = {}
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.
@@ -957,8 +949,6 @@ if __name__ == "__main__":
         # Request variables.
         socket.send_pyobj(msg('<request>', 'cutoff'))
         cutoff = socket.recv_pyobj()
-        socket.send_pyobj(msg('<request>', 'cutofffn'))
-        cutofffn = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'Gs'))
         Gs = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'nmax'))
@@ -969,7 +959,7 @@ if __name__ == "__main__":
         images = socket.recv_pyobj()
 
         calc = FingerprintPrimeCalculator(neighborlist, Gs, nmax,
-                                          cutoff, cutofffn, fortran)
+                                          cutoff, fortran)
         result = {}
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.
