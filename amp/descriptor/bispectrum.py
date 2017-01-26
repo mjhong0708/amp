@@ -3,7 +3,7 @@ from numpy import cos, sqrt, exp
 from ase.data import atomic_numbers
 from ase.calculators.calculator import Parameters
 from ..utilities import Data, Logger, importer
-from ..descriptor.cutoffs import Cosine, Polynomial
+from .cutoffs import Cosine, dict2cutoff
 NeighborList = importer('NeighborList')
 
 
@@ -13,8 +13,10 @@ class Bispectrum(object):
     Parameters
     ----------
     cutoff : object or float
-        Cutoff function. Can be also fed as a float representing the radius above
-        which neighbor interactions are ignored.  Default is 6.5 Angstroms.
+        Cutoff function, typically from amp.descriptor.cutoffs.  Can be also
+        fed as a float representing the radius above which neighbor
+        interactions are ignored; in this case a cosine cutoff function will be
+        employed.  Default is a 6.5-Angstrom cosine cutoff.
     Gs : dict
         Dictionary of symbols and dictionaries for making fingerprints.  Either
         auto-genetrated, or given in the following form, for example:
@@ -66,6 +68,10 @@ class Bispectrum(object):
         # by default.
         if isinstance(cutoff, int) or isinstance(cutoff, float):
             cutoff = Cosine(cutoff)
+        # If the cutoff is provided as a dictionary, assume we need to load it
+        # with dict2cutoff.
+        if type(cutoff) is dict:
+            cutoff = dict2cutoff(cutoff)
 
         # The parameters dictionary contains the minimum information
         # to produce a compatible descriptor; that is, one that gives
@@ -74,8 +80,7 @@ class Bispectrum(object):
             {'importname': '.descriptor.bispectrum.Bispectrum',
              'mode': 'atom-centered'})
         p.version = version
-        p.cutoff = cutoff.Rc
-        p.cutofffn = cutoff.__class__.__name__
+        p.cutoff = cutoff.todict()
         p.Gs = Gs
         p.jmax = jmax
         p.elements = elements
@@ -126,8 +131,7 @@ class Bispectrum(object):
 
         p = self.parameters
 
-        log('Cutoff radius: %.2f' % p.cutoff)
-        log('Cutoff function: %s' % p.cutofffn)
+        log('Cutoff function: %s' % repr(dict2cutoff(p.cutoff)))
 
         if p.elements is None:
             log('Finding unique set of elements in training data.')
@@ -172,7 +176,7 @@ class Bispectrum(object):
 
         log('Calculating neighborlists...', tic='nl')
         if not hasattr(self, 'neighborlist'):
-            calc = NeighborlistCalculator(cutoff=p.cutoff)
+            calc = NeighborlistCalculator(cutoff=p.cutoff['kwargs']['Rc'])
             self.neighborlist = Data(filename='%s-neighborlists'
                                      % self.dblabel,
                                      calculator=calc)
@@ -184,8 +188,7 @@ class Bispectrum(object):
             calc = FingerprintCalculator(neighborlist=self.neighborlist,
                                          Gs=p.Gs,
                                          jmax=p.jmax,
-                                         cutoff=p.cutoff,
-                                         cutofffn=p.cutofffn)
+                                         cutoff=p.cutoff,)
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
                                      calculator=calc)
@@ -223,9 +226,8 @@ class FingerprintCalculator:
     """For integration with .utilities.Data
     """
 
-    def __init__(self, neighborlist, Gs, jmax, cutoff, cutofffn):
+    def __init__(self, neighborlist, Gs, jmax, cutoff,):
         self.globals = Parameters({'cutoff': cutoff,
-                                   'cutofffn': cutofffn,
                                    'Gs': Gs,
                                    'jmax': jmax})
         self.keyed = Parameters({'neighborlist': neighborlist})
@@ -287,8 +289,14 @@ class FingerprintCalculator:
 
         home = self.atoms[index].position
         cutoff = self.globals.cutoff
-        cutofffn = self.globals.cutofffn
+        Rc = cutoff['kwargs']['Rc']
         jmax = self.globals.jmax
+
+        if cutoff['name'] == 'Cosine':
+            cutoff_fxn = Cosine(Rc)
+        elif cutoff['name'] == 'Polynomial':
+#            cutoff_fxn = Polynomial(cutoff)
+            raise NotImplementedError()
 
         rs = []
         psis = []
@@ -301,7 +309,7 @@ class FingerprintCalculator:
             r = np.linalg.norm(neighbor - home)
             if r > 10.**(-10.):
 
-                psi = np.arcsin(r / cutoff)
+                psi = np.arcsin(r / Rc)
 
                 theta = np.arccos(z / r)
                 if abs((z / r) - 1.0) < 10.**(-8.):
@@ -333,7 +341,8 @@ class FingerprintCalculator:
             j2 = 0.5 * _2j1
             for j in xrange(int(min(_2j1, jmax)) + 1):
                 value = calculate_B(j1, j2, 1.0 * j, self.globals.Gs[symbol],
-                                    cutoff, cutofffn, self.factorial, n_symbols,
+                                    Rc, cutoff['name'],
+                                    self.factorial, n_symbols,
                                     rs, psis, thetas, phis)
                 value = value.real
                 fingerprint.append(value)
@@ -389,7 +398,8 @@ def calculate_c(j, mp, m, G_element, cutoff, cutofffn, factorial, n_symbols,
     if cutofffn is 'Cosine':
         cutoff_fxn = Cosine(cutoff)
     elif cutofffn is 'Polynomial':
-        cutoff_fxn = Polynomial(cutoff)
+#        cutoff_fxn = Polynomial(cutoff)
+        raise NotImplementedError
 
     value = 0.
     for n_symbol, r, psi, theta, phi in zip(n_symbols, rs, psis, thetas, phis):
@@ -647,8 +657,6 @@ if __name__ == "__main__":
         # Request variables.
         socket.send_pyobj(msg('<request>', 'cutoff'))
         cutoff = socket.recv_pyobj()
-        socket.send_pyobj(msg('<request>', 'cutofffn'))
-        cutofffn = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'Gs'))
         Gs = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'jmax'))
@@ -658,7 +666,7 @@ if __name__ == "__main__":
         socket.send_pyobj(msg('<request>', 'images'))
         images = socket.recv_pyobj()
 
-        calc = FingerprintCalculator(neighborlist, Gs, jmax, cutoff, cutofffn)
+        calc = FingerprintCalculator(neighborlist, Gs, jmax, cutoff,)
         result = {}
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.
