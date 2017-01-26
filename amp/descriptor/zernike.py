@@ -6,7 +6,7 @@ from ase.calculators.calculator import Parameters
 from scipy.special import sph_harm
 
 from ..utilities import Data, Logger, importer
-from .cutoffs import Cosine, Polynomial
+from .cutoffs import Cosine, Polynomial, dict2cutoff
 NeighborList = importer('NeighborList')
 try:
     from .. import fmodules
@@ -139,7 +139,7 @@ class Zernike(object):
         if p.cutoff['name'] == 'Cosine':
             log('Cutoff radius: %.2f ' % p.cutoff['kwargs']['Rc'])
         else:
-            log('Cutoff radius: %.2f and gamma=%i ' % (p.cutoff, p.gamma))
+            log('Cutoff radius: %.2f and gamma=%i ' % (p.cutoff['kwargs']['Rc'], p.gamma))
         log('Cutoff function: %s' % repr(dict2cutoff(p.cutoff)))
 
         if p.elements is None:
@@ -281,6 +281,7 @@ class FingerprintCalculator:
         self.keyed = Parameters({'neighborlist': neighborlist})
         self.parallel_command = 'calculate_fingerprints'
         self.fortran = fortran
+        self.cutoff = cutoff
 
         try:  # for scipy v <= 0.90
             from scipy import factorial as fac
@@ -342,7 +343,7 @@ class FingerprintCalculator:
         """
 
         home = self.atoms[index].position
-        cutoff = self.globals.cutoff
+        cutoff = self.cutoff
         p_gamma = self.globals.p_gamma
         Rc = cutoff['kwargs']['Rc']
 
@@ -555,12 +556,12 @@ class FingerprintPrimeCalculator:
         home = self.atoms[index].position
         cutoff = self.globals.cutoff
         Rc = cutoff['kwargs']['Rc']
-        p_gamma = self.globals.p_gamma
+        p_gamma = cutoff['kwargs']['gamma']
 
         if cutoff['name'] is 'Cosine':
-            cutoff_fxn = Cosine(cutoff)
+            cutoff_fxn = Cosine(Rc)
         elif cutoff['name'] is 'Polynomial':
-            cutoff_fxn = Polynomial(cutoff, gamma=p_gamma)
+            cutoff_fxn = Polynomial(Rc, gamma=p_gamma)
 
         fingerprint_prime = []
         for n in xrange(self.globals.nmax + 1):

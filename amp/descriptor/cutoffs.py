@@ -53,7 +53,6 @@ class Cosine(object):
         if Rij > self.Rc:
             return 0.
         else:
-            print('cutoff')
             print(0.5 * (np.cos(np.pi * Rij / self.Rc) + 1.))
             return 0.5 * (np.cos(np.pi * Rij / self.Rc) + 1.)
 
@@ -73,7 +72,6 @@ class Cosine(object):
         if Rij > self.Rc:
             return 0.
         else:
-            print('cutoff prime')
             print(-0.5 * np.pi / self.Rc * np.sin(np.pi * Rij / self.Rc))
             return -0.5 * np.pi / self.Rc * np.sin(np.pi * Rij / self.Rc)
 
