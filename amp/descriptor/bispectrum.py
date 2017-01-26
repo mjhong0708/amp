@@ -3,7 +3,7 @@ from numpy import cos, sqrt, exp
 from ase.data import atomic_numbers
 from ase.calculators.calculator import Parameters
 from ..utilities import Data, Logger, importer
-from ..descriptor.cutoffs import Cosine, Polynomial
+from ..descriptor.cutoffs import Cosine, Polynomial, dict2cutoff
 NeighborList = importer('NeighborList')
 try:
     from .. import fmodules
@@ -78,8 +78,7 @@ class Bispectrum(object):
             {'importname': '.descriptor.bispectrum.Bispectrum',
              'mode': 'atom-centered'})
         p.version = version
-        p.cutoff = cutoff.Rc
-        p.cutofffn = cutoff.__class__.__name__
+        p.cutoff = cutoff.todict()
         p.Gs = Gs
         p.jmax = jmax
         p.elements = elements
@@ -130,8 +129,8 @@ class Bispectrum(object):
 
         p = self.parameters
 
-        log('Cutoff radius: %.2f' % p.cutoff)
-        log('Cutoff function: %s' % p.cutofffn)
+        log('Cutoff radius: %.2f' % p.cutoff['kwargs']['Rc'])
+        log('Cutoff function: %s' % repr(dict2cutoff(p.cutoff)))
 
         if p.elements is None:
             log('Finding unique set of elements in training data.')
@@ -176,7 +175,7 @@ class Bispectrum(object):
 
         log('Calculating neighborlists...', tic='nl')
         if not hasattr(self, 'neighborlist'):
-            calc = NeighborlistCalculator(cutoff=p.cutoff)
+            calc = NeighborlistCalculator(cutoff=p.cutoff['kwargs']['Rc'])
             self.neighborlist = Data(filename='%s-neighborlists'
                                      % self.dblabel,
                                      calculator=calc)
@@ -188,8 +187,8 @@ class Bispectrum(object):
             calc = FingerprintCalculator(neighborlist=self.neighborlist,
                                          Gs=p.Gs,
                                          jmax=p.jmax,
-                                         cutoff=p.cutoff,
-                                         cutofffn=p.cutofffn)
+                                         cutoff=p.cutoff
+                                         )
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
                                      calculator=calc)
@@ -227,9 +226,8 @@ class FingerprintCalculator:
     """For integration with .utilities.Data
     """
 
-    def __init__(self, neighborlist, Gs, jmax, cutoff, cutofffn):
+    def __init__(self, neighborlist, Gs, jmax, cutoff):
         self.globals = Parameters({'cutoff': cutoff,
-                                   'cutofffn': cutofffn,
                                    'Gs': Gs,
                                    'jmax': jmax})
         self.keyed = Parameters({'neighborlist': neighborlist})
@@ -291,7 +289,7 @@ class FingerprintCalculator:
 
         home = self.atoms[index].position
         cutoff = self.globals.cutoff
-        cutofffn = self.globals.cutofffn
+        Rc = cutoff['kwargs']['Rc']
         jmax = self.globals.jmax
 
         rs = []
@@ -305,7 +303,7 @@ class FingerprintCalculator:
             r = np.linalg.norm(neighbor - home)
             if r > 10.**(-10.):
 
-                psi = np.arcsin(r / cutoff)
+                psi = np.arcsin(r / Rc)
 
                 theta = np.arccos(z / r)
                 if abs((z / r) - 1.0) < 10.**(-8.):
@@ -339,10 +337,10 @@ class FingerprintCalculator:
                 print(self.fortran)
                 if self.fortran:
                     types = [j1, j2, 1.0 * j, self.globals.Gs[symbol],
-                                        cutoff, cutofffn, self.factorial, n_symbols,
+                                        cutoff, self.factorial, n_symbols,
                                         rs, psis, thetas, phis]
                     types_s = ['j1', 'j2', '1.0 * j', 'self.globals.Gs[symbol]',
-                                        'cutoff', 'cutofffn', 'self.factorial', 'n_symbols',
+                                        'cutoff', 'self.factorial', 'n_symbols',
                                         'rs', 'psis', 'thetas', 'phis']
                     for index, e in enumerate(types):
                         print(types_s[index], type(e))
@@ -361,8 +359,8 @@ class FingerprintCalculator:
                             j2,
                             1.0 * j,
                             self.globals.Gs[symbol],
-                            cutoff,
-                            cutofffn,
+                            Rc,
+                            cutoff['name'],
                             self.factorial,
                             fac_length,
                             n_symbols,
@@ -376,7 +374,7 @@ class FingerprintCalculator:
                             phis)
                 else:
                     value = calculate_B(j1, j2, 1.0 * j, self.globals.Gs[symbol],
-                                        cutoff, cutofffn, self.factorial, n_symbols,
+                                        Rc, cutoff['name'], self.factorial, n_symbols,
                                         rs, psis, thetas, phis)
                     value = value.real
                     fingerprint.append(value)
