@@ -3,12 +3,8 @@ from numpy import cos, sqrt, exp
 from ase.data import atomic_numbers
 from ase.calculators.calculator import Parameters
 from ..utilities import Data, Logger, importer
-from ..descriptor.cutoffs import Cosine, Polynomial, dict2cutoff
+from .cutoffs import Cosine, dict2cutoff
 NeighborList = importer('NeighborList')
-try:
-    from .. import fmodules
-except ImportError:
-    fmodules = None
 
 
 class Bispectrum(object):
@@ -135,7 +131,6 @@ class Bispectrum(object):
 
         p = self.parameters
 
-        log('Cutoff radius: %.2f' % p.cutoff['kwargs']['Rc'])
         log('Cutoff function: %s' % repr(dict2cutoff(p.cutoff)))
 
         if p.elements is None:
@@ -193,8 +188,7 @@ class Bispectrum(object):
             calc = FingerprintCalculator(neighborlist=self.neighborlist,
                                          Gs=p.Gs,
                                          jmax=p.jmax,
-                                         cutoff=p.cutoff
-                                         )
+                                         cutoff=p.cutoff,)
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
                                      calculator=calc)
@@ -232,7 +226,7 @@ class FingerprintCalculator:
     """For integration with .utilities.Data
     """
 
-    def __init__(self, neighborlist, Gs, jmax, cutoff):
+    def __init__(self, neighborlist, Gs, jmax, cutoff,):
         self.globals = Parameters({'cutoff': cutoff,
                                    'Gs': Gs,
                                    'jmax': jmax})
@@ -301,7 +295,8 @@ class FingerprintCalculator:
         if cutoff['name'] == 'Cosine':
             cutoff_fxn = Cosine(Rc)
         elif cutoff['name'] == 'Polynomial':
-            cutoff_fxn = Polynomial(cutoff)
+#            cutoff_fxn = Polynomial(cutoff)
+            raise NotImplementedError()
 
         rs = []
         psis = []
@@ -345,50 +340,12 @@ class FingerprintCalculator:
             j1 = 0.5 * _2j1
             j2 = 0.5 * _2j1
             for j in xrange(int(min(_2j1, jmax)) + 1):
-                print(self.fortran)
-                if self.fortran:
-                    types = [j1, j2, 1.0 * j, self.globals.Gs[symbol],
-                                        cutoff, self.factorial, n_symbols,
-                                        rs, psis, thetas, phis]
-                    types_s = ['j1', 'j2', '1.0 * j', 'self.globals.Gs[symbol]',
-                                        'cutoff', 'self.factorial', 'n_symbols',
-                                        'rs', 'psis', 'thetas', 'phis']
-                    for index, e in enumerate(types):
-                        print(types_s[index], type(e))
-                        print(e)
-                    print('Not implemented yet.')
-                    # fmodules call has to be with lowercase b, otherwise, it cannot call
-                    # the fortran function correctly.
-                    print(self.globals.Gs[symbol])
-                    fac_length = len(self.factorial)
-                    phis_length = len(phis)
-                    thetas_length = len(thetas)
-                    psis_length = len(psis)
-                    rs_length = len(rs)
-                    value = fmodules.calculate_b(
-                            j1,
-                            j2,
-                            1.0 * j,
-                            self.globals.Gs[symbol],
-                            Rc,
-                            cutoff['name'],
-                            self.factorial,
-                            fac_length,
-                            n_symbols,
-                            rs_length,
-                            rs,
-                            psis_length,
-                            psis,
-                            thetas_length,
-                            thetas,
-                            phis_length,
-                            phis)
-                else:
-                    value = calculate_B(j1, j2, 1.0 * j, self.globals.Gs[symbol],
-                                        Rc, cutoff['name'], self.factorial, n_symbols,
-                                        rs, psis, thetas, phis)
-                    value = value.real
-                    fingerprint.append(value)
+                value = calculate_B(j1, j2, 1.0 * j, self.globals.Gs[symbol],
+                                    Rc, cutoff['name'],
+                                    self.factorial, n_symbols,
+                                    rs, psis, thetas, phis)
+                value = value.real
+                fingerprint.append(value)
 
         return symbol, fingerprint
 
@@ -403,10 +360,6 @@ def calculate_B(j1, j2, j, G_element, cutoff, cutofffn, factorial, n_symbols,
     """
 
     mvals = m_values(j)
-    print('j')
-    print(j)
-    print('mvals')
-    print(mvals)
     B = 0.
     for m in mvals:
         for mp in mvals:
@@ -445,7 +398,8 @@ def calculate_c(j, mp, m, G_element, cutoff, cutofffn, factorial, n_symbols,
     if cutofffn is 'Cosine':
         cutoff_fxn = Cosine(cutoff)
     elif cutofffn is 'Polynomial':
-        cutoff_fxn = Polynomial(cutoff)
+#        cutoff_fxn = Polynomial(cutoff)
+        raise NotImplementedError
 
     value = 0.
     for n_symbol, r, psi, theta, phi in zip(n_symbols, rs, psis, thetas, phis):
@@ -712,7 +666,7 @@ if __name__ == "__main__":
         socket.send_pyobj(msg('<request>', 'images'))
         images = socket.recv_pyobj()
 
-        calc = FingerprintCalculator(neighborlist, Gs, jmax, cutoff)
+        calc = FingerprintCalculator(neighborlist, Gs, jmax, cutoff,)
         result = {}
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.
