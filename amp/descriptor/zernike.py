@@ -205,7 +205,6 @@ class Zernike(object):
                                          Gs=p.Gs,
                                          nmax=p.nmax,
                                          cutoff=p.cutoff,
-                                         p_gamma=p.gamma,
                                          fortran=self.fortran)
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
@@ -222,7 +221,6 @@ class Zernike(object):
                                                Gs=p.Gs,
                                                nmax=p.nmax,
                                                cutoff=p.cutoff,
-                                               p_gamma=p.gamma,
                                                fortran=self.fortran)
                 self.fingerprintprimes = \
                     Data(filename='%s-fingerprint-primes'
@@ -282,9 +280,8 @@ class NeighborlistCalculator:
 class FingerprintCalculator:
     """For integration with .utilities.Data"""
 
-    def __init__(self, neighborlist, Gs, nmax, cutoff, p_gamma, fortran):
+    def __init__(self, neighborlist, Gs, nmax, cutoff, fortran):
         self.globals = Parameters({ 'cutoff': cutoff,
-                                    'p_gamma': p_gamma,
                                     'Gs': Gs,
                                     'nmax': nmax})
         self.keyed = Parameters({'neighborlist': neighborlist})
@@ -353,12 +350,12 @@ class FingerprintCalculator:
 
         home = self.atoms[index].position
         cutoff = self.cutoff
-        p_gamma = self.globals.p_gamma
         Rc = cutoff['kwargs']['Rc']
 
         if cutoff['name'] == 'Cosine':
             cutoff_fxn = Cosine(Rc)
         elif cutoff['name'] == 'Polynomial':
+            p_gamma =  cutoff['kwargs']['gamma']
             cutoff_fxn = Polynomial(Rc, gamma=p_gamma)
 
         fingerprint = []
@@ -438,9 +435,8 @@ class FingerprintCalculator:
 class FingerprintPrimeCalculator:
     """For integration with .utilities.Data"""
 
-    def __init__(self, neighborlist, Gs, nmax, cutoff, p_gamma, fortran):
+    def __init__(self, neighborlist, Gs, nmax, cutoff, fortran):
         self.globals = Parameters({'cutoff': cutoff,
-                                   'p_gamma': p_gamma,
                                    'Gs': Gs,
                                    'nmax': nmax})
         self.keyed = Parameters({'neighborlist': neighborlist})
@@ -565,11 +561,11 @@ class FingerprintPrimeCalculator:
         home = self.atoms[index].position
         cutoff = self.globals.cutoff
         Rc = cutoff['kwargs']['Rc']
-        p_gamma = cutoff['kwargs']['gamma']
 
         if cutoff['name'] is 'Cosine':
             cutoff_fxn = Cosine(Rc)
         elif cutoff['name'] is 'Polynomial':
+            p_gamma = cutoff['kwargs']['gamma']
             cutoff_fxn = Polynomial(Rc, gamma=p_gamma)
 
         fingerprint_prime = []
@@ -583,23 +579,28 @@ class FingerprintPrimeCalculator:
                         if len(Rs) == 0:
                             norm_prime = 0.
                         else:
+                            args_calculate_zernike_prime = dict(
+                                    n=n,
+                                    l=l,
+                                    n_length=len(n_indices),
+                                    n_indices=list(n_indices),
+                                    numbers=numbers,
+                                    rs=Rs,
+                                    g_numbers=G_numbers,
+                                    cutoff=Rc,
+                                    cutofffn=cutoff['name'],
+                                    indexx=index,
+                                    home=home,
+                                    p=p,
+                                    q=q,
+                                    fac_length=len(self.factorial),
+                                    factorial=self.factorial)
+
+                            if cutoff['name'] ==  'Polynomial':
+                                args_calculate_zernike_prime['p_gamma'] = cutoff['kwargs']['gamma']
+
                             norm_prime = \
-                                fmodules.calculate_zernike_prime(n=n,
-                                                                 l=l,
-                                                                 n_length=len(n_indices),
-                                                                 n_indices=list(n_indices),
-                                                                 numbers=numbers,
-                                                                 rs=Rs,
-                                                                 g_numbers=G_numbers,
-                                                                 cutoff=Rc,
-                                                                 cutofffn=cutoff['name'],
-                                                                 p_gamma=p_gamma,
-                                                                 indexx=index,
-                                                                 home=home,
-                                                                 p=p,
-                                                                 q=q,
-                                                                 fac_length=len(self.factorial),
-                                                                 factorial=self.factorial)
+                                fmodules.calculate_zernike_prime(**args_calculate_zernike_prime)
                     else:
                         norm_prime = 0.
                         for m in xrange(l + 1):
