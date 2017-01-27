@@ -53,7 +53,6 @@ class Cosine(object):
         if Rij > self.Rc:
             return 0.
         else:
-            print(0.5 * (np.cos(np.pi * Rij / self.Rc) + 1.))
             return 0.5 * (np.cos(np.pi * Rij / self.Rc) + 1.)
 
     def prime(self, Rij):
@@ -72,7 +71,6 @@ class Cosine(object):
         if Rij > self.Rc:
             return 0.
         else:
-            print(-0.5 * np.pi / self.Rc * np.sin(np.pi * Rij / self.Rc))
             return -0.5 * np.pi / self.Rc * np.sin(np.pi * Rij / self.Rc)
 
     def todict(self):
