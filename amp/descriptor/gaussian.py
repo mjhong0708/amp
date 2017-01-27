@@ -75,7 +75,6 @@ class Gaussian(object):
                                'in atom-centered mode. %s '
                                'specified.' % mode)
 
-        print(cutoff)
         # If the cutoff is provided as a number, Cosine function will be used
         # by default.
         if isinstance(cutoff, int) or isinstance(cutoff, float):
@@ -582,7 +581,6 @@ def calculate_G2(neighborsymbols,
                 args_calculate_g2['p_gamma'] = cutoff['kwargs']['gamma']
 
             ridge = fmodules.calculate_g2(**args_calculate_g2)
-            print('ridge fortran G2', ridge)
 
     else:
         Rc = cutoff['kwargs']['Rc']
@@ -594,9 +592,11 @@ def calculate_G2(neighborsymbols,
             Rj = neighborpositions[count]
             if symbol == G_element:
                 Rij = np.linalg.norm(Rj - Ri)
+                args_cutoff_fxn = dict(Rij=Rij)
+                if cutoff['name'] ==  'Polynomial':
+                    args_cutoff_fxn['gamma'] = cutoff['kwargs']['gamma']
                 ridge += (np.exp(-eta * (Rij ** 2.) / (Rc ** 2.)) *
-                          cutoff_fxn(Rij))
-        print('ridge python G2', ridge)
+                          cutoff_fxn(**args_cutoff_fxn))
     return ridge
 
 
@@ -664,7 +664,6 @@ def calculate_G4(neighborsymbols, neighborpositions,
                 args_calculate_g4['p_gamma'] = cutoff['kwargs']['gamma']
 
             ridge = fmodules.calculate_g4(**args_calculate_g4)
-            print('ridge fortran G4', ridge)
             return ridge
     else:
         Rc = cutoff['kwargs']['Rc']
@@ -686,12 +685,18 @@ def calculate_G4(neighborsymbols, neighborpositions,
                 term = (1. + gamma * cos_theta_ijk) ** zeta
                 term *= np.exp(-eta * (Rij ** 2. + Rik ** 2. + Rjk ** 2.) /
                                (Rc ** 2.))
-                term *= cutoff_fxn(Rij)
-                term *= cutoff_fxn(Rik)
-                term *= cutoff_fxn(Rjk)
+                _Rij = dict(Rij=Rij)
+                _Rik = dict(Rij=Rik)
+                _Rjk = dict(Rij=Rjk)
+                if cutoff['name'] ==  'Polynomial':
+                    _Rij['gamma'] = cutoff['kwargs']['gamma']
+                    _Rik['gamma'] = cutoff['kwargs']['gamma']
+                    _Rjk['gamma'] = cutoff['kwargs']['gamma']
+                term *= cutoff_fxn(**_Rij)
+                term *= cutoff_fxn(**_Rik)
+                term *= cutoff_fxn(**_Rjk)
                 ridge += term
         ridge *= 2. ** (1. - zeta)
-        print('ridge python G4', ridge)
         return ridge
 
 
@@ -966,7 +971,6 @@ def calculate_G2_prime(neighborindices, neighborsymbols, neighborpositions,
                 args_calculate_g2_prime['p_gamma'] = cutoff['kwargs']['gamma']
 
             ridge = fmodules.calculate_g2_prime(**args_calculate_g2_prime)
-        print('ridge prime fortran G2', ridge)
     else:
         Rc = cutoff['kwargs']['Rc']
         cutoff_fxn = dict2cutoff(cutoff)
@@ -980,12 +984,14 @@ def calculate_G2_prime(neighborindices, neighborsymbols, neighborpositions,
                 dRijdRml = dRij_dRml(i, j, Ri, Rj, m, l)
                 if dRijdRml != 0:
                     Rij = np.linalg.norm(Rj - Ri)
-                    term1 = (-2. * eta * Rij * cutoff_fxn(Rij) / (Rc ** 2.) +
-                             cutoff_fxn.prime(Rij))
+                    args_cutoff_fxn = dict(Rij=Rij)
+                    if cutoff['name'] ==  'Polynomial':
+                        args_cutoff_fxn['gamma'] = cutoff['kwargs']['gamma']
+                    term1 = (-2. * eta * Rij * cutoff_fxn(**args_cutoff_fxn) / (Rc ** 2.) +
+                             cutoff_fxn.prime(**args_cutoff_fxn))
                     ridge += np.exp(- eta * (Rij ** 2.) / (Rc ** 2.)) * \
                         term1 * dRijdRml
 
-        print('ridge prime python G2', ridge)
     return ridge
 
 
@@ -1065,7 +1071,6 @@ def calculate_G4_prime(neighborindices, neighborsymbols, neighborpositions,
                 args_calculate_g4_prime['p_gamma'] = cutoff['kwargs']['gamma']
 
             ridge = fmodules.calculate_g4_prime(**args_calculate_g4_prime)
-            print('ridge prime fortran G4', ridge)
     else:
         Rc = cutoff['kwargs']['Rc']
         cutoff_fxn = dict2cutoff(cutoff)
@@ -1087,9 +1092,18 @@ def calculate_G4_prime(neighborindices, neighborsymbols, neighborpositions,
                 Rjk = np.linalg.norm(Rjk_vector)
                 cos_theta_ijk = np.dot(Rij_vector, Rik_vector) / Rij / Rik
                 c1 = (1. + gamma * cos_theta_ijk)
-                fcRij = cutoff_fxn(Rij)
-                fcRik = cutoff_fxn(Rik)
-                fcRjk = cutoff_fxn(Rjk)
+
+                _Rij = dict(Rij=Rij)
+                _Rik = dict(Rij=Rik)
+                _Rjk = dict(Rij=Rjk)
+                if cutoff['name'] == 'Polynomial':
+                    _Rij['gamma'] = cutoff['kwargs']['gamma']
+                    _Rik['gamma'] = cutoff['kwargs']['gamma']
+                    _Rjk['gamma'] = cutoff['kwargs']['gamma']
+
+                fcRij = cutoff_fxn(**_Rij)
+                fcRik = cutoff_fxn(**_Rik)
+                fcRjk = cutoff_fxn(**_Rjk)
                 if zeta == 1:
                     term1 = \
                         np.exp(- eta * (Rij ** 2. + Rik ** 2. + Rjk ** 2.) /
@@ -1119,14 +1133,13 @@ def calculate_G4_prime(neighborindices, neighborsymbols, neighborpositions,
                 if dRjkdRml != 0:
                     term2 += -2. * c1 * eta * Rjk * dRjkdRml / (Rc ** 2.)
                 term3 = fcRijfcRikfcRjk * term2
-                term4 = cutoff_fxn.prime(Rij) * dRijdRml * fcRik * fcRjk
-                term5 = fcRij * cutoff_fxn.prime(Rik) * dRikdRml * fcRjk
-                term6 = fcRij * fcRik * cutoff_fxn.prime(Rjk) * dRjkdRml
+                term4 = cutoff_fxn.prime(**_Rij) * dRijdRml * fcRik * fcRjk
+                term5 = fcRij * cutoff_fxn.prime(**_Rik) * dRikdRml * fcRjk
+                term6 = fcRij * fcRik * cutoff_fxn.prime(**_Rjk) * dRjkdRml
 
                 ridge += term1 * (term3 + c1 * (term4 + term5 + term6))
 
         ridge *= 2. ** (1. - zeta)
-        print('ridge prime python G4', ridge)
 
     return ridge
 

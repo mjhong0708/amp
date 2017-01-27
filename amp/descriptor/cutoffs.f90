@@ -16,7 +16,6 @@
               p_gamma = p_gamma
           endif
 
-          print*, 'New cutoff_fxn'
           if (cutofffn == 'Cosine') then
               if (r > rc) then
                       cutoff_fxn = 0.0d0
@@ -33,7 +32,6 @@
                       - (p_gamma + 1) * (r / rc) ** p_gamma
               end if
           endif
-          print*, r, rc, cutofffn, p_gamma, cutoff_fxn
       end function cutoff_fxn
 
       function cutoff_fxn_prime(r, rc, cutofffn, p_gamma)
@@ -50,7 +48,6 @@
               p_gamma = p_gamma
           endif
 
-          print*, 'New cutoff_fxn_prime'
 
           if (cutofffn == 'Cosine') then
               if (r > rc) then
@@ -69,7 +66,6 @@
                 ** (p_gamma - 1))
               end if
           end if
-          print*, r, rc, cutofffn, p_gamma, cutoff_fxn_prime
       end function cutoff_fxn_prime
 
       end module cutoffs

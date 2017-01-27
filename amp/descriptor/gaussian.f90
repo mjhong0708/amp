@@ -22,7 +22,7 @@
 !f2py         intent(out):: ridge
               integer:: j, match, xyz
               double precision, dimension(3):: Rij_vector
-              double precision:: Rij, term, cut
+              double precision:: Rij, term
 
 
               ridge = 0.0d0
@@ -37,16 +37,12 @@
                     term = exp(-g_eta*(Rij**2.0d0) / (rc ** 2.0d0))
                     if(present(p_gamma))then
                         p_gamma = p_gamma
-                        cut = cutoff_fxn(Rij, rc, cutofffn, p_gamma)
-                        term = term * cut
-                        print*,'cut', cut
+                        term = term * cutoff_fxn(Rij, rc, &
+                            cutofffn, p_gamma)
                     else
-                        cut = cutoff_fxn(Rij, rc, cutofffn)
-                        print*, 'Received cutoff g2 f', cut
-                        term = term * cut
+                        term = term * cutoff_fxn(Rij, rc, cutofffn)
                     endif
                     ridge = ridge + term
-                    print*, 'ridge printed in f'
                   end if
               end do
 
