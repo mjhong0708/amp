@@ -28,7 +28,7 @@ energy contributions:
   E(\textbf{R})=\sum_{\text{atom}=1}^{N}E_\text{atom}(\textbf{R}).
 
 The above expansion can be justified by assembling the atomic configuration by bringing
-atoms close to each other one by one. Then the atomic energy contributions can be
+atoms close to each other one by one. Then the atomic energy contributions (instead of the energy of the whole system at once) can be
 approximated using a regression method:
 
 .. math::
@@ -45,9 +45,9 @@ as the input of regression operator:
 .. math::
   \textbf{R}\xrightarrow{\textbf{G}}\textbf{G}\left(\textbf{R}\right)\xrightarrow{\text{regression}}E_\text{atom}=E_\text{atom}\left(\textbf{G}\left(\textbf{R}\right)\right).
 
-******
+********
 Gaussian
-******
+********
 
 Gaussian descriptor :math:`\textbf{G}` as a function of pair-atom distances and
 three-atom angles, has been suggested by Behler [1], and is implemented within
@@ -84,24 +84,34 @@ derivative should be continuous in :math:`R_{ij}\in\left[0,\infty\right)`. One p
 expression for such a function as proposed by Behler [1] is
 
 .. math::
-    f_{c}\left(R_{ij}\right)==
+    f_{c}\left(r\right)==
     \begin{cases}
-    &0.5\left(1+\cos\left(\pi\displaystyle\frac{R_{ij}}{R_c}\right)\right)\qquad \text{for}\;\: R_{ij}\leq R_{c},\\
-    &0\qquad\qquad\qquad\qquad\quad\quad\quad\:\: \text{for}\;\: R_{ij}> R_{c}.\\
+    &0.5\left(1+\cos\left(\pi\displaystyle\frac{r}{R_c}\right)\right)\qquad \text{for}\;\: r\leq R_{c},\\
+    &0\qquad\qquad\qquad\qquad\quad\quad\quad\:\: \text{for}\;\: r> R_{c}.\\
     \end{cases}
 
+Another more general choice for the cutoff function is the following polynomial [5]:
+
+.. math::
+    f_{c} \left( r \right)=
+    \begin{cases}
+                1 + \gamma \cdot \left(r/R_c\right)^{\gamma + 1} - (\gamma + 1) \left(r/R_c\right)^{\gamma}\qquad\quad &\text{if}\;\: r\leq R_{c},\\
+     0&\text{if}\;\: r> R_{c},\\
+    \end{cases}
+
+with a user-specified parameter :math:`\gamma` that determines the rate of decay of the cutoff function as it extends from :math:`r=0` to :math:`r=R_c`.
 Figure below shows how components of fingerprints :math:`\textbf{G}_{i}^{I}` and
 :math:`\textbf{G}_{i}^{II}` change with, respectively, distance :math:`R_{ij}` between
 pair atoms :math:`i` and :math:`j` and valence angle :math:`\theta_{ijk}` between triplet of
 atoms :math:`i`, :math:`j`, and :math:`k` with central atom :math:`i`:
 
-.. image:: _static/gaussian.png
-   :scale: 80 %
+.. image:: _static/gaussian.svg
+   :width: 800 px
    :align: center
 
-******
+*******
 Zernike
-******
+*******
 
 Three-dimensional Zernike descriptor is also available inside Amp, and can be
 used as the atomic environment descriptor. Zernike-type descriptor has been
@@ -128,18 +138,18 @@ shifted to atomic positions:
 Next components of Zernike descriptor are computed from Zernike moments of the
 above atomic density destribution for each atom :math:`i`.
 
-Figure below show how components of Zernike descriptor vary with pair-atom
+Figure below shows how components of Zernike descriptor vary with pair-atom
 distance, three-atom angle, and four-atom dehidral angle. It is important to
 note that components of the Gaussian descriptor discussed above are
 non-sensitive to the four-atom dehidral angle of the following figure.
 
-.. image:: _static/zernike.png
-   :scale: 80 %
+.. image:: _static/zernike.svg
+   :width: 1200 px
    :align: center
 
-******
+**********
 Bispectrum
-******
+**********
 
 Bispectrum of four-dimensional spherical harmonics have been suggested by
 Bartok et al. [3] to be invariant under rotation of local atomic environment.
@@ -186,8 +196,8 @@ unbounded linear activation function is particularly useful in the last hidden l
 scale neural network outputs to the range of reference values. For our purpose, the output
 of neural network represents energy of atomic system.
 
-.. image:: _static/nn.png
-   :scale: 05 %
+.. image:: _static/nn.svg
+   :width: 500 px
    :align: center
 
 **References:**
@@ -199,3 +209,5 @@ of neural network represents energy of atomic system.
 3. "Gaussian approximation potentials: The accuracy of quantum mechanics, without the electrons", A.P. Bart\'ok, M.C. Payne, R. Kondor and G. Csanyi, Physical Review Letters 104, 136403 (2010)
 
 4. "A logical calculus of the ideas immanent in nervous activity", W.S. McCulloch, and W.H. Pitts, Bull. Math. Biophys. 5, 115--133 (1943)
+
+5. "Amp: A modular approach to machine learning in atomistic simulations", A. Khorshidi, and A.A. Peterson, Comput. Phys. Commun. 207, 310--324 (2016)

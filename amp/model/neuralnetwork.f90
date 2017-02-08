@@ -35,14 +35,14 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !     Returns energy value in the image-centered mode. 
-      function get_image_energy(num_inputs, inputs, num_parameters, &
+      function calculate_image_energy(num_inputs, inputs, num_parameters, &
       parameters)
       implicit none
       
       integer:: num_inputs, num_parameters
       double precision:: inputs(num_inputs)
       double precision:: parameters(num_parameters)
-      double precision:: get_image_energy
+      double precision:: calculate_image_energy
    
       integer:: p, m, n, layer
       integer:: l, j, num_rows, num_cols, q
@@ -118,7 +118,7 @@
           deallocate(net)
       end do
       
-      get_image_energy = slope * o(layer)%onedarray(1) + intercept
+      calculate_image_energy = slope * o(layer)%onedarray(1) + intercept
 
 !     deallocating neural network
       deallocate(hiddensizes)
@@ -137,11 +137,11 @@
       end do
       deallocate(weights)
 
-      end function get_image_energy
+      end function calculate_image_energy
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !     Returns energy value in the atom-centered mode. 
-      function get_atomic_energy(symbol, &
+      function calculate_atomic_energy(symbol, &
       len_of_fingerprint, fingerprint, &
       num_elements, elements_numbers, &
       num_parameters, parameters)
@@ -152,7 +152,7 @@
       double precision:: fingerprint(len_of_fingerprint)
       integer:: elements_numbers(num_elements)
       double precision:: parameters(num_parameters)
-      double precision:: get_atomic_energy
+      double precision:: calculate_atomic_energy
    
       integer:: p, element, m, n, layer
       integer:: k, l, j, num_rows, num_cols, q
@@ -270,7 +270,7 @@
           deallocate(net)
       end do
 
-      get_atomic_energy = unraveled_parameters(element)%slope * &
+      calculate_atomic_energy = unraveled_parameters(element)%slope * &
       o(layer)%onedarray(1) + unraveled_parameters(element)%intercept
 
 !     deallocating neural network
@@ -289,11 +289,11 @@
         deallocate(unraveled_parameters(element)%weights)
       end do
 
-      end function get_atomic_energy
+      end function calculate_atomic_energy
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !     Returns force value in the image-centered mode.
-      function get_force_(num_inputs, inputs, inputs_, &
+      function calculate_force_(num_inputs, inputs, inputs_, &
       num_parameters, parameters)
       implicit none
       
@@ -301,7 +301,7 @@
       double precision:: inputs(num_inputs)
       double precision:: inputs_(num_inputs)
       double precision:: parameters(num_parameters)
-      double precision:: get_force_
+      double precision:: calculate_force_
    
       double precision, allocatable:: temp(:)
       integer:: p, q, m, n, nn, layer
@@ -408,9 +408,9 @@
           deallocate(temp)
       end do
 
-      get_force_ = slope * doutputs_dinputs(nn + 2)%onedarray(1)
+      calculate_force_ = slope * doutputs_dinputs(nn + 2)%onedarray(1)
       ! force is multiplied by -1, because it is -dE/dx and not dE/dx.
-      get_force_ = -1.0d0 * get_force_
+      calculate_force_ = -1.0d0 * calculate_force_
 !     deallocating neural network
       deallocate(hiddensizes)
       do p = 1, size(o)
@@ -432,11 +432,11 @@
       end do
       deallocate(weights)
    
-      end function get_force_
+      end function calculate_force_
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !     Returns force value in the atom-centered mode.
-      function get_force(symbol, len_of_fingerprint, fingerprint, &
+      function calculate_force(symbol, len_of_fingerprint, fingerprint, &
       fingerprintprime, num_elements, elements_numbers, &
       num_parameters, parameters)
       implicit none
@@ -447,7 +447,7 @@
       double precision:: fingerprintprime(len_of_fingerprint)
       integer:: elements_numbers(num_elements)
       double precision:: parameters(num_parameters)
-      double precision:: get_force
+      double precision:: calculate_force
    
       double precision, allocatable:: temp(:)
       integer:: p, q, element, m, n, nn, layer
@@ -616,10 +616,10 @@
           deallocate(temp)
       end do
 
-      get_force = unraveled_parameters(element)%slope * &
+      calculate_force = unraveled_parameters(element)%slope * &
       doutputs_dinputs(nn + 2)%onedarray(1)
       ! force is multiplied by -1, because it is -dE/dx and not dE/dx.
-      get_force = -1.0d0 * get_force
+      calculate_force = -1.0d0 * calculate_force
 !     deallocating neural network
       deallocate(hiddensizes)
       do p = 1, size(o)
@@ -640,17 +640,17 @@
         deallocate(unraveled_parameters(element)%weights)
       end do
    
-      end function get_force
+      end function calculate_force
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !     Returns derivative of energy w.r.t. parameters in the
 !     image-centered mode.       
-      function get_denergy_dparameters_(num_inputs, inputs, &
+      function calculate_denergy_dparameters_(num_inputs, inputs, &
       num_parameters, parameters)
       implicit none
       
       integer:: num_inputs, num_parameters    
-      double precision:: get_denergy_dparameters_(num_parameters)
+      double precision:: calculate_denergy_dparameters_(num_parameters)
       double precision:: parameters(num_parameters)
       double precision:: inputs(num_inputs)
       
@@ -820,7 +820,7 @@
           num_cols = no_nodes_of_elements(j + 1)
           do p = 1, num_rows
               do q = 1, num_cols
-                  get_denergy_dparameters_(&
+                  calculate_denergy_dparameters_(&
                   l + (p - 1) * num_cols + q) = &
                   unraveled_denergy_dweights(j)%twodarray(p, q)
               end do
@@ -828,8 +828,8 @@
           l = l + num_rows * num_cols
       end do
 
-      get_denergy_dparameters_(l + 1) = denergy_dintercept
-      get_denergy_dparameters_(l + 2) = denergy_dslope
+      calculate_denergy_dparameters_(l + 1) = denergy_dintercept
+      calculate_denergy_dparameters_(l + 2) = denergy_dslope
 
 !     deallocating derived-type parameters 
       do p = 1, size(weights)
@@ -841,19 +841,19 @@
       end do
       deallocate(unraveled_denergy_dweights)
  
-      end function get_denergy_dparameters_
+      end function calculate_denergy_dparameters_
    
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !     Returns derivative of energy w.r.t. parameters in the
 !     atom-centered mode.         
-      function get_datomicenergy_dparameters(symbol, &
+      function calculate_datomicenergy_dparameters(symbol, &
       len_of_fingerprint, fingerprint, num_elements, &
       elements_numbers, num_parameters, parameters)
       implicit none
       
       integer:: num_parameters, num_elements   
       integer:: symbol, len_of_fingerprint
-      double precision:: get_datomicenergy_dparameters(num_parameters)
+      double precision:: calculate_datomicenergy_dparameters(num_parameters)
       double precision:: parameters(num_parameters)
       double precision:: fingerprint(len_of_fingerprint)
       integer:: elements_numbers(num_elements)
@@ -1082,7 +1082,7 @@
             num_cols = no_nodes_of_elements(k + j + 1)
             do p = 1, num_rows
                 do q = 1, num_cols
-                    get_datomicenergy_dparameters(&
+                    calculate_datomicenergy_dparameters(&
                     l + (p - 1) * num_cols + q) = &
                     unraveled_daenergy_dparameters(&
                     element)%weights(j)%twodarray(p, q)
@@ -1092,9 +1092,9 @@
         end do
       end do
       do element = 1, num_elements
-        get_datomicenergy_dparameters(l + 2 *  element - 1) = &
+        calculate_datomicenergy_dparameters(l + 2 *  element - 1) = &
         unraveled_daenergy_dparameters(element)%intercept
-        get_datomicenergy_dparameters(l + 2 * element) = &
+        calculate_datomicenergy_dparameters(l + 2 * element) = &
         unraveled_daenergy_dparameters(element)%slope
       end do
 
@@ -1104,17 +1104,17 @@
         deallocate(unraveled_daenergy_dparameters(element)%weights)
       end do
  
-      end function get_datomicenergy_dparameters
+      end function calculate_datomicenergy_dparameters
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !     Returns derivative of force w.r.t. parameters in the 
 !     image-centered mode.   
-      function get_dforce_dparameters_(num_inputs, inputs, &
+      function calculate_dforce_dparameters_(num_inputs, inputs, &
       inputs_, num_parameters, parameters)
       implicit none
       
       integer:: num_inputs, num_parameters    
-      double precision:: get_dforce_dparameters_(num_parameters)
+      double precision:: calculate_dforce_dparameters_(num_parameters)
       double precision:: parameters(num_parameters)
       double precision:: inputs(num_inputs)
       double precision:: inputs_(num_inputs)
@@ -1421,15 +1421,15 @@
           num_cols = no_nodes_of_elements(j + 1)
           do p = 1, num_rows
               do q = 1, num_cols
-                  get_dforce_dparameters_(&
+                  calculate_dforce_dparameters_(&
                   l + (p - 1) * num_cols + q) = &
                   unraveled_dforce_dweights(j)%twodarray(p, q)
               end do
           end do
           l = l + num_rows * num_cols
       end do
-      get_dforce_dparameters_(l + 1) = dforce_dintercept
-      get_dforce_dparameters_(l + 2) = dforce_dslope
+      calculate_dforce_dparameters_(l + 1) = dforce_dintercept
+      calculate_dforce_dparameters_(l + 2) = dforce_dslope
 
 !     deallocating derived-type parameters      
       do p = 1, size(weights)
@@ -1441,12 +1441,12 @@
       end do
       deallocate(unraveled_dforce_dweights)
       
-      end function get_dforce_dparameters_
+      end function calculate_dforce_dparameters_
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !     Returns derivative of force w.r.t. parameters in the 
 !     atom-centered mode   
-      function get_dforce_dparameters(symbol, len_of_fingerprint, &
+      function calculate_dforce_dparameters(symbol, len_of_fingerprint, &
       fingerprint, fingerprintprime, num_elements, elements_numbers, &
       num_parameters, parameters)
       implicit none
@@ -1457,7 +1457,7 @@
       double precision:: fingerprintprime(len_of_fingerprint)
       integer:: elements_numbers(num_elements)
       double precision:: parameters(num_parameters)
-      double precision:: get_dforce_dparameters(num_parameters)
+      double precision:: calculate_dforce_dparameters(num_parameters)
 
       integer:: element, m, n, j, k, l, layer, p, q, nn, num_cols
       integer:: num_rows
@@ -1851,7 +1851,7 @@
             num_cols = no_nodes_of_elements(k + j + 1)
             do p = 1, num_rows
                 do q = 1, num_cols
-                    get_dforce_dparameters(&
+                    calculate_dforce_dparameters(&
                     l + (p - 1) * num_cols + q) = &
                     unraveled_dforce_dparameters(&
                     element)%weights(j)%twodarray(p, q)
@@ -1861,9 +1861,9 @@
         end do
       end do
       do element = 1, num_elements
-        get_dforce_dparameters(l + 2 *  element - 1) = &
+        calculate_dforce_dparameters(l + 2 *  element - 1) = &
         unraveled_dforce_dparameters(element)%intercept
-        get_dforce_dparameters(l + 2 * element) = &
+        calculate_dforce_dparameters(l + 2 * element) = &
         unraveled_dforce_dparameters(element)%slope
       end do
 
@@ -1873,7 +1873,7 @@
         deallocate(unraveled_dforce_dparameters(element)%weights)
       end do
       
-      end function get_dforce_dparameters
+      end function calculate_dforce_dparameters
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       

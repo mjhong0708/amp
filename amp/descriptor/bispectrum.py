@@ -2,50 +2,46 @@ import numpy as np
 from numpy import cos, sqrt, exp
 from ase.data import atomic_numbers
 from ase.calculators.calculator import Parameters
-from amp.utilities import Data, Logger, importer
-from amp.descriptor.cutoffs import Cosine, Polynomial
+from ..utilities import Data, Logger, importer
+from .cutoffs import Cosine, dict2cutoff
 NeighborList = importer('NeighborList')
 
 
 class Bispectrum(object):
+    """Class that calculates spherical harmonic bispectrum fingerprints.
 
-    """
-    Class that calculates spherical harmonic bispectrum fingerprints.
-
-    :param cutoff: Cutoff function. Can be also fed as a float representing the
-                   radius above which neighbor interactions are ignored.
-                   Default is 6.5 Angstroms.
-    :type cutoff: object or float
-
-    :param Gs: Dictionary of symbols and dictionaries for making fingerprints.
-                Either auto-genetrated, or given in the following form,
-                for example:
+    Parameters
+    ----------
+    cutoff : object or float
+        Cutoff function, typically from amp.descriptor.cutoffs.  Can be also
+        fed as a float representing the radius above which neighbor
+        interactions are ignored; in this case a cosine cutoff function will be
+        employed.  Default is a 6.5-Angstrom cosine cutoff.
+    Gs : dict
+        Dictionary of symbols and dictionaries for making fingerprints.  Either
+        auto-genetrated, or given in the following form, for example:
 
                >>> Gs = {"Au": {"Au": 3., "O": 2.}, "O": {"Au": 5., "O": 10.}}
 
-    :type Gs: dict
+    jmax : integer or half-integer or dict
+        Maximum degree of spherical harmonics that will be included in the
+        fingerprint vector. Can be also fed as a dictionary with chemical
+        species as keys.
+    dblabel : str
+        Optional separate prefix/location for database files, including
+        fingerprints, fingerprint derivatives, and neighborlists. This file
+        location can be shared between calculator instances to avoid
+        re-calculating redundant information. If not supplied, just uses the
+        value from label.
+    elements : list
+        List of allowed elements present in the system. If not provided, will
+        be found automatically.
+    version : str
+        Version of fingerprints.
 
-    :param jmax: Maximum degree of spherical harmonics that will be included in
-                  the fingerprint vector. Can be also fed as a dictionary with
-                  chemical species as keys.
-    :type jmax: integer or half-integer or dict
-
-    :param dblabel: Optional separate prefix/location for database files,
-                    including fingerprints, fingerprint derivatives, and
-                    neighborlists. This file location can be shared between
-                    calculator instances to avoid re-calculating redundant
-                    information. If not supplied, just uses the value from
-                    label.
-    :type dblabel: str
-
-    :param elements: List of allowed elements present in the system. If not
-                     provided, will be found automatically.
-    :type elements: list
-
-    :param version: Version of fingerprints.
-    :type version: str
-
-    :raises: RuntimeError, TypeError
+    Raises:
+    -------
+        RuntimeError, TypeError
     """
 
     def __init__(self, cutoff=Cosine(6.5), Gs=None, jmax=5, dblabel=None,
@@ -72,6 +68,10 @@ class Bispectrum(object):
         # by default.
         if isinstance(cutoff, int) or isinstance(cutoff, float):
             cutoff = Cosine(cutoff)
+        # If the cutoff is provided as a dictionary, assume we need to load it
+        # with dict2cutoff.
+        if type(cutoff) is dict:
+            cutoff = dict2cutoff(cutoff)
 
         # The parameters dictionary contains the minimum information
         # to produce a compatible descriptor; that is, one that gives
@@ -80,8 +80,7 @@ class Bispectrum(object):
             {'importname': '.descriptor.bispectrum.Bispectrum',
              'mode': 'atom-centered'})
         p.version = version
-        p.cutoff = cutoff.Rc
-        p.cutofffn = cutoff.__class__.__name__
+        p.cutoff = cutoff.todict()
         p.Gs = Gs
         p.jmax = jmax
         p.elements = elements
@@ -94,11 +93,30 @@ class Bispectrum(object):
         be used to restart the calculator."""
         return self.parameters.tostring()
 
-    def calculate_fingerprints(self, images, cores=1, fortran=False,
-                               log=None, calculate_derivatives=False):
+    def calculate_fingerprints(self, images, parallel=None, log=None,
+                               calculate_derivatives=False):
         """Calculates the fingerpints of the images, for the ones not already
-        done."""
+        done.
 
+        Parameters
+        ----------
+        images : list or str
+            List of ASE atoms objects with positions, symbols, energies, and
+            forces in ASE format. This is the training set of data. This can
+            also be the path to an ASE trajectory (.traj) or database (.db)
+            file. Energies can be obtained from any reference, e.g. DFT
+            calculations.
+        parallel : dict
+            Configuration for parallelization. Should be in same form as in
+            amp.Amp.
+        log : Logger object
+            Write function at which to log data. Note this must be a callable
+            function.
+        calculate_derivatives : bool
+            Decides whether or not fingerprintprimes should also be calculated.
+        """
+        if parallel is None:
+            parallel = {'cores': 1}
         if calculate_derivatives is True:
             import warnings
             warnings.warn('Zernike descriptor cannot train forces yet. '
@@ -113,8 +131,7 @@ class Bispectrum(object):
 
         p = self.parameters
 
-        log('Cutoff radius: %.2f' % p.cutoff)
-        log('Cutoff function: %s' % p.cutofffn)
+        log('Cutoff function: %s' % repr(dict2cutoff(p.cutoff)))
 
         if p.elements is None:
             log('Finding unique set of elements in training data.')
@@ -159,11 +176,11 @@ class Bispectrum(object):
 
         log('Calculating neighborlists...', tic='nl')
         if not hasattr(self, 'neighborlist'):
-            calc = NeighborlistCalculator(cutoff=p.cutoff)
+            calc = NeighborlistCalculator(cutoff=p.cutoff['kwargs']['Rc'])
             self.neighborlist = Data(filename='%s-neighborlists'
                                      % self.dblabel,
                                      calculator=calc)
-        self.neighborlist.calculate_items(images, cores=cores, log=log)
+        self.neighborlist.calculate_items(images, parallel=parallel, log=log)
         log('...neighborlists calculated.', toc='nl')
 
         log('Fingerprinting images...', tic='fp')
@@ -171,12 +188,11 @@ class Bispectrum(object):
             calc = FingerprintCalculator(neighborlist=self.neighborlist,
                                          Gs=p.Gs,
                                          jmax=p.jmax,
-                                         cutoff=p.cutoff,
-                                         cutofffn=p.cutofffn)
+                                         cutoff=p.cutoff,)
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
                                      calculator=calc)
-        self.fingerprints.calculate_items(images, cores=cores, log=log)
+        self.fingerprints.calculate_items(images, parallel=parallel, log=log)
         log('...fingerprints calculated.', toc='fp')
 
 
@@ -185,8 +201,8 @@ class Bispectrum(object):
 
 # Neighborlist Calculator
 class NeighborlistCalculator:
-
     """For integration with .utilities.Data
+
     For each image fed to calculate, a list of neighbors with offset
     distances is returned.
     """
@@ -207,12 +223,11 @@ class NeighborlistCalculator:
 
 
 class FingerprintCalculator:
+    """For integration with .utilities.Data
+    """
 
-    """For integration with .utilities.Data"""
-
-    def __init__(self, neighborlist, Gs, jmax, cutoff, cutofffn):
+    def __init__(self, neighborlist, Gs, jmax, cutoff,):
         self.globals = Parameters({'cutoff': cutoff,
-                                   'cutofffn': cutofffn,
                                    'Gs': Gs,
                                    'jmax': jmax})
         self.keyed = Parameters({'neighborlist': neighborlist})
@@ -225,6 +240,13 @@ class FingerprintCalculator:
 
     def calculate(self, image, key):
         """Makes a list of fingerprints, one per atom, for the fed image.
+
+        Parameters
+        ----------
+        image : object
+            ASE atoms object.
+        key : str
+            key of the image after being hashed.
         """
         nl = self.keyed.neighborlist[key]
         fingerprints = []
@@ -242,31 +264,39 @@ class FingerprintCalculator:
         return fingerprints
 
     def get_fingerprint(self, index, symbol, n_symbols, Rs):
-        """
-        Returns the fingerprint of symmetry function values for atom
-        specified by its index and symbol. n_symbols and Rs are lists of
+        """Returns the fingerprint of symmetry function values for atom
+        specified by its index and symbol.
+
+        n_symbols and Rs are lists of
         neighbors' symbols and Cartesian positions, respectively.
 
-        :param index: Index of the center atom.
-        :type index: int
+        Parameters
+        ----------
+        index : int
+            Index of the center atom.
+        symbol : str
+            Symbol of the center atom.
+        n_symbols : list of str
+            List of neighbors' symbols.
+        Rs : list of list of float
+            List of Cartesian atomic positions of neighbors.
 
-        :param symbol: Symbol of the center atom.
-        :type symbol: str
-
-        :param n_symbols: List of neighbors' symbols.
-        :type n_symbols: list of str
-
-        :param Rs: List of Cartesian atomic positions of neighbors.
-        :type Rs: list of list of float
-
-        :returns: list of float -- fingerprints for atom specified by its index
-                                    and symbol.
+        Returns
+        -------
+        symbols, fingerprints : list of float
+            fingerprints for atom specified by its index and symbol.
         """
 
         home = self.atoms[index].position
         cutoff = self.globals.cutoff
-        cutofffn = self.globals.cutofffn
+        Rc = cutoff['kwargs']['Rc']
         jmax = self.globals.jmax
+
+        if cutoff['name'] == 'Cosine':
+            cutoff_fxn = Cosine(Rc)
+        elif cutoff['name'] == 'Polynomial':
+#            cutoff_fxn = Polynomial(cutoff)
+            raise NotImplementedError()
 
         rs = []
         psis = []
@@ -279,7 +309,7 @@ class FingerprintCalculator:
             r = np.linalg.norm(neighbor - home)
             if r > 10.**(-10.):
 
-                psi = np.arcsin(r / cutoff)
+                psi = np.arcsin(r / Rc)
 
                 theta = np.arccos(z / r)
                 if abs((z / r) - 1.0) < 10.**(-8.):
@@ -311,7 +341,8 @@ class FingerprintCalculator:
             j2 = 0.5 * _2j1
             for j in xrange(int(min(_2j1, jmax)) + 1):
                 value = calculate_B(j1, j2, 1.0 * j, self.globals.Gs[symbol],
-                                    cutoff, cutofffn, self.factorial, n_symbols,
+                                    Rc, cutoff['name'],
+                                    self.factorial, n_symbols,
                                     rs, psis, thetas, phis)
                 value = value.real
                 fingerprint.append(value)
@@ -323,8 +354,7 @@ class FingerprintCalculator:
 
 def calculate_B(j1, j2, j, G_element, cutoff, cutofffn, factorial, n_symbols,
                 rs, psis, thetas, phis):
-    """
-    Calculates bi-spectrum B_{j1, j2, j} according to Eq. (5) of "Gaussian
+    """Calculates bi-spectrum B_{j1, j2, j} according to Eq. (5) of "Gaussian
     Approximation Potentials: The Accuracy of Quantum Mechanics, without the
     Electrons", Phys. Rev. Lett. 104, 136403.
     """
@@ -360,8 +390,7 @@ def calculate_B(j1, j2, j, G_element, cutoff, cutofffn, factorial, n_symbols,
 
 def calculate_c(j, mp, m, G_element, cutoff, cutofffn, factorial, n_symbols,
                 rs, psis, thetas, phis):
-    """
-    Calculates c^{j}_{m'm} according to Eq. (4) of "Gaussian Approximation
+    """Calculates c^{j}_{m'm} according to Eq. (4) of "Gaussian Approximation
     Potentials: The Accuracy of Quantum Mechanics, without the Electrons",
     Phys. Rev. Lett. 104, 136403
     """
@@ -369,7 +398,8 @@ def calculate_c(j, mp, m, G_element, cutoff, cutofffn, factorial, n_symbols,
     if cutofffn is 'Cosine':
         cutoff_fxn = Cosine(cutoff)
     elif cutofffn is 'Polynomial':
-        cutoff_fxn = Polynomial(cutoff)
+#        cutoff_fxn = Polynomial(cutoff)
+        raise NotImplementedError
 
     value = 0.
     for n_symbol, r, psi, theta, phi in zip(n_symbols, rs, psis, thetas, phis):
@@ -475,8 +505,7 @@ def WignerD(j, m, mp, alpha, beta, gamma, factorial):
 
 
 def U(j, m, mp, omega, theta, phi, factorial):
-    """
-    Calculates rotation matrix U_{MM'}^{J} in terms of rotation angle omega as
+    """Calculates rotation matrix U_{MM'}^{J} in terms of rotation angle omega as
     well as rotation axis angles theta and phi, according to Varshalovich,
     Eq. (3), Section 4.5, Page 81. j, m, mp, and mpp here are J, M, M', and M''
     in Eq. (3).
@@ -549,13 +578,16 @@ def CG(a, alpha, b, beta, c, gamma, factorial):
 
 
 def generate_coefficients(elements):
-    """
-    Automatically generates coefficients if not given by the user.
+    """Automatically generates coefficients if not given by the user.
 
-    :param elements: List of symbols of all atoms.
-    :type elements: list of str
+    Parameters
+    ---------
+    elements : list of str
+        List of symbols of all atoms.
 
-    :returns: dict of dicts
+    Returns
+    -------
+    G : dict of dicts
     """
     _G = {}
     for element in elements:
@@ -592,7 +624,7 @@ if __name__ == "__main__":
     print('<amp-connect>')  # Signal that program started.
     sys.stderr = tempfile.NamedTemporaryFile(mode='w', delete=False,
                                              suffix='.stderr')
-    print('stderr written to %s<stderr>' % sys.stderr.name)
+    print('Log and error written to %s<stderr>' % sys.stderr.name)
 
     # Establish client session via zmq; find purpose.
     context = zmq.Context()
@@ -625,8 +657,6 @@ if __name__ == "__main__":
         # Request variables.
         socket.send_pyobj(msg('<request>', 'cutoff'))
         cutoff = socket.recv_pyobj()
-        socket.send_pyobj(msg('<request>', 'cutofffn'))
-        cutofffn = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'Gs'))
         Gs = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'jmax'))
@@ -636,7 +666,7 @@ if __name__ == "__main__":
         socket.send_pyobj(msg('<request>', 'images'))
         images = socket.recv_pyobj()
 
-        calc = FingerprintCalculator(neighborlist, Gs, jmax, cutoff, cutofffn)
+        calc = FingerprintCalculator(neighborlist, Gs, jmax, cutoff,)
         result = {}
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.

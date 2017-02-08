@@ -82,8 +82,7 @@ def test():
             descriptor = Zernike(fortran=fortran,
                                  dblabel='Zernike-%s-%d' % (fortran, cores))
             descriptor.calculate_fingerprints(images,
-                                              cores=cores,
-                                              fortran=fortran,
+                                              parallel={'cores': cores},
                                               log=None,
                                               calculate_derivatives=True)
             for hash, image in images.items():

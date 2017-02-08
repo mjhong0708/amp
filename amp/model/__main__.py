@@ -9,9 +9,10 @@ itself with id. Instructions on what to do will come from the socket.
 import sys
 import tempfile
 import zmq
-from amp.utilities import MessageDictionary, string2dict, Logger
-from amp import importhelper
-from amp.model import ravel_data, send_data_to_fortran
+
+from ..utilities import MessageDictionary, string2dict, Logger
+from .. import importhelper
+from . import ravel_data, send_data_to_fortran
 
 
 hostsocket = sys.argv[-1]
@@ -23,7 +24,7 @@ msg = MessageDictionary(proc_id)
 print('<amp-connect>')  # Signal that program started.
 sys.stderr = tempfile.NamedTemporaryFile(mode='w', delete=False,
                                          suffix='.stderr')
-print('stderr written to %s<stderr>' % sys.stderr.name)
+print('Log and stderr written to %s<stderr>' % sys.stderr.name)
 
 # Also send logger output to stderr to aid in debugging.
 log = Logger(file=sys.stderr)
@@ -43,10 +44,11 @@ if purpose == 'calculate_loss_function':
     modelstring = socket.recv_pyobj()
     dictionary = string2dict(modelstring)
     Model = importhelper(dictionary.pop('importname'))
+    log('Model received:')
     log(str(dictionary))
     model = Model(fortran=fortran, **dictionary)
     model.log = log
-    log('model set up.')
+    log('Model set up.')
 
     socket.send_pyobj(msg('<request>', 'args'))
     args = socket.recv_pyobj()
@@ -56,32 +58,32 @@ if purpose == 'calculate_loss_function':
     dictionary = string2dict(lossfunctionstring)
     log(str(dictionary))
     LossFunction = importhelper(dictionary.pop('importname'))
-    lossfunction = LossFunction(cores=1,
+    lossfunction = LossFunction(parallel={'cores': 1},
                                 raise_ConvergenceOccurred=False,
                                 d=d, **dictionary)
-    log('loss function set up.')
+    log('Loss function set up.')
 
     images = None
     socket.send_pyobj(msg('<request>', 'images'))
     images = socket.recv_pyobj()
-    log('images recieved.')
+    log('Images received.')
 
     fingerprints = None
     socket.send_pyobj(msg('<request>', 'fingerprints'))
     fingerprints = socket.recv_pyobj()
-    log('fingerprints recieved.')
+    log('Fingerprints received.')
 
     fingerprintprimes = None
     socket.send_pyobj(msg('<request>', 'fingerprintprimes'))
     fingerprintprimes = socket.recv_pyobj()
-    log('fingerprintprimes recieved.')
+    log('Fingerprintprimes received.')
 
     # Set up local loss function.
     lossfunction.attach_model(model,
                               fingerprints=fingerprints,
                               fingerprintprimes=fingerprintprimes,
                               images=images)
-    log('images, fingerprints, and fingerprintprimes '
+    log('Images, fingerprints, and fingerprintprimes '
         'attached to the loss function.')
 
     if model.fortran:
@@ -100,9 +102,10 @@ if purpose == 'calculate_loss_function':
         else:
             train_forces = True
 
-        # FIXME: Should be corrected for image-centered:
         if mode == 'atom-centered':
             num_atoms = None
+        elif mode == 'image-centered':
+            raise NotImplementedError('Image-centered mode is not coded yet.')
 
         (actual_energies, actual_forces, elements, atomic_positions,
          num_images_atoms, atomic_numbers, raveled_fingerprints, num_neighbors,
@@ -127,7 +130,7 @@ if purpose == 'calculate_loss_function':
                 (actual_energies, actual_forces, elements, num_images_atoms,
                  atomic_numbers, raveled_fingerprints, num_neighbors,
                  raveled_neighborlists, raveled_fingerprintprimes) = value
-        log('data reshaped into lists to be sent to fmodules.')
+        log('Data reshaped into lists to be sent to fmodules.')
 
         num_images = len(images)
 
@@ -149,10 +152,12 @@ if purpose == 'calculate_loss_function':
                              raveled_fingerprintprimes,
                              model,
                              lossfunction.d)
-        log('data sent to fmodules.')
+        log('Data sent to fmodules.')
 
     if model.fortran:
         log('fmodules will be used to evaluate loss function.')
+    else:
+        log('Fortran will not be used to evaluate loss function.')
     # Now wait for parameters, and send the component of the loss function.
     while True:
         socket.send_pyobj(msg('<request>', 'parameters'))
@@ -197,4 +202,4 @@ if purpose == 'calculate_loss_function':
             socket.recv_string()
 
 else:
-    raise NotImplementedError('purpose %s unknown.' % purpose)
+    raise NotImplementedError('Purpose "%s" unknown.' % purpose)

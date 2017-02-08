@@ -1,49 +1,46 @@
 import time
 import numpy as np
 
-from ase.data import atomic_numbers
 from ase.calculators.calculator import Parameters
-from amp.utilities import Data, Logger, importer
-from amp.descriptor.cutoffs import Cosine, Polynomial
+from ..utilities import Data, Logger, importer
+from .cutoffs import Cosine
 NeighborList = importer('NeighborList')
 
 
 class AtomCenteredExample(object):
 
-    """
-    Class that calculates fingerprints. This is an example class that
-    doesn't do much; it just shows the code structure. If making your own
-    module, you can copy and modify this one.
+    """Class that calculates fingerprints.
 
-    :param cutoff: Cutoff function. Can be also fed as a float representing the
-                   radius above which neighbor interactions are ignored.
-                   Default is 6.5 Angstroms.
-    :type cutoff: object or float
+    This is an example class that doesn't do much; it just shows the code
+    structure. If making your own module, you can copy and modify this one.
 
-    :param anotherparameter: Just an example.
-    :type anotherparameter: float
+    Parameters
+    ----------
+    cutoff : object or float
+        Cutoff function. Can be also fed as a float representing the radius
+        above which neighbor interactions are ignored.  Default is 6.5
+        Angstroms.
+    anotherparameter : float
+        Just an example.
+    dblabel : str
+        Optional separate prefix/location for database files, including
+        fingerprints, fingerprint derivatives, and neighborlists. This file
+        location can be shared between calculator instances to avoid
+        re-calculating redundant information. If not supplied, just uses the
+        value from label.
+    elements : list
+        List of allowed elements present in the system. If not provided, will
+        be found automatically.
+    version : str
+        Version of fingerprints.
 
-    :param dblabel: Optional separate prefix/location for database files,
-                    including fingerprints, fingerprint derivatives, and
-                    neighborlists. This file location can be shared between
-                    calculator instances to avoid re-calculating redundant
-                    information. If not supplied, just uses the value from
-                    label.
-    :type dblabel: str
-
-    :param elements: List of allowed elements present in the system. If not
-                     provided, will be found automatically.
-    :type elements: list
-
-    :param version: Version of fingerprints.
-    :type version: str
-
-    :raises: RuntimeError, TypeError
+    Raises
+    ------
+        RuntimeError, TypeError
     """
 
     def __init__(self, cutoff=Cosine(6.5), anotherparameter=12.2, dblabel=None,
                  elements=None, version=None, mode='atom-centered'):
-        # FIXME/ap add some example keywords, get rid of these.
 
         # Check of the version of descriptor, particularly if restarting.
         compatibleversions = ['2016.02', ]
@@ -71,8 +68,7 @@ class AtomCenteredExample(object):
         # to produce a compatible descriptor; that is, one that gives
         # an identical fingerprint when fed an ASE image.
         p = self.parameters = Parameters(
-            {'importname': '.descriptor.gaussian.Gaussian',
-                # FIXME/ap: Above should not be gaussian
+            {'importname': '.descriptor.example.AtomCenteredExample',
              'mode': 'atom-centered'})
         p.version = version
         p.cutoff = cutoff.Rc
@@ -88,10 +84,30 @@ class AtomCenteredExample(object):
         be used to restart the calculator."""
         return self.parameters.tostring()
 
-    def calculate_fingerprints(self, images, cores=1, fortran=False,
-                               log=None, calculate_derivatives=False):
+    def calculate_fingerprints(self, images, parallel=None, log=None,
+                               calculate_derivatives=False):
         """Calculates the fingerpints of the images, for the ones not already
-        done."""
+        done.
+
+        Parameters
+        ----------
+        images : list or str
+            List of ASE atoms objects with positions, symbols, energies, and
+            forces in ASE format. This is the training set of data. This can
+            also be the path to an ASE trajectory (.traj) or database (.db)
+            file. Energies can be obtained from any reference, e.g. DFT
+            calculations.
+        parallel : dict
+            Configuration for parallelization. Should be in same form as in
+            amp.Amp.
+        log : Logger object
+            Write function at which to log data. Note this must be a callable
+            function.
+        calculate_derivatives : bool
+            Decides whether or not fingerprintprimes should also be calculated.
+        """
+        if parallel is None:
+            parallel = {'cores': 1}
         log = Logger(file=None) if log is None else log
 
         if (self.dblabel is None) and hasattr(self.parent, 'dblabel'):
@@ -119,7 +135,7 @@ class AtomCenteredExample(object):
             self.neighborlist = Data(filename='%s-neighborlists'
                                      % self.dblabel,
                                      calculator=calc)
-        self.neighborlist.calculate_items(images, cores=cores, log=log)
+        self.neighborlist.calculate_items(images, parallel=parallel, log=log)
         log('...neighborlists calculated.', toc='nl')
 
         log('Fingerprinting images...', tic='fp')
@@ -131,7 +147,7 @@ class AtomCenteredExample(object):
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
                                      calculator=calc)
-        self.fingerprints.calculate_items(images, cores=cores, log=log)
+        self.fingerprints.calculate_items(images, parallel=parallel, log=log)
         log('...fingerprints calculated.', toc='fp')
 
 
@@ -140,18 +156,34 @@ class AtomCenteredExample(object):
 
 # Neighborlist Calculator
 class NeighborlistCalculator:
-
     """For integration with .utilities.Data
-    For each image fed to calculate, a list of neighbors with offset
-    distances is returned.
-    """
 
+    For each image fed to calculate, a list of neighbors with offset distances
+    is returned.
+
+    Parameters
+    ----------
+    cutoff : float
+        Radius above which neighbor interactions are ignored.
+    """
     def __init__(self, cutoff):
         self.globals = Parameters({'cutoff': cutoff})
         self.keyed = Parameters()
         self.parallel_command = 'calculate_neighborlists'
 
     def calculate(self, image, key):
+        """For integration with .utilities.Data
+
+        For each image fed to calculate, a list of neighbors with offset
+        distances is returned.
+
+        Parameters
+        ----------
+        image : object
+            ASE atoms object.
+        key : str
+            key of the image after being hashed.
+        """
         cutoff = self.globals.cutoff
         n = NeighborList(cutoffs=[cutoff / 2.] * len(image),
                          self_interaction=False,
@@ -162,7 +194,6 @@ class NeighborlistCalculator:
 
 
 class FingerprintCalculator:
-
     """For integration with .utilities.Data"""
 
     def __init__(self, neighborlist, anotherparamter, cutoff, cutofffn):
@@ -191,25 +222,30 @@ class FingerprintCalculator:
         return fingerprints
 
     def get_fingerprint(self, index, symbol, n_symbols, Rs):
-        """
-        Returns the fingerprint of symmetry function values for atom
-        specified by its index and symbol. n_symbols and Rs are lists of
-        neighbors' symbols and Cartesian positions, respectively.
+        """ Returns the fingerprint of symmetry function values for atom
+        specified by its index and symbol.
+
+        n_symbols and Rs are lists of neighbors' symbols and Cartesian
+        positions, respectively.
 
         This function doesn't actually do anything but sleep and return
         a vector of ones.
 
-        :param index: Index of the center atom.
-        :type index: int
-        :param symbol: Symbol of the center atom.
-        :type symbol: str
-        :param n_symbols: List of neighbors' symbols.
-        :type n_symbols: list of str
-        :param Rs: List of Cartesian atomic positions.
-        :type Rs: list of list of float
+        Parameters
+        ----------
+        index : int
+            index: Index of the center atom.
+        symbol: str
+            Symbol of the center atom.
+        n_symbols: list of str
+            List of neighbors' symbols.
+        Rs: list of list of float
+            List of Cartesian atomic positions.
 
-        :returns: list of float -- fingerprints for atom specified by its index
-                                    and symbol.
+        Returns
+        -------
+        symbols, fingerprints : list of float
+            Fingerprints for atom specified by its index and symbol.
         """
         time.sleep(1.0)  # Pretend to do some work.
         fingerprint = [1., 1., 1., 1.]
@@ -240,7 +276,7 @@ if __name__ == "__main__":
     print('<amp-connect>')  # Signal that program started.
     sys.stderr = tempfile.NamedTemporaryFile(mode='w', delete=False,
                                              suffix='.stderr')
-    print('stderr written to %s<stderr>' % sys.stderr.name)
+    print('Log and error written to %s<stderr>' % sys.stderr.name)
 
     # Establish client session via zmq; find purpose.
     context = zmq.Context()

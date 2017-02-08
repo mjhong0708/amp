@@ -10,19 +10,17 @@ class Regressor:
     Global optimization conditioners (e.g., simulated annealing, etc.) can
     be built into this class.
 
-    :param optimizer: The optimizer to use. Several defaults are available
-                      including 'L-BFGS-B', 'BFGS', 'TNC', or 'NCG'.
-                      Alternatively, any function can be supplied which
-                      behaves like scipy.optimize.fmin_bfgs.
-
-    :param optimizer_kwargs: Optional keywords for the corresponding optimizer.
-    :type optimizer_kwargs: dict
-
-    :param lossprime: Decides whether or not the regressor needs to be fed in
-                      by gradient of the loss function as well as the loss
-                      function itself.
-    :type lossprime: boolean
-
+    Parameters
+    ----------
+    optimizer : str
+        The optimizer to use. Several defaults are available including
+        'L-BFGS-B', 'BFGS', 'TNC', or 'NCG'.  Alternatively, any function can
+        be supplied which behaves like scipy.optimize.fmin_bfgs.
+    optimizer_kwargs : dict
+        Optional keywords for the corresponding optimizer.
+    lossprime : boolean
+        Decides whether or not the regressor needs to be fed in by gradient of
+        the loss function as well as the loss function itself.
     """
 
     def __init__(self, optimizer='L-BFGS-B', optimizer_kwargs=None,
@@ -71,15 +69,13 @@ class Regressor:
         until convergence has been reached, at which point it should
         raise a amp.utilities.ConvergenceException.
 
-        :param model: Class representing the regression model.
-        :type model: object
-
-        :param log: Name of script to log progress.
-        :type log: str
+        Parameters
+        ----------
+        model : object
+            Class representing the regression model.
+        log : str
+            Name of script to log progress.
         """
-        # FIXME/ap Optimizer also has space for fprime; needs
-        # to be implemented. Especially important not to
-        # call model functions twice to make this happen.
         log('Starting parameter optimization.', tic='opt')
         log(' Optimizer: %s' % self.optimizer)
         log(' Optimizer kwargs: %s' % self.optimizer_kwargs)
