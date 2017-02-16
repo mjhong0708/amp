@@ -20,17 +20,20 @@ class NeuralNetwork(Model):
         of nodes of last layer is always one corresponding to energy.  However,
         number of nodes of first layer is equal to three times number of atoms
         in the system in the case of no descriptor, and is equal to length of
-        symmetry functions of the descriptor. Can be fed as:
+        symmetry functions of the descriptor. Can be fed using tuples as:
 
         >>> hiddenlayers = (3, 2,)
 
-        for example, in which a neural network with two hidden
-        layers, the first one having three nodes and the
-        second one having two nodes is assigned (to the whole
-        atomic system in the no descriptor case, and to each
-        chemical element in the atom-centered mode).  In the
-        atom-centered mode, neural network for each species
-        can be assigned seperately, as:
+        for example, in which a neural network with two hidden layers, the
+        first one having three nodes and the second one having two nodes is
+        assigned (to the whole atomic system in the no descriptor case, and to
+        each chemical element in the atom-centered mode). When setting only one
+        one hidden layer, the dictionary can be fed as:
+
+        >>> hiddenlayers = (3,)
+
+        In the atom-centered mode, neural network for each species can be
+        assigned seperately, as:
 
         >>> hiddenlayers = {"O":(3,5), "Au":(5,6)}
 
