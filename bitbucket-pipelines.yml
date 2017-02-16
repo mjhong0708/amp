@@ -13,4 +13,4 @@ pipelines:
           - pip install -U numpy
           - pip install -U scipy
           - pip install git+https://gitlab.com/ase/ase.git
-          - sudo apt-get -yq --no-install-suggests --no-install-recommends --force-yes install gfortran
+          - apt-get -yq --no-install-suggests --no-install-recommends --force-yes install gfortran
