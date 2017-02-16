@@ -14,6 +14,7 @@ pipelines:
           - pip install -U scipy
           - pip install -U matplotlib
           - pip install -U pyzmq
+          - pip install -U pexpect
           - export TF_BINARY_URL=https://storage.googleapis.com/tensorflow/linux/cpu/tensorflow-0.11.0-cp27-none-linux_x86_64.whl
           - pip install -U --upgrade $TF_BINARY_URL
           - pip install git+https://gitlab.com/ase/ase.git
