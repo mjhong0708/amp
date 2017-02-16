@@ -20,5 +20,8 @@ pipelines:
           - mv neuralnetwork.mod ../
           - cd ../
           - f2py -c -m fmodules model.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90
-          - nosetests tests/
+          - cd ../
+          - mkdir amp_tests
+          - cd amp_tests
+          - nosetests ../tests/
           
