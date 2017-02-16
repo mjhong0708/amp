@@ -13,7 +13,8 @@ pipelines:
           - pip install -U numpy
           - pip install -U scipy
           - pip install git+https://gitlab.com/ase/ase.git
-          - apt-get -yq --no-install-suggests --no-install-recommends --force-yes install gfortran-6
+          - apt-get update
+          - apt-get -y install gfortran
           - cd amp/model
           - gfortran -c neuralnetwork.f90
           - mv neuralnetwork.mod ../
