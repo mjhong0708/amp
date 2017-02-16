@@ -15,6 +15,8 @@ pipelines:
           - pip install git+https://gitlab.com/ase/ase.git
           - apt-get update
           - apt-get -y install gfortran
+          - AMP=`pwd`
+          - export PYTHONPATH=$AMP:$PYTHONPATH
           - cd amp/model
           - gfortran -c neuralnetwork.f90
           - mv neuralnetwork.mod ../
