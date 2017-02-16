@@ -12,5 +12,12 @@ pipelines:
           - pip install -U nose
           - pip install -U numpy
           - pip install -U scipy
+          - pip install -U F2PY
           - pip install git+https://gitlab.com/ase/ase.git
-          - apt-get -yq --no-install-suggests --no-install-recommends --force-yes install gfortran
+          - apt-get -yq --no-install-suggests --no-install-recommends --force-yes install gfortran-6
+          - cd amp/model
+          - gfortran -c neuralnetwork.f90
+          - mv neuralnetwork.mod ../
+          - cd ../
+          - f2py -c -m fmodules model.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90
+          
