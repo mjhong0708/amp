@@ -95,7 +95,7 @@ class Zernike(object):
         p.version = version
         p.cutoff = cutoff.todict()
         if p.cutoff['name'] == 'Polynomial':
-            p.gamma = cutoff.gamma
+            self.gamma = cutoff.gamma
         p.Gs = Gs
         p.nmax = nmax
         p.elements = elements
@@ -144,7 +144,7 @@ class Zernike(object):
         if p.cutoff['name'] == 'Cosine':
             log('Cutoff radius: %.2f ' % p.cutoff['kwargs']['Rc'])
         else:
-            log('Cutoff radius: %.2f and gamma=%i ' % (p.cutoff['kwargs']['Rc'], p.gamma))
+            log('Cutoff radius: %.2f and gamma=%i ' % (p.cutoff['kwargs']['Rc'], self.gamma))
         log('Cutoff function: %s' % repr(dict2cutoff(p.cutoff)))
 
         if p.elements is None:
