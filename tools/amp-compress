@@ -7,13 +7,40 @@ from optparse import OptionParser
 from amp.utilities import FileDatabase
 
 
-parser = OptionParser(
-    usage='usage: %prog [options] [filename(s)]\n Compress .ampdb'
-          ' files(Amp FileDatabase objects).')
-options, args = parser.parse_args()
-
-for filename in args:
+def compress_file(filename):
     filename = filename.rstrip(os.path.sep)
     assert filename.endswith('.ampdb')
     assert 'loose' in os.listdir(filename)
     FileDatabase(filename).archive()
+
+
+def parser():
+    parser = OptionParser(
+        usage='usage: %prog [options] [filename(s)]\n Compress .ampdb'
+              ' files(Amp FileDatabase objects).')
+    add = parser.add_option
+    add('-r', '--recursive', action='store_true',
+        default=False, help='recursively search and compress .ampdb files')
+    options, args = parser.parse_args()
+    return options, args
+
+
+options, args = parser()
+
+if not options.recursive:
+    for filename in args:
+        compress_file(filename)
+else:
+    if len(args) != 1:
+        raise AssertionError('A single argument (top directory) must be '
+                             'supplied with the recursive option.')
+    topdir = args[0]
+    if not os.path.isdir(topdir):
+        raise AssertionError('Argument must be a path with recursive option.')
+
+    for dirpath, dirnames, filenames in os.walk(topdir):
+        for dirname in dirnames:
+            if dirname.endswith('.ampdb'):
+                filename = os.path.join(dirpath, dirname)
+                print('Found %s.' % filename)
+                compress_file(filename)

@@ -335,19 +335,25 @@ class FileDatabase:
         <path>/loose and places them in <path>/archive.tar.gz.  If archive
         exists, appends/modifies.
         """
+        loosefiles = os.listdir(self.loosepath)
+        print('Contains %i loose entries.' % len(loosefiles))
+        if len(loosefiles) == 0:
+            print(' -> No action taken.')
+            return
         if os.path.exists(self.tarpath):
             with tarfile.open(self.tarpath) as tf:
                 names = [_ for _ in tf.getnames() if _ not in
                          os.listdir(self.loosepath)]
                 for name in names:
                     tf.extract(member=name, path=self.loosepath)
-        print('Compressing.')
+        loosefiles = os.listdir(self.loosepath)
+        print('Compressing %i entries.' % len(loosefiles))
         with tarfile.open(self.tarpath, 'w:gz') as tf:
-            for file in os.listdir(self.loosepath):
+            for file in loosefiles:
                 tf.add(name=os.path.join(self.loosepath, file),
                        arcname=file)
-        print('Cleaning up.')
-        for file in os.listdir(self.loosepath):
+        print('Cleaning up: removing %i files.' % len(loosefiles))
+        for file in loosefiles:
             os.remove(os.path.join(self.loosepath, file))
 
 
@@ -702,6 +708,7 @@ def randomize_images(images, fraction=0.8):
 
 # Custom exceptions ##########################################################
 
+
 class ConvergenceOccurred(Exception):
     """ Kludge to decide when scipy's optimizers are complete.
     """
@@ -837,7 +844,7 @@ class Annealer(object):
 
         self.calc._log('\nAmp simulated annealer started. ' + now() + '\n')
         self.calc._log('Descriptor: %s' %
-                      self.calc.descriptor.__class__.__name__)
+                       self.calc.descriptor.__class__.__name__)
         self.calc._log('Model: %s' % self.calc.model.__class__.__name__)
 
         images = hash_images(images, log=self.calc._log)
@@ -970,19 +977,21 @@ class Annealer(object):
             self.calc._log('\n')
             header = ' %5s %12s %12s %7s %7s %10s %10s'
             self.calc._log(header % ('Step', 'Temperature', 'Loss (SSD)',
-                                    'Accept', 'Improve', 'Elapsed',
-                                    'Remaining'))
+                                     'Accept', 'Improve', 'Elapsed',
+                                     'Remaining'))
             self.calc._log(header % ('=' * 5, '=' * 12, '=' * 12,
-                                    '=' * 7, '=' * 7, '=' * 10,
-                                    '=' * 10,))
-            self.calc._log(' %5i %12.2e %12.4e                   %s            '
-                          % (step, T, L, self.time_string(elapsed)))
+                                     '=' * 7, '=' * 7, '=' * 10,
+                                     '=' * 10,))
+            self.calc._log(
+                    ' %5i %12.2e %12.4e                   %s            '
+                    % (step, T, L, self.time_string(elapsed)))
         else:
             remain = (self.steps - step) * (elapsed / step)
             self.calc._log(' %5i %12.2e %12.4e %7.2f%% %7.2f%% %s %s' %
-                          (step, T, L, 100.0 * acceptance, 100.0 * improvement,
-                           self.time_string(
-                               elapsed), self.time_string(remain))),
+                           (step, T, L,
+                            100.0 * acceptance, 100.0 * improvement,
+                            self.time_string(elapsed),
+                            self.time_string(remain)))
 
     def anneal(self):
         """Minimizes the loss of a system by simulated annealing.
