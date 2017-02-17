@@ -71,7 +71,7 @@ This compiler will generate Fortran modules (.mod).
 gfortran will also be used by f2py to generate extension module fmodules.so on Linux or fmodules.pyd on Windows.
 In order to prepare the extension module the following steps need to be taken:
 
-1. Compile model Fortran subroutines inside the model and descriptor folders by:
+1. Compile model Fortran subroutines inside the model and descriptor folders by::
 
     $ cd <installation-directory>/amp/model
 
@@ -82,7 +82,7 @@ In order to prepare the extension module the following steps need to be taken:
     $ gfortran -c cutoffs.f90
 
 
-2. Move the modules "neuralnetwork.mod" and "cutoffs.mod" created in the last step, to the parent directory by:
+2. Move the modules "neuralnetwork.mod" and "cutoffs.mod" created in the last step, to the parent directory by::
 
     $ cd ..
 
@@ -90,12 +90,12 @@ In order to prepare the extension module the following steps need to be taken:
 
     $ mv descriptor/cutoffs.mod .
 
-3. Go back to the parent directory and compile the model Fortran subroutines in companion with the descriptor and neuralnetwork subroutines by something like:
+3. Go back to the parent directory and compile the model Fortran subroutines in companion with the descriptor and neuralnetwork subroutines by something like::
 
     $ f2py -c -m fmodules model.f90 descriptor/cutoffs.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90
 
 
-or on a Windows machine by:
+or on a Windows machine by::
 
     $ f2py -c -m fmodules model.f90 descriptor/cutoffs.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90 --fcompiler=gnu95 --compiler=mingw32
 
