@@ -436,6 +436,10 @@ def importhelper(importname):
     """
     if importname == '.descriptor.gaussian.Gaussian':
         from .descriptor.gaussian import Gaussian as Module
+    elif importname == '.descriptor.zernike.Zernike':
+        from .descriptor.zernike import Zernike as Module
+    elif importname == '.descriptor.bispectrum.Bispectrum':
+        from .descriptor.bispectrum import Bispectrum as Module
     elif importname == '.model.neuralnetwork.NeuralNetwork':
         from .model.neuralnetwork import NeuralNetwork as Module
     elif importname == '.model.neuralnetwork.tflow':

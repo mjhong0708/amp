@@ -9,7 +9,7 @@ The code has been significantly restructured since the previous version, in orde
 
 * A parallelization scheme allowing for fast message passing with ZeroMQ.
 * A simpler database format based on files, which optionally can be compressed to save diskspace.
-* Incorporation of an experimental neural network model based on google's tensorflow package. Requires tensorflow version 11.
+* Incorporation of an experimental neural network model based on google's tensorflow package. Requires tensorflow version 0.11.0.
 * Incorporation of an experimental bootstrap module for uncertainty analysis.
 
 v0.4
