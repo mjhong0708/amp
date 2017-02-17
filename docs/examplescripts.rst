@@ -53,7 +53,7 @@ Note it is usually safe to delete the `cores` keyword and let the code try to de
          traj.write(atoms)
  
  
- train_images = generate_data(20)
+ generate_data(20)
  
  calc = Amp(descriptor=Gaussian(),
             model=NeuralNetwork(hiddenlayers=(10, 10, 10)))
