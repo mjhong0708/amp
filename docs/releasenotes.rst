@@ -24,9 +24,18 @@ v0.3
 ----
 Release date: July 13, 2015
 
-Name change to "Amp" (Atomistic Machine-Learning Package/Potentials) from "Neural: Machine-learning for Atomstics".
+First release under the new name "Amp" (Atomistic Machine-Learning Package/Potentials).
 
 Permanently available at https://doi.org/10.5281/zenodo.20636
+
+
+v0.2
+----
+Release date: July 13, 2015
+
+Last version under the name "Neural: Machine-learning for Atomistics". Future versions are named "Amp".
+
+Available as the v0.2 tag in https://bitbucket.org/andrewpeterson/neural/commits/tag/v0.2
 
 
 v0.1
