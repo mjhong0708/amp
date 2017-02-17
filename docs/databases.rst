@@ -36,15 +36,14 @@ To save disk space, you may periodically want to run the utility `amp-compress` 
 
 That is, the two fingerprints that were in the "loose" directory are now in the file "archive.tar.gz".
 
+You can also use the `--recursive` flag to compress all ampdb files in or below the specified directory.
+
 When Amp reads from the above database, it first looks in the "loose" directory for the fingerprint. If it is not there, it looks in "archive.tar.gz". If it is not there, it calculates the fingerprint and adds it to the "loose" directory.
 
 
 Future
 ---------------------------------
 
-We plan to make the amp-compress tool more automated in two ways.
-
-First, if the user does not supply a separate `dblabel` keyword, then we assume that their process is the only process using the database, and it is safe to compress the database at the end of their training job. This would automatically clean up the loose files at the end of the job.
-
-Second, we can make amp-compress have a recursive option: such that it walks through all subdirectories looking for .ampdb files to compress.
-
+We plan to make the amp-compress tool more automated.
+If the user does not supply a separate `dblabel` keyword, then we assume that their process is the only process using the database, and it is safe to compress the database at the end of their training job.
+This would automatically clean up the loose files at the end of the job.
