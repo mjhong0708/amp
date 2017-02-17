@@ -279,7 +279,7 @@ class NeuralNetwork:
 
         # Optimizer can be 'ADAM' or 'l-BFGS-b'.
         self.optimizationMethod = optimizationMethod
-        
+
         # self.forcetraining is queried by the main Amp instance.
         if self.parameters['force_coefficient'] is None:
             self.forcetraining = False
@@ -1671,7 +1671,7 @@ def generateTensorFlowArrays(fingerprintDB, elements, keylist,
         for i in range(len(keylist)):
             if nAtomsDict[element][i] > 0:
                 atomsIndsReverse[element].append(
-                    np.ones((nAtomsDict[element][i], 1)) * i)
+                    np.ones((nAtomsDict[element][i].astype(np.int64), 1)) * i)
         if len(atomsIndsReverse[element]) > 0:
             atomsIndsReverse[element] = np.concatenate(
                 atomsIndsReverse[element])
@@ -1761,6 +1761,6 @@ def reorganizeForces(forces, natoms):
     curoffset = 0
     forcelist = []
     for N in natoms:
-        forcelist.append(forces[curoffset:curoffset + N[0]])
+        forcelist.append(forces[curoffset:curoffset + N[0].astype(np.int64)])
         curoffset += N[0]
     return forcelist
