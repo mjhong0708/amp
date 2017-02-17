@@ -29,6 +29,7 @@ You can read about Amp in the below paper; if you find Amp useful, we would appr
    introduction.rst
    theory.rst
    credits.rst
+   releasenotes.rst
    installation.rst
    useamp.rst
    examplescripts.rst
