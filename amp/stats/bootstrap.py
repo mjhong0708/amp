@@ -4,14 +4,16 @@ import shutil
 import numpy as np
 from string import Template
 import time
-from amp.utilities import hash_images, Logger
-from amp import Amp
 import json
 from StringIO import StringIO
 from scipy.stats.mstats import mquantiles
 import tarfile
 import tempfile
+
 import ase.io
+
+from ..utilities import hash_images, Logger
+from .. import Amp
 
 
 calc_text = """
@@ -293,7 +295,7 @@ class BootStrap:
         for quantile in quantiles:
             if (quantile > 1.0) or (quantile < 0.0):
                 raise RuntimeError('Quantiles must be between 0 and 1.')
-        #FIXME/ap: Had to switch to np.percentile from scipy mquantiles.
+        # FIXME/ap: Had to switch to np.percentile from scipy mquantiles.
         # Because mquantiles doesn't support higher dimensions.
         # Should probably switch to percentiles throughout the code as
         # it's easier to read.
