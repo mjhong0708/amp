@@ -97,7 +97,7 @@ class Polynomial(object):
         self.gamma = gamma
         self.Rc = Rc
 
-    def __call__(self, Rij):
+    def __call__(self, Rij, gamma):
         """
         Parameters
         ----------
@@ -106,7 +106,7 @@ class Polynomial(object):
 
         Returns
         -------
-        float
+        value : float
             The vaule of the cutoff function.
         """
         if Rij > self.Rc:
@@ -116,7 +116,7 @@ class Polynomial(object):
                 (self.gamma + 1) * (Rij / self.Rc) ** self.gamma
             return value
 
-    def prime(self, Rij):
+    def prime(self, Rij, gamma):
         """Derivative of the Cosine cutoff function.
 
         Parameters
@@ -141,7 +141,10 @@ class Polynomial(object):
 
     def todict(self):
         return {'name': 'Polynomial',
-                'kwargs': {'Rc': self.Rc}}
+                'kwargs': {'Rc': self.Rc,
+                           'gamma': self.gamma
+                           }
+                }
 
     def __repr__(self):
         return ('<Polynomial cutoff with Rc=%.3f and gamma=%i '

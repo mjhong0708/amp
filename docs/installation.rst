@@ -41,7 +41,7 @@ page <https://bitbucket.org/andrewpeterson/amp/>`_. If you use git, check out th
 
 where you should replace '~/path/to/my/codes' with wherever you would like the code to be located on your computer.
 If you do not use git, just download the code as a zip file from the project's
-`download <https://bitbucket.org/andrewpeterson/amp/downloads>`_ page, and extract it into '~/path/to/my/codes'. Please make sure that the folder '~/path/to/my/codes/amp' includes the script '__init__.py' as well as the folders 'descriptor', 'model', 'regression', ... 
+`download <https://bitbucket.org/andrewpeterson/amp/downloads>`_ page, and extract it into '~/path/to/my/codes'. Please make sure that the folder '~/path/to/my/codes/amp' includes the script '__init__.py' as well as the folders 'descriptor', 'model', 'regression', ...
 
 ----------------------------------
 Set the environment
@@ -71,28 +71,36 @@ This compiler will generate Fortran modules (.mod).
 gfortran will also be used by f2py to generate extension module fmodules.so on Linux or fmodules.pyd on Windows.
 In order to prepare the extension module the following steps need to be taken:
 
-1. Compile model Fortran subroutines inside the model folder by::
+1. Compile model Fortran subroutines inside the model and descriptor folders by::
 
     $ cd <installation-directory>/amp/model
 
     $ gfortran -c neuralnetwork.f90
 
-2. Move the module "neuralnetwork.mod" created in the last step, to the parent directory by::
+    $ cd ../descriptor
 
-    $ mv neuralnetwork.mod ../
+    $ gfortran -c cutoffs.f90
+
+
+2. Move the modules "neuralnetwork.mod" and "cutoffs.mod" created in the last step, to the parent directory by::
+
+    $ cd ..
+
+    $ mv model/neuralnetwork.mod .
+
+    $ mv descriptor/cutoffs.mod .
 
 3. Go back to the parent directory and compile the model Fortran subroutines in companion with the descriptor and neuralnetwork subroutines by something like::
 
-    $ cd ../
+    $ f2py -c -m fmodules model.f90 descriptor/cutoffs.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90
 
-    $ f2py -c -m fmodules model.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90
 
 or on a Windows machine by::
 
-    $ f2py -c -m fmodules model.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90 --fcompiler=gnu95 --compiler=mingw32
+    $ f2py -c -m fmodules model.f90 descriptor/cutoffs.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90 --fcompiler=gnu95 --compiler=mingw32
 
 If the version of fmodules.f90 is not updated, an exception will be raised which tells user which version number should be employed.
- 
+
 ----------------------------------
 Recommended step: Run the tests
 ----------------------------------

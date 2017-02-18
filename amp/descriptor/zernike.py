@@ -6,7 +6,7 @@ from ase.calculators.calculator import Parameters
 from scipy.special import sph_harm
 
 from ..utilities import Data, Logger, importer
-from .cutoffs import Cosine, dict2cutoff
+from .cutoffs import Cosine, Polynomial, dict2cutoff
 NeighborList = importer('NeighborList')
 try:
     from .. import fmodules
@@ -94,6 +94,8 @@ class Zernike(object):
              'mode': 'atom-centered'})
         p.version = version
         p.cutoff = cutoff.todict()
+        if p.cutoff['name'] == 'Polynomial':
+            self.gamma = cutoff.gamma
         p.Gs = Gs
         p.nmax = nmax
         p.elements = elements
@@ -139,6 +141,10 @@ class Zernike(object):
 
         p = self.parameters
 
+        if p.cutoff['name'] == 'Cosine':
+            log('Cutoff radius: %.2f ' % p.cutoff['kwargs']['Rc'])
+        else:
+            log('Cutoff radius: %.2f and gamma=%i ' % (p.cutoff['kwargs']['Rc'], self.gamma))
         log('Cutoff function: %s' % repr(dict2cutoff(p.cutoff)))
 
         if p.elements is None:
@@ -272,16 +278,16 @@ class NeighborlistCalculator:
 
 
 class FingerprintCalculator:
-
     """For integration with .utilities.Data"""
 
     def __init__(self, neighborlist, Gs, nmax, cutoff, fortran):
-        self.globals = Parameters({'cutoff': cutoff,
-                                   'Gs': Gs,
-                                   'nmax': nmax})
+        self.globals = Parameters({ 'cutoff': cutoff,
+                                    'Gs': Gs,
+                                    'nmax': nmax})
         self.keyed = Parameters({'neighborlist': neighborlist})
         self.parallel_command = 'calculate_fingerprints'
         self.fortran = fortran
+        self.cutoff = cutoff
 
         try:  # for scipy v <= 0.90
             from scipy import factorial as fac
@@ -343,14 +349,14 @@ class FingerprintCalculator:
         """
 
         home = self.atoms[index].position
-        cutoff = self.globals.cutoff
+        cutoff = self.cutoff
         Rc = cutoff['kwargs']['Rc']
 
         if cutoff['name'] == 'Cosine':
             cutoff_fxn = Cosine(Rc)
         elif cutoff['name'] == 'Polynomial':
-#            cutoff_fxn = Polynomial(cutoff)
-            raise NotImplementedError()
+            p_gamma =  cutoff['kwargs']['gamma']
+            cutoff_fxn = Polynomial(Rc, gamma=p_gamma)
 
         fingerprint = []
         for n in xrange(self.globals.nmax + 1):
@@ -366,12 +372,15 @@ class FingerprintCalculator:
                             rho = np.linalg.norm([x, y, z])
 
                             if self.fortran:
+                                c_args = [Rc * rho]
+                                if cutoff['name'] == 'Polynomial':
+                                    c_args.append(p_gamma)
                                 Z_nlm = fmodules.calculate_z(n=n, l=l, m=m,
                                                              x=x, y=y, z=z,
                                                              factorial=self.factorial,
                                                              length=len(self.factorial))
                                 Z_nlm = self.globals.Gs[symbol][n_symbol] * \
-                                    Z_nlm * cutoff_fxn(rho * Rc)
+                                    Z_nlm * cutoff_fxn(*c_args)
 
                             else:
                                 # Alternative ways to calculate Z_nlm
@@ -401,10 +410,14 @@ class FingerprintCalculator:
                                 else:
                                     phi = 0.
 
+                                c_args = [Rc * rho]
+                                if cutoff['name'] == 'Polynomial':
+                                    c_args.append(p_gamma)
+
                                 Z_nlm = self.globals.Gs[symbol][n_symbol] * \
                                     calculate_R(n, l, rho, self.factorial) * \
                                     sph_harm(m, l, phi, theta) * \
-                                    cutoff_fxn(rho * Rc)
+                                    cutoff_fxn(*c_args)
 
                             # sum over neighbors
                             c_nlm += np.conjugate(Z_nlm)
@@ -420,7 +433,6 @@ class FingerprintCalculator:
 
 
 class FingerprintPrimeCalculator:
-
     """For integration with .utilities.Data"""
 
     def __init__(self, neighborlist, Gs, nmax, cutoff, fortran):
@@ -553,8 +565,8 @@ class FingerprintPrimeCalculator:
         if cutoff['name'] is 'Cosine':
             cutoff_fxn = Cosine(Rc)
         elif cutoff['name'] is 'Polynomial':
-#            cutoff_fxn = Polynomial(Rc)
-            raise NotImplementedError()
+            p_gamma = cutoff['kwargs']['gamma']
+            cutoff_fxn = Polynomial(Rc, gamma=p_gamma)
 
         fingerprint_prime = []
         for n in xrange(self.globals.nmax + 1):
@@ -567,24 +579,28 @@ class FingerprintPrimeCalculator:
                         if len(Rs) == 0:
                             norm_prime = 0.
                         else:
+                            args_calculate_zernike_prime = dict(
+                                    n=n,
+                                    l=l,
+                                    n_length=len(n_indices),
+                                    n_indices=list(n_indices),
+                                    numbers=numbers,
+                                    rs=Rs,
+                                    g_numbers=G_numbers,
+                                    cutoff=Rc,
+                                    cutofffn=cutoff['name'],
+                                    indexx=index,
+                                    home=home,
+                                    p=p,
+                                    q=q,
+                                    fac_length=len(self.factorial),
+                                    factorial=self.factorial)
+
+                            if cutoff['name'] ==  'Polynomial':
+                                args_calculate_zernike_prime['p_gamma'] = cutoff['kwargs']['gamma']
+
                             norm_prime = \
-                                fmodules.calculate_zernike_prime(n=n,
-                                                                 l=l,
-                                                                 n_length=len(
-                                                                     n_indices),
-                                                                 n_indices=list(
-                                                                     n_indices),
-                                                                 numbers=numbers,
-                                                                 rs=Rs,
-                                                                 g_numbers=G_numbers,
-                                                                 cutoff=Rc,
-                                                                 indexx=index,
-                                                                 home=home,
-                                                                 p=p,
-                                                                 q=q,
-                                                                 fac_length=len(
-                                                                     self.factorial),
-                                                                 factorial=self.factorial)
+                                fmodules.calculate_zernike_prime(**args_calculate_zernike_prime)
                     else:
                         norm_prime = 0.
                         for m in xrange(l + 1):
@@ -597,17 +613,20 @@ class FingerprintPrimeCalculator:
                                 y = (neighbor[1] - home[1]) / Rc
                                 z = (neighbor[2] - home[2]) / Rc
                                 rho = np.linalg.norm([x, y, z])
+                                c_args = [rho * Rc]
+                                if cutoff['name'] == 'Polynomial':
+                                    c_args.append(p_gamma)
 
                                 _Z_nlm = calculate_Z(n, l, m,
                                                      x, y, z,
                                                      self.factorial)
                                 # Calculates Z_nlm
                                 Z_nlm = _Z_nlm * \
-                                    cutoff_fxn(rho * Rc)
+                                    cutoff_fxn(*c_args)
 
                                 # Calculates Z_nlm_prime
                                 Z_nlm_prime = _Z_nlm * \
-                                    cutoff_fxn.prime(rho * Rc) * \
+                                    cutoff_fxn.prime(*c_args) * \
                                     der_position(
                                         index, n_index, home, neighbor, p, q)
 
@@ -618,12 +637,12 @@ class FingerprintPrimeCalculator:
                                 if (Kronecker(n_index, p) -
                                    Kronecker(index, p)) == 1:
                                     Z_nlm_prime += \
-                                        cutoff_fxn(rho * Rc) * \
+                                        cutoff_fxn(*c_args) * \
                                         _Z_nlm_prime / Rc
                                 elif (Kronecker(n_index, p) -
                                       Kronecker(index, p)) == -1:
                                     Z_nlm_prime -= \
-                                        cutoff_fxn(rho * Rc) * \
+                                        cutoff_fxn(*c_args) * \
                                         _Z_nlm_prime / Rc
 
                                 # sum over neighbors

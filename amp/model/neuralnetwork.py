@@ -28,7 +28,7 @@ class NeuralNetwork(Model):
         first one having three nodes and the second one having two nodes is
         assigned (to the whole atomic system in the no descriptor case, and to
         each chemical element in the atom-centered mode). When setting only one
-        one hidden layer, the dictionary can be fed as:
+        hidden layer, the dictionary can be fed as:
 
         >>> hiddenlayers = (3,)
 
