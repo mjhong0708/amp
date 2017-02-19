@@ -13,10 +13,11 @@
         double precision, dimension(3)::  home
         double precision, dimension(fac_length)::  factorial
         double precision::  cutoff
+        ! gamma parameter for the polynomial cutoff
         double precision, optional:: p_gamma
         character(len=20):: cutofffn
         complex*16::  norm_prime
-!f2py   intent(in)::  n, l, n_indices, numbers, g_numbers, rs
+!f2py   intent(in)::  n, l, n_indices, numbers, g_numbers, rs, p_gamma
 !f2py   intent(in)::  home, indexx, p, q, cutoff, n_length, fac_length
 !f2py   intent(out)::  norm_prime
         integer::  m
@@ -46,8 +47,7 @@
                     fac_length, z_nlm_)
 
                 ! Calculate z_nlm
-                if(present(p_gamma))then
-                    p_gamma =p_gamma
+                if (present(p_gamma)) then
                     z_nlm = z_nlm_ * cutoff_fxn(rho * cutoff, &
                     cutoff, cutofffn, p_gamma)
                     ! Calculates z_nlm_prime
@@ -71,7 +71,6 @@
                 if (kronecker(n_index, p) - &
                 kronecker(indexx, p) == 1) then
                     if (present(p_gamma)) then
-                        p_gamma =p_gamma
                         z_nlm_prime = z_nlm_prime + &
                         cutoff_fxn(rho * cutoff, cutoff, &
                         cutofffn, p_gamma) * z_nlm_prime_ / &
@@ -84,13 +83,12 @@
                 else if (kronecker(n_index, p) - kronecker(indexx, p) &
                     == -1) then
                     if (present(p_gamma)) then
-                        p_gamma = p_gamma
-                    z_nlm_prime = z_nlm_prime - &
+                        z_nlm_prime = z_nlm_prime - &
                         cutoff_fxn(rho * cutoff, cutoff, &
                         cutofffn, p_gamma) * z_nlm_prime_ / &
                         cutoff
                     else
-                    z_nlm_prime = z_nlm_prime - &
+                        z_nlm_prime = z_nlm_prime - &
                         cutoff_fxn(rho * cutoff, cutoff, &
                         cutofffn) * z_nlm_prime_ / cutoff
                     end if
