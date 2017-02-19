@@ -24,8 +24,11 @@ pipelines:
           - export PYTHONPATH=$AMP:$PYTHONPATH
           - cd amp/model
           - gfortran -c neuralnetwork.f90
-          - mv neuralnetwork.mod ../
+          - cd ../descriptor
+          - gfortran -c cutoffs.f90
           - cd ../
+          - mv model/neuralnetwork.mod .
+          - mv descriptor/cutoffs.mod .
           - f2py -c -m fmodules model.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90
           - cd ../
           - mkdir amp_tests
