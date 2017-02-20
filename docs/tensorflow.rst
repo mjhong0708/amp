@@ -11,11 +11,10 @@ Dependencies
 ---------------------------------
 
 This package requires google's TensorFlow 0.11.0. You can install it as shown
-below:
+below::
 
-.. code-block:: bash
- export TF_BINARY_URL=https://storage.googleapis.com/tensorflow/linux/cpu/tensorflow-0.11.0-cp27-none-linux_x86_64.whl
- pip install -U --upgrade $TF_BINARY_URL
+    export TF_BINARY_URL=https://storage.googleapis.com/tensorflow/linux/cpu/tensorflow-0.11.0-cp27-none-linux_x86_64.whl
+    pip install -U --upgrade $TF_BINARY_URL
 
 If you want more information, please see tensorflow's website for instructions
 for installation on your system.
@@ -90,7 +89,7 @@ Example
 
 Known issues
 ---------------------------------
-- TensorFlow 0.11.0 is required to run this module.
+- `tflow` module does not work for versions different from 0.11.0.
 
 About
 ---------------------------------
