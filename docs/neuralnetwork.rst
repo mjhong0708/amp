@@ -1,4 +1,4 @@
-.. _ExampleScripts:
+.. _NeuralNetwork:
 
 
 Neural network model
