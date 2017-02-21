@@ -14,12 +14,12 @@ Please see the project's `git repository <https://bitbucket.org/andrewpeterson/a
 
 You can read about Amp in the below paper; if you find Amp useful, we would appreciate if you cite this work:
 
-    Khorshidi & Peterson, "Amp: A modular approach to machine learning in atomistic simulations", *Computer Physics Communications*, 2016. |amp_paper|
+    Khorshidi & Peterson, "Amp: A modular approach to machine learning in atomistic simulations", *Computer Physics Communications* 207:310-324, 2016. |amp_paper|
 
 
 .. |amp_paper| raw:: html
 
-   <a href="http://dx.doi.org/10.1016/j.cpc.2016.05.010" target="_blank">[DOI:10.1016/j.cpc.2016.05.010] </a>
+   <a href="http://dx.doi.org/10.1016/j.cpc.2016.05.010" target="_blank">DOI:10.1016/j.cpc.2016.05.010</a>
 
 **Manual**:
 
