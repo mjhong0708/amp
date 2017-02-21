@@ -94,7 +94,7 @@ In order to prepare the extension module the following steps need to be taken:
 
     $ mv descriptor/cutoffs.mod .
 
-3. Go back to the parent directory and compile the model Fortran subroutines in companion with the descriptor and neuralnetwork subroutines by something like::
+3. Compile the model Fortran subroutines in companion with the descriptor and neuralnetwork subroutines by something like::
 
     $ f2py -c -m fmodules model.f90 descriptor/cutoffs.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90
 
