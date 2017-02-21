@@ -1,4 +1,4 @@
-.. _ExampleScripts:
+.. _NeuralNetwork:
 
 
 Neural network model
@@ -7,7 +7,8 @@ Neural network model
 Observer
 --------
 
-When training the neural network, if you would like to model the progress you can do so with an observer. To do so, attach it before you train with something like
+When training the neural network, if you would like to monitor the progress you can do so with an observer.
+To do so, attach it before you train with something like
 
 .. code-block:: python
 
@@ -20,5 +21,7 @@ When training the neural network, if you would like to model the progress you ca
 
   calc.model.observer = myobserver
 
+Note that the observer must take exactly the three arguments specified above.
 
-Your function "observer" will be called at each call to the loss function. For example, you can use this to print out values of specific parameter functions.
+Your function "observer" will be called at each call to the loss function.
+For example, you can use this to print out values of specific parameter functions.

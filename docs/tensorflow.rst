@@ -6,6 +6,9 @@ TensorFlow
 
 Google has released an open-source version of its machine-learning software named Tensorflow, which can allow for efficient backpropagation of neural networks and utilization of GPUs for extra speed.
 
+We have incorporated an experimental module that uses a tensorflow back-end, which may provide an acceleration particularly through access to GPU systems.
+As of this writing, the tensorflow code is in flux (with version 1.0 anticipated shortly).
+
 
 Dependencies
 ---------------------------------
