@@ -90,6 +90,8 @@ class Amp(Calculator, object):
     @property
     def cores(self):
         """
+        Get or set the cores for the parallel environment.
+
         Parameters
         ----------
         cores : int or dictionary
@@ -103,30 +105,22 @@ class Amp(Calculator, object):
 
     @cores.setter
     def cores(self, cores):
-        """
-        Parameters
-        ----------
-        cores : int or dict
-            Parallel configuration. If cores is an integer, parallelizes over
-            this many processes on machine localhost. cores can also be
-            a dictionary of the type {'node324': 16, 'node325': 16}. If not
-            specified, tries to determine from environment, using
-            amp.utilities.assign_cores.
-        """
         self._parallel['cores'] = assign_cores(cores, log=self._log)
 
     @property
     def descriptor(self):
+        """
+        Get or set the atomic descriptor.
+
+        Parameters
+        ----------
+        descriptor : object
+            Class instance representing the local atomic environment.
+        """
         return self._descriptor
 
     @descriptor.setter
     def descriptor(self, descriptor):
-        """
-        Parameters
-        ----------
-        descriptor : object
-            Class representing local atomic environment.
-        """
         descriptor.parent = self  # gives the descriptor object a reference to
         # the main Amp instance. Then descriptor can pull parameters directly
         # from Amp without needing them to be passed in each method call.
@@ -135,16 +129,18 @@ class Amp(Calculator, object):
 
     @property
     def model(self):
+        """
+        Get or set the machine-learning model.
+
+        Parameters
+        ----------
+        model : object
+            Class instance representing the regression model.
+        """
         return self._model
 
     @model.setter
     def model(self, model):
-        """
-        Parameters
-        ----------
-        model : object
-            Class representing the regression model.
-        """
         model.parent = self  # gives the model object a reference to the main
         # Amp instance. Then model can pull parameters directly from Amp
         # without needing them to be passed in each method call.
