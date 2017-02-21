@@ -11,7 +11,6 @@ A basic fitting script
 
 The below script uses Gaussian descriptors with a neural network backend --- the Behler-Parrinello approach --- to train both energy and forces to a training set made by the script. Note this may take some time to run, which will depend upon the initial guess for the neural network parameters that is randomly generated. Try decreasing the `force_rmse` convergence parameter if you would like faster results.
 
-Note it is usually safe to delete the `cores` keyword and let the code try to determine from your environment how many cores to use.
 
 .. code-block:: python
 

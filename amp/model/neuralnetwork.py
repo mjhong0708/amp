@@ -28,7 +28,7 @@ class NeuralNetwork(Model):
         first one having three nodes and the second one having two nodes is
         assigned (to the whole atomic system in the no descriptor case, and to
         each chemical element in the atom-centered mode). When setting only one
-        one hidden layer, the dictionary can be fed as:
+        hidden layer, the dictionary can be fed as:
 
         >>> hiddenlayers = (3,)
 
@@ -242,6 +242,11 @@ class NeuralNetwork(Model):
         """Access to get or set the model parameters (weights, scaling for
         each network) as a single vector, useful in particular for
         regression.
+
+        Parameters
+        ----------
+        vector : list
+            Parameters of the regression model in the form of a list.
         """
         if self.parameters['weights'] is None:
             return None
@@ -252,12 +257,6 @@ class NeuralNetwork(Model):
 
     @vector.setter
     def vector(self, vector):
-        """
-        Parameters
-        ----------
-        vector : list
-            Parameters of the regression model in the form of a list.
-        """
         p = self.parameters
         if not hasattr(self, 'ravel'):
             self.ravel = Raveler(p.weights, p.scalings)
@@ -320,17 +319,16 @@ class NeuralNetwork(Model):
         >>> from amp.model import LossFunction
         >>> lossfxn = LossFunction(energy_tol=0.0001)
         >>> calc.model.lossfunction = lossfxn
-        """
-        return self._lossfunction
 
-    @lossfunction.setter
-    def lossfunction(self, lossfunction):
-        """
         Parameters
         ----------
         lossfunction : object
             Loss function object, if at all desired by the user.
         """
+        return self._lossfunction
+
+    @lossfunction.setter
+    def lossfunction(self, lossfunction):
         if hasattr(lossfunction, 'attach_model'):
             lossfunction.attach_model(self)  # Allows access to methods.
         self._lossfunction = lossfunction

@@ -91,6 +91,7 @@ Parallel processing
 
 Most tasks in Amp are "embarrassingly parallel" and thus you should see a performance boost by specifying more cores.
 Our standard parallel processing approach requires the modules ZMQ (to pass messages between processes) and pxssh (to establish SSH connections across nodes, and is only needed if parallelizing on more than one node).
+
 The code will try to automatically guess the parallel configuration from the environment variables that your batching system produces, using the function `amp.utilities.assign_cores`.
 (We only use SLURM on our system, so we welcome patches to get this utility working on other systems!)
 If you want to override the automatic guess, use the `cores` keyword when initializing Amp.
@@ -109,13 +110,14 @@ Typically, this means that once you are logged in to your cluster you have publi
 If you can run `ssh localhost` without it asking you for a password, this is likely to work for you.
 
 This also assumes that your environment is identical each time you SSH into a node; that is, all the packages such as ASE, Amp, ZMQ, etc., are available in the same version.
-Generally, if you are setting your environment with a .bashrc or .modules file this will work.
-If you need to set environment variable on the machine that is being SSH'd to, you can do so with the `envcommand` keyword, as in
+Generally, if you are setting your environment with a .bashrc or .modules file this will just work.
+However, if you need to set your environment variables on the machine that is being ssh'd to, you can do so with the `envcommand` keyword, which you might set to
 
 .. code-block:: python
 
    envcommand = 'export PYTHONPATH=/path/to/amp:$PYTHONPATH'
 
+This envcommand can be passed as a keyword to the initialization of the Amp class.
 Ultimately, Amp stores these and passes them around in a configuration dictionary called `parallel`, so if you are calling descriptor or model functions directly you may need to construct this dictionary, which has the form `parallel={'cores': ..., 'envcommand': ...}`.
 
 
@@ -137,7 +139,7 @@ Under the hood, the train function is pretty simple; it just runs:
   This makes addressing the images simpler across modules and eliminates duplicate images.
   This also facilitates keeping a database of fingerprints, such that in future scripts you do not need to re-fingerprint images you have already encountered.
 
-* In the second line, the descriptor converts the images into fingerprints, one fingerprint per image. There are two possible modes a descriptor can operate in: "image-centered" in which one vector is produced per image, and "atom-centered" in which one vector is produced per atom. The resulting fingerprint is stored in `descriptor.fingerprints`, and the mode is stored in self.parameters.mode.
+* In the second line, the descriptor converts the images into fingerprints, one fingerprint per image. There are two possible modes a descriptor can operate in: "image-centered" in which one vector is produced per image, and "atom-centered" in which one vector is produced per atom. That is, in atom-centered mode the image's fingerprint will be a list of lists. The resulting fingerprint is stored in `self.descriptor.fingerprints`, and the mode is stored in `self.parameters.mode`.
 
 * In the third line, the model (e.g., a neural network) is fit to the data. As it is passed a reference to `self.descriptor`, it has access to the fingerprints as well as the mode. Many options are available to customize this in terms of the loss function, the regression method, etc.
 
@@ -147,15 +149,16 @@ Under the hood, the train function is pretty simple; it just runs:
 Re-training
 ----------------------------------
 
-If training is successful, Amp saves the parameters into an 'amp.amp' file by default. You can load the pretrained calculator and re-train it further with tighter convergence criteria. You can specify if the pre-trained amp.amp will be overwritten by the re-trained one through the key word 'overwrite' (default is False). 
+If training is successful, Amp saves the parameters into an '<label>.amp' file (by default the label is 'amp', so this file is 'amp.amp'). You can load the pretrained calculator and re-train it further with tighter convergence criteria. You can specify if the pre-trained amp.amp will be overwritten by the re-trained one through the key word 'overwrite' (default is False). 
 
 .. code-block:: python
 
-   calc = Amp.load( 'amp.amp' )
-   calc.model.lossfunction = LossFunction( convergence=convergence )
-   calc.train( overwrite=True or False )
+   calc = Amp.load('amp.amp')
+   calc.model.lossfunction = LossFunction(convergence=convergence)
+   calc.train(overwrite=True)
 
-If training does not succeed, Amp raises a `TrainingConvergenceError`. You can use this within your scripts to catch when training succeeds or fails, for example:
+If training does not succeed, Amp raises a `TrainingConvergenceError`.
+You can use this within your scripts to catch when training succeeds or fails, for example:
 
 .. code-block:: python
 

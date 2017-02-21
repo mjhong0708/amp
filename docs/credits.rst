@@ -14,15 +14,16 @@ This project is developed primarily by **Andrew Peterson** and **Alireza Khorshi
 * Andrew Peterson: lead, PI, many modules
 * Alireza Khorshidi: many modules, Zernike descriptor
 * Zack Ulissi: tensorflow version of neural network
+* Muammar El Khatib: general contributions
 
 We are also indebted to Nongnuch Artrith (MIT) and Pedro Felzenszwalb (Brown) for inspiration and technical discussion.
 
 Citations
 ---------
 
-We would appreciate if you cite this work, for any use of Amp or its methods:
+We would appreciate if you cite the below publication for any use of Amp or its methods:
 
-    Khorshidi & Peterson, "Amp: A modular approach to machine learning in atomistic simulations", *Computer Physics Communications*, 2016. |amp_paper|
+    Khorshidi & Peterson, "Amp: A modular approach to machine learning in atomistic simulations", *Computer Physics Communications* 207:310-324, 2016. |amp_paper|
 
 
 .. |amp_paper| raw:: html

@@ -18,7 +18,14 @@ class Model(object):
     @property
     def log(self):
         """Method to set or get a logger. Should be an instance of
-        amp.utilities.Logger."""
+        amp.utilities.Logger.
+
+        Parameters
+        ----------
+        log : Logger object
+            Write function at which to log data. Note this must be a callable
+            function.
+        """
         if hasattr(self, '_log'):
             return self._log
         if hasattr(self.parent, 'log'):
@@ -27,14 +34,6 @@ class Model(object):
 
     @log.setter
     def log(self, log):
-        """Log data
-
-        Parameters
-        ----------
-        log : Logger object
-            Write function at which to log data. Note this must be a callable
-            function.
-        """
         self._log = log
 
     def tostring(self):

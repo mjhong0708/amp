@@ -2,21 +2,21 @@
 Release notes / Revision history
 ================================
 
-Master
-------
+Master development branch
+-------------------------
 
 The code has been significantly restructured since the previous version, in order to increase the modularity; much of the code structure has been changed since v0.4. Specific changes below:
 
 * A parallelization scheme allowing for fast message passing with ZeroMQ.
 * A simpler database format based on files, which optionally can be compressed to save diskspace.
-* Incorporation of an experimental neural network model based on google's tensorflow package. Requires tensorflow version 11.
+* Incorporation of an experimental neural network model based on google's TensorFlow package. Requires TensorFlow version 0.11.0.
 * Incorporation of an experimental bootstrap module for uncertainty analysis.
 
 v0.4
 ----
-Release date:
+Release date: February 29, 2016
 
-Corresponds to release of Khorshidi, A; Peterson*, AA. Amp: a modular approach to machine learning in atomistic simulations. Computer Physics Communications 207:310-324, 2016. http://dx.doi.org/10.1016/j.cpc.2016.05.010
+Corresponds to the publication of Khorshidi, A; Peterson*, AA. Amp: a modular approach to machine learning in atomistic simulations. Computer Physics Communications 207:310-324, 2016. http://dx.doi.org/10.1016/j.cpc.2016.05.010
 
 Permanently available at https://doi.org/10.5281/zenodo.46737
 

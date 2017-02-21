@@ -17,15 +17,19 @@ To get more features, such as parallelization in training, a few more packages a
 * Pexpect (or pxssh)
 * ZMQ (or PyZMQ, the python version of ØMQ).
 
+Certain advanced modules may contain dependencies that will be noted when they are used; for example Tensorflow for the tflow module or matplotlib for the plotting modules.
+
+Basic installation instructions follow.
+
 ----------------------------------
 Install ASE
 ----------------------------------
 
-We always test against the latest version (svn checkout) of ASE, but slightly older versions (>=3.9.0) are likely to work
-as well. Follow the instructions at the `ASE <https://wiki.fysik.dtu.dk/ase/download.html>`_ website. ASE itself depends
-upon python with the standard numeric and scientific packages. Verify that you have working versions of
-`NumPy <http://numpy.org>`_ and `SciPy <http://scipy.org>`_. We also recommend `matplotlib <http://matplotlib.org>`_ in
-order to generate plots.
+We always test against the latest version (svn checkout) of ASE, but slightly older versions (>=3.9) are likely to work as well.
+Follow the instructions at the `ASE <https://wiki.fysik.dtu.dk/ase/download.html>`_ website.
+ASE itself depends upon python with the standard numeric and scientific packages.
+Verify that you have working versions of `NumPy <http://numpy.org>`_ and `SciPy <http://scipy.org>`_.
+We also recommend `matplotlib <http://matplotlib.org>`_ in order to generate plots.
 
 ----------------------------------
 Check out the code
@@ -41,7 +45,7 @@ page <https://bitbucket.org/andrewpeterson/amp/>`_. If you use git, check out th
 
 where you should replace '~/path/to/my/codes' with wherever you would like the code to be located on your computer.
 If you do not use git, just download the code as a zip file from the project's
-`download <https://bitbucket.org/andrewpeterson/amp/downloads>`_ page, and extract it into '~/path/to/my/codes'. Please make sure that the folder '~/path/to/my/codes/amp' includes the script '__init__.py' as well as the folders 'descriptor', 'model', 'regression', ... 
+`download <https://bitbucket.org/andrewpeterson/amp/downloads>`_ page, and extract it into '~/path/to/my/codes'. Please make sure that the folder '~/path/to/my/codes/amp' includes subdirectories 'amp', 'docs', 'tests', and 'tools'.
 
 ----------------------------------
 Set the environment
@@ -71,28 +75,36 @@ This compiler will generate Fortran modules (.mod).
 gfortran will also be used by f2py to generate extension module fmodules.so on Linux or fmodules.pyd on Windows.
 In order to prepare the extension module the following steps need to be taken:
 
-1. Compile model Fortran subroutines inside the model folder by::
+1. Compile model Fortran subroutines inside the model and descriptor folders by::
 
     $ cd <installation-directory>/amp/model
 
     $ gfortran -c neuralnetwork.f90
 
-2. Move the module "neuralnetwork.mod" created in the last step, to the parent directory by::
+    $ cd ../descriptor
 
-    $ mv neuralnetwork.mod ../
+    $ gfortran -c cutoffs.f90
 
-3. Go back to the parent directory and compile the model Fortran subroutines in companion with the descriptor and neuralnetwork subroutines by something like::
 
-    $ cd ../
+2. Move the modules "neuralnetwork.mod" and "cutoffs.mod" created in the last step, to the parent directory by::
 
-    $ f2py -c -m fmodules model.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90
+    $ cd ..
+
+    $ mv model/neuralnetwork.mod .
+
+    $ mv descriptor/cutoffs.mod .
+
+3. Compile the model Fortran subroutines in companion with the descriptor and neuralnetwork subroutines by something like::
+
+    $ f2py -c -m fmodules model.f90 descriptor/cutoffs.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90
+
 
 or on a Windows machine by::
 
-    $ f2py -c -m fmodules model.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90 --fcompiler=gnu95 --compiler=mingw32
+    $ f2py -c -m fmodules model.f90 descriptor/cutoffs.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90 --fcompiler=gnu95 --compiler=mingw32
 
-If the version of fmodules.f90 is not updated, an exception will be raised which tells user which version number should be employed.
- 
+Note that if you update your code (e.g., with 'git pull origin master') and the fortran code changes but your version of fmodules.f90 is not updated, an exception will be raised telling you to re-compile your fortran modules.
+
 ----------------------------------
 Recommended step: Run the tests
 ----------------------------------

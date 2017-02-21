@@ -1,14 +1,14 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-!     Fortran Version = 8
-      subroutine check_version(version, warning) 
+!     Fortran Version = 9
+      subroutine check_version(version, warning)
       implicit none
-    
+
       integer::  version, warning
 !f2py         intent(in)::  version
 !f2py         intent(out)::  warning
-      if (version .NE. 8) then
+      if (version .NE. 9) then
           warning = 1
       else
           warning = 0
@@ -21,8 +21,8 @@
 !     by python)
       module fingerprint_props
       implicit none
- 
-      integer, allocatable:: num_fingerprints_of_elements(:)     
+
+      integer, allocatable:: num_fingerprints_of_elements(:)
       double precision, allocatable:: raveled_fingerprints(:, :)
       double precision, allocatable:: raveled_fingerprintprimes(:, :)
 
@@ -41,8 +41,8 @@
       double precision:: force_coefficient
       double precision:: overfit
       logical:: numericprime
-      double precision:: d      
-      
+      double precision:: d
+
       end module model_props
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -65,7 +65,7 @@
 !     image-centered variables
       integer:: num_atoms
       double precision, allocatable:: atomic_positions(:, :)
-      
+
       end module images_props
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -276,14 +276,14 @@
 					    end do
 					end do
 				end do
-                ! calculates dforces_dparameters  
+                ! calculates dforces_dparameters
                 if (numericprime .EQV. .FALSE.) then
                     call calculate_dforces_dparameters(image_no)
                 else
                     call calculate_numerical_dforces_dparameters(image_no)
                 end if
                 ! calculates contribution of forceloss to
-                ! dloss_dparameters 
+                ! dloss_dparameters
                 do selfindex = 1, num_atoms
                     do i = 1, 3
                         do j = 1, num_parameters
@@ -394,7 +394,7 @@
 
       ! calculates amp_energy
       subroutine calculate_energy(image_no)
- 
+
       if (mode_signal == 1) then
         amp_energy = &
         calculate_image_energy(num_inputs, inputs, num_parameters, &
@@ -428,7 +428,7 @@
       end subroutine calculate_energy
 
  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
- 
+
       ! calculates amp_forces
       subroutine calculate_forces(image_no)
 
@@ -458,7 +458,7 @@
             image_no)%onedarray(selfindex)%onedarray)
                 neighborindices(p) = unraveled_neighborlists(&
                 image_no)%onedarray(selfindex)%onedarray(p)
-            end do 
+            end do
 
             do l = 1, size(neighborindices)
                 nindex = neighborindices(l)
@@ -539,7 +539,7 @@
       subroutine calculate_numerical_denergy_dparameters(image_no)
 
       double precision:: eplus, eminus
-      
+
       do j = 1, num_parameters
           parameters(j) = parameters(j) + d
           call calculate_energy(image_no)
@@ -638,7 +638,7 @@
       subroutine calculate_numerical_dforces_dparameters(image_no)
 
       double precision, allocatable:: fplus(:, :), fminus(:, :)
-      
+
       do j = 1, num_parameters
           parameters(j) = parameters(j) + d
           deallocate(amp_forces)
@@ -694,7 +694,7 @@
       end subroutine unravel_atomic_positions
 
  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
- 
+
       subroutine unravel_atomic_numbers()
 
       k = 0
@@ -708,11 +708,11 @@
         end do
         k = k + num_atoms
       end do
-      
+
       end subroutine unravel_atomic_numbers
 
  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
- 
+
       subroutine unravel_neighborlists()
 
       k = 0
@@ -732,7 +732,7 @@
         end do
         k = k + num_atoms
       end do
-      
+
       end subroutine unravel_neighborlists
 
  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -756,9 +756,9 @@
         end do
         k = k + num_atoms
       end do
-      
+
       end subroutine unravel_actual_forces
- 
+
  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       subroutine unravel_fingerprints()
@@ -776,7 +776,7 @@
                 elements_numbers(element)) then
                     allocate(unraveled_fingerprints(&
                     image_no)%onedarray(index)%onedarray(&
-                    num_fingerprints_of_elements(element))) 
+                    num_fingerprints_of_elements(element)))
                     exit
                 end if
             end do
@@ -788,7 +788,7 @@
         end do
       k = k + num_atoms
       end do
-      
+
       end subroutine unravel_fingerprints
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -843,11 +843,11 @@
         end do
         k = k + num_atoms
       end do
-      
+
       end subroutine unravel_fingerprintprimes
- 
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      
+
       end subroutine calculate_loss
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -915,7 +915,7 @@
       end if
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      
+
       end subroutine deallocate_variables
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
