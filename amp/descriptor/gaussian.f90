@@ -369,7 +369,7 @@
 
       subroutine calculate_g4_prime(neighborindices, neighbornumbers, &
       neighborpositions, g_numbers, g_gamma, g_zeta, g_eta, rc, &
-      cutofffn, i, ri, m, l, num_neighbors, ridge)
+      cutofffn, i, ri, m, l, num_neighbors, ridge, p_gamma)
 
               use cutoffs
               implicit none
@@ -629,6 +629,7 @@
       neighborpositions, g_numbers, g_gamma, g_zeta, g_eta, rc, &
       cutofffn, i, ri, m, l, num_neighbors, ridge, p_gamma)
 
+              use cutoffs
               implicit none
               integer, dimension(num_neighbors):: neighborindices
               integer, dimension(num_neighbors):: neighbornumbers
