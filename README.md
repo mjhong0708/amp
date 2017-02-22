@@ -31,13 +31,18 @@ License
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-Installation and documentation
-==============================
+Installation
+============
 
 You can find the installation instructions for this version of Amp in the
-file `docs/installation.rst`. You can find instructions to build a local
-copy of the documentation in the file `docs/README.md`.
+documentation file `docs/installation.rst`.
+
+Documentation
+=============
 
 We currently host multiple versions of the documentation, which includes
 installation instructions, at http://amp.readthedocs.io. 
 
+You can build a local copy of the documentation for this version of Amp.
+You will find instructions to do this in the "Documentation" section of the
+file `docs/develop.rst`.
