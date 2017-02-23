@@ -23,7 +23,7 @@ class Regressor:
         the loss function as well as the loss function itself.
     """
 
-    def __init__(self, optimizer='L-BFGS-B', optimizer_kwargs=None,
+    def __init__(self, optimizer='BFGS', optimizer_kwargs=None,
                  lossprime=True):
         """optimizer can be specified; it should behave like a
         scipy.optimize optimizer. That is, it should take as its first two
@@ -33,7 +33,10 @@ class Regressor:
 
         user_kwargs = optimizer_kwargs
         optimizer_kwargs = {}
-        if optimizer == 'L-BFGS-B':
+        if optimizer == 'BFGS':
+            from scipy.optimize import fmin_bfgs as optimizer
+            optimizer_kwargs = {'gtol': 1e-15, }
+        elif optimizer == 'L-BFGS-B':
             from scipy.optimize import fmin_l_bfgs_b as optimizer
             optimizer_kwargs = {'factr': 1e+02,
                                 'pgtol': 1e-08,
@@ -43,10 +46,6 @@ class Regressor:
             from distutils.version import StrictVersion
             if StrictVersion(scipy.__version__) >= StrictVersion('0.17.0'):
                 optimizer_kwargs['maxls'] = 2000
-
-        elif optimizer == 'BFGS':
-            from scipy.optimize import fmin_bfgs as optimizer
-            optimizer_kwargs = {'gtol': 1e-15, }
         elif optimizer == 'TNC':
             from scipy.optimize import fmin_tnc as optimizer
             optimizer_kwargs = {'ftol': 0.,
