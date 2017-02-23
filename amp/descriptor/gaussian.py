@@ -42,9 +42,9 @@ class Gaussian(object):
     elements : list
         List of allowed elements present in the system. If not provided, will
         be found automatically.
-    atype : str
+    angular : str
         Select the type of angular symmetry function to be used. Possible
-        values are 'atype=G4', or 'atype=G5'.
+        values are 'angular=G4', or 'angular=G5'.
     version : str
         Version of fingerprints.
     fortran : bool
@@ -58,7 +58,7 @@ class Gaussian(object):
     """
 
     def __init__(self, cutoff=Cosine(6.5), Gs=None, dblabel=None,
-                 elements=None, version=None, fortran=True, atype=None,
+                 elements=None, version=None, fortran=True, angular=None,
                  mode='atom-centered'):
 
         # Check of the version of descriptor, particularly if restarting.
@@ -100,7 +100,7 @@ class Gaussian(object):
 
         self.dblabel = dblabel
         self.fortran = fortran
-        self.atype = atype
+        self.angular = angular
         self.parent = None  # Can hold a reference to main Amp instance.
 
     def tostring(self):
@@ -153,7 +153,7 @@ class Gaussian(object):
 
         if p.Gs is None:
             log('No symmetry functions supplied; creating defaults.')
-            p.Gs = make_symmetry_functions(p.elements, self.atype)
+            p.Gs = make_symmetry_functions(p.elements, self.angular)
         log('Number of symmetry functions for each element:')
         for _ in p.Gs.keys():
             log(' %2s: %i' % (_, len(p.Gs[_])))
@@ -814,7 +814,7 @@ def calculate_G5(neighborsymbols, neighborpositions,
         return ridge
 
 
-def make_symmetry_functions(elements, atype):
+def make_symmetry_functions(elements, angular):
     """Makes symmetry functions as in Nano Letters function by Artrith.
 
     Elements is a list of the elements, as in: ["C", "O", "H", "Cu"].  G[0]
@@ -828,9 +828,9 @@ def make_symmetry_functions(elements, atype):
     ----------
     elements : list of str
         List of symbols of all atoms.
-    atype : str
+    angular : str
         Select the type of angular symmetry function to be used. Possible
-        values are 'atype=G4', or 'atype=G5'.
+        values are 'angular=G4', or 'angular=G5'.
 
     Returns
     -------
@@ -856,14 +856,14 @@ def make_symmetry_functions(elements, atype):
                     for i1, el1 in enumerate(elements):
                         for el2 in elements[i1:]:
                             els = sorted([el1, el2])
-                            if atype == None or atype.lower() == 'g4':
+                            if angular == None or angular.lower() == 'g4':
                                 # This would be the default
                                 _G.append({'type': 'G4',
                                            'elements': els,
                                            'eta': eta,
                                            'gamma': gamma,
                                            'zeta': zeta})
-                            elif atype.lower() == 'g5':
+                            elif angular.lower() == 'g5':
                                 _G.append({'type': 'G5',
                                            'elements': els,
                                            'eta': eta,
