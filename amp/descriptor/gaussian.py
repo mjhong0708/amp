@@ -296,9 +296,6 @@ class FingerprintCalculator:
                 index, symbol, neighborsymbols, neighborpositions)
             fingerprints.append(indexfp)
 
-            if index == 1:
-                print('fingerprints')
-                print(fingerprints)
         return fingerprints
 
     def get_fingerprint(self, index, symbol,
@@ -724,8 +721,6 @@ def calculate_G4(neighborsymbols, neighborpositions,
                 term *= cutoff_fxn(**_Rjk)
                 ridge += term
         ridge *= 2. ** (1. - zeta)
-        print('ridge')
-        print(ridge)
         return ridge
 
 

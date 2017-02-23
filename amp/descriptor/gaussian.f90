@@ -196,7 +196,6 @@
               double precision, dimension(3):: Rjk_vector
               double precision:: Rij, Rik, Rjk, costheta, term
 
-              print *, 'Fortran g5'
               ridge = 0.0d0
               do j = 1, num_neighbors
                 do k = (j + 1), num_neighbors
@@ -235,7 +234,6 @@
                 end do
               end do
               ridge = ridge * 2.0d0**(1.0d0 - g_zeta)
-              print *, ridge
 
       CONTAINS
 
@@ -658,7 +656,6 @@
               double precision:: term1, term2, term3, term4, term5
               double precision:: term6
 
-              print *, 'Fortran g5 prime'
               ridge = 0.0d0
               do j = 1, num_neighbors
                 do k = (j + 1), num_neighbors
@@ -752,7 +749,6 @@
                 end do
               end do
               ridge = ridge * (2.0d0**(1.0d0 - g_zeta))
-              print *, ridge
 
       CONTAINS
 
