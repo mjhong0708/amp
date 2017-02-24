@@ -79,8 +79,8 @@ To create a release, we go through the following steps.
   Note we need to add the "-release" part to the tag to prevent a naming conflict with the branch name in git.
   (See Issue #43 on the project's bitbucket page for discussion.)
 
-* Add the version to readthedocs' available versions.
+* Add the version to readthedocs' available versions; also set it as the default stable version.
 
 * Change the nightly tests to test this branch as the "stable" build.
 
-* Create a DOI for the release via Xenodo. Note that all the ".git" files and folders should be removed from the files before uploading to Xenodo. The DOI can then be added to the development version's release notes. (I don't think there's a way to get it into the archival version on Xenodo!)
+* Create a DOI for the release via zenodo.org. Note that all the ".git" files and folders should be removed from the files before uploading to Zenodo. The DOI can then be added to the development version's release notes. (I don't think there's a way to get it into the archival version on Zenodo!)
