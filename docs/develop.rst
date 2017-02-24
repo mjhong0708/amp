@@ -79,4 +79,4 @@ To create a release, we go through the following steps.
   Note we need to add the "-release" part to the tag to prevent a naming conflict with the branch name in git.
   (See Issue #43 on the project's bitbucket page for discussion.)
 
-* Create a DOI for the release and a copy on Xenodo.
+* Create a DOI for the release and a copy on Zenodo.
