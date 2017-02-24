@@ -32,20 +32,23 @@ Verify that you have working versions of `NumPy <http://numpy.org>`_ and `SciPy 
 We also recommend `matplotlib <http://matplotlib.org>`_ in order to generate plots.
 
 ----------------------------------
-Check out the code
+Get the code
 ----------------------------------
 
-As a relatively new project, it may be preferable to use the development version rather than "stable" releases, as improvements are constantly being made and features added.
-We run daily unit tests to make sure that our development code works as intended.
-We recommend checking out the latest version of the code via `the project's bitbucket
-page <https://bitbucket.org/andrewpeterson/amp/>`_. If you use git, check out the code with::
+The latest stable release of Amp is version 0.5, which is permanently available at `https://doi.org/10.5281/zenodo.322427 <https://doi.org/10.5281/zenodo.322427>`_.
+If installing version 0.5, you should follow ignore the rest of this page and follow the instructions included with the download (see docs/installation.rst or look for v0.5 on `http://amp.readthedocs.io <http://amp.readthedocs.io>`_).
+
+We are constantly improving *Amp* and adding features, so depending on your needs it may be preferable to use the development version rather than "stable" releases.
+We run daily unit tests to try to make sure that our development code works as intended.
+We recommend checking out the latest version of the code via `the project's bitbucket page <https://bitbucket.org/andrewpeterson/amp/>`_.
+If you use git, check out the code with::
 
    $ cd ~/path/to/my/codes
    $ git clone git@bitbucket.org:andrewpeterson/amp.git
 
 where you should replace '~/path/to/my/codes' with wherever you would like the code to be located on your computer.
-If you do not use git, just download the code as a zip file from the project's
-`download <https://bitbucket.org/andrewpeterson/amp/downloads>`_ page, and extract it into '~/path/to/my/codes'. Please make sure that the folder '~/path/to/my/codes/amp' includes subdirectories 'amp', 'docs', 'tests', and 'tools'.
+If you do not use git, just download the code as a zip file from the project's `download <https://bitbucket.org/andrewpeterson/amp/downloads>`_ page, and extract it into '~/path/to/my/codes'.
+Please make sure that the folder '~/path/to/my/codes/amp' includes subdirectories 'amp', 'docs', 'tests', and 'tools'.
 
 ----------------------------------
 Set the environment

@@ -18,6 +18,8 @@ The code has been significantly restructured since the previous version, in orde
 * Incorporation of an experimental neural network model based on google's TensorFlow package. Requires TensorFlow version 0.11.0.
 * Incorporation of an experimental bootstrap module for uncertainty analysis.
 
+Permanently available at https://doi.org/10.5281/zenodo.322427
+
 0.4
 ---
 Release date: February 29, 2016
