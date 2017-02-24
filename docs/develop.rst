@@ -64,7 +64,10 @@ Releases
 
 To create a release, we go through the following steps.
 
-* Create a new branch on the bitbucket repository with the version name, as in `v0.5`. (Don't create a separate branch if this is a bugfix release, e.g., 0.5.1 --- just add those to the v0.5 branch.) All subsequent work is in the new branch. Note the branch name starts with "v", while the tag names will not.
+* Create a new branch on the bitbucket repository with the version name, as in `v0.5`.
+  (Don't create a separate branch if this is a bugfix release, e.g., 0.5.1 --- just add those to the v0.5 branch.)
+  All subsequent work is in the new branch.
+  Note the branch name starts with "v", while the tag names will not, to avoid naming conflicts.
 
 * Change `docs/conf.py`'s version information to match the new version number.
 
@@ -74,13 +77,14 @@ To create a release, we go through the following steps.
 
 * Commit and push the changes to the new branch on bitbucket.
 
-* Tag the release with the release number, e.g., v0.5-release or v0.5.1-release, the latter being for bug fixes.
-  Do this on a local machine (on the correct branch) with `git tag -a v0.5-release`, followed by `git push origin --tags`.
-  Note we need to add the "-release" part to the tag to prevent a naming conflict with the branch name in git.
-  (See Issue #43 on the project's bitbucket page for discussion.)
+* Tag the release with the release number, e.g., '0.5' or '0.5.1', the latter being for bug fixes.
+  Do this on a local machine (on the correct branch) with `git tag -a 0.5`, followed by `git push origin --tags`.
 
 * Add the version to readthedocs' available versions; also set it as the default stable version.
 
 * Change the nightly tests to test this branch as the "stable" build.
 
-* Create a DOI for the release via zenodo.org. Note that all the ".git" files and folders should be removed from the files before uploading to Zenodo. The DOI can then be added to the development version's release notes. (I don't think there's a way to get it into the archival version on Zenodo!)
+* Create a DOI for the release via zenodo.org.
+  Note that all the ".git" files and folders should be removed from the files before uploading to Zenodo.
+  The DOI can then be added to the development version's release notes.
+  (I don't think there's a way to get it into the archival version on Zenodo!)
