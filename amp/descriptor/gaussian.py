@@ -784,7 +784,6 @@ def calculate_G5(neighborsymbols, neighborpositions,
     else:
         Rc = cutoff['kwargs']['Rc']
         cutoff_fxn = dict2cutoff(cutoff)
-        #eta = eta * Rc**2
         ridge = 0.
         counts = range(len(neighborpositions))
         for j in counts:
@@ -1354,7 +1353,6 @@ def calculate_G5_prime(neighborindices, neighborsymbols, neighborpositions,
                 c1 = (1. + gamma * cos_theta_ijk)
                 fcRij = cutoff_fxn(Rij)
                 fcRik = cutoff_fxn(Rik)
-                #fcRjk = cutoff_fxn(Rjk)
                 if zeta == 1:
                     term1 = \
                         np.exp(- eta * (Rij ** 2. + Rik ** 2.) /
@@ -1378,15 +1376,9 @@ def calculate_G5_prime(neighborindices, neighborsymbols, neighborpositions,
                 dRikdRml = dRij_dRml(i, neighborindices[k], Ri, Rk, m, l)
                 if dRikdRml != 0:
                     term2 += -2. * c1 * eta * Rik * dRikdRml / (Rc ** 2.)
-                #dRjkdRml = dRij_dRml(neighborindices[j],
-                                     #neighborindices[k],
-                                     #Rj, Rk, m, l)
-                #if dRjkdRml != 0:
-                    #term2 += -2. * c1 * eta * Rjk * dRjkdRml / (Rc ** 2.)
                 term3 = fcRijfcRik * term2
                 term4 = cutoff_fxn.prime(Rij) * dRijdRml * fcRik #* fcRjk
                 term5 = fcRij * cutoff_fxn.prime(Rik) * dRikdRml #* fcRjk
-                #term6 = fcRij * fcRik * cutoff_fxn.prime(Rjk) * dRjkdRml
 
                 ridge += term1 * (term3 + c1 * (term4 + term5))# + term6))
         ridge *= 2. ** (1. - zeta)

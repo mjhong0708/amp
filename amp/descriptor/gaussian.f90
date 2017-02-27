@@ -667,33 +667,30 @@
                       Rk(xyz) = neighborpositions(k, xyz)
                       Rij_vector(xyz) = Rj(xyz) - ri(xyz)
                       Rik_vector(xyz) = Rk(xyz) - ri(xyz)
-                      !Rjk_vector(xyz) = Rk(xyz) - Rj(xyz)
                     end do
                     Rij = sqrt(dot_product(Rij_vector, Rij_vector))
                     Rik = sqrt(dot_product(Rik_vector, Rik_vector))
-                    !Rjk = sqrt(dot_product(Rjk_vector, Rjk_vector))
                     costheta = &
                     dot_product(Rij_vector, Rik_vector) / Rij / Rik
                     c1 = (1.0d0 + g_gamma * costheta)
                     if (present(p_gamma)) then
                         fcRij = cutoff_fxn(Rij, rc, cutofffn, p_gamma)
                         fcRik = cutoff_fxn(Rik, rc, cutofffn, p_gamma)
-                        !fcRjk = cutoff_fxn(Rjk, rc)
                     else
                         fcRij = cutoff_fxn(Rij, rc, cutofffn)
                         fcRik = cutoff_fxn(Rik, rc, cutofffn)
                     end if
 
                     if (g_zeta == 1.0d0) then
-                        term1 = exp(-g_eta*(Rij**2 + Rik**2)& ! + Rjk**2)&
+                        term1 = exp(-g_eta*(Rij**2 + Rik**2)&
                         / (rc ** 2.0d0))
                     else
                         term1 = (c1**(g_zeta - 1.0d0)) &
-                             * exp(-g_eta*(Rij**2 + Rik**2)&  ! + Rjk**2)&
+                             * exp(-g_eta*(Rij**2 + Rik**2)&
                              / (rc ** 2.0d0))
                     end if
                     term2 = 0.d0
-                    fcRijfcRikfcRjk = fcRij * fcRik! * fcRjk
+                    fcRijfcRikfcRjk = fcRij * fcRik
                     dCosthetadRml = &
                     dCos_ijk_dR_ml(i, neighborindices(j), &
                     neighborindices(k), ri, Rj, Rk, m, l)
@@ -714,37 +711,26 @@
                         term2 - 2.0d0 * c1 * g_eta * Rik * dRikdRml &
                         / (rc ** 2.0d0)
                     end if
-                    !dRjkdRml =  &
-                    !dRij_dRml(neighborindices(j), neighborindices(k), &
-                    !Rj, Rk, m, l)
-                    !if (dRjkdRml /= 0.0d0) then
-                    !    term2 = &
-                    !    term2 - 2.0d0 * c1 * g_eta * Rjk * dRjkdRml &
-                    !    / (rc ** 2.0d0)
-                    !end if
+
                     term3 = fcRijfcRikfcRjk * term2
 
                     if(present(p_gamma)) then
                         term4 = &
                         cutoff_fxn_prime(Rij, rc, cutofffn, p_gamma) &
-                        * dRijdRml * fcRik! * fcRjk
+                        * dRijdRml * fcRik
                         term5 = &
                         fcRij * cutoff_fxn_prime(Rik, rc, cutofffn, &
-                        p_gamma) * dRikdRml! * fcRjk
-                        !term6 = &
-                        !fcRij * fcRik * cutoff_fxn_prime(Rjk, rc) * dRjkdRml
+                        p_gamma) * dRikdRml
                     else
                         term4 = &
                         cutoff_fxn_prime(Rij, rc, cutofffn) * dRijdRml &
-                        * fcRik! * fcRjk
+                        * fcRik
                         term5 = &
                         fcRij * cutoff_fxn_prime(Rik, rc, cutofffn) &
-                        * dRikdRml! * fcRjk
-                        !term6 = &
-                        !fcRij * fcRik * cutoff_fxn_prime(Rjk, rc) * dRjkdRml
+                        * dRikdRml
                     end if
                     ridge = ridge + &
-                    term1 * (term3 + c1 * (term4 + term5))! + term6))
+                    term1 * (term3 + c1 * (term4 + term5))
                   end if
                 end do
               end do
