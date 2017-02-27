@@ -12,7 +12,6 @@ import zmq
 
 from ..utilities import MessageDictionary, string2dict, Logger
 from .. import importhelper
-from . import ravel_data, send_data_to_fortran
 
 
 hostsocket = sys.argv[-1]
@@ -87,74 +86,6 @@ if purpose == 'calculate_loss_function':
         'attached to the loss function.')
 
     if model.fortran:
-        try:
-            from .. import fmodules
-        except ImportError:
-            fmodules = None
-        log('fmodules: %s' % str(fmodules))
-
-        mode = model.parameters.mode
-        energy_coefficient = lossfunction.parameters.energy_coefficient
-        force_coefficient = lossfunction.parameters.force_coefficient
-        overfit = lossfunction.parameters.overfit
-        if force_coefficient == 0.:
-            train_forces = False
-        else:
-            train_forces = True
-
-        if mode == 'atom-centered':
-            num_atoms = None
-        elif mode == 'image-centered':
-            raise NotImplementedError('Image-centered mode is not coded yet.')
-
-        (actual_energies, actual_forces, elements, atomic_positions,
-         num_images_atoms, atomic_numbers, raveled_fingerprints, num_neighbors,
-         raveled_neighborlists, raveled_fingerprintprimes) = (None,) * 10
-
-        value = ravel_data(train_forces,
-                           mode,
-                           images,
-                           fingerprints,
-                           fingerprintprimes,)
-
-        if mode == 'image-centered':
-            if not train_forces:
-                (actual_energies, atomic_positions) = value
-            else:
-                (actual_energies, actual_forces, atomic_positions) = value
-        else:
-            if not train_forces:
-                (actual_energies, elements, num_images_atoms, atomic_numbers,
-                 raveled_fingerprints) = value
-            else:
-                (actual_energies, actual_forces, elements, num_images_atoms,
-                 atomic_numbers, raveled_fingerprints, num_neighbors,
-                 raveled_neighborlists, raveled_fingerprintprimes) = value
-        log('Data reshaped into lists to be sent to fmodules.')
-
-        num_images = len(images)
-
-        send_data_to_fortran(fmodules,
-                             energy_coefficient,
-                             force_coefficient,
-                             overfit,
-                             train_forces,
-                             num_atoms,
-                             num_images,
-                             actual_energies,
-                             actual_forces,
-                             atomic_positions,
-                             num_images_atoms,
-                             atomic_numbers,
-                             raveled_fingerprints,
-                             num_neighbors,
-                             raveled_neighborlists,
-                             raveled_fingerprintprimes,
-                             model,
-                             lossfunction.d)
-        log('Data sent to fmodules.')
-
-    if model.fortran:
         log('fmodules will be used to evaluate loss function.')
     else:
         log('Fortran will not be used to evaluate loss function.')
@@ -163,8 +94,8 @@ if purpose == 'calculate_loss_function':
         socket.send_pyobj(msg('<request>', 'parameters'))
         parameters = socket.recv_pyobj()
         if parameters == '<stop>':
-            if model.fortran:
-                fmodules.deallocate_variables()
+            # FIXME/ap: I removed an fmodules.deallocate_variables() call
+            # here. Do we need to add this to LossFunction?
             break
         elif parameters == '<continue>':
             # Master is waiting for other workers to finish.
@@ -173,30 +104,13 @@ if purpose == 'calculate_loss_function':
             # or having a thread for each process?
             pass
         else:
+            # FIXME/ap: Why do we need to request this every time?
+            # Couldn't it be part of earlier request?
             socket.send_pyobj(msg('<request>', 'args'))
             args = socket.recv_pyobj()
             lossprime = args['lossprime']
-            if model.fortran:
-                # AKh: Right now, for each optimizer call, this function is
-                # called. This is not needed. We already have fprime and
-                # do not need to call this function when fprime is wanted
-                # (except in the first step, because optimizer first call
-                # fprime). This whole issue does not apply to fortran=False
-                # and is fine there.
-                (loss, dloss_dparameters, energy_loss, force_loss,
-                 energy_maxresid, force_maxresid) = \
-                    fmodules.calculate_loss(parameters=parameters,
-                                            num_parameters=len(parameters),
-                                            lossprime=lossprime)
-                output = {'loss': loss,
-                          'dloss_dparameters': dloss_dparameters,
-                          'energy_loss': energy_loss,
-                          'force_loss': force_loss,
-                          'energy_maxresid': energy_maxresid,
-                          'force_maxresid': force_maxresid, }
-            else:
-                output = lossfunction.get_loss(parameters,
-                                               lossprime=lossprime)
+            output = lossfunction.get_loss(parameters,
+                                           lossprime=lossprime)
 
             socket.send_pyobj(msg('<result>', output))
             socket.recv_string()
