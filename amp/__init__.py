@@ -28,7 +28,7 @@ else:
     fmodules_version = 9
     wrong_version = fmodules.check_version(version=fmodules_version)
     if wrong_version:
-        raise RuntimeError('fortran modules are not updated. Recompile'
+        raise RuntimeError('fortran modules are not updated. Recompile '
                            'with f2py as described in the README. '
                            'Correct version is %i.' % fmodules_version)
 
