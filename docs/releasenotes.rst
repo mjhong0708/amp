@@ -1,6 +1,7 @@
+.. _ReleaseNotes:
 
-Release notes / Revision history
-================================
+Release notes
+=============
 
 Development version
 -------------------
