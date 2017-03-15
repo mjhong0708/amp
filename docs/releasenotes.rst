@@ -6,6 +6,8 @@ Release notes
 Development version
 -------------------
 
+* Incorporation of Behler's G5 angular symmetry function.
+
 (Significant changes since the last release should be itemized here.)
 
 0.5

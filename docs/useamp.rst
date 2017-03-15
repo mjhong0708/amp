@@ -13,7 +13,7 @@ Basic use
 ----------------------------------
 
 To use Amp, you need to specify a `descriptor` and a `model`.
-The below shows a basic example of training Amp with Gaussian descriptors and a neural network model---the Behler-Parinello scheme.
+The below shows a basic example of training Amp with Gaussian descriptors and a neural network model---the Behler-Parrinello scheme.
 
 .. code-block:: python
 
@@ -149,7 +149,7 @@ Under the hood, the train function is pretty simple; it just runs:
 Re-training
 ----------------------------------
 
-If training is successful, Amp saves the parameters into an '<label>.amp' file (by default the label is 'amp', so this file is 'amp.amp'). You can load the pretrained calculator and re-train it further with tighter convergence criteria. You can specify if the pre-trained amp.amp will be overwritten by the re-trained one through the key word 'overwrite' (default is False). 
+If training is successful, Amp saves the parameters into an '<label>.amp' file (by default the label is 'amp', so this file is 'amp.amp'). You can load the pretrained calculator and re-train it further with tighter convergence criteria. You can specify if the pre-trained amp.amp will be overwritten by the re-trained one through the key word 'overwrite' (default is False).
 
 .. code-block:: python
 
@@ -181,7 +181,7 @@ That is, in the first step we do a random search in an area of parameter space i
 Next we take the parameters corresponding to the minimum loss function found, and start a gradient-descent optimization to find the local minimum of the basin found in the first step.
 Currently there exists a built-in global-search optimizer inside Amp which uses simulated-annealing algorithm.
 The module is based on the open-source simulated-annealing code of Wagner and Perry [1], but has been brought into the context of Amp.
-To use this module, the calculator object should be initiated as usual:  
+To use this module, the calculator object should be initiated as usual:
 
 .. code-block:: python
 
