@@ -20,6 +20,7 @@ below for Linux::
     pip install -U --upgrade $TF_BINARY_URL
 
 or macOS::
+
     export TF_BINARY_URL=https://storage.googleapis.com/tensorflow/mac/cpu/tensorflow-0.11.0-py2-none-any.whl
     pip install -U --upgrade $TF_BINARY_URL
 
