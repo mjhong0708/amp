@@ -10,6 +10,7 @@ pipelines:
     - step:
         script: # Modify the commands below to build your repository.
           - pip install -U nose
+          - pip install -U nose-timer
           - pip install -U numpy
           - pip install -U scipy
           - pip install -U matplotlib
@@ -22,16 +23,7 @@ pipelines:
           - apt-get -y install gfortran
           - AMP=`pwd`
           - export PYTHONPATH=$AMP:$PYTHONPATH
-          - cd amp/model
-          - gfortran -c neuralnetwork.f90
-          - cd ../descriptor
-          - gfortran -c cutoffs.f90
-          - cd ../
-          - mv model/neuralnetwork.mod .
-          - mv descriptor/cutoffs.mod .
-          - f2py -c -m fmodules model.f90 descriptor/cutoffs.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90          
-          - cd ../
-          - mkdir amp_tests
-          - cd amp_tests
-          - nosetests ../tests/
+          - cd amp/
+          - make
+          - make tests
           
