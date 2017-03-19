@@ -91,10 +91,18 @@ Note that most of the lines of code below are either making the atoms or making 
      images.append(atoms)
  
  # Fingerprint using Amp.
- from amp.utilities import hash_images
  from amp.descriptor.gaussian import Gaussian
- images = hash_images(images, ordered=True)
  descriptor = Gaussian()
+
+ # First approach of hashing images.
+ from amp.utilities import hash_images
+ images = hash_images(images, ordered=True)
+
+ ## Alternative approach of getting the hash of each image seperately.
+ #from amp.utilities import hash_image
+ #from collections import OrderedDict
+ #images = OrderedDict([(hash_image(image), image) for image in images])
+
  descriptor.calculate_fingerprints(images)
  
  # Plot the data.
