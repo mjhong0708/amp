@@ -1,5 +1,5 @@
 import numpy as np
-from ..utilities import hash_images, hash_image
+from ..utilities import hash_images, get_hash
 
 
 class FingerprintPlot:
@@ -61,7 +61,7 @@ class FingerprintPlot:
             images = hash_images(images)
             self._calc.descriptor.calculate_fingerprints(images)
             for atom in overlay:
-                key = hash_image(atom.atoms)
+                key = get_hash(atom.atoms)
                 fingerprints = self._calc.descriptor.fingerprints[key]
                 fingerprint = fingerprints[atom.index]
                 fig = self.figures[fingerprint[0]]

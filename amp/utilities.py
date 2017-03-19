@@ -584,7 +584,7 @@ def make_filename(label, base_filename):
 
 # Images and hasing ##########################################################
 
-def hash_image(atoms):
+def get_hash(atoms):
     """Creates a unique signature for a particular ASE atoms object.
 
     This is used to check whether an image has been seen before. This is just
@@ -597,7 +597,7 @@ def hash_image(atoms):
 
     Returns
     -------
-        Hash key of 'atoms'.
+        Hash string key of 'atoms'.
     """
     string = str(atoms.pbc)
     for number in atoms.cell.flatten():
@@ -650,7 +650,7 @@ def hash_images(images, log=None, ordered=False):
             from collections import OrderedDict
             dict_images = OrderedDict()
         for image in images:
-            hash = hash_image(image)
+            hash = get_hash(image)
             if hash in dict_images.keys():
                 log('Warning: Duplicate image (based on identical hash).'
                     ' Was this expected? Hash: %s' % hash)
