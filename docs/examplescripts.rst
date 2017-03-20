@@ -91,10 +91,10 @@ Note that most of the lines of code below are either making the atoms or making 
      images.append(atoms)
  
  # Fingerprint using Amp.
- from amp.utilities import hash_images
  from amp.descriptor.gaussian import Gaussian
- images = hash_images(images, ordered=True)
  descriptor = Gaussian()
+ from amp.utilities import hash_images
+ images = hash_images(images, ordered=True)
  descriptor.calculate_fingerprints(images)
  
  # Plot the data.

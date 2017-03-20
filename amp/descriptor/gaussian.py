@@ -563,16 +563,18 @@ def calculate_G2(neighborsymbols,
     ----------
     neighborsymbols : list of str
         List of symbols of all neighbor atoms.
-    neighborpositions : list of list of float
+    neighborpositions : list of list of floats
         List of Cartesian atomic positions.
-    G_element : dict
-        Symmetry functions of the center atom.
+    G_element : str
+        Chemical symbol of the center atom.
     eta : float
         Parameter of Gaussian symmetry functions.
-    cutoff : float
-        Radius above which neighbor interactions are ignored.
-    Ri : int
-        Index of the center atom.
+    cutoff : dict
+        Cutoff function, typically from amp.descriptor.cutoffs. Should be also
+        formatted as a dictionary by todict method, e.g.
+        cutoff=Cosine(6.5).todict()
+    Ri : list
+        Position of the center atom. Should be fed as a list of three floats.
     fortran : bool
         If True, will use the fortran subroutines, else will not.
 
@@ -601,7 +603,7 @@ def calculate_G2(neighborsymbols,
                     cutofffn=cutofffn,
                     ri=Ri
                     )
-            if cutofffn ==  'Polynomial':
+            if cutofffn == 'Polynomial':
                 args_calculate_g2['p_gamma'] = cutoff['kwargs']['gamma']
 
             ridge = fmodules.calculate_g2(**args_calculate_g2)
@@ -617,7 +619,7 @@ def calculate_G2(neighborsymbols,
             if symbol == G_element:
                 Rij = np.linalg.norm(Rj - Ri)
                 args_cutoff_fxn = dict(Rij=Rij)
-                if cutoff['name'] ==  'Polynomial':
+                if cutoff['name'] == 'Polynomial':
                     args_cutoff_fxn['gamma'] = cutoff['kwargs']['gamma']
                 ridge += (np.exp(-eta * (Rij ** 2.) / (Rc ** 2.)) *
                           cutoff_fxn(**args_cutoff_fxn))
@@ -638,23 +640,23 @@ def calculate_G4(neighborsymbols, neighborpositions,
     ----------
     neighborsymbols : list of str
         List of symbols of neighboring atoms.
-    neighborpositions : list of list of float
+    neighborpositions : list of list of floats
         List of Cartesian atomic positions of neighboring atoms.
-    G_elements : dict
-        Symmetry functions of the center atom.
+    G_elements : list of str
+        A list of two members, each member is the chemical species of one of
+        the neighboring atoms forming the triangle with the center atom.
     gamma : float
         Parameter of Gaussian symmetry functions.
     zeta : float
         Parameter of Gaussian symmetry functions.
     eta : float
         Parameter of Gaussian symmetry functions.
-    cutoff : object or float
-        Cutoff function, typically from amp.descriptor.cutoffs.  Can be also
-        fed as a float representing the radius above which neighbor
-        interactions are ignored; in this case a cosine cutoff function will be
-        employed.  Default is a 6.5-Angstrom cosine cutoff.
-    Ri : int
-        Index of the center atom.
+    cutoff : dict
+        Cutoff function, typically from amp.descriptor.cutoffs. Should be also
+        formatted as a dictionary by todict method, e.g.
+        cutoff=Cosine(6.5).todict()
+    Ri : list
+        Position of the center atom. Should be fed as a list of three floats.
     fortran : bool
         If True, will use the fortran subroutines, else will not.
 
@@ -684,7 +686,7 @@ def calculate_G4(neighborsymbols, neighborpositions,
                     cutofffn=cutofffn,
                     ri=Ri
                     )
-            if cutofffn ==  'Polynomial':
+            if cutofffn == 'Polynomial':
                 args_calculate_g4['p_gamma'] = cutoff['kwargs']['gamma']
 
             ridge = fmodules.calculate_g4(**args_calculate_g4)
@@ -712,7 +714,7 @@ def calculate_G4(neighborsymbols, neighborpositions,
                 _Rij = dict(Rij=Rij)
                 _Rik = dict(Rij=Rik)
                 _Rjk = dict(Rij=Rjk)
-                if cutoff['name'] ==  'Polynomial':
+                if cutoff['name'] == 'Polynomial':
                     _Rij['gamma'] = cutoff['kwargs']['gamma']
                     _Rik['gamma'] = cutoff['kwargs']['gamma']
                     _Rjk['gamma'] = cutoff['kwargs']['gamma']
@@ -1041,15 +1043,14 @@ def calculate_G2_prime(neighborindices, neighborsymbols, neighborpositions,
         Symmetry functions of the center atom.
     eta : float
         Parameter of Behler symmetry functions.
-    cutoff : object or float
-        Cutoff function, typically from amp.descriptor.cutoffs.  Can be also
-        fed as a float representing the radius above which neighbor
-        interactions are ignored; in this case a cosine cutoff function will be
-        employed.  Default is a 6.5-Angstrom cosine cutoff.
+    cutoff : dict
+        Cutoff function, typically from amp.descriptor.cutoffs. Should be also
+        formatted as a dictionary by todict method, e.g.
+        cutoff=Cosine(6.5).todict()
     i : int
         Index of the center atom.
-    Ri : float
-        Position of the center atom.
+    Ri : list
+        Position of the center atom. Should be fed as a list of three floats.
     m : int
         Index of the atom force is acting on.
     l : int
@@ -1086,7 +1087,7 @@ def calculate_G2_prime(neighborindices, neighborsymbols, neighborpositions,
                     m=m,
                     l=l
                     )
-            if cutofffn ==  'Polynomial':
+            if cutofffn == 'Polynomial':
                 args_calculate_g2_prime['p_gamma'] = cutoff['kwargs']['gamma']
 
             ridge = fmodules.calculate_g2_prime(**args_calculate_g2_prime)
@@ -1104,7 +1105,7 @@ def calculate_G2_prime(neighborindices, neighborsymbols, neighborpositions,
                 if dRijdRml != 0:
                     Rij = np.linalg.norm(Rj - Ri)
                     args_cutoff_fxn = dict(Rij=Rij)
-                    if cutoff['name'] ==  'Polynomial':
+                    if cutoff['name'] == 'Polynomial':
                         args_cutoff_fxn['gamma'] = cutoff['kwargs']['gamma']
                     term1 = (-2. * eta * Rij * cutoff_fxn(**args_cutoff_fxn) / (Rc ** 2.) +
                              cutoff_fxn.prime(**args_cutoff_fxn))
@@ -1131,23 +1132,23 @@ def calculate_G4_prime(neighborindices, neighborsymbols, neighborpositions,
         List of symbols of neighboring atoms.
     neighborpositions : list of list of float
         List of Cartesian atomic positions of neighboring atoms.
-    G_elements : dict
-        Symmetry functions of the center atom.
+    G_elements : list of str
+        A list of two members, each member is the chemical species of one of
+        the neighboring atoms forming the triangle with the center atom.
     gamma : float
         Parameter of Behler symmetry functions.
     zeta : float
         Parameter of Behler symmetry functions.
     eta : float
         Parameter of Behler symmetry functions.
-    cutoff : object or float
-        Cutoff function, typically from amp.descriptor.cutoffs.  Can be also
-        fed as a float representing the radius above which neighbor
-        interactions are ignored; in this case a cosine cutoff function will be
-        employed.  Default is a 6.5-Angstrom cosine cutoff.
+    cutoff : dict
+        Cutoff function, typically from amp.descriptor.cutoffs. Should be also
+        formatted as a dictionary by todict method, e.g.
+        cutoff=Cosine(6.5).todict()
     i : int
         Index of the center atom.
-    Ri : float
-        Position of the center atom.
+    Ri : list
+        Position of the center atom. Should be fed as a list of three floats.
     m : int
         Index of the atom force is acting on.
     l : int
@@ -1186,7 +1187,7 @@ def calculate_G4_prime(neighborindices, neighborsymbols, neighborpositions,
                     m=m,
                     l=l
                     )
-            if cutofffn ==  'Polynomial':
+            if cutofffn == 'Polynomial':
                 args_calculate_g4_prime['p_gamma'] = cutoff['kwargs']['gamma']
 
             ridge = fmodules.calculate_g4_prime(**args_calculate_g4_prime)
