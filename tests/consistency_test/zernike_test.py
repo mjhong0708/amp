@@ -8,7 +8,7 @@ cores, and checks consistency between them.
 import numpy as np
 from ase import Atoms
 from amp.descriptor.zernike import Zernike
-from amp.utilities import hash_images
+from amp.utilities import hash_images, assign_cores
 
 # Making the list of images
 
@@ -78,11 +78,13 @@ def test():
     ref_fp_primes = {}
     count = 0
     for fortran in [True, False]:
-        for cores in range(1, 2):
+        for ncores in range(1, 2):
+            cores = assign_cores(ncores)
             descriptor = Zernike(fortran=fortran,
-                                 dblabel='Zernike-%s-%d' % (fortran, cores))
+                                 dblabel='Zernike-%s-%d' % (fortran, ncores))
             descriptor.calculate_fingerprints(images,
-                                              parallel={'cores': cores},
+                                              parallel={'cores': cores,
+                                                        'envcommand': None},
                                               log=None,
                                               calculate_derivatives=True)
             for hash, image in images.items():
