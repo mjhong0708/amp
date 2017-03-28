@@ -58,7 +58,7 @@ class Gaussian(object):
     """
 
     def __init__(self, cutoff=Cosine(6.5), Gs=None, dblabel=None,
-                 elements=None, version=None, fortran=True, angular=None,
+                 elements=None, version=None, fortran=True, angular='G4',
                  mode='atom-centered'):
 
         # Check of the version of descriptor, particularly if restarting.
@@ -156,6 +156,16 @@ class Gaussian(object):
             p.Gs = make_symmetry_functions(p.elements, self.angular)
         log('Number of symmetry functions for each element:')
         for _ in p.Gs.keys():
+            """
+            We check if there is consistency between the user defined Gs
+            dictionary and the angular part of the symmetry function.
+            """
+            for element in range(len(p.Gs[_])):
+                Gstype = p.Gs[_][element]['type']
+                if (Gstype != 'G2' and Gstype != self.angular):
+                    raise RuntimeError("Error: The 'type': %s  in the "
+                    "Gs dictionary is not consistent with the requested angular='%s' symmetry "
+                    "function in the Gaussian descriptor." % (Gstype, self.angular))
             log(' %2s: %i' % (_, len(p.Gs[_])))
 
         log('Calculating neighborlists...', tic='nl')
@@ -868,7 +878,7 @@ def make_symmetry_functions(elements, angular):
                     for i1, el1 in enumerate(elements):
                         for el2 in elements[i1:]:
                             els = sorted([el1, el2])
-                            if angular == None or angular.lower() == 'g4':
+                            if angular.lower() == 'g4':
                                 # This would be the default
                                 _G.append({'type': 'G4',
                                            'elements': els,
