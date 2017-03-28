@@ -193,8 +193,7 @@
 !f2py         intent(out):: ridge
               integer:: j, k, match, xyz
               double precision, dimension(3):: Rij_vector, Rik_vector
-              double precision, dimension(3):: Rjk_vector
-              double precision:: Rij, Rik, Rjk, costheta, term
+              double precision:: Rij, Rik, costheta, term
 
               ridge = 0.0d0
               do j = 1, num_neighbors
@@ -207,13 +206,9 @@
                       neighborpositions(j, xyz) - ri(xyz)
                       Rik_vector(xyz) = &
                       neighborpositions(k, xyz) - ri(xyz)
-                      Rjk_vector(xyz) = &
-                      neighborpositions(k, xyz) - &
-                      neighborpositions(j, xyz)
                     end do
                     Rij = sqrt(dot_product(Rij_vector, Rij_vector))
                     Rik = sqrt(dot_product(Rik_vector, Rik_vector))
-                    Rjk = sqrt(dot_product(Rjk_vector, Rjk_vector))
                     costheta = &
                     dot_product(Rij_vector, Rik_vector) / Rij / Rik
                     term = (1.0d0 + g_gamma * costheta)**g_zeta
@@ -648,11 +643,10 @@
 !f2py         intent(out):: ridge
               integer:: j, k, match, xyz
               double precision, dimension(3):: Rij_vector, Rik_vector
-              double precision, dimension(3):: Rjk_vector
-              double precision:: Rij, Rik, Rjk, costheta
-              double precision:: c1, fcRij, fcRik, fcRjk
-              double precision:: fcRijfcRikfcRjk, dCosthetadRml
-              double precision:: dRijdRml, dRikdRml, dRjkdRml
+              double precision:: Rij, Rik, costheta
+              double precision:: c1, fcRij, fcRik
+              double precision:: fcRijfcRik, dCosthetadRml
+              double precision:: dRijdRml, dRikdRml
               double precision:: term1, term2, term3, term4, term5
               double precision:: term6
 
@@ -679,7 +673,7 @@
                     else
                         fcRij = cutoff_fxn(Rij, rc, cutofffn)
                         fcRik = cutoff_fxn(Rik, rc, cutofffn)
-                    end if
+                    endif
 
                     if (g_zeta == 1.0d0) then
                         term1 = exp(-g_eta*(Rij**2 + Rik**2)&
@@ -690,7 +684,7 @@
                              / (rc ** 2.0d0))
                     end if
                     term2 = 0.d0
-                    fcRijfcRikfcRjk = fcRij * fcRik
+                    fcRijfcRik = fcRij * fcRik
                     dCosthetadRml = &
                     dCos_ijk_dR_ml(i, neighborindices(j), &
                     neighborindices(k), ri, Rj, Rk, m, l)
@@ -712,7 +706,7 @@
                         / (rc ** 2.0d0)
                     end if
 
-                    term3 = fcRijfcRikfcRjk * term2
+                    term3 = fcRijfcRik * term2
 
                     if(present(p_gamma)) then
                         term4 = &
@@ -723,8 +717,8 @@
                         p_gamma) * dRikdRml
                     else
                         term4 = &
-                        cutoff_fxn_prime(Rij, rc, cutofffn) * dRijdRml &
-                        * fcRik
+                        cutoff_fxn_prime(Rij, rc, cutofffn) &
+                        * dRijdRml * fcRik
                         term5 = &
                         fcRij * cutoff_fxn_prime(Rik, rc, cutofffn) &
                         * dRikdRml
