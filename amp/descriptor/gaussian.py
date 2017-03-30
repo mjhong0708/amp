@@ -97,10 +97,11 @@ class Gaussian(object):
         p.cutoff = cutoff.todict()
         p.Gs = Gs
         p.elements = elements
+        p.angular = angular
 
         self.dblabel = dblabel
         self.fortran = fortran
-        self.angular = angular
+        self.angular = p.angular
         self.parent = None  # Can hold a reference to main Amp instance.
 
     def tostring(self):
