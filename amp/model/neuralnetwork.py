@@ -833,10 +833,6 @@ def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
     float
         weights
     """
-    if activation == 'linear':
-        arg_range = 0.3
-    else:
-        arg_range = 3.
 
     weight = {}
     nn_structure = {}
@@ -850,28 +846,40 @@ def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
                 [3 * no_of_atoms] +
                 [layer for layer in hiddenlayers] + [1])
         weight = {}
-        normalized_arg_range = arg_range / (3 * no_of_atoms)
+        # Instead try Andrew Ng coursera approach. +/- epsilon
+        # epsilon = sqrt(6./(n_i + n_o))
+        # where the n's are the number of input and output nodes.
+        # Note: need to double that here with the math below.
+        epsilon = np.sqrt(6. / (nn_structure[0] +
+                                nn_structure[1]))
+        normalized_arg_range = 2. * epsilon
         weight[1] = np.random.random((3 * no_of_atoms + 1,
                                       nn_structure[1])) * \
             normalized_arg_range - \
             normalized_arg_range / 2.
         len_of_hiddenlayers = len(list(nn_structure)) - 3
         for layer in xrange(len_of_hiddenlayers):
-            normalized_arg_range = arg_range / \
-                nn_structure[layer + 1]
+            epsilon = np.sqrt(6. / (nn_structure[layer + 1] +
+                                    nn_structure[layer + 2]))
+            normalized_arg_range = 2. * epsilon
             weight[layer + 2] = np.random.random(
                 (nn_structure[layer + 1] + 1,
                  nn_structure[layer + 2])) * \
                 normalized_arg_range - normalized_arg_range / 2.
-        normalized_arg_range = arg_range / nn_structure[-2]
+
+        epsilon = np.sqrt(6. / (nn_structure[-2] +
+                                nn_structure[-1]))
+        normalized_arg_range = 2. * epsilon
         weight[len(list(nn_structure)) - 1] = \
             np.random.random((nn_structure[-2] + 1, 1)) \
             * normalized_arg_range - normalized_arg_range / 2.
-        len_of_weight = len(weight)
-        for _ in xrange(len_of_weight):  # biases
-            size = weight[_ + 1][-1].size
-            for __ in xrange(size):
-                weight[_ + 1][-1][__] = 0.
+
+        if False:  # This seemed to be setting all biases to zero?
+            len_of_weight = len(weight)
+            for _ in xrange(len_of_weight):  # biases
+                size = weight[_ + 1][-1].size
+                for __ in xrange(size):
+                    weight[_ + 1][-1][__] = 0.
 
     else:
         elements = fprange.keys()
@@ -886,7 +894,13 @@ def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
                     [len_of_fps] +
                     [layer for layer in hiddenlayers[element]] + [1])
             weight[element] = {}
-            normalized_arg_range = arg_range / len(fprange[element])
+            # Instead try Andrew Ng coursera approach. +/- epsilon
+            # epsilon = sqrt(6./(n_i + n_o))
+            # where the n's are the number of input and output nodes.
+            # Note: need to double that here with the math below.
+            epsilon = np.sqrt(6. / (nn_structure[element][0] +
+                                    nn_structure[element][1]))
+            normalized_arg_range = 2. * epsilon
             weight[element][1] = np.random.random((len(fprange[element]) + 1,
                                                    nn_structure[
                                                    element][1])) * \
@@ -894,22 +908,27 @@ def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
                 normalized_arg_range / 2.
             len_of_hiddenlayers = len(list(nn_structure[element])) - 3
             for layer in xrange(len_of_hiddenlayers):
-                normalized_arg_range = arg_range / \
-                    nn_structure[element][layer + 1]
+                epsilon = np.sqrt(6. / (nn_structure[element][layer + 1] +
+                                        nn_structure[element][layer + 2]))
+                normalized_arg_range = 2. * epsilon
                 weight[element][layer + 2] = np.random.random(
                     (nn_structure[element][layer + 1] + 1,
                      nn_structure[element][layer + 2])) * \
                     normalized_arg_range - normalized_arg_range / 2.
-            normalized_arg_range = arg_range / nn_structure[element][-2]
+
+            epsilon = np.sqrt(6. / (nn_structure[element][-2] +
+                                    nn_structure[element][-1]))
+            normalized_arg_range = 2. * epsilon
             weight[element][len(list(nn_structure[element])) - 1] = \
                 np.random.random((nn_structure[element][-2] + 1, 1)) \
                 * normalized_arg_range - normalized_arg_range / 2.
 
-            len_of_weight = len(weight[element])
-            for _ in xrange(len_of_weight):  # biases
-                size = weight[element][_ + 1][-1].size
-                for __ in xrange(size):
-                    weight[element][_ + 1][-1][__] = 0.
+            if False:  # This seemed to be setting all biases to zero?
+                len_of_weight = len(weight[element])
+                for _ in xrange(len_of_weight):  # biases
+                    size = weight[element][_ + 1][-1].size
+                    for __ in xrange(size):
+                        weight[element][_ + 1][-1][__] = 0.
 
     return weight
 
