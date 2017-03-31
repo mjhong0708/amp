@@ -214,7 +214,7 @@ def plot_parity(load,
         Coefficient of force loss in the total loss function.
     """
 
-    calc = Amp.load(file=load)
+    calc = Amp.load(file=load, label=label, dblabel=dblabel)
 
     if plotfile is None:
         plotfile = make_filename(label, '-plot.pdf')
@@ -223,8 +223,6 @@ def plot_parity(load,
         raise IOError('File exists: %s.\nIf you want to overwrite,'
                       ' set overwrite=True or manually delete.'
                       % plotfile)
-
-    calc.dblabel = label if dblabel is None else dblabel
 
     if (force_coefficient != 0.) or (plot_forces is True):
         calculate_derivatives = True
