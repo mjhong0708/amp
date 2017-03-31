@@ -234,7 +234,6 @@ def non_periodic_0th_bfgs_step_test():
     for fortran in [False, True]:
         for cores in range(1, 6):
             label = 'train-nonperiodic/%s-%i' % (fortran, cores)
-            print label
             calc = Amp(descriptor=Gaussian(cutoff=6.5,
                                            Gs=Gs,
                                            fortran=fortran,),
@@ -252,7 +251,6 @@ def non_periodic_0th_bfgs_step_test():
             calc.model.lossfunction = lossfunction
             calc.train(images=images,)
             diff = abs(calc.model.lossfunction.loss - ref_loss)
-            print "diff at 204 =", diff
             assert (diff < 10.**(-10.)), \
                 'Calculated value of loss function is wrong!'
             diff = abs(calc.model.lossfunction.energy_loss - ref_energyloss)
@@ -481,7 +479,6 @@ def periodic_0th_bfgs_step_test():
     for fortran in [False, True]:
         for cores in range(1, 4):
             label = 'train-periodic/%s-%i' % (fortran, cores)
-            print label
             calc = Amp(descriptor=Gaussian(cutoff=4.,
                                            Gs=Gs,
                                            fortran=fortran,),
@@ -499,7 +496,6 @@ def periodic_0th_bfgs_step_test():
             calc.model.lossfunction = lossfunction
             calc.train(images=images,)
             diff = abs(calc.model.lossfunction.loss - ref_loss)
-            print "diff at 414 =", diff
             assert (diff < 10.**(-10.)), \
                 'Calculated value of loss function is wrong!'
             diff = abs(calc.model.lossfunction.energy_loss - ref_energyloss)
