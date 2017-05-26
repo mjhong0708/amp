@@ -301,6 +301,13 @@ class FileDatabase:
                 keys = list(set(keys + tf.getnames()))
         return keys
 
+    def values(self):
+        """Return list of values, both of in-memory and out-of-memory
+        items. This moves all out-of-memory items into memory.
+        """
+        keys = self.keys()
+        return [self[key] for key in keys]
+
     def __len__(self):
         return len(self.keys())
 
