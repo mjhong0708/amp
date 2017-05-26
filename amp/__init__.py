@@ -440,6 +440,8 @@ def importhelper(importname):
         from .model.neuralnetwork import NeuralNetwork as Module
     elif importname == '.model.neuralnetwork.tflow':
         from .model.tflow import NeuralNetwork as Module
+    elif importname == '.model.kernel_ridge.KRR':
+        from .model.kernel_ridge import KRR as Module
     elif importname == '.model.LossFunction':
         from .model import LossFunction as Module
     else:
