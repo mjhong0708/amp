@@ -10,12 +10,15 @@ import random
 import signal
 import tarfile
 import traceback
-import cPickle as pickle
 from datetime import datetime
 from getpass import getuser
 from ase import io as aseio
 from ase.parallel import paropen
 from ase.db import connect
+try:
+    import cPickle as pickle  # python2
+except ImportError:
+    import pickle  # python3
 
 
 # Parallel processing ########################################################
