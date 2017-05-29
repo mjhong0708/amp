@@ -10,12 +10,15 @@ import random
 import signal
 import tarfile
 import traceback
-import cPickle as pickle
 from datetime import datetime
 from getpass import getuser
 from ase import io as aseio
 from ase.parallel import paropen
 from ase.db import connect
+try:
+    import cPickle as pickle  # python2
+except ImportError:
+    import pickle  # python3
 
 
 # Parallel processing ########################################################
@@ -297,6 +300,13 @@ class FileDatabase:
             with tarfile.open(self.tarpath) as tf:
                 keys = list(set(keys + tf.getnames()))
         return keys
+
+    def values(self):
+        """Return list of values, both of in-memory and out-of-memory
+        items. This moves all out-of-memory items into memory.
+        """
+        keys = self.keys()
+        return [self[key] for key in keys]
 
     def __len__(self):
         return len(self.keys())
