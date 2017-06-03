@@ -45,7 +45,7 @@ class KRR(Model):
             Column vector containing the fingerprint of the atoms in images.
         kernel : str
             Select the kernel to be used. Supported kernels are: 'linear',
-            rbf'.
+            rbf', 'exponential, and 'laplacian'.
 
         Returns
         -------
@@ -207,9 +207,9 @@ class KRR(Model):
 """
 Auxiliary functions to compute kernels
 """
-def linear(x):
+def linear(features):
     """ Compute a linear kernel """
-    linear = np.dot(x, x.T)
+    linear = np.dot(features, features.T)
     return linear
 
 def rbf(features, sigma=1.):
@@ -219,3 +219,15 @@ def rbf(features, sigma=1.):
     pairwise_dists = squareform(pdist(features, 'euclidean'))
     rbf =  np.exp(-pairwise_dists ** 2 / (2 * sigma ** 2))
     return rbf
+
+def exponential(features, sigma=1.):
+    """ Compute the exponential kernel"""
+    pairwise_dists = squareform(pdist(features, 'euclidean'))
+    exponential =  np.exp(-pairwise_dists / (2 * sigma ** 2))
+    return exponential
+
+def laplacian(features, sigma=1.):
+    """ Compute the laplacian kernel"""
+    pairwise_dists = squareform(pdist(features, 'euclidean'))
+    laplacian =  np.exp(-pairwise_dists / sigma)
+    return laplacian
