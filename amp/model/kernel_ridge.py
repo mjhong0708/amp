@@ -5,7 +5,9 @@
 from . import Model
 from ase.calculators.calculator import Parameters
 import numpy as np
+
 from scipy.optimize import fmin
+from scipy.spatial.distance import pdist, squareform
 
 from sklearn.linear_model.ridge import _solve_cholesky_kernel
 from sklearn.kernel_ridge import KernelRidge
@@ -33,7 +35,7 @@ class KRR(Model):
         self.lamda = 1e-5
         self._losses = []
 
-    def kernel_matrix(self, afp, kernel='rbf'):
+    def kernel_matrix(self, features, kernel='rbf'):
         """This method takes as arguments a feature vector and a string that refers
         to the kernel type used.
 
@@ -58,14 +60,14 @@ class KRR(Model):
         end of the KRR class.
         """
 
-        afp = np.asarray(afp)
-        print(afp)
+        features = np.asarray(features)
+        print(features)
 
         if kernel == 'linear':
-            K = linear(afp)
+            K = linear(features)
 
         elif kernel == 'rbf':
-            K = [ rbf(x, afp, sigma=self.sigma) for x in afp ]
+            K = rbf(features, sigma=self.sigma)
 
             """This is for testing purposes
             xjs = np.array([
@@ -148,11 +150,12 @@ class KRR(Model):
             suma += 1
             print(np.asarray(_).shape)
             kernel = self.kernel_matrix(_, kernel=self.kernel)
-            print(kernel[0][1])
             print(kernel.shape)
             print(suma)
             alphas = np.ones(np.asarray(kernel[0]).shape[-1])
+            print(alphas)
             kij.append(kernel.dot(alphas))
+            print(kij)
 
         self.kij = np.asarray(kij)
         print((np.asarray(self.kij).shape))
@@ -168,12 +171,12 @@ class KRR(Model):
 
     def get_loss(self, alphas):
         """Calculate the loss function with parameters alpha."""
-        predictions = [_.dot(alphas) for _ in self.kij]
+        term2 = term1 = 0
+        predictions = [ _.dot(alphas) for _ in self.kij ]
         print(predictions)
         print(self.energies)
         diffs = np.array(self.energies) - np.array(predictions)
         term1 = np.dot(diffs, diffs)
-        term2 = 0
         for _k in self.kij:
             term2 += np.array(self.lamda) * alphas.dot(_k)
 
@@ -209,8 +212,10 @@ def linear(x):
     linear = np.dot(x, x.T)
     return linear
 
-def rbf(x, afp, sigma=1.):
+def rbf(features, sigma=1.):
     """ Compute the rbf (AKA Gaussian) kernel.  """
-    rbf = np.exp(- (x - afp)**2 / (2 * sigma**2))
-    rbf = rbf.dot(np.ones(len(rbf[1])))
+    #rbf = np.exp(- (x - afp)**2 / (2 * sigma**2))
+    #rbf = rbf.dot(np.ones(len(rbf[1])))
+    pairwise_dists = squareform(pdist(features, 'euclidean'))
+    rbf =  np.exp(-pairwise_dists ** 2 / (2 * sigma ** 2))
     return rbf
