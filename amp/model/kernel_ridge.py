@@ -66,7 +66,8 @@ class KRR(Model):
         if kernel == 'linear':
             K = linear(features)
 
-        elif kernel == 'rbf':
+        # All kernels in this control flow share the same structure
+        elif kernel == 'rbf' or kernel == 'laplacian' or kernel == 'exponential':
             K = rbf(features, sigma=self.sigma)
 
             """This is for testing purposes
@@ -95,6 +96,9 @@ class KRR(Model):
             K = np.array([rbf(x, xjs, sigma=self.sigma) for x in xjs])
             print(K)
             """
+        else:
+            raise NotImplementedError('This kernel needs to be coded.')
+
         return np.asarray(K)
 
     def fit(self, trainingimages, descriptor, log, parallel):
