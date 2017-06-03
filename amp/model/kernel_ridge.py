@@ -5,6 +5,7 @@
 from . import Model
 from ase.calculators.calculator import Parameters
 import numpy as np
+from scipy.optimize import fmin
 
 from sklearn.linear_model.ridge import _solve_cholesky_kernel
 from sklearn.kernel_ridge import KernelRidge
@@ -29,6 +30,8 @@ class KRR(Model):
 
         self.sigma = sigma
         self.kernel = kernel
+        self.lamda = 1e-5
+        self._losses = []
 
     def kernel_matrix(self, afp, kernel='rbf'):
         """This method takes as arguments a feature vector and a string that refers
@@ -90,7 +93,7 @@ class KRR(Model):
             K = np.array([rbf(x, xjs, sigma=self.sigma) for x in xjs])
             print(K)
             """
-        return K
+        return np.asarray(K)
 
     def fit(self, trainingimages, descriptor, log, parallel):
         """This method fits the kernel ridge model using a loss function.
@@ -119,14 +122,18 @@ class KRR(Model):
         tp.descriptor = descriptor
         tp.fingerprints = tp.descriptor.fingerprints
 
+        self.energies = []
         feature_matrix = []
         suma = 0
         for hash, image in tp.trainingimages.iteritems():
+            energy = image.get_potential_energy()
+            self.energies.append(energy)
             suma += 1
             features = []
             for element, afp in tp.fingerprints[hash]:
                 #afp = np.asarray(afp)[:, np.newaxis]    # I append in column vectors
                 print(element)
+                print(afp)
                 afp = np.asarray(afp)
                 features.append(afp)
                 #features.append(self.kernel_matrix(afp, kernel=self.kernel)) I don't think this is correct
@@ -135,10 +142,43 @@ class KRR(Model):
             #kernel = self.kernel_matrix(features[0], kernel=self.kernel)
             print(suma)
             #print(kernel)
+        kij = []
+        suma = 0
         for _ in feature_matrix:
+            suma += 1
+            print(np.asarray(_).shape)
             kernel = self.kernel_matrix(_, kernel=self.kernel)
-            print(kernel)
-            exit()
+            print(kernel[0][1])
+            print(kernel.shape)
+            print(suma)
+            alphas = np.ones(np.asarray(kernel[0]).shape[-1])
+            kij.append(kernel.dot(alphas))
+
+        self.kij = np.asarray(kij)
+        print((np.asarray(self.kij).shape))
+
+        print('alphas %s' % np.asarray(alphas).shape)
+        resultado = fmin(self.get_loss, alphas, maxfun=99999999, maxiter=9999999999)
+        print(resultado)
+
+        print('Real energies: %s' % self.energies)
+        for kernel_image in self.kij:
+            print(kernel_image.dot(resultado))
+        exit()
+
+    def get_loss(self, alphas):
+        """Calculate the loss function with parameters alpha."""
+        predictions = [_.dot(alphas) for _ in self.kij]
+        print(predictions)
+        print(self.energies)
+        diffs = np.array(self.energies) - np.array(predictions)
+        term1 = np.dot(diffs, diffs)
+        term2 = 0
+        for _k in self.kij:
+            term2 += np.array(self.lamda) * alphas.dot(_k)
+
+        self._losses.append([term1, term2])
+        return float(term1 + term2)
 
         #"""
         #Create a kernel dict
@@ -166,10 +206,11 @@ Auxiliary functions to compute kernels
 """
 def linear(x):
     """ Compute a linear kernel """
-    linear = np.dot(afp, afp.T)
+    linear = np.dot(x, x.T)
     return linear
 
 def rbf(x, afp, sigma=1.):
     """ Compute the rbf (AKA Gaussian) kernel.  """
     rbf = np.exp(- (x - afp)**2 / (2 * sigma**2))
+    rbf = rbf.dot(np.ones(len(rbf[1])))
     return rbf
