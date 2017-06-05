@@ -3,6 +3,7 @@
 # Author: Muammar El Khatib <muammarelkhatib@gmail.com>
 
 from . import Model
+from ..regression import Regressor
 from ase.calculators.calculator import Parameters
 import numpy as np
 
@@ -23,12 +24,14 @@ class KRR(Model):
     sigma : float
         Conditioning factor.
     """
-    def __init__(self, sigma=1., kernel='linear', lamda=None, degree=3, coef0=1,
-            kernel_parwms=None, mode=None, version=None, fortran=True):
+    def __init__(self, sigma=1., kernel='linear', lamda=None, degree=3,
+            coef0=1, kernel_parwms=None, regressor=None, mode=None,
+            version=None, fortran=True):
         p = self.parameters = Parameters()
         p.version = version
         p.importname = '.model.kernel_ridge.KRR'
         p.mode = mode
+        self.regressor = regressor
 
         self.sigma = sigma
         self.kernel = kernel
@@ -120,8 +123,12 @@ class KRR(Model):
 
         #print(trainingimages)
         #print(descriptor)
+        # Set all parameters and report to logfile.
         self._parallel = parallel
         self._log = log
+
+        if self.regressor is None:
+            self.regressor = Regressor()
 
         tp = self.trainingparameters = Parameters()
         tp.trainingimages = trainingimages
@@ -154,7 +161,14 @@ class KRR(Model):
             suma += 1
             print(np.asarray(_).shape)
             kernel = self.kernel_matrix(_, kernel=self.kernel)
+            print()
+            print(kernel)
             print(kernel.shape)
+            from sklearn.metrics.pairwise import rbf_kernel
+            kernel_sci = rbf_kernel(_, Y=None, gamma=1.)
+            print(kernel_sci)
+            if kernel.all() == kernel_sci.all():
+                print('SCIKIT-LEARN AND AMP HAVE THE SAME KERNEL RBF MATRIX')
             print(suma)
             alphas = np.ones(np.asarray(kernel[0]).shape[-1])
             print(alphas)
@@ -171,6 +185,7 @@ class KRR(Model):
         print('Real energies: %s' % self.energies)
         for kernel_image in self.kij:
             print(kernel_image.dot(resultado))
+
         exit()
 
     def get_loss(self, alphas):
@@ -221,7 +236,7 @@ def rbf(features, sigma=1.):
     #rbf = np.exp(- (x - afp)**2 / (2 * sigma**2))
     #rbf = rbf.dot(np.ones(len(rbf[1])))
     pairwise_dists = squareform(pdist(features, 'euclidean'))
-    rbf =  np.exp(-pairwise_dists ** 2 / (2 * sigma ** 2))
+    rbf =  np.exp(-pairwise_dists ** 2 / (sigma ** 2))
     return rbf
 
 def exponential(features, sigma=1.):
