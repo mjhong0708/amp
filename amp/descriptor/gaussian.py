@@ -117,12 +117,10 @@ class Gaussian(object):
 
         Parameters
         ----------
-        images : list or str
-            List of ASE atoms objects with positions, symbols, energies, and
-            forces in ASE format. This is the training set of data. This can
-            also be the path to an ASE trajectory (.traj) or database (.db)
-            file. Energies can be obtained from any reference, e.g. DFT
-            calculations.
+        images : dict
+            Dictionary of images; the key is a unique ID assigned to each
+            image and each value is an ASE atoms object. Typically created
+            from amp.utilities.hash_images.
         parallel : dict
             Configuration for parallelization. Should be in same form as in
             amp.Amp.
@@ -1134,7 +1132,8 @@ def calculate_G2_prime(neighborindices, neighborsymbols, neighborpositions,
                     args_cutoff_fxn = dict(Rij=Rij)
                     if cutoff['name'] == 'Polynomial':
                         args_cutoff_fxn['gamma'] = cutoff['kwargs']['gamma']
-                    term1 = (-2. * eta * Rij * cutoff_fxn(**args_cutoff_fxn) / (Rc ** 2.) +
+                    term1 = (-2. * eta * Rij * cutoff_fxn(**args_cutoff_fxn) /
+                             (Rc ** 2.) +
                              cutoff_fxn.prime(**args_cutoff_fxn))
                     ridge += np.exp(- eta * (Rij ** 2.) / (Rc ** 2.)) * \
                         term1 * dRijdRml
