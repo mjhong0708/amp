@@ -22,9 +22,11 @@ class KRR(Model):
     kernel : str
         Choose the kernel. Default is 'linear'.
     sigma : float
-        Conditioning factor.
+        Length scale of the Gaussian in the case of RBF. Default is 1.
+    lamda : float
+        Strength of the regularization.
     """
-    def __init__(self, sigma=1., kernel='linear', lamda=None, degree=3,
+    def __init__(self, sigma=1., kernel='linear', lamda=1, degree=3,
             coef0=1, kernel_parwms=None, regressor=None, mode=None,
             version=None, fortran=True):
         p = self.parameters = Parameters()
@@ -35,7 +37,8 @@ class KRR(Model):
 
         self.sigma = sigma
         self.kernel = kernel
-        self.lamda = 1e-5
+        self.lamda = lamda
+
         self._losses = []
 
     def kernel_matrix(self, features, kernel='rbf'):
@@ -134,6 +137,7 @@ class KRR(Model):
         tp.trainingimages = trainingimages
         tp.descriptor = descriptor
         tp.fingerprints = tp.descriptor.fingerprints
+        tp.fingerprintprimes = tp.descriptor.fingerprintprimes
 
         self.energies = []
         feature_matrix = []
@@ -186,10 +190,12 @@ class KRR(Model):
         for kernel_image in self.kij:
             print(kernel_image.dot(resultado))
 
+        print(dir(tp.descriptor.fingerprints))
         exit()
 
     def get_loss(self, alphas):
         """Calculate the loss function with parameters alpha."""
+
         term2 = term1 = 0
         predictions = [ _.dot(alphas) for _ in self.kij ]
         print(predictions)
@@ -220,8 +226,15 @@ class KRR(Model):
 
     @property
     def forcetraining(self):
-        """Force training"""
-        pass
+        """Returns true if forcetraining is turned on (as determined by
+        examining the convergence criteria in the loss function), else
+        returns False.
+        """
+        if self.lossfunction.parameters['force_coefficient'] is None:
+            forcetraining = False
+        elif self.lossfunction.parameters['force_coefficient'] > 0.:
+            forcetraining = True
+        return forcetraining
 
 """
 Auxiliary functions to compute kernels
@@ -233,8 +246,6 @@ def linear(features):
 
 def rbf(features, sigma=1.):
     """ Compute the rbf (AKA Gaussian) kernel.  """
-    #rbf = np.exp(- (x - afp)**2 / (2 * sigma**2))
-    #rbf = rbf.dot(np.ones(len(rbf[1])))
     pairwise_dists = squareform(pdist(features, 'euclidean'))
     rbf =  np.exp(-pairwise_dists ** 2 / (sigma ** 2))
     return rbf
