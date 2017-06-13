@@ -2,10 +2,12 @@
 # This module is the implementation of kernel ridge regression model into Amp.
 # Author: Muammar El Khatib <muammarelkhatib@gmail.com>
 
-from . import Model
+import os
+from . import LossFunction, Model
 from ..regression import Regressor
 from ase.calculators.calculator import Parameters
 import numpy as np
+from ..utilities import ConvergenceOccurred, make_filename
 
 from scipy.optimize import fmin
 from scipy.spatial.distance import pdist, squareform
@@ -25,19 +27,32 @@ class KRR(Model):
         Length scale of the Gaussian in the case of RBF. Default is 1.
     lamda : float
         Strength of the regularization.
+    checkpoints : int
+        Frequency with which to save parameter checkpoints upon training. E.g.,
+        100 saves a checpoint on each 100th training setp.  Specify None for no
+        checkpoints.
+    lossfunction : object
+        Loss function object, if at all desired by the user.
     """
-    def __init__(self, sigma=1., kernel='linear', lamda=1, degree=3,
-            coef0=1, kernel_parwms=None, regressor=None, mode=None,
-            version=None, fortran=True):
+    def __init__(self, sigma=1., kernel='linear', lamda=1, degree=3, coef0=1,
+            kernel_parwms=None, weights=None, regressor=None, mode=None,
+            version=None, fortran=False, checkpoints=100, lossfunction=None):
         p = self.parameters = Parameters()
         p.version = version
         p.importname = '.model.kernel_ridge.KRR'
         p.mode = mode
-        self.regressor = regressor
+        p.weights = weights
 
+        self.regressor = regressor
         self.sigma = sigma
+        self.fortran = fortran
         self.kernel = kernel
         self.lamda = lamda
+        self.checkpoints = checkpoints
+        self.lossfunction = lossfunction
+
+        if self.lossfunction is None:
+            self.lossfunction = LossFunction()
 
         self._losses = []
 
@@ -133,20 +148,28 @@ class KRR(Model):
         if self.regressor is None:
             self.regressor = Regressor()
 
+        p = self.parameters
         tp = self.trainingparameters = Parameters()
         tp.trainingimages = trainingimages
         tp.descriptor = descriptor
         tp.fingerprints = tp.descriptor.fingerprints
-        tp.fingerprintprimes = tp.descriptor.fingerprintprimes
+
+        """
+        This checks that we need fingerprintprime.
+        """
+        if self.forcetraining == True:
+            tp.fingerprintprimes = tp.descriptor.fingerprintprimes
 
         self.energies = []
-        feature_matrix = []
+        self.feature_matrix = []
+        self.hashes = []
         suma = 0
         for hash, image in tp.trainingimages.iteritems():
             energy = image.get_potential_energy()
             self.energies.append(energy)
             suma += 1
             features = []
+            self.hashes.append(hash)
             for element, afp in tp.fingerprints[hash]:
                 #afp = np.asarray(afp)[:, np.newaxis]    # I append in column vectors
                 print(element)
@@ -155,19 +178,25 @@ class KRR(Model):
                 features.append(afp)
                 #features.append(self.kernel_matrix(afp, kernel=self.kernel)) I don't think this is correct
 
-            feature_matrix.append(features)
+            self.feature_matrix.append(features)
             #kernel = self.kernel_matrix(features[0], kernel=self.kernel)
             print(suma)
             #print(kernel)
+
+
+        if p.mode is None:
+            p.mode = descriptor.parameters.mode
+
+
         kij = []
+        self.kernel_dict = {}
         suma = 0
-        for _ in feature_matrix:
+        for index, _ in enumerate(self.feature_matrix):
             suma += 1
             print(np.asarray(_).shape)
             kernel = self.kernel_matrix(_, kernel=self.kernel)
             print()
             print(kernel)
-            print(kernel.shape)
             from sklearn.metrics.pairwise import rbf_kernel
             kernel_sci = rbf_kernel(_, Y=None, gamma=1.)
             print(kernel_sci)
@@ -175,15 +204,28 @@ class KRR(Model):
                 print('SCIKIT-LEARN AND AMP HAVE THE SAME KERNEL RBF MATRIX')
             print(suma)
             alphas = np.ones(np.asarray(kernel[0]).shape[-1])
-            print(alphas)
-            kij.append(kernel.dot(alphas))
-            print(kij)
+            print(kernel)
+            print(np.sum(kernel, axis=0))
+            self.kernel_dict[self.hashes[index]] = np.sum(kernel, axis=0)
+            print(kernel.dot(alphas))
+            print(p.weights)
+            kij.append(np.sum(kernel, axis=0))
 
         self.kij = np.asarray(kij)
         print((np.asarray(self.kij).shape))
+        print(self.kernel_dict)
+        print('Kernel dict')
 
-        print('alphas %s' % np.asarray(alphas).shape)
-        resultado = fmin(self.get_loss, alphas, maxfun=99999999, maxiter=9999999999)
+        if p.weights is None:
+            log('Initializing weights.')
+            if p.mode == 'image-centered':
+                raise NotImplementedError('Needs to be coded.')
+            elif p.mode == 'atom-centered':
+                p.weights = self.vector
+                print(p.weights)
+
+        print('weights %s' % np.asarray(p.weights).shape)
+        resultado = fmin(self._get_loss, p.weights, maxfun=99999999, maxiter=9999999999)
         print(resultado)
 
         print('Real energies: %s' % self.energies)
@@ -191,38 +233,74 @@ class KRR(Model):
             print(kernel_image.dot(resultado))
 
         print(dir(tp.descriptor.fingerprints))
-        exit()
 
-    def get_loss(self, alphas):
+        self.step = 0
+        result = self.regressor.regress(model=self, log=log)
+        return result  # True / False
+
+    def get_loss(self, vector):
+        """Method to be called by the regression master.
+
+        Takes one and only one input, a vector of parameters.
+        Returns one output, the value of the loss (cost) function.
+
+        Parameters
+        ----------
+        vector : list
+            Parameters of the regression model in the form of a list.
+        """
+        print('SOY LLAMADO')
+        print(vector)
+        if self.step == 0:
+            filename = make_filename(self.parent.label,
+                                     '-initial-parameters.amp')
+            filename = self.parent.save(filename, overwrite=True)
+        if self.checkpoints:
+            if self.step % self.checkpoints == 0:
+                path = os.path.join(self.parent.label + '-checkpoints/')
+                if self.step == 0:
+                    if not os.path.exists(path):
+                        os.mkdir(path)
+                self._log('Saving checkpoint data.')
+                filename = make_filename(path,
+                                         'parameters-checkpoint-%d.amp'
+                                         % self.step)
+                filename = self.parent.save(filename, overwrite=True)
+        loss = self.lossfunction.get_loss(np.asarray(vector), lossprime=False)['loss']
+        if hasattr(self, 'observer'):
+            self.observer(self, vector, loss)
+        self.step += 1
+        print(loss)
+        return loss
+
+    def _get_loss(self, weights):
         """Calculate the loss function with parameters alpha."""
-
         term2 = term1 = 0
-        predictions = [ _.dot(alphas) for _ in self.kij ]
+
+        predictions = [ _.dot(weights) for _ in self.kij ]
         print(predictions)
         print(self.energies)
         diffs = np.array(self.energies) - np.array(predictions)
         term1 = np.dot(diffs, diffs)
         for _k in self.kij:
-            term2 += np.array(self.lamda) * alphas.dot(_k)
-
+            term2 += np.array(self.lamda) * weights.dot(_k)
         self._losses.append([term1, term2])
+
         return float(term1 + term2)
 
-        #"""
-        #Create a kernel dict
-        #"""
-        #k = { }
+    def get_lossprime(self, vector):
+        """Method to be called by the regression master.
 
-        #for element, afp in tp.fingerprints.iteritems():
-        #    print(element)
-        #    print(afp)
-        #    print('Call kernel')
-        #    k[element] = self.kernel_matrix(afp, kernel=self.kernel)
-        #print(k)
+        Takes one and only one input, a vector of parameters.  Returns one
+        output, the value of the derivative of the loss function with respect
+        to model parameters.
 
-        #for hash, image in tp.trainingimages.iteritems():
-        #    print(hash)
-        #    #print(dir(image))
+        Parameters
+        ----------
+        vector : list
+            Parameters of the regression model in the form of a list.
+        """
+        pass
 
     @property
     def forcetraining(self):
@@ -236,6 +314,81 @@ class KRR(Model):
             forcetraining = True
         return forcetraining
 
+    @property
+    def vector(self):
+        """Access to get or set the model parameters (weights, scaling for
+        each network) as a single vector, useful in particular for
+        regression.
+
+        Parameters
+        ----------
+        vector : list
+            Parameters of the regression model in the form of a list.
+        """
+        print('vector')
+        p = self.parameters
+        if (len(set(len(x) for x in self.kij)) <= 1) == True:
+            vector = np.ones(np.asarray(self.kij[0]).shape[-1])
+        return vector
+
+    @vector.setter
+    def vector(self, vector):
+        p = self.parameters
+        p['weights'] = p.weights
+
+    @property
+    def lossfunction(self):
+        """Allows the user to set a custom loss function.
+
+        For example,
+        >>> from amp.model import LossFunction
+        >>> lossfxn = LossFunction(energy_tol=0.0001)
+        >>> calc.model.lossfunction = lossfxn
+
+        Parameters
+        ----------
+        lossfunction : object
+            Loss function object, if at all desired by the user.
+        """
+        return self._lossfunction
+
+    @lossfunction.setter
+    def lossfunction(self, lossfunction):
+        if hasattr(lossfunction, 'attach_model'):
+            lossfunction.attach_model(self)  # Allows access to methods.
+        self._lossfunction = lossfunction
+
+    def calculate_atomic_energy(self, afp, index, symbol, hash=None):
+        """
+        Given input to the neural network, output (which corresponds to energy)
+        is calculated about the specified atom. The sum of these for all
+        atoms is the total energy (in atom-centered mode).
+
+        Parameters
+        ---------
+        afp : list
+            Atomic fingerprints in the form of a list to be used as input to
+            the neural network.
+        index: int
+            Index of the atom for which atomic energy is calculated (only used
+            in the atom-centered mode).
+        symbol : str
+            Symbol of the atom for which atomic energy is calculated (only used
+            in the atom-centered mode).
+
+        Returns
+        -------
+        atomic_amp_energy : float
+            Energy.
+        """
+        if self.parameters.mode != 'atom-centered':
+            raise AssertionError('calculate_atomic_energy should only be '
+                                 ' called in atom-centered mode.')
+
+        weights = self.parameters.weights[index]
+        atomic_amp_energy = self.kernel_dict[hash][index] * weights
+        print(atomic_amp_energy)
+        return atomic_amp_energy
 """
 Auxiliary functions to compute kernels
 """

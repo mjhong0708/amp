@@ -28,7 +28,7 @@ class Regressor:
         """optimizer can be specified; it should behave like a
         scipy.optimize optimizer. That is, it should take as its first two
         arguments the function to be optimized and the initial guess of the
-        optimal paramters. Additional keyword arguments can be fed through
+        optimal parameters. Additional keyword arguments can be fed through
         the optimizer_kwargs dictionary."""
 
         user_kwargs = optimizer_kwargs
@@ -55,7 +55,12 @@ class Regressor:
         elif optimizer == 'NCG':
             from scipy.optimize import fmin_ncg as optimizer
             optimizer_kwargs = {'avextol': 1e-15, }
-
+        elif optimizer == 'fmin':
+            from scipy.optimize import fmin
+            optimizer_kwargs = {
+                    'maxfun': 99999999,
+                    'maxiter': 9999999999
+                    }
         if user_kwargs:
             optimizer_kwargs.update(user_kwargs)
         self.optimizer = optimizer
@@ -79,13 +84,13 @@ class Regressor:
         log(' Optimizer: %s' % self.optimizer)
         log(' Optimizer kwargs: %s' % self.optimizer_kwargs)
         x0 = model.vector.copy()
+        self.lossprime = False
         try:
             if self.lossprime:
                 self.optimizer(model.get_loss, x0, model.get_lossprime,
                                **self.optimizer_kwargs)
             else:
                 self.optimizer(model.get_loss, x0, **self.optimizer_kwargs)
-
         except ConvergenceOccurred:
             log('...optimization successful.', toc='opt')
             return True

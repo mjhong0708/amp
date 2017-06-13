@@ -43,15 +43,14 @@ class Model(object):
         np.set_printoptions(precision=30, threshold=999999999)
         return self.parameters.tostring()
 
-    def calculate_energy(self, fingerprints):
+    def calculate_energy(self, fingerprints, hash=None):
         """Calculates the model-predicted energy for an image, based on its
         fingerprint.
 
         Parameters
         ----------
-        fingerprints : dict
-            Dictionary with images hashs as keys and the corresponding
-            fingerprints as values.
+        fingerprints : list
+            Array with the corresponding fingerprints values.
         """
 
         if self.parameters.mode == 'image-centered':
@@ -62,10 +61,12 @@ class Model(object):
             for index, (symbol, afp) in enumerate(fingerprints):
                 atom_energy = self.calculate_atomic_energy(afp=afp,
                                                            index=index,
-                                                           symbol=symbol)
+                                                           symbol=symbol,
+                                                           hash=hash)
                 self.atomic_energies.append(atom_energy)
                 energy += atom_energy
         return energy
+
 
     def calculate_forces(self, fingerprints, fingerprintprimes):
         """Calculates the model-predicted forces for an image, based on
@@ -602,7 +603,7 @@ class LossFunction:
         model = self._model
         for hash, image in self.images.iteritems():
             no_of_atoms = len(image)
-            amp_energy = model.calculate_energy(self.fingerprints[hash])
+            amp_energy = model.calculate_energy(self.fingerprints[hash], hash)
             actual_energy = image.get_potential_energy(apply_constraint=False)
             residual_per_atom = abs(amp_energy - actual_energy) / \
                 len(image)

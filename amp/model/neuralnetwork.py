@@ -9,7 +9,6 @@ from ..utilities import Logger, hash_images, make_filename
 
 
 class NeuralNetwork(Model):
-
     """Class that implements a basic feed-forward neural network.
 
     Parameters
@@ -170,6 +169,7 @@ class NeuralNetwork(Model):
         p = self.parameters
         tp = self.trainingparameters = Parameters()
         tp.trainingimages = trainingimages
+        print(tp.trainingimages)
         tp.descriptor = descriptor
 
         if p.mode is None:
@@ -353,7 +353,7 @@ class NeuralNetwork(Model):
 
         Returns
         -------
-        float
+        atomic_amp_energy : float
             Energy.
         """
         if self.parameters.mode != 'atom-centered':
