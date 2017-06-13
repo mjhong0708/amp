@@ -40,7 +40,7 @@ See the theory section for more details.
 Adjusting convergence parameters
 ----------------------------------
 
-To control how tightly the energy is converged, you can adjust the `LossFunction`. Just insert before the `calc.train` line some code like:
+To control how tightly the energy and/or forces are converged, you can adjust the `LossFunction`. Just insert before the `calc.train` line some code like:
 
 .. code-block:: python
 
@@ -54,8 +54,9 @@ You can see the adjustable parameters and their default values in the dictionary
 .. code-block:: python
 
     >>> LossFunction.default_parameters
-    {'convergence': {'energy_rmse': 0.001, 'force_rmse': 0.005, 'energy_maxresid': None, 'force_maxresid': None}}
+    {'convergence': {'energy_rmse': 0.001, 'force_rmse': None, 'energy_maxresid': None, 'force_maxresid': None}}
 
+Note that you can also set a maximum residual of any energy or force prediction with the appropriate keywords above.
 
 To change how the code manages the regression process, you can use the `Regressor` class. For example, to switch from the scipy's fmin_bfgs optimizer (the default) to scipy's basin hopping optimizer, try inserting the following lines before initializing training:
 
@@ -72,10 +73,9 @@ Turning on/off force training
 ----------------------------------
 
 Most electronic structure codes also give forces (in addition to potential energy) for each image, and you can get a much more predictive fit if you include this information while training.
-This is the default behavior in Amp.
-However, this can create issues: training will be much slower, convergence will be more difficult, and if there are inconsistencies in the training data (say if the calculator reports 0K-extrapolated energies rather than force-consistent ones), you might not be able to train at all.
-In these and many other cases you might want to turn off force training.
-To do this in the standard neural network model, you can do it through the `force_coefficient` keyword to the `LossFunction`; for example:
+However, this can create issues: training will tend to be slower than training energies only, convergence will be more difficult, and if there are inconsistencies in the training data (say if the calculator reports 0K-extrapolated energies rather than force-consistent ones, or if there are egg-box errors), you might not be able to train at all.
+For this reason, Amp defaults to energy-only training, but you can turn on force-training via the convergence dictionary as noted above.
+Note that there is a `force_coefficient` keyword also fed to the `LossFunction` class which can control the relative weighting of the energy and force RMSEs used in the path to convergence.
 
 .. code-block:: python
 
