@@ -283,7 +283,7 @@ class LossFunction:
 
     default_parameters = {'convergence': {'energy_rmse': 0.001,
                                           'energy_maxresid': None,
-                                          'force_rmse': 0.005,
+                                          'force_rmse': None,
                                           'force_maxresid': None, }
                           }
 
