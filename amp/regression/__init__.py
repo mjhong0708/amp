@@ -56,7 +56,7 @@ class Regressor:
             from scipy.optimize import fmin_ncg as optimizer
             optimizer_kwargs = {'avextol': 1e-15, }
         elif optimizer == 'fmin':
-            from scipy.optimize import fmin
+            from scipy.optimize import fmin as optimizer
             optimizer_kwargs = {
                     'maxfun': 99999999,
                     'maxiter': 9999999999
@@ -84,7 +84,6 @@ class Regressor:
         log(' Optimizer: %s' % self.optimizer)
         log(' Optimizer kwargs: %s' % self.optimizer_kwargs)
         x0 = model.vector.copy()
-        self.lossprime = False
         try:
             if self.lossprime:
                 self.optimizer(model.get_loss, x0, model.get_lossprime,

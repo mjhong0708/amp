@@ -37,11 +37,23 @@ class KRR(Model):
     def __init__(self, sigma=1., kernel='linear', lamda=1, degree=3, coef0=1,
             kernel_parwms=None, weights=None, regressor=None, mode=None,
             version=None, fortran=False, checkpoints=100, lossfunction=None):
+
+        # Version check, particularly if restarting.
+        compatibleversions = ['2015.12', ]
+        if (version is not None) and version not in compatibleversions:
+            raise RuntimeError('Error: Trying to use NeuralNetwork'
+                               ' version %s, but this module only supports'
+                               ' versions %s. You may need an older or '
+                               'newer version of Amp.' %
+                               (version, compatibleversions))
+        else:
+            version = compatibleversions[-1]
+
         p = self.parameters = Parameters()
-        p.version = version
         p.importname = '.model.kernel_ridge.KRR'
-        p.mode = mode
+        p.version = version
         p.weights = weights
+        p.mode = mode
 
         self.regressor = regressor
         self.parent = None  # Can hold a reference to main Amp instance.
@@ -57,73 +69,8 @@ class KRR(Model):
 
         self._losses = []
 
-    def kernel_matrix(self, features, kernel='rbf'):
-        """This method takes as arguments a feature vector and a string that refers
-        to the kernel type used.
 
-        Parameters
-        ----------
-        features : list or numpy array
-            Column vector containing the fingerprint of the atoms in images.
-        kernel : str
-            Select the kernel to be used. Supported kernels are: 'linear',
-            rbf', 'exponential, and 'laplacian'.
-
-        Returns
-        -------
-        K : array
-            The kernel matrix.
-
-        Notes
-        -----
-        Kernels may differ a lot between them. The kernel_matrix method has to
-        contain algorithms needed to build the desired matrix. The computation
-        of the kernel, is done by auxiliary functions that are located at the
-        end of the KRR class.
-        """
-
-        features = np.asarray(features)
-        print(features)
-
-        if kernel == 'linear':
-            K = linear(features)
-
-        # All kernels in this control flow share the same structure
-        elif kernel == 'rbf' or kernel == 'laplacian' or kernel == 'exponential':
-            K = rbf(features, sigma=self.sigma)
-
-            """This is for testing purposes
-            xjs = np.array([
-                0.,
-                0.05263158,
-                0.10526316,
-                0.15789474,
-                0.21052632,
-                0.26315789,
-                0.31578947,
-                0.36842105,
-                0.42105263,
-                0.47368421,
-                0.52631579,
-                0.57894737,
-                0.63157895,
-                0.68421053,
-                0.73684211,
-                0.78947368,
-                0.84210526,
-                0.89473684,
-                0.94736842,
-                1.
-                ])
-            K = np.array([rbf(x, xjs, sigma=self.sigma) for x in xjs])
-            print(K)
-            """
-        else:
-            raise NotImplementedError('This kernel needs to be coded.')
-
-        return np.asarray(K)
-
-    def fit(self, trainingimages, descriptor, log, parallel):
+    def fit(self, trainingimages, descriptor, log, parallel, only_setup=False):
         """This method fits the kernel ridge model using a loss function.
 
         Parameters
@@ -191,11 +138,6 @@ class KRR(Model):
             print(suma)
             #print(kernel)
 
-
-        if p.mode is None:
-            p.mode = descriptor.parameters.mode
-
-
         kij = []
         self.kernel_dict = {}
         suma = 0
@@ -231,6 +173,8 @@ class KRR(Model):
             elif p.mode == 'atom-centered':
                 p.weights = np.ones(np.asarray(self.kij[0]).shape[-1])
                 print(p.weights)
+        else:
+            log('Initial weights already present.')
 
         #print('weights %s' % np.asarray(p.weights).shape)
         resultado = fmin(self._get_loss, p.weights, maxfun=99999999, maxiter=9999999999)
@@ -241,6 +185,9 @@ class KRR(Model):
             print(kernel_image.dot(resultado))
 
         print(dir(tp.descriptor.fingerprints))
+
+        if only_setup:
+            return
 
         self.step = 0
         result = self.regressor.regress(model=self, log=log)
@@ -296,8 +243,6 @@ class KRR(Model):
         vector : list
             Parameters of the regression model in the form of a list.
         """
-        print('SOY LLAMADO')
-        print(vector)
         if self.step == 0:
             filename = make_filename(self.parent.label,
                                      '-initial-parameters.amp')
@@ -313,8 +258,7 @@ class KRR(Model):
                                          'parameters-checkpoint-%d.amp'
                                          % self.step)
                 filename = self.parent.save(filename, overwrite=True)
-        loss = self.lossfunction.get_loss(np.asarray(vector), lossprime=False)['loss']
-        print(loss)
+        loss = self.lossfunction.get_loss(vector, lossprime=False)['loss']
         if hasattr(self, 'observer'):
             self.observer(self, vector, loss)
         self.step += 1
@@ -330,6 +274,8 @@ class KRR(Model):
         diffs = np.array(self.energies) - np.array(predictions)
         term1 = np.dot(diffs, diffs)
         for _k in self.kij:
+            print(_k)
+            print(self.lamda)
             term2 += np.array(self.lamda) * weights.dot(_k)
         self._losses.append([term1, term2])
 
@@ -347,9 +293,8 @@ class KRR(Model):
         vector : list
             Parameters of the regression model in the form of a list.
         """
-        pass
-
-
+        return self.lossfunction.get_loss(vector,
+                                          lossprime=True)['dloss_dparameters']
 
     @property
     def lossfunction(self):
@@ -404,6 +349,72 @@ class KRR(Model):
         atomic_amp_energy = self.kernel_dict[hash][index] * weight
         print(atomic_amp_energy)
         return atomic_amp_energy
+
+    def kernel_matrix(self, features, kernel='rbf'):
+        """This method takes as arguments a feature vector and a string that refers
+        to the kernel type used.
+
+        Parameters
+        ----------
+        features : list or numpy array
+            Column vector containing the fingerprint of the atoms in images.
+        kernel : str
+            Select the kernel to be used. Supported kernels are: 'linear',
+            rbf', 'exponential, and 'laplacian'.
+
+        Returns
+        -------
+        K : array
+            The kernel matrix.
+
+        Notes
+        -----
+        Kernels may differ a lot between them. The kernel_matrix method has to
+        contain algorithms needed to build the desired matrix. The computation
+        of the kernel, is done by auxiliary functions that are located at the
+        end of the KRR class.
+        """
+
+        features = np.asarray(features)
+        print(features)
+
+        if kernel == 'linear':
+            K = linear(features)
+
+        # All kernels in this control flow share the same structure
+        elif kernel == 'rbf' or kernel == 'laplacian' or kernel == 'exponential':
+            K = rbf(features, sigma=self.sigma)
+
+            """This is for testing purposes
+            xjs = np.array([
+                0.,
+                0.05263158,
+                0.10526316,
+                0.15789474,
+                0.21052632,
+                0.26315789,
+                0.31578947,
+                0.36842105,
+                0.42105263,
+                0.47368421,
+                0.52631579,
+                0.57894737,
+                0.63157895,
+                0.68421053,
+                0.73684211,
+                0.78947368,
+                0.84210526,
+                0.89473684,
+                0.94736842,
+                1.
+                ])
+            K = np.array([rbf(x, xjs, sigma=self.sigma) for x in xjs])
+            print(K)
+            """
+        else:
+            raise NotImplementedError('This kernel needs to be coded.')
+
+        return np.asarray(K)
 """
 Auxiliary functions to compute kernels
 """
