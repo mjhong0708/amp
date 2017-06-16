@@ -44,6 +44,7 @@ class KRR(Model):
         p.weights = weights
 
         self.regressor = regressor
+        self.parent = None  # Can hold a reference to main Amp instance.
         self.sigma = sigma
         self.fortran = fortran
         self.kernel = kernel
@@ -154,6 +155,13 @@ class KRR(Model):
         tp.descriptor = descriptor
         tp.fingerprints = tp.descriptor.fingerprints
 
+
+        if p.mode is None:
+            p.mode = descriptor.parameters.mode
+        else:
+            assert p.mode == descriptor.parameters.mode
+        log('Regression in %s mode.' % p.mode)
+
         """
         This checks that we need fingerprintprime.
         """
@@ -221,10 +229,10 @@ class KRR(Model):
             if p.mode == 'image-centered':
                 raise NotImplementedError('Needs to be coded.')
             elif p.mode == 'atom-centered':
-                p.weights = self.vector
+                p.weights = np.ones(np.asarray(self.kij[0]).shape[-1])
                 print(p.weights)
 
-        print('weights %s' % np.asarray(p.weights).shape)
+        #print('weights %s' % np.asarray(p.weights).shape)
         resultado = fmin(self._get_loss, p.weights, maxfun=99999999, maxiter=9999999999)
         print(resultado)
 
@@ -237,6 +245,45 @@ class KRR(Model):
         self.step = 0
         result = self.regressor.regress(model=self, log=log)
         return result  # True / False
+
+    @property
+    def forcetraining(self):
+        """Returns true if forcetraining is turned on (as determined by
+        examining the convergence criteria in the loss function), else
+        returns False.
+        """
+        if self.lossfunction.parameters['force_coefficient'] is None:
+            forcetraining = False
+        elif self.lossfunction.parameters['force_coefficient'] > 0.:
+            forcetraining = True
+        return forcetraining
+
+    @property
+    def vector(self):
+        """Access to get or set the model parameters (weights, scaling for
+        each network) as a single vector, useful in particular for
+        regression.
+
+        Parameters
+        ----------
+        vector : list
+            Parameters of the regression model in the form of a list.
+        """
+        if self.parameters['weights'] is None:
+            return None
+        p = self.parameters
+        #print('vector')
+        #p = self.parameters
+        #if (len(set(len(x) for x in self.kij)) <= 1) == True:
+        #    vector = np.ones(np.asarray(self.kij[0]).shape[-1])
+        vector = p.weights
+        print(vector)
+        return vector
+
+    @vector.setter
+    def vector(self, vector):
+        p = self.parameters
+        p['weights'] = p.weights
 
     def get_loss(self, vector):
         """Method to be called by the regression master.
@@ -267,10 +314,10 @@ class KRR(Model):
                                          % self.step)
                 filename = self.parent.save(filename, overwrite=True)
         loss = self.lossfunction.get_loss(np.asarray(vector), lossprime=False)['loss']
+        print(loss)
         if hasattr(self, 'observer'):
             self.observer(self, vector, loss)
         self.step += 1
-        print(loss)
         return loss
 
     def _get_loss(self, weights):
@@ -302,39 +349,7 @@ class KRR(Model):
         """
         pass
 
-    @property
-    def forcetraining(self):
-        """Returns true if forcetraining is turned on (as determined by
-        examining the convergence criteria in the loss function), else
-        returns False.
-        """
-        if self.lossfunction.parameters['force_coefficient'] is None:
-            forcetraining = False
-        elif self.lossfunction.parameters['force_coefficient'] > 0.:
-            forcetraining = True
-        return forcetraining
 
-    @property
-    def vector(self):
-        """Access to get or set the model parameters (weights, scaling for
-        each network) as a single vector, useful in particular for
-        regression.
-
-        Parameters
-        ----------
-        vector : list
-            Parameters of the regression model in the form of a list.
-        """
-        print('vector')
-        p = self.parameters
-        if (len(set(len(x) for x in self.kij)) <= 1) == True:
-            vector = np.ones(np.asarray(self.kij[0]).shape[-1])
-        return vector
-
-    @vector.setter
-    def vector(self, vector):
-        p = self.parameters
-        p['weights'] = p.weights
 
     @property
     def lossfunction(self):
@@ -385,8 +400,8 @@ class KRR(Model):
             raise AssertionError('calculate_atomic_energy should only be '
                                  ' called in atom-centered mode.')
 
-        weights = self.parameters.weights[index]
-        atomic_amp_energy = self.kernel_dict[hash][index] * weights
+        weight = self.parameters.weights[index]
+        atomic_amp_energy = self.kernel_dict[hash][index] * weight
         print(atomic_amp_energy)
         return atomic_amp_energy
 """
