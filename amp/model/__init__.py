@@ -59,10 +59,16 @@ class Model(object):
             self.atomic_energies = []
             energy = 0.0
             for index, (symbol, afp) in enumerate(fingerprints):
-                atom_energy = self.calculate_atomic_energy(afp=afp,
-                                                           index=index,
-                                                           symbol=symbol,
-                                                           hash=hash)
+                arguments = dict(
+                        afp=afp,
+                        index=index,
+                        symbol=symbol
+                        )
+                if hash != None:
+                    print(hash)
+                    arguments['hash'] = hash
+
+                atom_energy = self.calculate_atomic_energy(**arguments)
                 self.atomic_energies.append(atom_energy)
                 energy += atom_energy
         return energy
@@ -601,51 +607,17 @@ class LossFunction:
         force_maxresid = 0.
         dloss_dparameters = np.array([0.] * len(parametervector))
         model = self._model
-        for hash, image in self.images.iteritems():
-            no_of_atoms = len(image)
-            amp_energy = model.calculate_energy(self.fingerprints[hash], hash)
-            actual_energy = image.get_potential_energy(apply_constraint=False)
-            residual_per_atom = abs(amp_energy - actual_energy) / \
-                len(image)
-            if residual_per_atom > energy_maxresid:
-                energy_maxresid = residual_per_atom
-            energyloss += residual_per_atom**2
+        if model.__class__.__name__ == 'NeuralNetwork':
+            for hash, image in self.images.iteritems():
+                no_of_atoms = len(image)
+                amp_energy = model.calculate_energy(self.fingerprints[hash])
+                actual_energy = image.get_potential_energy(apply_constraint=False)
+                residual_per_atom = abs(amp_energy - actual_energy) / \
+                    len(image)
+                if residual_per_atom > energy_maxresid:
+                    energy_maxresid = residual_per_atom
+                energyloss += residual_per_atom**2
 
-            # Calculates derivative of the loss function with respect to
-            # parameters if lossprime is true
-            if lossprime:
-                if model.parameters.mode == 'image-centered':
-                    raise NotImplementedError('This needs to be coded.')
-                elif model.parameters.mode == 'atom-centered':
-                    if self.d is None:
-                        denergy_dparameters = \
-                            model.calculate_dEnergy_dParameters(
-                                self.fingerprints[hash])
-                    else:
-                        denergy_dparameters = \
-                            model.calculate_numerical_dEnergy_dParameters(
-                                self.fingerprints[hash], d=self.d)
-                    temp = p.energy_coefficient * 2. * \
-                        (amp_energy - actual_energy) * \
-                        denergy_dparameters / \
-                        (no_of_atoms ** 2.)
-                    dloss_dparameters += temp
-
-            if p.force_coefficient is not None:
-                amp_forces = \
-                    model.calculate_forces(self.fingerprints[hash],
-                                           self.fingerprintprimes[hash])
-                actual_forces = image.get_forces(apply_constraint=False)
-                for index in xrange(no_of_atoms):
-                    for i in xrange(3):
-                        force_resid = abs(amp_forces[index][i] -
-                                          actual_forces[index][i])
-                        if force_resid > force_maxresid:
-                            force_maxresid = force_resid
-                        temp = (1. / 3.) * (amp_forces[index][i] -
-                                            actual_forces[index][i]) ** 2. / \
-                            no_of_atoms
-                        forceloss += temp
                 # Calculates derivative of the loss function with respect to
                 # parameters if lossprime is true
                 if lossprime:
@@ -653,44 +625,106 @@ class LossFunction:
                         raise NotImplementedError('This needs to be coded.')
                     elif model.parameters.mode == 'atom-centered':
                         if self.d is None:
-                            dforces_dparameters = \
-                                model.calculate_dForces_dParameters(
-                                    self.fingerprints[hash],
-                                    self.fingerprintprimes[hash])
+                            denergy_dparameters = \
+                                model.calculate_dEnergy_dParameters(
+                                    self.fingerprints[hash])
                         else:
-                            dforces_dparameters = \
-                                model.calculate_numerical_dForces_dParameters(
-                                    self.fingerprints[hash],
-                                    self.fingerprintprimes[hash],
-                                    d=self.d)
-                        for selfindex in range(no_of_atoms):
-                            for i in range(3):
-                                temp = p.force_coefficient * (2.0 / 3.0) * \
-                                    (amp_forces[selfindex][i] -
-                                     actual_forces[selfindex][i]) * \
-                                    dforces_dparameters[(selfindex, i)] \
-                                    / no_of_atoms
-                                dloss_dparameters += temp
+                            denergy_dparameters = \
+                                model.calculate_numerical_dEnergy_dParameters(
+                                    self.fingerprints[hash], d=self.d)
+                        temp = p.energy_coefficient * 2. * \
+                            (amp_energy - actual_energy) * \
+                            denergy_dparameters / \
+                            (no_of_atoms ** 2.)
+                        dloss_dparameters += temp
 
-        loss = p.energy_coefficient * energyloss
-        if p.force_coefficient is not None:
-            loss += p.force_coefficient * forceloss
-        dloss_dparameters = np.array(dloss_dparameters)
+                if p.force_coefficient is not None:
+                    amp_forces = \
+                        model.calculate_forces(self.fingerprints[hash],
+                                               self.fingerprintprimes[hash])
+                    actual_forces = image.get_forces(apply_constraint=False)
+                    for index in xrange(no_of_atoms):
+                        for i in xrange(3):
+                            force_resid = abs(amp_forces[index][i] -
+                                              actual_forces[index][i])
+                            if force_resid > force_maxresid:
+                                force_maxresid = force_resid
+                            temp = (1. / 3.) * (amp_forces[index][i] -
+                                                actual_forces[index][i]) ** 2. / \
+                                no_of_atoms
+                            forceloss += temp
+                    # Calculates derivative of the loss function with respect to
+                    # parameters if lossprime is true
+                    if lossprime:
+                        if model.parameters.mode == 'image-centered':
+                            raise NotImplementedError('This needs to be coded.')
+                        elif model.parameters.mode == 'atom-centered':
+                            if self.d is None:
+                                dforces_dparameters = \
+                                    model.calculate_dForces_dParameters(
+                                        self.fingerprints[hash],
+                                        self.fingerprintprimes[hash])
+                            else:
+                                dforces_dparameters = \
+                                    model.calculate_numerical_dForces_dParameters(
+                                        self.fingerprints[hash],
+                                        self.fingerprintprimes[hash],
+                                        d=self.d)
+                            for selfindex in range(no_of_atoms):
+                                for i in range(3):
+                                    temp = p.force_coefficient * (2.0 / 3.0) * \
+                                        (amp_forces[selfindex][i] -
+                                         actual_forces[selfindex][i]) * \
+                                        dforces_dparameters[(selfindex, i)] \
+                                        / no_of_atoms
+                                    dloss_dparameters += temp
 
-        # if overfit coefficient is more than zero, overfit contribution to
-        # loss and dloss_dparameters is also added.
-        if p.overfit > 0.:
-            overfitloss = 0.
-            for component in parametervector:
-                overfitloss += component ** 2.
-            overfitloss *= p.overfit
-            loss += overfitloss
-            doverfitloss_dparameters = \
-                2 * p.overfit * np.array(parametervector)
-            dloss_dparameters += doverfitloss_dparameters
+            loss = p.energy_coefficient * energyloss
+            if p.force_coefficient is not None:
+                loss += p.force_coefficient * forceloss
+            dloss_dparameters = np.array(dloss_dparameters)
 
-        return loss, dloss_dparameters, energyloss, forceloss, \
-            energy_maxresid, force_maxresid
+            # if overfit coefficient is more than zero, overfit contribution to
+            # loss and dloss_dparameters is also added.
+            if p.overfit > 0.:
+                overfitloss = 0.
+                for component in parametervector:
+                    overfitloss += component ** 2.
+                overfitloss *= p.overfit
+                loss += overfitloss
+                doverfitloss_dparameters = \
+                    2 * p.overfit * np.array(parametervector)
+                dloss_dparameters += doverfitloss_dparameters
+
+            return loss, dloss_dparameters, energyloss, forceloss, \
+                energy_maxresid, force_maxresid
+
+        elif model.__class__.__name__ == 'KRR':
+            predictions =[]
+            targets = []
+            term1 = term2 = 0
+            kernels =[]
+            for hash, image in self.images.iteritems():
+                print(hash, image)
+                no_of_atoms = len(image)
+                amp_energy = model.calculate_energy(self.fingerprints[hash], hash)
+                predictions.append(amp_energy)
+                print('AMP energy: %s' % amp_energy)
+                actual_energy = image.get_potential_energy(apply_constraint=False)
+                targets.append(actual_energy)
+                print('DFT energy: %s' % actual_energy)
+
+                kernels.append(model.get_kernel(hash))
+
+            diffs = np.array(targets) - np.array(predictions)
+            term1 = np.dot(diffs, diffs)
+
+            for k in kernels:
+                term2 += np.array(model.lamda) * self._model.vector.dot(k)
+
+            loss = term1 + term2
+            return loss, dloss_dparameters, energyloss, forceloss, \
+                energy_maxresid, force_maxresid
 
     # All incoming requests will be dictionaries with three keys.
     # d['id']: process id number, assigned when process created above.

@@ -87,8 +87,6 @@ class KRR(Model):
             amp.Amp.
         """
 
-        #print(trainingimages)
-        #print(descriptor)
         # Set all parameters and report to logfile.
         self._parallel = parallel
         self._log = log
@@ -118,53 +116,33 @@ class KRR(Model):
         self.energies = []
         self.feature_matrix = []
         self.hashes = []
-        suma = 0
         for hash, image in tp.trainingimages.iteritems():
             energy = image.get_potential_energy()
             self.energies.append(energy)
-            suma += 1
             features = []
             self.hashes.append(hash)
             for element, afp in tp.fingerprints[hash]:
                 #afp = np.asarray(afp)[:, np.newaxis]    # I append in column vectors
-                print(element)
-                print(afp)
                 afp = np.asarray(afp)
                 features.append(afp)
                 #features.append(self.kernel_matrix(afp, kernel=self.kernel)) I don't think this is correct
 
             self.feature_matrix.append(features)
             #kernel = self.kernel_matrix(features[0], kernel=self.kernel)
-            print(suma)
-            #print(kernel)
 
         kij = []
         self.kernel_dict = {}
-        suma = 0
         for index, _ in enumerate(self.feature_matrix):
-            suma += 1
-            print(np.asarray(_).shape)
             kernel = self.kernel_matrix(_, kernel=self.kernel)
-            print()
-            print(kernel)
             from sklearn.metrics.pairwise import rbf_kernel
             kernel_sci = rbf_kernel(_, Y=None, gamma=1.)
-            print(kernel_sci)
             if kernel.all() == kernel_sci.all():
                 print('SCIKIT-LEARN AND AMP HAVE THE SAME KERNEL RBF MATRIX')
-            print(suma)
             alphas = np.ones(np.asarray(kernel[0]).shape[-1])
-            print(kernel)
-            print(np.sum(kernel, axis=0))
             self.kernel_dict[self.hashes[index]] = np.sum(kernel, axis=0)
-            print(kernel.dot(alphas))
-            print(p.weights)
             kij.append(np.sum(kernel, axis=0))
 
         self.kij = np.asarray(kij)
-        print((np.asarray(self.kij).shape))
-        print(self.kernel_dict)
-        print('Kernel dict')
 
         if p.weights is None:
             log('Initializing weights.')
@@ -172,11 +150,9 @@ class KRR(Model):
                 raise NotImplementedError('Needs to be coded.')
             elif p.mode == 'atom-centered':
                 p.weights = np.ones(np.asarray(self.kij[0]).shape[-1])
-                print(p.weights)
         else:
             log('Initial weights already present.')
 
-        #print('weights %s' % np.asarray(p.weights).shape)
         resultado = fmin(self._get_loss, p.weights, maxfun=99999999, maxiter=9999999999)
         print(resultado)
 
@@ -219,12 +195,7 @@ class KRR(Model):
         if self.parameters['weights'] is None:
             return None
         p = self.parameters
-        #print('vector')
-        #p = self.parameters
-        #if (len(set(len(x) for x in self.kij)) <= 1) == True:
-        #    vector = np.ones(np.asarray(self.kij[0]).shape[-1])
         vector = p.weights
-        print(vector)
         return vector
 
     @vector.setter
@@ -269,13 +240,9 @@ class KRR(Model):
         term2 = term1 = 0
 
         predictions = [ _.dot(weights) for _ in self.kij ]
-        print(predictions)
-        print(self.energies)
         diffs = np.array(self.energies) - np.array(predictions)
         term1 = np.dot(diffs, diffs)
         for _k in self.kij:
-            print(_k)
-            print(self.lamda)
             term2 += np.array(self.lamda) * weights.dot(_k)
         self._losses.append([term1, term2])
 
@@ -318,6 +285,10 @@ class KRR(Model):
             lossfunction.attach_model(self)  # Allows access to methods.
         self._lossfunction = lossfunction
 
+    def get_kernel(self, hash):
+        """Method to return the kernel of an image"""
+        return self.kernel_dict[hash]
+
     def calculate_atomic_energy(self, afp, index, symbol, hash=None):
         """
         Given input to the neural network, output (which corresponds to energy)
@@ -347,7 +318,6 @@ class KRR(Model):
 
         weight = self.parameters.weights[index]
         atomic_amp_energy = self.kernel_dict[hash][index] * weight
-        print(atomic_amp_energy)
         return atomic_amp_energy
 
     def kernel_matrix(self, features, kernel='rbf'):
@@ -376,7 +346,6 @@ class KRR(Model):
         """
 
         features = np.asarray(features)
-        print(features)
 
         if kernel == 'linear':
             K = linear(features)
@@ -385,32 +354,6 @@ class KRR(Model):
         elif kernel == 'rbf' or kernel == 'laplacian' or kernel == 'exponential':
             K = rbf(features, sigma=self.sigma)
 
-            """This is for testing purposes
-            xjs = np.array([
-                0.,
-                0.05263158,
-                0.10526316,
-                0.15789474,
-                0.21052632,
-                0.26315789,
-                0.31578947,
-                0.36842105,
-                0.42105263,
-                0.47368421,
-                0.52631579,
-                0.57894737,
-                0.63157895,
-                0.68421053,
-                0.73684211,
-                0.78947368,
-                0.84210526,
-                0.89473684,
-                0.94736842,
-                1.
-                ])
-            K = np.array([rbf(x, xjs, sigma=self.sigma) for x in xjs])
-            print(K)
-            """
         else:
             raise NotImplementedError('This kernel needs to be coded.')
 
