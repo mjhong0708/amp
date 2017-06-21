@@ -13,7 +13,7 @@ Basic use
 ----------------------------------
 
 To use Amp, you need to specify a `descriptor` and a `model`.
-The below shows a basic example of training Amp with Gaussian descriptors and a neural network model---the Behler-Parinello scheme.
+The below shows a basic example of training :class:`~amp.Amp` with :class:`~amp.descriptor.gaussian.Gaussian` descriptors and a :class:`~amp.model.neuralnetwork.NeuralNetwork` model---the Behler-Parinello scheme.
 
 .. code-block:: python
 
@@ -40,7 +40,7 @@ See the theory section for more details.
 Adjusting convergence parameters
 ----------------------------------
 
-To control how tightly the energy and/or forces are converged, you can adjust the `LossFunction`. Just insert before the `calc.train` line some code like:
+To control how tightly the energy and/or forces are converged, you can adjust the :class:`~amp.model.LossFunction`. Just insert before the `calc.train` line some code like:
 
 .. code-block:: python
 
@@ -49,7 +49,7 @@ To control how tightly the energy and/or forces are converged, you can adjust th
    convergence = {'energy_rmse': 0.02, 'force_rmse': 0.04}
    calc.model.lossfunction = LossFunction(convergence=convergence)
 
-You can see the adjustable parameters and their default values in the dictionary `LossFunction.default_parameters`:
+You can see the adjustable parameters and their default values in the dictionary :attr:`~amp.model.LossFunction.default_parameters`:
 
 .. code-block:: python
 
@@ -58,7 +58,7 @@ You can see the adjustable parameters and their default values in the dictionary
 
 Note that you can also set a maximum residual of any energy or force prediction with the appropriate keywords above.
 
-To change how the code manages the regression process, you can use the `Regressor` class. For example, to switch from the scipy's fmin_bfgs optimizer (the default) to scipy's basin hopping optimizer, try inserting the following lines before initializing training:
+To change how the code manages the regression process, you can use the :class:`~amp.regression.Regressor` class. For example, to switch from the scipy's fmin_bfgs optimizer (the default) to scipy's basin hopping optimizer, try inserting the following lines before initializing training:
 
 .. code-block:: python
 
@@ -75,7 +75,7 @@ Turning on/off force training
 Most electronic structure codes also give forces (in addition to potential energy) for each image, and you can get a much more predictive fit if you include this information while training.
 However, this can create issues: training will tend to be slower than training energies only, convergence will be more difficult, and if there are inconsistencies in the training data (say if the calculator reports 0K-extrapolated energies rather than force-consistent ones, or if there are egg-box errors), you might not be able to train at all.
 For this reason, Amp defaults to energy-only training, but you can turn on force-training via the convergence dictionary as noted above.
-Note that there is a `force_coefficient` keyword also fed to the `LossFunction` class which can control the relative weighting of the energy and force RMSEs used in the path to convergence.
+Note that there is a `force_coefficient` keyword also fed to the :class:`~amp.model.LossFunction` class which can control the relative weighting of the energy and force RMSEs used in the path to convergence.
 
 .. code-block:: python
 
@@ -92,7 +92,7 @@ Parallel processing
 Most tasks in Amp are "embarrassingly parallel" and thus you should see a performance boost by specifying more cores.
 Our standard parallel processing approach requires the modules ZMQ (to pass messages between processes) and pxssh (to establish SSH connections across nodes, and is only needed if parallelizing on more than one node).
 
-The code will try to automatically guess the parallel configuration from the environment variables that your batching system produces, using the function `amp.utilities.assign_cores`.
+The code will try to automatically guess the parallel configuration from the environment variables that your batching system produces, using the function :func:`amp.utilities.assign_cores`.
 (We only use SLURM on our system, so we welcome patches to get this utility working on other systems!)
 If you want to override the automatic guess, use the `cores` keyword when initializing Amp.
 To specify serial operation, use `cores=1`; to specify (for example) 8 cores on only a single node, use `cores=8` or `cores={'localhost': 8}`.
@@ -117,7 +117,7 @@ However, if you need to set your environment variables on the machine that is be
 
    envcommand = 'export PYTHONPATH=/path/to/amp:$PYTHONPATH'
 
-This envcommand can be passed as a keyword to the initialization of the Amp class.
+This envcommand can be passed as a keyword to the initialization of the :class:`~amp.Amp` class.
 Ultimately, Amp stores these and passes them around in a configuration dictionary called `parallel`, so if you are calling descriptor or model functions directly you may need to construct this dictionary, which has the form `parallel={'cores': ..., 'envcommand': ...}`.
 
 
@@ -157,7 +157,7 @@ If training is successful, Amp saves the parameters into an '<label>.amp' file (
    calc.model.lossfunction = LossFunction(convergence=convergence)
    calc.train(overwrite=True)
 
-If training does not succeed, Amp raises a `TrainingConvergenceError`.
+If training does not succeed, Amp raises a :exc:`~amp.utilities.TrainingConvergenceError`.
 You can use this within your scripts to catch when training succeeds or fails, for example:
 
 .. code-block:: python
@@ -189,7 +189,7 @@ To use this module, the calculator object should be initiated as usual:
     calc = Amp(descriptor=..., model=...)
     images = ...
 
-Then the calculator object and the images are passed to the `Annealer` module and the simulated-annealing search is performed by reducing the temperature from the initial maximum value `Tmax` to the final minimum value `Tmin` in number of steps `steps`:
+Then the calculator object and the images are passed to the :class:`~amp.utilities.Annealer` module and the simulated-annealing search is performed by reducing the temperature from the initial maximum value `Tmax` to the final minimum value `Tmin` in number of steps `steps`:
 
 .. code-block:: python
 
@@ -197,7 +197,7 @@ Then the calculator object and the images are passed to the `Annealer` module an
     Annealer(calc=calc, images=images, Tmax=20, Tmin=1, steps=4000)
 
 If `Tmax` takes a small value (greater than zero), then the algorithm reduces to the simple random-walk search.
-Finally the usual `train` module is called to continue from the best parameters found in the last step:
+Finally the usual :meth:`~amp.Amp.train` method is called to continue from the best parameters found in the last step:
 
 .. code-block:: python
 
