@@ -81,9 +81,9 @@ Note that there is a `force_coefficient` keyword also fed to the `LossFunction` 
 
    from amp.model import LossFunction
 
-   convergence = {'energy_rmse': 0.001}
+   convergence = {'energy_rmse': 0.02, 'force_rmse': 0.04}
    calc.model.lossfunction = LossFunction(convergence=convergence,
-                                          force_coefficient=None)
+                                          force_coefficient=0.04)
 
 ----------------------------------
 Parallel processing
