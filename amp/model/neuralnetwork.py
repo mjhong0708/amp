@@ -169,7 +169,6 @@ class NeuralNetwork(Model):
         p = self.parameters
         tp = self.trainingparameters = Parameters()
         tp.trainingimages = trainingimages
-        print(tp.trainingimages)
         tp.descriptor = descriptor
 
         if p.mode is None:

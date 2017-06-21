@@ -2,7 +2,6 @@ from ..utilities import ConvergenceOccurred
 
 
 class Regressor:
-
     """Class to manage the regression of a generic model. That is, for a
     given parameter set, calculates the cost function (the difference in
     predicted energies and actual energies across training images), then

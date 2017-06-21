@@ -160,8 +160,6 @@ class KRR(Model):
         for kernel_image in self.kij:
             print(kernel_image.dot(resultado))
 
-        print(dir(tp.descriptor.fingerprints))
-
         if only_setup:
             return
 
@@ -201,7 +199,7 @@ class KRR(Model):
     @vector.setter
     def vector(self, vector):
         p = self.parameters
-        p['weights'] = p.weights
+        p['weights'] = vector
 
     def get_loss(self, vector):
         """Method to be called by the regression master.
@@ -237,7 +235,7 @@ class KRR(Model):
 
     def _get_loss(self, weights):
         """Calculate the loss function with parameters alpha."""
-        term2 = term1 = 0
+        term2 = term1 = 0.
 
         predictions = [ _.dot(weights) for _ in self.kij ]
         diffs = np.array(self.energies) - np.array(predictions)

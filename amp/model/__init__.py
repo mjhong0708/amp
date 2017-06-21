@@ -65,7 +65,6 @@ class Model(object):
                         symbol=symbol
                         )
                 if hash != None:
-                    print(hash)
                     arguments['hash'] = hash
 
                 atom_energy = self.calculate_atomic_energy(**arguments)
@@ -246,7 +245,6 @@ class Model(object):
 
 
 class LossFunction:
-
     """Basic loss function, which can be used by the model.get_loss
     method which is required in standard model classes.
 
@@ -702,17 +700,19 @@ class LossFunction:
         elif model.__class__.__name__ == 'KRR':
             predictions =[]
             targets = []
-            term1 = term2 = 0
+            term1 = term2 = 0.
             kernels =[]
             for hash, image in self.images.iteritems():
-                print(hash, image)
                 no_of_atoms = len(image)
                 amp_energy = model.calculate_energy(self.fingerprints[hash], hash)
                 predictions.append(amp_energy)
-                print('AMP energy: %s' % amp_energy)
                 actual_energy = image.get_potential_energy(apply_constraint=False)
                 targets.append(actual_energy)
-                print('DFT energy: %s' % actual_energy)
+                residual_per_atom = abs(amp_energy - actual_energy) / \
+                    len(image)
+                if residual_per_atom > energy_maxresid:
+                    energy_maxresid = residual_per_atom
+                energyloss += residual_per_atom**2
 
                 kernels.append(model.get_kernel(hash))
 
