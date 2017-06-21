@@ -8,6 +8,8 @@ Development version
 
 (Significant changes since the last release should be itemized here.)
 
+A community page has been added with resources such as the new mailing list and issue tracker.
+
 The default convergence parameters have been changed to energy-only training; force-training can be added by the user via the loss function.
 
 0.5
