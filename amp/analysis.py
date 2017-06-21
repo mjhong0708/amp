@@ -554,7 +554,7 @@ def read_trainlog(logfile):
     print(startline)
 
     # Get convergence parameters.
-    ready = [False, False, False, False, False]
+    ready = [False] * 7
     for index, line in enumerate(lines[startline:]):
         if 'energy_rmse:' in line:
             ready[0] = True
@@ -575,10 +575,25 @@ def read_trainlog(logfile):
         elif 'energy_coefficient:' in line:
             ready[3] = True
             d['energy_coefficient'] = float(line.split(':')[-1])
+        elif 'energy_maxresid:' in line:
+            ready[5] = True
+            _ = line.split(':')[-1].strip()
+            if _ == 'None':
+                d['energy_maxresid'] = None
+            else:
+                d['energy_maxresid'] = float(_)
+        elif 'force_maxresid:' in line:
+            ready[6] = True
+            _ = line.split(':')[-1].strip()
+            print(_)
+            if _ == 'None':
+                d['force_maxresid'] = None
+            else:
+                d['force_maxresid'] = float(_)
         elif 'Step' in line and 'Time' in line:
             ready[4] = True
             startline += index + 2
-        if ready == [True, True, True, True]:
+        if ready == [True] * 7:
             break
 
     E = d['energy_rmse']**2 * no_images
@@ -589,8 +604,8 @@ def read_trainlog(logfile):
     costfxngoal = d['energy_coefficient'] * E + d['force_coefficient'] * F
     d['costfxngoal'] = costfxngoal
 
-    # Extract data.
-    steps, es, fs, costfxns = [], [], [], []
+    # Extract data (emrs and fmrs are max residuals).
+    steps, es, fs, emrs, fmrs, costfxns = [], [], [], [], [], []
     costfxnEs, costfxnFs = [], []
     index = startline
     while index < len(lines):
@@ -611,14 +626,16 @@ def read_trainlog(logfile):
             break
         print(line)
         if trainforces:
-            step, time, costfxn, e, _, _, _, f, _, _, _ = line.split()
+            step, time, costfxn, e, _, emr, _, f, _, fmr, _ = line.split()
             fs.append(float(f))
+            fmrs.append(float(fmr))
             F = float(f)**2 * no_images
             costfxnFs.append(d['force_coefficient'] * F / float(costfxn))
         else:
             step, time, costfxn, e, _, _, _ = line.split()
         steps.append(int(step))
         es.append(float(e))
+        emrs.append(float(emr))
         costfxns.append(costfxn)
         E = float(e)**2 * no_images
         costfxnEs.append(d['energy_coefficient'] * E / float(costfxn))
@@ -626,6 +643,8 @@ def read_trainlog(logfile):
     d['steps'] = steps
     d['es'] = es
     d['fs'] = fs
+    d['emrs'] = emrs
+    d['fmrs'] = fmrs
     d['costfxns'] = costfxns
     d['costfxnEs'] = costfxnEs
     d['costfxnFs'] = costfxnFs
@@ -664,8 +683,10 @@ def plot_convergence(logfile, plotfile='convergence.pdf'):
     ax = fig.add_axes((lm, bm + bottomaxheight + vg,
                        1. - lm - rm, tb * bottomaxheight))
     ax.semilogy(steps, d['es'], 'b', lw=2, label='energy rmse')
+    ax.semilogy(steps, d['emrs'], 'b:', lw=2, label='energy maxresid')
     if d['force_rmse']:
         ax.semilogy(steps, d['fs'], 'g', lw=2, label='force rmse')
+        ax.semilogy(steps, d['fmrs'], 'g:', lw=2, label='force maxresid')
     ax.semilogy(steps, d['costfxns'], color='0.5', lw=2,
                 label='loss function')
     # Targets.
@@ -684,6 +705,7 @@ def plot_convergence(logfile, plotfile='convergence.pdf'):
             ax.plot([b] * 2, ylim, '--k')
 
     if d['force_rmse']:
+        # Loss function component plot.
         axf = fig.add_axes((lm, bm, 1. - lm - rm, bottomaxheight))
         axf.fill_between(x=np.array(steps), y1=d['costfxnEs'],
                          color='blue')
