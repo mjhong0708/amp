@@ -538,8 +538,6 @@ def read_trainlog(logfile):
             no_images = int(line.split()[0])
             break
     data['no_images'] = no_images
-    print('no_images')
-    print(no_images)
 
     # Find where convergence data starts.
     startline = None
@@ -549,9 +547,6 @@ def read_trainlog(logfile):
             data['convergence'] = {}
             d = data['convergence']
             break
-
-    print('convergence')
-    print(startline)
 
     # Get convergence parameters.
     ready = [False] * 7
@@ -589,7 +584,6 @@ def read_trainlog(logfile):
         elif 'force_maxresid:' in line:
             ready[6] = True
             _ = line.split(':')[-1].strip()
-            print(_)
             if _ == 'None':
                 d['force_maxresid'] = None
             else:
@@ -600,6 +594,8 @@ def read_trainlog(logfile):
         if ready == [True] * 7:
             break
 
+    for _ in d.iteritems():
+        print('{}: {}'.format(_[0], _[1]))
     E = d['energy_rmse']**2 * no_images
     if trainforces:
         F = d['force_rmse']**2 * no_images
