@@ -571,7 +571,11 @@ def read_trainlog(logfile):
             print('train forces: %s' % trainforces)
         elif 'force_coefficient:' in line:
             ready[2] = True
-            d['force_coefficient'] = float(line.split(':')[-1])
+            _ = line.split(':')[-1].strip()
+            if _ == 'None':
+                d['force_coefficient'] = 0.
+            else:
+                d['force_coefficient'] = float(_)
         elif 'energy_coefficient:' in line:
             ready[3] = True
             d['energy_coefficient'] = float(line.split(':')[-1])
@@ -632,7 +636,7 @@ def read_trainlog(logfile):
             F = float(f)**2 * no_images
             costfxnFs.append(d['force_coefficient'] * F / float(costfxn))
         else:
-            step, time, costfxn, e, _, _, _ = line.split()
+            step, time, costfxn, e, _, emr, _ = line.split()
         steps.append(int(step))
         es.append(float(e))
         emrs.append(float(emr))
