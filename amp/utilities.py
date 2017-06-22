@@ -13,7 +13,6 @@ import traceback
 from datetime import datetime
 from getpass import getuser
 from ase import io as aseio
-from ase.parallel import paropen
 from ase.db import connect
 try:
     import cPickle as pickle  # python2
@@ -216,7 +215,7 @@ def start_workers(process_ids, workerhostname, workercommand, log,
     """
     if workerhostname != 'localhost':
         workercommand += ' &'
-        log('Starting non-local connections.')
+        log(' Starting non-local connections.')
         pxssh = importer('pxssh')
         ssh = pxssh.pxssh()
         ssh.login(workerhostname, getuser())
@@ -232,8 +231,7 @@ def start_workers(process_ids, workerhostname, workercommand, log,
                 (process_id, workerhostname, ssh.before.strip()))
         return ssh
     import pexpect
-    log('Starting local connections.')
-    log(workercommand)
+    log(' Starting local connections.')
     children = []
     for process_id in process_ids:
         child = pexpect.spawn(workercommand % process_id)
@@ -513,7 +511,7 @@ class Logger:
             return
         if isinstance(file, str):
             self.filename = file
-            file = paropen(file, 'a')
+            file = open(file, 'a')
         self.file = file
         self.tics = {}
 
@@ -557,7 +555,7 @@ class Logger:
             dt = (time.time() - tic) / 60.
             dt = ' %.1f min.' % dt
         if self.file.closed:
-            self.file = paropen(self.filename, 'a')
+            self.file = open(self.filename, 'a')
         self.file.write(message + dt + '\n')
         self.file.flush()
         if tic:

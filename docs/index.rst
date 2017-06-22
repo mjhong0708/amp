@@ -28,11 +28,12 @@ You can read about Amp in the below paper; if you find Amp useful, we would appr
    :maxdepth: 1
 
    introduction.rst
+   installation.rst
+   useamp.rst
+   community.rst
    theory.rst
    credits.rst
    releasenotes.rst
-   installation.rst
-   useamp.rst
    examplescripts.rst
    analysis.rst
    neuralnetwork.rst
