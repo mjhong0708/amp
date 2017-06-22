@@ -215,7 +215,7 @@ def start_workers(process_ids, workerhostname, workercommand, log,
     """
     if workerhostname != 'localhost':
         workercommand += ' &'
-        log('Starting non-local connections.')
+        log(' Starting non-local connections.')
         pxssh = importer('pxssh')
         ssh = pxssh.pxssh()
         ssh.login(workerhostname, getuser())
@@ -231,8 +231,7 @@ def start_workers(process_ids, workerhostname, workercommand, log,
                 (process_id, workerhostname, ssh.before.strip()))
         return ssh
     import pexpect
-    log('Starting local connections.')
-    log(workercommand)
+    log(' Starting local connections.')
     children = []
     for process_id in process_ids:
         child = pexpect.spawn(workercommand % process_id)
