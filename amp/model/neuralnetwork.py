@@ -77,7 +77,7 @@ class NeuralNetwork(Model):
         If True, allows for extrapolation, if False, does not allow.
     checkpoints : int
         Frequency with which to save parameter checkpoints upon training. E.g.,
-        100 saves a checpoint on each 100th training setp.  Specify None for no
+        100 saves a checkpoint on each 100th training setp.  Specify None for no
         checkpoints.
 
     .. note:: Dimensions of weight two dimensional arrays should be consistent

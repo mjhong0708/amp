@@ -1,4 +1,3 @@
-
 import numpy as np
 from ase.calculators.calculator import Parameters
 from ..utilities import (Logger, ConvergenceOccurred, make_sublists, now,
@@ -10,15 +9,13 @@ except ImportError:
 
 
 class Model(object):
-
-    """
-    Class that includes common methods between different models.
-    """
+    """Class that includes common methods between different models."""
 
     @property
     def log(self):
-        """Method to set or get a logger. Should be an instance of
-        amp.utilities.Logger.
+        """Method to set or get a logger.
+
+        Should be an instance of amp.utilities.Logger.
 
         Parameters
         ----------
@@ -43,7 +40,7 @@ class Model(object):
         np.set_printoptions(precision=30, threshold=999999999)
         return self.parameters.tostring()
 
-    def calculate_energy(self, fingerprints, hash=None):
+    def calculate_energy(self, fingerprints, hash=None, fingerprint=None):
         """Calculates the model-predicted energy for an image, based on its
         fingerprint.
 
@@ -66,12 +63,14 @@ class Model(object):
                         )
                 if hash != None:
                     arguments['hash'] = hash
+                    del arguments['afp']
+                    arguments['fingerprint'] = fingerprint
+                    arguments['kernel'] = self.parameters.kernel
 
                 atom_energy = self.calculate_atomic_energy(**arguments)
                 self.atomic_energies.append(atom_energy)
                 energy += atom_energy
         return energy
-
 
     def calculate_forces(self, fingerprints, fingerprintprimes):
         """Calculates the model-predicted forces for an image, based on

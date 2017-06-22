@@ -36,7 +36,6 @@ _ampversion = '(development)'
 
 
 class Amp(Calculator, object):
-
     """Atomistic Machine-Learning Potential (Amp) ASE calculator
 
     Parameters
@@ -109,8 +108,7 @@ class Amp(Calculator, object):
 
     @property
     def descriptor(self):
-        """
-        Get or set the atomic descriptor.
+        """Get or set the atomic descriptor.
 
         Parameters
         ----------
@@ -129,8 +127,7 @@ class Amp(Calculator, object):
 
     @property
     def model(self):
-        """
-        Get or set the machine-learning model.
+        """Get or set the machine-learning model.
 
         Parameters
         ----------
@@ -233,9 +230,7 @@ class Amp(Calculator, object):
         self._printheader(self._log)
 
     def calculate(self, atoms, properties, system_changes):
-        """Calculation of the energy of system and forces of all atoms.
-
-        """
+        """Calculation of the energy of system and forces of all atoms."""
         # The inherited method below just sets the atoms object,
         # if specified, to self.atoms.
         Calculator.calculate(self, atoms, properties, system_changes)
@@ -251,8 +246,14 @@ class Amp(Calculator, object):
             self.descriptor.calculate_fingerprints(images=images,
                                                    log=log,
                                                    calculate_derivatives=False)
-            energy = self.model.calculate_energy(
-                self.descriptor.fingerprints[key])
+            if self.model.__class__.__name__ == 'NeuralNetwork':
+                energy = self.model.calculate_energy(self.descriptor.fingerprints[key])
+            elif self.model.__class__.__name__ == 'KRR':
+                energy = self.model.calculate_energy(
+                        self.descriptor.fingerprints[key],
+                        hash=key,
+                        fingerprint=self.descriptor.fingerprints[key]
+                        )
             self.results['energy'] = energy
             log('...potential energy calculated.', toc='pot-energy')
 
