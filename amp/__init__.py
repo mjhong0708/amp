@@ -251,8 +251,7 @@ class Amp(Calculator, object):
             elif self.model.__class__.__name__ == 'KRR':
                 energy = self.model.calculate_energy(
                         self.descriptor.fingerprints[key],
-                        hash=key,
-                        fingerprint=self.descriptor.fingerprints[key]
+                        hash=key
                         )
             self.results['energy'] = energy
             log('...potential energy calculated.', toc='pot-energy')

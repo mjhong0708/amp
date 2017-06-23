@@ -40,7 +40,7 @@ class Model(object):
         np.set_printoptions(precision=30, threshold=999999999)
         return self.parameters.tostring()
 
-    def calculate_energy(self, fingerprints, hash=None, fingerprint=None):
+    def calculate_energy(self, fingerprints, hash=None):
         """Calculates the model-predicted energy for an image, based on its
         fingerprint.
 
@@ -64,7 +64,7 @@ class Model(object):
                 if hash != None:
                     arguments['hash'] = hash
                     del arguments['afp']
-                    arguments['fingerprint'] = fingerprint
+                    arguments['fingerprint'] = fingerprints[index]
                     arguments['kernel'] = self.parameters.kernel
 
                 atom_energy = self.calculate_atomic_energy(**arguments)
@@ -707,8 +707,7 @@ class LossFunction:
                 predictions.append(amp_energy)
                 actual_energy = image.get_potential_energy(apply_constraint=False)
                 targets.append(actual_energy)
-                residual_per_atom = abs(amp_energy - actual_energy) / \
-                    len(image)
+                residual_per_atom = abs(amp_energy - actual_energy) / len(image)
                 if residual_per_atom > energy_maxresid:
                     energy_maxresid = residual_per_atom
                 energyloss += residual_per_atom**2
@@ -716,10 +715,10 @@ class LossFunction:
                 kernels.append(model.get_kernel(hash))
 
             diffs = np.array(targets) - np.array(predictions)
-            term1 = np.dot(diffs, diffs)
+            term1 = np.dot(diffs, diffs) / len(image)
 
             for k in kernels:
-                term2 += np.array(model.lamda) * self._model.vector.dot(k)
+                term2 += np.array(model.lamda) * np.dot(k, self._model.vector)
 
             loss = term1 + term2
             return loss, dloss_dparameters, energyloss, forceloss, \

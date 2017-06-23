@@ -35,7 +35,7 @@ class KRR(Model):
     lossfunction : object
         Loss function object, if at all desired by the user.
     """
-    def __init__(self, sigma=1., kernel='linear', lamda=1, degree=3, coef0=1,
+    def __init__(self, sigma=1., kernel='linear', lamda=1., degree=3, coef0=1,
             kernel_parwms=None, weights=None, regressor=None, mode=None,
             version=None, fortran=False, checkpoints=100, lossfunction=None):
 
@@ -126,7 +126,7 @@ class KRR(Model):
             if p.mode == 'image-centered':
                 raise NotImplementedError('Needs to be coded.')
             elif p.mode == 'atom-centered':
-                p.weights = np.ones(np.asarray(kij[0]).shape[-1])
+                p.weights = np.zeros(np.asarray(kij[0]).shape[-1])
         else:
             log('Initial weights already present.')
 
