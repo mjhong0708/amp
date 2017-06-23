@@ -696,7 +696,7 @@ def plot_convergence(logfile, plotfile='convergence.pdf'):
         ax.semilogy([steps[0], steps[-1]], [d['force_rmse']] * 2,
                     color='g', linestyle=':')
     ax.set_ylabel('error')
-    ax.legend(loc='best')
+    ax.legend(loc='best', fontsize=9.)
     if len(breaks) > 0:
         ylim = ax.get_ylim()
         for b in breaks:
