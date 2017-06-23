@@ -14,6 +14,7 @@ from datetime import datetime
 from getpass import getuser
 from ase import io as aseio
 from ase.db import connect
+from ase.calculators.calculator import PropertyNotImplementedError
 try:
     import cPickle as pickle  # python2
 except ImportError:
@@ -590,7 +591,7 @@ def make_filename(label, base_filename):
     return filename
 
 
-# Images and hasing ##########################################################
+# Images and hashing #########################################################
 
 def get_hash(atoms):
     """Creates a unique signature for a particular ASE atoms object.
@@ -672,6 +673,31 @@ def hash_images(images, log=None, ordered=False):
         return dict_images
 
 
+def check_images(images, forces):
+    """Checks that all images have energies, and optionally forces,
+    calculated, so that they can be used for training. Raises a
+    MissingDataError if any are missing."""
+    missing_energies, missing_forces = 0, 0
+    for index, image in enumerate(images.values()):
+        try:
+            image.get_potential_energy()
+        except PropertyNotImplementedError:
+            missing_energies += 1
+        if forces is True:
+            try:
+                image.get_forces()
+            except PropertyNotImplementedError:
+                missing_forces += 1
+    if missing_energies + missing_forces == 0:
+        return
+    msg = ''
+    if missing_energies > 0:
+        msg += 'Missing energy in {} image(s).'.format(missing_energies)
+    if missing_forces > 0:
+        msg += ' Missing forces in {} image(s).'.format(missing_forces)
+    raise MissingDataError(msg)
+
+
 def randomize_images(images, fraction=0.8):
     """Randomly assigns 'fraction' of the images to a training set and (1
     - 'fraction') to a test set. Returns two lists of ASE images.
@@ -726,6 +752,12 @@ class ConvergenceOccurred(Exception):
 class TrainingConvergenceError(Exception):
     """Error to be raised if training does not converge.
     """
+    pass
+
+
+class MissingDataError(Exception):
+    """Error to be raised if any images are missing key data,
+    like energy or forces."""
     pass
 
 

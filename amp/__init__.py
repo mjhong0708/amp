@@ -18,7 +18,8 @@ except ImportError:
     from ase.version import version as aseversion
 
 from .utilities import (make_filename, hash_images, Logger, string2dict,
-                        logo, now, assign_cores, TrainingConvergenceError)
+                        logo, now, assign_cores, TrainingConvergenceError,
+                        check_images)
 
 try:
     from amp import fmodules
@@ -295,15 +296,13 @@ class Amp(Calculator, object):
         images = hash_images(images, log=log)
 
         log('\nDescriptor\n==========')
-        train_forces = self.model.forcetraining
-        # Derivatives of fingerprints need to be calculated if train_forces is
-        # True.
-        calculate_derivatives = train_forces
+        train_forces = self.model.forcetraining  # True / False
+        check_images(images, forces=train_forces)
         self.descriptor.calculate_fingerprints(
                 images=images,
                 parallel=self._parallel,
                 log=log,
-                calculate_derivatives=calculate_derivatives)
+                calculate_derivatives=train_forces)
 
         log('\nModel fitting\n=============')
         result = self.model.fit(trainingimages=images,
