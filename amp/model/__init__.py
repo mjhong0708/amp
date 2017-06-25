@@ -64,8 +64,10 @@ class Model(object):
                 if hash != None:
                     arguments['hash'] = hash
                     del arguments['afp']
-                    arguments['fingerprint'] = fingerprints[index]
+                    arguments['fingerprint'] = fingerprints
                     arguments['kernel'] = self.parameters.kernel
+                    arguments['lamda'] = self.parameters.lamda
+                    arguments['sigma'] = self.parameters.sigma
 
                 atom_energy = self.calculate_atomic_energy(**arguments)
                 self.atomic_energies.append(atom_energy)

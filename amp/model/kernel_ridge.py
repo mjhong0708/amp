@@ -56,14 +56,14 @@ class KRR(Model):
         p.weights = weights
         p.mode = mode
         p.kernel = self.kernel = kernel
+        p.sigma = self.sigma = sigma
+        p.lamda = self.lamda = lamda
         #p.kernel = self.kernel_dict = {}
         self.kernel_dict = {}
 
         self.regressor = regressor
         self.parent = None  # Can hold a reference to main Amp instance.
-        self.sigma = sigma
         self.fortran = fortran
-        self.lamda = lamda
         self.checkpoints = checkpoints
         self.lossfunction = lossfunction
 
@@ -301,7 +301,7 @@ class KRR(Model):
         return self.kernel_dict[hash]
 
     def calculate_atomic_energy(self, index, symbol, hash=None,
-            fingerprint=None, kernel=None):
+            fingerprint=None, kernel=None, sigma=None, lamda=None):
         """
         Given input to the KRR model, output (which corresponds to energy)
         is calculated about the specified atom. The sum of these for all
@@ -333,13 +333,13 @@ class KRR(Model):
 
         if len(list(self.kernel_dict.keys())) == 0:
             features = [ afp for element, afp in fingerprint ]
-            kernel = np.sum(self.kernel_matrix(features, kernel=kernel)[index], axis=0)
+            kernel = np.sum(self.kernel_matrix(features, kernel=kernel, sigma=sigma)[index], axis=0)
             atomic_amp_energy = kernel * weight
         else:
             atomic_amp_energy = self.kernel_dict[hash][index] * weight
         return atomic_amp_energy
 
-    def kernel_matrix(self, features, kernel='rbf'):
+    def kernel_matrix(self, features, kernel='rbf', sigma=1.):
         """This method takes as arguments a feature vector and a string that refers
         to the kernel type used.
 
