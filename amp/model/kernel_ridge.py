@@ -27,7 +27,7 @@ class KRR(Model):
     sigma : float
         Length scale of the Gaussian in the case of RBF. Default is 1.
     lamda : float
-        Strength of the regularization.
+        Strength of the regularization in the loss function.
     checkpoints : int
         Frequency with which to save parameter checkpoints upon training. E.g.,
         100 saves a checkpoint on each 100th training setp.  Specify None for no
@@ -35,7 +35,7 @@ class KRR(Model):
     lossfunction : object
         Loss function object, if at all desired by the user.
     """
-    def __init__(self, sigma=1., kernel='linear', lamda=1., degree=3, coef0=1,
+    def __init__(self, sigma=1., kernel='linear', lamda=0., degree=3, coef0=1,
             kernel_parwms=None, weights=None, regressor=None, mode=None,
             version=None, fortran=False, checkpoints=100, lossfunction=None):
 
@@ -50,6 +50,7 @@ class KRR(Model):
         else:
             version = compatibleversions[-1]
 
+        np.set_printoptions(precision=30, threshold=999999999)
         p = self.parameters = Parameters()
         p.importname = '.model.kernel_ridge.KRR'
         p.version = version
@@ -174,8 +175,8 @@ class KRR(Model):
                 print('SCIKIT-LEARN AND AMP HAVE THE SAME KERNEL RBF MATRIX')
             alphas = np.ones(np.asarray(kernel[0]).shape[-1])
             """
-            self.kernel_dict[hashes[index]] = np.sum(kernel, axis=0)
-            kij.append(np.sum(kernel, axis=0))
+            self.kernel_dict[hashes[index]] = kernel
+            kij.append(kernel)
 
         kij = np.asarray(kij)
         return kij
@@ -246,18 +247,18 @@ class KRR(Model):
         self.step += 1
         return loss
 
-    def _get_loss(self, weights):
-        """Calculate the loss function with parameters alpha."""
+    #def _get_loss(self, weights):
+    #    """Calculate the loss function with parameters alpha."""
 
-        term2 = term1 = 0.
-        predictions = [ _.dot(weights) for _ in self.kij ]
-        diffs = np.array(self.energies) - np.array(predictions)
-        term1 = np.dot(diffs, diffs)
-        for _k in self.kij:
-            term2 += np.array(self.lamda) * weights.dot(_k)
-        self._losses.append([term1, term2])
+    #    term2 = term1 = 0.
+    #    predictions = [ _.dot(weights) for _ in self.kij ]
+    #    diffs = np.array(self.energies) - np.array(predictions)
+    #    term1 = np.dot(diffs, diffs)
+    #    for _k in self.kij:
+    #        term2 += np.array(self.lamda) * weights.dot(_k)
+    #    self._losses.append([term1, term2])
 
-        return float(term1 + term2)
+    #    return float(term1 + term2)
 
     def get_lossprime(self, vector):
         """Method to be called by the regression master.
@@ -301,7 +302,7 @@ class KRR(Model):
         return self.kernel_dict[hash]
 
     def calculate_atomic_energy(self, index, symbol, hash=None,
-            fingerprint=None, kernel=None, sigma=None, lamda=None):
+            fingerprint=None, kernel=None, sigma=None):
         """
         Given input to the KRR model, output (which corresponds to energy)
         is calculated about the specified atom. The sum of these for all
@@ -333,11 +334,11 @@ class KRR(Model):
 
         if len(list(self.kernel_dict.keys())) == 0:
             features = [ afp for element, afp in fingerprint ]
-            kernel = np.sum(self.kernel_matrix(features, kernel=kernel, sigma=sigma)[index], axis=0)
-            atomic_amp_energy = kernel * weight
+            kernel = self.kernel_matrix(features, kernel=kernel, sigma=sigma)[index]
+            atomic_amp_energy = sum(kernel.dot(weight))
         else:
-            atomic_amp_energy = self.kernel_dict[hash][index] * weight
-        return atomic_amp_energy
+            atomic_amp_energy = sum(self.kernel_dict[hash][index].dot(weight))
+        return np.asscalar(atomic_amp_energy)
 
     def kernel_matrix(self, features, kernel='rbf', sigma=1.):
         """This method takes as arguments a feature vector and a string that refers

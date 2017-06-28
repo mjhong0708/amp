@@ -246,7 +246,7 @@ def plot_parity(load,
     energy_data = {}
     for hash, image in images.iteritems():
         amp_energy = calc.model.calculate_energy(
-            calc.descriptor.fingerprints[hash])
+            calc.descriptor.fingerprints[hash], hash)
         actual_energy = image.get_potential_energy(apply_constraint=False)
         energy_data[hash] = [actual_energy, amp_energy]
     calc._log('...potential energies calculated.', toc='pot-energy')

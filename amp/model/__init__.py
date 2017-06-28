@@ -66,7 +66,6 @@ class Model(object):
                     del arguments['afp']
                     arguments['fingerprint'] = fingerprints
                     arguments['kernel'] = self.parameters.kernel
-                    arguments['lamda'] = self.parameters.lamda
                     arguments['sigma'] = self.parameters.sigma
 
                 atom_energy = self.calculate_atomic_energy(**arguments)
@@ -601,6 +600,7 @@ class LossFunction:
         self._model.vector = parametervector
         p = self.parameters
         energyloss = 0.
+        term2 = 0.
         forceloss = 0.
         energy_maxresid = 0.
         force_maxresid = 0.
@@ -701,7 +701,6 @@ class LossFunction:
         elif model.__class__.__name__ == 'KRR':
             predictions =[]
             targets = []
-            term1 = term2 = 0.
             kernels =[]
             for hash, image in self.images.iteritems():
                 no_of_atoms = len(image)
@@ -712,17 +711,16 @@ class LossFunction:
                 residual_per_atom = abs(amp_energy - actual_energy) / len(image)
                 if residual_per_atom > energy_maxresid:
                     energy_maxresid = residual_per_atom
-                energyloss += residual_per_atom**2
+                energyloss += residual_per_atom ** 2    #L2 loss function
 
-                kernels.append(model.get_kernel(hash))
+            loss = energyloss * p.energy_coefficient
 
-            diffs = np.array(targets) - np.array(predictions)
-            term1 = np.dot(diffs, diffs) / len(image)
+            if model.lamda > 0.:
+                overfitloss = 0.
+                overfitloss = parametervector.dot(parametervector)
+                overfitloss *= model.lamda
+                loss += overfitloss
 
-            for k in kernels:
-                term2 += np.array(model.lamda) * np.dot(k, self._model.vector)
-
-            loss = term1 + term2
             return loss, dloss_dparameters, energyloss, forceloss, \
                 energy_maxresid, force_maxresid
 
