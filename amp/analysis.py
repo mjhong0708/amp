@@ -690,11 +690,18 @@ def plot_convergence(logfile, plotfile='convergence.pdf'):
     ax.semilogy(steps, d['costfxns'], color='0.5', lw=2,
                 label='loss function')
     # Targets.
-    ax.semilogy([steps[0], steps[-1]], [d['energy_rmse']] * 2,
-                color='b', linestyle=':')
+    if d['energy_rmse']:
+        ax.semilogy([steps[0], steps[-1]], [d['energy_rmse']] * 2,
+                    color='b', linestyle='-', alpha=0.5)
+    if d['energy_maxresid']:
+        ax.semilogy([steps[0], steps[-1]], [d['energy_maxresid']] * 2,
+                    color='b', linestyle=':', alpha=0.5)
     if d['force_rmse']:
         ax.semilogy([steps[0], steps[-1]], [d['force_rmse']] * 2,
-                    color='g', linestyle=':')
+                    color='g', linestyle='-', alpha=0.5)
+    if d['force_maxresid']:
+        ax.semilogy([steps[0], steps[-1]], [d['force_maxresid']] * 2,
+                    color='g', linestyle=':', alpha=0.5)
     ax.set_ylabel('error')
     ax.legend(loc='best', fontsize=9.)
     if len(breaks) > 0:
