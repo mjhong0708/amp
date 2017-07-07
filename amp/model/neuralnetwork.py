@@ -78,8 +78,9 @@ class NeuralNetwork(Model):
         If True, allows for extrapolation, if False, does not allow.
     checkpoints : int
         Frequency with which to save parameter checkpoints upon training. E.g.,
-        100 saves a checpoint on each 100th training setp.  Specify None for no
-        checkpoints.
+        100 saves a checkpoint on each 100th training setp.  Specify None for
+        no checkpoints. Note: You can make this negative to not overwrite
+        previous checkpoints.
 
     .. note:: Dimensions of weight two dimensional arrays should be consistent
               with hiddenlayers.
@@ -281,15 +282,19 @@ class NeuralNetwork(Model):
             filename = self.parent.save(filename, overwrite=True)
         if self.checkpoints:
             if self.step % self.checkpoints == 0:
-                path = os.path.join(self.parent.label + '-checkpoints/')
+                path = os.path.join(self.parent.label + '-checkpoints')
                 if self.step == 0:
                     if not os.path.exists(path):
                         os.mkdir(path)
                 self._log('Saving checkpoint data.')
-                filename = make_filename(path,
-                                         'parameters-checkpoint-%d.amp'
-                                         % self.step)
-                filename = self.parent.save(filename, overwrite=True)
+                if self.checkpoints < 0:
+                    filename = make_filename(path,
+                                             'parameters-checkpoint-%d.amp'
+                                             % self.step)
+                else:
+                    filename = make_filename(path,
+                                             'parameters-checkpoint.amp')
+                self.parent.save(filename, overwrite=True)
         loss = self.lossfunction.get_loss(vector, lossprime=False)['loss']
         if hasattr(self, 'observer'):
             self.observer(self, vector, loss)

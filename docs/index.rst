@@ -6,14 +6,13 @@
 Amp: Atomistic Machine-learning Package
 =======================================
 
-`Amp <https://bitbucket.org/andrewpeterson/amp>`_ is an open-source package designed to easily bring machine-learning to atomistic calculations.
-This project is being developed at Brown University in the School of Engineering, primarily by **Andrew Peterson** and **Alireza Khorshidi**,
-and is released under the GNU General Public License.
+Amp is an open-source package designed to easily bring machine-learning to atomistic calculations.
+This project is being developed at Brown University in the School of Engineering, primarily by **Andrew Peterson** and **Alireza Khorshidi**, and is released under the GNU General Public License.
 
 The latest stable release of Amp is version 0.5, released on February 24, 2017; see the :ref:`ReleaseNotes` page for a download link.
 Please see the project's `git repository <https://bitbucket.org/andrewpeterson/amp>`_ for the latest development version or a place to report an issue.
 
-You can read about Amp in the below paper; if you find Amp useful, we would appreciate if you cite this work:
+You can read about Amp in the below paper; if you find this project useful, we would appreciate if you cite this work:
 
     Khorshidi & Peterson, "Amp: A modular approach to machine learning in atomistic simulations", *Computer Physics Communications* 207:310-324, 2016. |amp_paper|
 
@@ -22,17 +21,24 @@ You can read about Amp in the below paper; if you find Amp useful, we would appr
 
    <a href="http://dx.doi.org/10.1016/j.cpc.2016.05.010" target="_blank">DOI:10.1016/j.cpc.2016.05.010</a>
 
+**News**:
+
+An amp-users mailing list has been started, for general discussions about the use and development of Amp. You can subscribe via listserv at:
+
+https://listserv.brown.edu/?A0=AMP-USERS
+
 **Manual**:
 
 .. toctree::
    :maxdepth: 1
 
    introduction.rst
+   installation.rst
+   useamp.rst
+   community.rst
    theory.rst
    credits.rst
    releasenotes.rst
-   installation.rst
-   useamp.rst
    examplescripts.rst
    analysis.rst
    neuralnetwork.rst

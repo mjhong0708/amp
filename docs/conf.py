@@ -55,7 +55,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'Amp'
-copyright = u'2015, Andrew A. Peterson, Alireza Khorshidi'
+copyright = u'2015--current, Andrew A. Peterson, Alireza Khorshidi'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -277,7 +277,7 @@ texinfo_documents = [
 epub_title = u'Amp'
 epub_author = u'Andrew A. Peterson, Alireza Khorshidi'
 epub_publisher = u'Andrew A. Peterson, Alireza Khorshidi'
-epub_copyright = u'2015, Andrew A. Peterson, Alireza Khorshidi'
+epub_copyright = u'2015--current, Andrew A. Peterson, Alireza Khorshidi'
 
 # The basename for the epub file. It defaults to the project name.
 #epub_basename = u'AMP'
