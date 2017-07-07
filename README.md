@@ -9,6 +9,9 @@ https://bitbucket.org/andrewpeterson/amp
 Documentation lives at:
 http://amp.readthedocs.org
 
+Users' mailing list lives at:
+https://listserv.brown.edu/?A0=AMP-USERS
+
 If you would like to compile a local version of the documentation, see the README file in the docs directory.
 
 (This project was formerly known as "Neural". The last stable version of Neural can be found at https://bitbucket.org/andrewpeterson/neural)
