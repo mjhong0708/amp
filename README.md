@@ -1,7 +1,7 @@
 # Amp: Atomistic Machine-learning Package #
 
 
-*Amp* is an open-source package designed to easily bring machine-learning to atomistic calculations. This project is being developed at Brown University in the School of Engineering, primarily by Andrew Peterson and Alireza Khorshidi, and is released under the GNU General Public License.  *Amp* allows for the modular representation of the potential energy surface, allowing the user to specify or create descriptor and regression methods.
+*Amp* is an open-source package designed to easily bring machine-learning to atomistic calculations. This project is being developed at Brown University in the School of Engineering, primarily by Andrew Peterson and Alireza Khorshidi, and is released under the GNU General Public License.  *Amp* allows for the modular representation of the potential energy surface, enabling the user to specify or create descriptor and regression methods.
 
 This project lives at:
 https://bitbucket.org/andrewpeterson/amp
