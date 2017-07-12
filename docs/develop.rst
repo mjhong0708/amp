@@ -32,6 +32,7 @@ We follow the same basic model as ASE; please see the ASE documentation for comp
 As good coding practice, make sure your code passes both the pyflakes and pep8 tests.
 (On linux, you should be able to run `pyflakes file.py` and `pep8 file.py`, and then correct it by `autopep8 --in-place file.py`.)
 If adding a new feature: consider adding a (very brief) test to the tests folder to ensure your new code continues to work, and also be sure to write clear documentation.
+Finally, to make users aware of your new feature or change, add a bullet point to the release notes page of the documentation under the Development version heading.
 
 It is also a good idea to send us an email if you are planning something complicated.
 
