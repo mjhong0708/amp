@@ -151,6 +151,19 @@ class Gaussian(object):
         log('Number of symmetry functions for each element:')
         for _ in p.Gs.keys():
             log(' %2s: %i' % (_, len(p.Gs[_])))
+        for element, fingerprints in p.Gs.items():
+            log('{} feature vector functions:'.format(element))
+            for index, fp in enumerate(fingerprints):
+                if fp['type'] == 'G2':
+                    log(' {}: {}, {}, eta = {}'
+                        .format(index, fp['type'], fp['element'], fp['eta']))
+                elif fp['type'] == 'G4':
+                    log(' {}: {}, ({}, {}), eta={}, gamma={}, zeta={}'
+                        .format(index, fp['type'], fp['elements'][0],
+                                fp['elements'][1], fp['eta'], fp['gamma'],
+                                fp['zeta']))
+                else:
+                    log(str(fp))
 
         log('Calculating neighborlists...', tic='nl')
         if not hasattr(self, 'neighborlist'):
