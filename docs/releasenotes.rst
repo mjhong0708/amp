@@ -14,7 +14,9 @@ Development version
 
 * Convergence plots show maximum residuals as well as root mean-squared error.
 
-* Functions to make the Gaussian feature vectors are now output to the log file.
+* Parameters to make the Gaussian feature vectors are now output to the log file.
+
+* The helper function :func:`~amp.descriptor.gaussian.make_symmetry_functions` has been added to more easily customize Gaussian fingerprint parameters.
 
 0.5
 ---

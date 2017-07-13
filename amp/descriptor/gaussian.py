@@ -761,7 +761,7 @@ def make_symmetry_functions(elements, type, etas, zetas=None, gammas=None):
 
 
 def make_default_symmetry_functions(elements):
-    """Makes symmetry functions as in Nano Letters function by Artrith.
+    """Makes symmetry functions as in Nano Letters 14:2670, 2014.
 
 
     Parameters
