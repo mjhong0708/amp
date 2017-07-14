@@ -615,6 +615,7 @@ def read_trainlog(logfile, verbose=True):
     steps, es, fs, emrs, fmrs, costfxns = [], [], [], [], [], []
     costfxnEs, costfxnFs = [], []
     index = startline
+    d['converged'] = None
     while index < len(lines):
         line = lines[index]
         if 'Saving checkpoint data.' in line:
@@ -624,12 +625,15 @@ def read_trainlog(logfile, verbose=True):
             index += 1
             continue
         elif 'optimization completed successfully.' in line:  # old version
+            d['converged'] = True
             break
         elif '...optimization successful.' in line:
+            d['converged'] = True
             break
         elif 'could not find parameters for the' in line:
             break
         elif '...optimization unsuccessful.' in line:
+            d['converged'] = False
             break
         print_(line)
         if trainforces:
