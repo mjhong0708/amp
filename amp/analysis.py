@@ -554,6 +554,8 @@ def read_trainlog(logfile, verbose=True):
             data['convergence'] = {}
             d = data['convergence']
             break
+    else:
+        return data
 
     # Get convergence parameters.
     ready = [False] * 7
