@@ -120,3 +120,21 @@ package to see if your installation is working. The tests are in the folder `tes
    $ mkdir /tmp/amptests
    $ cd /tmp/amptests
    $ nosetests ~/path/to/my/codes/amp/tests
+
+----------------------------------
+Installation using GNU Make
+----------------------------------
+
+We have included a `Make` file that automatizes the building of Fortran modules
+and also runs the tests. To use it, install `GNU Makefile <https://www.gnu.org/software/make/>`_
+on your Linux distribution or macOS.
+
+1. Compile Fortran modules needed by AMP::
+
+    $ cd <installation-directory>/amp/
+    $ make
+
+2. Run the tests::
+
+   $ make tests
+
