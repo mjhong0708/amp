@@ -84,7 +84,7 @@ Then simply do::
     $ cd <installation-directory>/amp/
     $ make
 
-If you do not have the GNU Makefile installed, you can prepare the Fortran extension module in the following steps:
+If you do not have the GNU Makefile installed, you can prepare the Fortran extension module manually in the following steps:
 
 1. Compile model Fortran subroutines inside the model and descriptor folders by::
 
@@ -128,7 +128,7 @@ If you have nose and GNU Makefile installed, simply do::
 
    $ make tests
 
-Otherwise, if you have only nose installed, run the commands below::
+Otherwise, if you have only nose installed (and not GNU Makefile), run the commands below::
 
    $ mkdir /tmp/amptests
    $ cd /tmp/amptests
