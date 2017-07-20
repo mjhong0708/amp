@@ -41,10 +41,10 @@ https://listserv.brown.edu/?A0=AMP-USERS
    releasenotes.rst
    examplescripts.rst
    analysis.rst
-   neuralnetwork.rst
    building.rst
    moredescriptor.rst
    moremodel.rst
+   gaussian.rst
    tensorflow.rst
    databases.rst
    develop.rst

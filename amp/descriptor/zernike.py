@@ -30,6 +30,8 @@ class Zernike(object):
         Either auto-genetrated, or given in the following form, for example:
 
                >>> Gs = {"Au": {"Au": 3., "O": 2.}, "O": {"Au": 5., "O": 10.}}
+        This is basically the same as \eta in Eq. (16) of
+        https://doi.org/10.1016/j.cpc.2016.05.010.
 
     nmax : integer or dict
         Maximum degree of Zernike polynomials that will be included in the
@@ -144,7 +146,8 @@ class Zernike(object):
         if p.cutoff['name'] == 'Cosine':
             log('Cutoff radius: %.2f ' % p.cutoff['kwargs']['Rc'])
         else:
-            log('Cutoff radius: %.2f and gamma=%i ' % (p.cutoff['kwargs']['Rc'], self.gamma))
+            log('Cutoff radius: %.2f and gamma=%i '
+                % (p.cutoff['kwargs']['Rc'], self.gamma))
         log('Cutoff function: %s' % repr(dict2cutoff(p.cutoff)))
 
         if p.elements is None:
@@ -281,9 +284,9 @@ class FingerprintCalculator:
     """For integration with .utilities.Data"""
 
     def __init__(self, neighborlist, Gs, nmax, cutoff, fortran):
-        self.globals = Parameters({ 'cutoff': cutoff,
-                                    'Gs': Gs,
-                                    'nmax': nmax})
+        self.globals = Parameters({'cutoff': cutoff,
+                                   'Gs': Gs,
+                                   'nmax': nmax})
         self.keyed = Parameters({'neighborlist': neighborlist})
         self.parallel_command = 'calculate_fingerprints'
         self.fortran = fortran
@@ -355,7 +358,7 @@ class FingerprintCalculator:
         if cutoff['name'] == 'Cosine':
             cutoff_fxn = Cosine(Rc)
         elif cutoff['name'] == 'Polynomial':
-            p_gamma =  cutoff['kwargs']['gamma']
+            p_gamma = cutoff['kwargs']['gamma']
             cutoff_fxn = Polynomial(Rc, gamma=p_gamma)
 
         fingerprint = []
@@ -375,10 +378,11 @@ class FingerprintCalculator:
                                 c_args = [Rc * rho]
                                 if cutoff['name'] == 'Polynomial':
                                     c_args.append(p_gamma)
-                                Z_nlm = fmodules.calculate_z(n=n, l=l, m=m,
-                                                             x=x, y=y, z=z,
-                                                             factorial=self.factorial,
-                                                             length=len(self.factorial))
+                                Z_nlm = fmodules.calculate_z(
+                                    n=n, l=l, m=m,
+                                    x=x, y=y, z=z,
+                                    factorial=self.factorial,
+                                    length=len(self.factorial))
                                 Z_nlm = self.globals.Gs[symbol][n_symbol] * \
                                     Z_nlm * cutoff_fxn(*c_args)
 
@@ -596,11 +600,13 @@ class FingerprintPrimeCalculator:
                                     fac_length=len(self.factorial),
                                     factorial=self.factorial)
 
-                            if cutoff['name'] ==  'Polynomial':
-                                args_calculate_zernike_prime['p_gamma'] = cutoff['kwargs']['gamma']
+                            if cutoff['name'] == 'Polynomial':
+                                args_calculate_zernike_prime['p_gamma'] =\
+                                        cutoff['kwargs']['gamma']
 
                             norm_prime = \
-                                fmodules.calculate_zernike_prime(**args_calculate_zernike_prime)
+                                fmodules.calculate_zernike_prime(
+                                    **args_calculate_zernike_prime)
                     else:
                         norm_prime = 0.
                         for m in xrange(l + 1):
@@ -630,9 +636,8 @@ class FingerprintPrimeCalculator:
                                     der_position(
                                         index, n_index, home, neighbor, p, q)
 
-                                _Z_nlm_prime = calculate_Z_prime(n, l, m,
-                                                                 x, y, z, q,
-                                                                 self.factorial)
+                                _Z_nlm_prime = calculate_Z_prime(
+                                    n, l, m, x, y, z, q, self.factorial)
 
                                 if (Kronecker(n_index, p) -
                                    Kronecker(index, p)) == 1:
@@ -902,12 +907,22 @@ if __name__ == "__main__":
                                              suffix='.stderr')
     print('Log and error written to %s<stderr>' % sys.stderr.name)
 
+    def w(text):
+        """Writes to stderr and flushes."""
+        sys.stderr.write(text + '\n')
+        sys.stderr.flush()
+
     # Establish client session via zmq; find purpose.
     context = zmq.Context()
+    w('Context started.')
     socket = context.socket(zmq.REQ)
+    w('Socket started.')
     socket.connect('tcp://%s' % hostsocket)
+    w('Connection made.')
     socket.send_pyobj(msg('<purpose>'))
+    w('Message sent.')
     purpose = socket.recv_pyobj()
+    w('Purpose received: {}.'.format(purpose))
 
     if purpose == 'calculate_neighborlists':
         # Request variables.
@@ -941,9 +956,11 @@ if __name__ == "__main__":
         neighborlist = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'images'))
         images = socket.recv_pyobj()
+        w('Received images and parameters.')
 
         calc = FingerprintCalculator(neighborlist, Gs, nmax,
                                      cutoff, fortran)
+        w('Established calculator. Calculating.')
         result = {}
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.
@@ -953,6 +970,7 @@ if __name__ == "__main__":
                 socket.recv_string()  # Needed to complete REQ/REP.
 
         # Send the results.
+        w('Sending results.')
         socket.send_pyobj(msg('<result>', result))
         socket.recv_string()  # Needed to complete REQ/REP.
 

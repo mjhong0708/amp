@@ -282,18 +282,17 @@ class NeuralNetwork(Model):
             filename = self.parent.save(filename, overwrite=True)
         if self.checkpoints:
             if self.step % self.checkpoints == 0:
-                path = os.path.join(self.parent.label + '-checkpoints')
-                if self.step == 0:
-                    if not os.path.exists(path):
-                        os.mkdir(path)
                 self._log('Saving checkpoint data.')
                 if self.checkpoints < 0:
-                    filename = make_filename(path,
-                                             'parameters-checkpoint-%d.amp'
-                                             % self.step)
+                    path = os.path.join(self.parent.label + '-checkpoints')
+                    if self.step == 0:
+                        if not os.path.exists(path):
+                            os.mkdir(path)
+                    filename = os.path.join(path,
+                                            '{}.amp'.format(int(self.step)))
                 else:
-                    filename = make_filename(path,
-                                             'parameters-checkpoint.amp')
+                    filename = make_filename(self.parent.label,
+                                             '-checkpoint.amp')
                 self.parent.save(filename, overwrite=True)
         loss = self.lossfunction.get_loss(vector, lossprime=False)['loss']
         if hasattr(self, 'observer'):

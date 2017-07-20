@@ -518,7 +518,7 @@ def plot_error(load,
             return fig, energy_data, force_data
 
 
-def read_trainlog(logfile):
+def read_trainlog(logfile, verbose=True):
     """Reads the log file from the training process, returning the relevant
     parameters.
 
@@ -526,11 +526,18 @@ def read_trainlog(logfile):
     ----------
     logfile : str
         Name or path to the log file.
+
+    verbose : bool
+        Write out logfile during analysis.
     """
     data = {}
 
     with open(logfile, 'r') as f:
         lines = f.read().splitlines()
+
+    def print_(text):
+        if verbose:
+            print(text)
 
     # Get number of images.
     for line in lines:
@@ -547,6 +554,8 @@ def read_trainlog(logfile):
             data['convergence'] = {}
             d = data['convergence']
             break
+    else:
+        return data
 
     # Get convergence parameters.
     ready = [False] * 7
@@ -563,7 +572,7 @@ def read_trainlog(logfile):
             else:
                 d['force_rmse'] = float(line.split(':')[-1])
                 trainforces = True
-            print('train forces: %s' % trainforces)
+            print_('train forces: %s' % trainforces)
         elif 'force_coefficient:' in line:
             ready[2] = True
             _ = line.split(':')[-1].strip()
@@ -595,7 +604,7 @@ def read_trainlog(logfile):
             break
 
     for _ in d.iteritems():
-        print('{}: {}'.format(_[0], _[1]))
+        print_('{}: {}'.format(_[0], _[1]))
     E = d['energy_rmse']**2 * no_images
     if trainforces:
         F = d['force_rmse']**2 * no_images
@@ -608,6 +617,7 @@ def read_trainlog(logfile):
     steps, es, fs, emrs, fmrs, costfxns = [], [], [], [], [], []
     costfxnEs, costfxnFs = [], []
     index = startline
+    d['converged'] = None
     while index < len(lines):
         line = lines[index]
         if 'Saving checkpoint data.' in line:
@@ -617,14 +627,17 @@ def read_trainlog(logfile):
             index += 1
             continue
         elif 'optimization completed successfully.' in line:  # old version
+            d['converged'] = True
             break
         elif '...optimization successful.' in line:
+            d['converged'] = True
             break
         elif 'could not find parameters for the' in line:
             break
         elif '...optimization unsuccessful.' in line:
+            d['converged'] = False
             break
-        print(line)
+        print_(line)
         if trainforces:
             step, time, costfxn, e, _, emr, _, f, _, fmr, _ = line.split()
             fs.append(float(f))

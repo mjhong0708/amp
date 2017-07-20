@@ -76,7 +76,15 @@ The compilation of the Fortran 90 code and integration with the python parts is 
 A Fortran 90 compiler will also be necessary on the system; a reasonable open-source option is GNU Fortran, or gfortran.
 This compiler will generate Fortran modules (.mod).
 gfortran will also be used by f2py to generate extension module fmodules.so on Linux or fmodules.pyd on Windows.
-In order to prepare the extension module the following steps need to be taken:
+We have included a `Make` file that automatizes the building of Fortran modules.
+To use it, install `GNU Makefile <https://www.gnu.org/software/make/>`_
+on your Linux distribution or macOS.
+Then simply do::
+
+    $ cd <installation-directory>/amp/
+    $ make
+
+If you do not have the GNU Makefile installed, you can prepare the Fortran extension module manually in the following steps:
 
 1. Compile model Fortran subroutines inside the model and descriptor folders by::
 
@@ -115,7 +123,12 @@ Recommended step: Run the tests
 We include tests in the package to ensure that it still runs as intended as we continue our development; we run these
 tests on the latest build every night to try to keep bugs out. It is a good idea to run these tests after you install the
 package to see if your installation is working. The tests are in the folder `tests`; they are designed to run with
-`nose <https://nose.readthedocs.org/>`_. If you have nose installed, run the commands below::
+`nose <https://nose.readthedocs.org/>`_.
+If you have nose and GNU Makefile installed, simply do::
+
+   $ make tests
+
+Otherwise, if you have only nose installed (and not GNU Makefile), run the commands below::
 
    $ mkdir /tmp/amptests
    $ cd /tmp/amptests
