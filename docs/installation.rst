@@ -7,7 +7,7 @@ Installation
 AMP is python-based and is designed to integrate closely with the `Atomic Simulation Environment <https://wiki.fysik.dtu.dk/ase/>`_ (ASE).
 In its most basic form, it has few requirements:
 
-* Python, version 2.7 is recommended.
+* Python, version 2.7 is recommended (it also supports Python3).
 * ASE.
 * NumPy.
 * SciPy.
@@ -79,12 +79,17 @@ gfortran will also be used by f2py to generate extension module fmodules.so on L
 We have included a `Make` file that automatizes the building of Fortran modules.
 To use it, install `GNU Makefile <https://www.gnu.org/software/make/>`_
 on your Linux distribution or macOS.
-Then simply do::
+For Python2, then simply do::
 
     $ cd <installation-directory>/amp/
-    $ make
+    $ make python2
 
-If you do not have the GNU Makefile installed, you can prepare the Fortran extension module manually in the following steps:
+For Python3::
+
+    $ cd <installation-directory>/amp/
+    $ make python3
+
+If you do not have the GNU Makefile installed, you can prepare the Fortran extension modules manually in the following steps:
 
 1. Compile model Fortran subroutines inside the model and descriptor folders by::
 
@@ -109,6 +114,7 @@ If you do not have the GNU Makefile installed, you can prepare the Fortran exten
 
     $ f2py -c -m fmodules model.f90 descriptor/cutoffs.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90
 
+Note that for Python3, you need to use `f2py3` instead of `f2py`.
 
 or on a Windows machine by::
 
@@ -126,7 +132,8 @@ package to see if your installation is working. The tests are in the folder `tes
 `nose <https://nose.readthedocs.org/>`_.
 If you have nose and GNU Makefile installed, simply do::
 
-   $ make tests
+   $ make py2tests      (for Python2)
+   $ make py3tests      (for Python3)
 
 Otherwise, if you have only nose installed (and not GNU Makefile), run the commands below::
 

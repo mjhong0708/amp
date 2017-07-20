@@ -4,6 +4,7 @@ import numpy as np
 import hashlib
 import time
 import os
+import sys
 import copy
 import math
 import random
@@ -16,9 +17,9 @@ from ase import io as aseio
 from ase.db import connect
 from ase.calculators.calculator import PropertyNotImplementedError
 try:
-    import cPickle as pickle  # python2
+    import cPickle as pickle    # Python2
 except ImportError:
-    import pickle  # python3
+    import pickle               # Python3
 
 
 # Parallel processing ########################################################
@@ -39,7 +40,7 @@ def assign_cores(cores, log=None):
                'error.')
         log(msg % q)
         log('Environment dump:')
-        for key, value in os.environ.iteritems():
+        for key, value in os.environ.items():
             log('%s: %s' % (key, value))
         if traceback_text:
             log('\n' + '='*70 + '\nTraceback of last error encountered:')
@@ -48,7 +49,7 @@ def assign_cores(cores, log=None):
 
     def success(q, cores, log):
         log('Parallel configuration determined from environment for %s:' % q)
-        for key, value in cores.iteritems():
+        for key, value in cores.items():
             log('  %s: %i' % (key, value))
 
     if cores is not None:
@@ -142,13 +143,14 @@ def make_sublists(masterlist, n):
     keys to each task in parallel processing. This also destroys
     the masterlist (to save some memory).
     """
+    masterlist = list(masterlist)
     np.random.shuffle(masterlist)
     N = len(masterlist)
     sublist_lengths = [
         N // n if _ >= (N % n) else N // n + 1 for _ in range(n)]
     sublists = []
     for sublist_length in sublist_lengths:
-        sublists.append([masterlist.pop() for _ in xrange(sublist_length)])
+        sublists.append([masterlist.pop() for _ in range(sublist_length)])
     return sublists
 
 
@@ -197,7 +199,7 @@ def setup_parallel(parallel, workercommand, log):
     log(' Establishing worker sessions.')
     connections = []
     pid_count = 0
-    for workerhostname, nprocesses in parallel['cores'].iteritems():
+    for workerhostname, nprocesses in parallel['cores'].items():
         pids = range(pid_count, pid_count + nprocesses)
         pid_count += nprocesses
         connections.append(start_workers(pids,
@@ -317,7 +319,7 @@ class FileDatabase:
             with open(path, 'r') as f:
                 if f.read() == pickle.dumps(value):
                     return  # Nothing to update.
-        with open(path, 'w') as f:
+        with open(path, 'wb') as f:
             pickle.dump(value, f)
 
     def __getitem__(self, key):
@@ -325,7 +327,7 @@ class FileDatabase:
             return self._memdict[key]
         keypath = os.path.join(self.loosepath, key)
         if os.path.exists(keypath):
-            with open(keypath, 'r') as f:
+            with open(keypath, 'rb') as f:
                 return pickle.load(f)
         elif os.path.exists(self.tarpath):
             with tarfile.open(self.tarpath) as tf:
@@ -334,7 +336,7 @@ class FileDatabase:
             raise KeyError(str(key))
 
     def update(self, newitems):
-        for key, value in newitems.iteritems():
+        for key, value in newitems.items():
             self.__setitem__(key, value)
 
     def archive(self):
@@ -422,7 +424,10 @@ class Data:
             d.close()  # Necessary to get out of write mode and unlock?
             log(' Calculated %i new images.' % len(calcs_needed))
         else:
-            workercommand = 'python -m %s' % self.calc.__module__
+            if sys.version_info[0] == 2:  # Python2 or Python3.
+                workercommand = 'python2 -m %s' % self.calc.__module__
+            else:
+                workercommand = 'python3 -m %s' % self.calc.__module__
             server, connections, n_pids = setup_parallel(parallel,
                                                          workercommand, log)
 
@@ -615,7 +620,7 @@ def get_hash(atoms):
     for number in atoms.get_positions().flatten():
         string += '%.15f' % number
 
-    md5 = hashlib.md5(string)
+    md5 = hashlib.md5(string.encode('utf-8'))
     hash = md5.hexdigest()
     return hash
 

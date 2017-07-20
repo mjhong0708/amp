@@ -245,7 +245,7 @@ class Amp(Calculator, object):
         log('Calculation requested.')
 
         images = hash_images([self.atoms])
-        key = images.keys()[0]
+        key = list(images.keys())[0]
 
         if properties == ['energy']:
             log('Calculating potential energy...', tic='pot-energy')
@@ -465,6 +465,6 @@ def get_git_commit(ampdirectory):
     except:
         output = 'unknown hash\tunknown date'
     output = output.strip()
-    commithash, commitdate = output.split('\t')
+    commithash, commitdate = output.split(b'\t')
     os.chdir(pwd)
     return commithash, commitdate

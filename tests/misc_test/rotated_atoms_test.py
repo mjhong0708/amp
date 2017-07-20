@@ -43,7 +43,8 @@ def test():
         images = hash_images([atoms], ordered=True)
         descriptor1 = descriptor
         descriptor1.calculate_fingerprints(images)
-        fp1 = descriptor1.fingerprints[images.keys()[0]]
+        fp1 = descriptor1.fingerprints[list(images.keys())[0]]
+
 
         # Randomly Rotated (and translated) atomic configuration
         rot = [random.random(), random.random(), random.random()]
@@ -65,7 +66,7 @@ def test():
         images = hash_images([atoms], ordered=True)
         descriptor2 = descriptor
         descriptor2.calculate_fingerprints(images)
-        fp2 = descriptor2.fingerprints[images.keys()[0]]
+        fp2 = descriptor2.fingerprints[list(images.keys())[0]]
 
         for (element1, afp1), (element2, afp2) in zip(fp1, fp2):
             assert element1 == element2, 'rotated atoms test broken!'

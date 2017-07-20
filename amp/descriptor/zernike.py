@@ -178,13 +178,13 @@ class Zernike(object):
         for element in p.elements:
             count = 0
             if isinstance(p.nmax, dict):
-                for n in xrange(p.nmax[element] + 1):
-                    for l in xrange(n + 1):
+                for n in range(p.nmax[element] + 1):
+                    for l in range(n + 1):
                         if (n - l) % 2 == 0:
                             count += 1
             else:
-                for n in xrange(p.nmax + 1):
-                    for l in xrange(n + 1):
+                for n in range(p.nmax + 1):
+                    for l in range(n + 1):
                         if (n - l) % 2 == 0:
                             count += 1
             no_of_descriptors[element] = count
@@ -277,7 +277,7 @@ class NeighborlistCalculator:
                          bothways=True,
                          skin=0.)
         n.update(image)
-        return [n.get_neighbors(index) for index in xrange(len(image))]
+        return [n.get_neighbors(index) for index in range(len(image))]
 
 
 class FingerprintCalculator:
@@ -300,7 +300,7 @@ class FingerprintCalculator:
             except ImportError:  # for newer version of scipy
                 from scipy.special import factorial as fac
 
-        self.factorial = [fac(0.5 * _) for _ in xrange(4 * nmax + 3)]
+        self.factorial = [fac(0.5 * _) for _ in range(4 * nmax + 3)]
 
     def calculate(self, image, key):
         """Makes a list of fingerprints, one per atom, for the fed image.
@@ -362,11 +362,11 @@ class FingerprintCalculator:
             cutoff_fxn = Polynomial(Rc, gamma=p_gamma)
 
         fingerprint = []
-        for n in xrange(self.globals.nmax + 1):
-            for l in xrange(n + 1):
+        for n in range(self.globals.nmax + 1):
+            for l in range(n + 1):
                 if (n - l) % 2 == 0:
                     norm = 0.
-                    for m in xrange(l + 1):
+                    for m in range(l + 1):
                         c_nlm = 0.
                         for n_symbol, neighbor in zip(n_symbols, Rs):
                             x = (neighbor[0] - home[0]) / Rc
@@ -455,7 +455,7 @@ class FingerprintPrimeCalculator:
             except ImportError:  # for newer version of scipy
                 from scipy.special import factorial as fac
 
-        self.factorial = [fac(0.5 * _) for _ in xrange(4 * nmax + 3)]
+        self.factorial = [fac(0.5 * _) for _ in range(4 * nmax + 3)]
 
     def calculate(self, image, key):
         """Makes a list of fingerprint derivatives, one per atom, for the fed
@@ -477,7 +477,7 @@ class FingerprintPrimeCalculator:
             selfneighborindices, selfneighboroffsets = nl[selfindex]
             selfneighborsymbols = [
                 image[_].symbol for _ in selfneighborindices]
-            for i in xrange(3):
+            for i in range(3):
                 # Calculating derivative of self atom fingerprints w.r.t.
                 # coordinates of itself.
                 nneighborindices, nneighboroffsets = nl[selfindex]
@@ -573,8 +573,8 @@ class FingerprintPrimeCalculator:
             cutoff_fxn = Polynomial(Rc, gamma=p_gamma)
 
         fingerprint_prime = []
-        for n in xrange(self.globals.nmax + 1):
-            for l in xrange(n + 1):
+        for n in range(self.globals.nmax + 1):
+            for l in range(n + 1):
                 if (n - l) % 2 == 0:
                     if self.fortran:  # fortran version; faster
                         G_numbers = [self.globals.Gs[symbol][elm]
@@ -609,7 +609,7 @@ class FingerprintPrimeCalculator:
                                     **args_calculate_zernike_prime)
                     else:
                         norm_prime = 0.
-                        for m in xrange(l + 1):
+                        for m in range(l + 1):
                             c_nlm = 0.
                             c_nlm_prime = 0.
                             for n_index, n_symbol, neighbor in zip(n_indices,
@@ -693,7 +693,7 @@ def calculate_R(n, l, rho, factorial):
         k = (n - l) / 2
         term1 = np.sqrt(2. * n + 3.)
 
-        for s in xrange(k + 1):
+        for s in range(int(k) + 1):
             b1 = binomial(k, s, factorial)
             b2 = binomial(n - s - 1 + 1.5, k, factorial)
             value += ((-1) ** s) * b1 * b2 * (rho ** (n - 2. * s))
@@ -802,21 +802,21 @@ def calculate_Z(n, l, m, x, y, z, factorial):
     term2 = 2. ** (-m)
 
     k = int((n - l) / 2.)
-    for nu in xrange(k + 1):
+    for nu in range(k + 1):
         q = calculate_q(nu, k, l, factorial)
-        for alpha in xrange(nu + 1):
+        for alpha in range(nu + 1):
             b1 = binomial(nu, alpha, factorial)
-            for beta in xrange(nu - alpha + 1):
+            for beta in range(nu - alpha + 1):
                 b2 = binomial(nu - alpha, beta, factorial)
                 term3 = q * b1 * b2
-                for u in xrange(m + 1):
+                for u in range(m + 1):
                     b5 = binomial(m, u, factorial)
                     term4 = ((-1.)**(m - u)) * b5 * (1j**u)
-                    for mu in xrange(int((l - m) / 2.) + 1):
+                    for mu in range(int((l - m) / 2.) + 1):
                         b6 = binomial(l, mu, factorial)
                         b7 = binomial(l - mu, m + mu, factorial)
                         term5 = ((-1.)**mu) * (2.**(-2. * mu)) * b6 * b7
-                        for eta in xrange(mu + 1):
+                        for eta in range(mu + 1):
                             r = 2. * (eta + alpha) + u
                             s = 2. * (mu - eta + beta) + m - u
                             t = 2. * (nu - alpha - beta - mu) + l - m
@@ -841,21 +841,21 @@ def calculate_Z_prime(n, l, m, x, y, z, p, factorial):
     term2 = 2. ** (-m)
 
     k = int((n - l) / 2.)
-    for nu in xrange(k + 1):
+    for nu in range(k + 1):
         q = calculate_q(nu, k, l, factorial)
-        for alpha in xrange(nu + 1):
+        for alpha in range(nu + 1):
             b1 = binomial(nu, alpha, factorial)
-            for beta in xrange(nu - alpha + 1):
+            for beta in range(nu - alpha + 1):
                 b2 = binomial(nu - alpha, beta, factorial)
                 term3 = q * b1 * b2
-                for u in xrange(m + 1):
+                for u in range(m + 1):
                     term4 = ((-1.)**(m - u)) * binomial(
                         m, u, factorial) * (1j**u)
-                    for mu in xrange(int((l - m) / 2.) + 1):
+                    for mu in range(int((l - m) / 2.) + 1):
                         term5 = ((-1.)**mu) * (2.**(-2. * mu)) * \
                             binomial(l, mu, factorial) * \
                             binomial(l - mu, m + mu, factorial)
-                        for eta in xrange(mu + 1):
+                        for eta in range(mu + 1):
                             r = 2 * (eta + alpha) + u
                             s = 2 * (mu - eta + beta) + m - u
                             t = 2 * (nu - alpha - beta - mu) + l - m

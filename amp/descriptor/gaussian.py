@@ -243,7 +243,7 @@ class NeighborlistCalculator:
                          bothways=True,
                          skin=0.)
         n.update(image)
-        return [n.get_neighbors(index) for index in xrange(len(image))]
+        return [n.get_neighbors(index) for index in range(len(image))]
 
 
 class FingerprintCalculator:
@@ -334,7 +334,7 @@ class FingerprintCalculator:
         num_symmetries = len(self.globals.Gs[symbol])
         fingerprint = [None] * num_symmetries
 
-        for count in xrange(num_symmetries):
+        for count in range(num_symmetries):
             G = self.globals.Gs[symbol][count]
 
             if G['type'] == 'G2':
@@ -412,7 +412,7 @@ class FingerprintPrimeCalculator:
                                      in zip(selfneighborindices,
                                             selfneighboroffsets)]
 
-            for i in xrange(3):
+            for i in range(3):
                 # Calculating derivative of fingerprints of self atom w.r.t.
                 # coordinates of itself.
                 fpprime = self.get_fingerprintprime(
@@ -497,7 +497,7 @@ class FingerprintPrimeCalculator:
         Rindex = self.atoms.positions[index]
         fingerprintprime = [None] * num_symmetries
 
-        for count in xrange(num_symmetries):
+        for count in range(num_symmetries):
             G = self.globals.Gs[symbol][count]
             if G['type'] == 'G2':
                 ridge = calculate_G2_prime(
@@ -600,7 +600,7 @@ def calculate_G2(neighborsymbols,
         cutoff_fxn = dict2cutoff(cutoff)
         ridge = 0.  # One aspect of a fingerprint :)
         num_neighbors = len(neighborpositions)   # number of neighboring atoms
-        for count in xrange(num_neighbors):
+        for count in range(num_neighbors):
             symbol = neighborsymbols[count]
             Rj = neighborpositions[count]
             if symbol == G_element:
@@ -1029,7 +1029,7 @@ def calculate_G2_prime(neighborindices, neighborsymbols, neighborpositions,
         cutoff_fxn = dict2cutoff(cutoff)
         ridge = 0.  # One aspect of a fingerprint :)
         num_neighbors = len(neighborpositions)   # number of neighboring atoms
-        for count in xrange(num_neighbors):
+        for count in range(num_neighbors):
             symbol = neighborsymbols[count]
             Rj = neighborpositions[count]
             j = neighborindices[count]
