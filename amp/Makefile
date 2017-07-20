@@ -13,9 +13,9 @@ AMPDIR:=$(shell pwd)
 py2tests:
 	rm -fr /tmp/py2_amptests
 	mkdir -p /tmp/py2_amptests
-	cd /tmp/py2_amptests && nosetests --with-timer $(AMPDIR)/..
+	cd /tmp/py2_amptests && nosetests $(AMPDIR)/..
 
 py3tests:
 	rm -fr /tmp/py3_amptests
 	mkdir -p /tmp/py3_amptests
-	cd /tmp/py3_amptests && nosetests3 --with-timer $(AMPDIR)/..
+	cd /tmp/py3_amptests && nosetests3 $(AMPDIR)/..
