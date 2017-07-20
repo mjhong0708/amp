@@ -1,4 +1,4 @@
-
+import sys
 import numpy as np
 from ase.calculators.calculator import Parameters
 from ..utilities import (Logger, ConvergenceOccurred, make_sublists, now,
@@ -10,10 +10,7 @@ except ImportError:
 
 
 class Model(object):
-
-    """
-    Class that includes common methods between different models.
-    """
+    """Class that includes common methods between different models."""
 
     @property
     def log(self):
@@ -86,8 +83,9 @@ class Model(object):
         elif self.parameters.mode == 'atom-centered':
             selfindices = set([key[0] for key in fingerprintprimes.keys()])
             forces = np.zeros((len(selfindices), 3))
-            for (selfindex, selfsymbol, nindex, nsymbol, i), derafp in \
-                    fingerprintprimes.iteritems():
+            for key in fingerprintprimes.keys():
+                selfindex, selfsymbol, nindex, nsymbol, i = key
+                derafp = fingerprintprimes[key]
                 afp = fingerprints[nindex][1]
                 dforce = self.calculate_force(afp=afp,
                                               derafp=derafp,
@@ -177,8 +175,9 @@ class Model(object):
             dforces_dparameters = {(selfindex, i): None
                                    for selfindex in selfindices
                                    for i in range(3)}
-            for (selfindex, selfsymbol, nindex, nsymbol, i), derafp in \
-                    fingerprintprimes.iteritems():
+            for key in fingerprintprimes.keys():
+                selfindex, selfsymbol, nindex, nsymbol, i = key
+                derafp = fingerprintprimes[key]
                 afp = fingerprints[nindex][1]
                 temp = self.calculate_dForce_dParameters(afp=afp,
                                                          derafp=derafp,
@@ -295,7 +294,7 @@ class LossFunction:
         # 'dict' creates a copy; otherwise mutable in class.
         c = p['convergence'] = dict(self.default_parameters['convergence'])
         if convergence is not None:
-            for key, value in convergence.iteritems():
+            for key, value in convergence.items():
                 p['convergence'][key] = value
         p['energy_coefficient'] = energy_coefficient
         p['force_coefficient'] = force_coefficient
@@ -359,14 +358,17 @@ class LossFunction:
         # May also make sense to decide whether or not to calculate
         # fingerprintprimes based on the value of train_forces.
         if ((self.parameters.force_coefficient is not None) and
-            (self.fingerprintprimes is None)):
+                (self.fingerprintprimes is None)):
             self.fingerprintprimes = \
                 self._model.trainingparameters.descriptor.fingerprintprimes
         if self.images is None:
             self.images = self._model.trainingparameters.trainingimages
 
         if self._parallel['cores'] != 1:  # Initialize workers.
-            workercommand = 'python -m %s' % self.__module__
+            if sys.version_info[0] == 2:    # Check Python2 or Python3.
+                workercommand = 'python2 -m %s' % self.__module__
+            else:
+                workercommand = 'python3 -m %s' % self.__module__
             server, connections, n_pids = setup_parallel(self._parallel,
                                                          workercommand, log)
             self._sessions = {'master': server,
@@ -568,6 +570,10 @@ class LossFunction:
                                                    force_maxresid)
                 if converged:
                     self._cleanup()
+                    if self._parallel['cores'] != 1:
+                        # Needed to properly close socket connection
+                        # (python3).
+                        server.close()
                     raise ConvergenceOccurred()
 
         return {'loss': self.loss,
@@ -600,7 +606,8 @@ class LossFunction:
         force_maxresid = 0.
         dloss_dparameters = np.array([0.] * len(parametervector))
         model = self._model
-        for hash, image in self.images.iteritems():
+        for hash in self.images.keys():
+            image = self.images[hash]
             no_of_atoms = len(image)
             amp_energy = model.calculate_energy(self.fingerprints[hash])
             actual_energy = image.get_potential_energy(apply_constraint=False)
@@ -635,8 +642,8 @@ class LossFunction:
                     model.calculate_forces(self.fingerprints[hash],
                                            self.fingerprintprimes[hash])
                 actual_forces = image.get_forces(apply_constraint=False)
-                for index in xrange(no_of_atoms):
-                    for i in xrange(3):
+                for index in range(no_of_atoms):
+                    for i in range(3):
                         force_resid = abs(amp_forces[index][i] -
                                           actual_forces[index][i])
                         if force_resid > force_maxresid:
@@ -854,7 +861,7 @@ def calculate_fingerprints_range(fp, images):
         raise NotImplementedError()
     elif fp.parameters.mode == 'atom-centered':
         fprange = {}
-        for hash, image in images.iteritems():
+        for hash in images.keys():
             imagefingerprints = fp.fingerprints[hash]
             for element, fingerprint in imagefingerprints:
                 if element not in fprange:
@@ -866,7 +873,7 @@ def calculate_fingerprints_range(fp, images):
                             fprange[element][i][0] = ridge
                         elif ridge > fprange[element][i][1]:
                             fprange[element][i][1] = ridge
-    for key, value in fprange.iteritems():
+    for key, value in fprange.items():
         fprange[key] = value
     return fprange
 
@@ -898,17 +905,15 @@ def ravel_data(train_forces,
         Dictionary with images hashs as keys and the corresponding fingerprint
         derivatives as values.
     """
-    from ase.data import atomic_numbers as an
+    from ase.data import atomic_numbers
 
     actual_energies = [image.get_potential_energy(apply_constraint=False)
-                       for hash, image in images.iteritems()]
+                       for image in images.values()]
 
     if mode == 'atom-centered':
-        num_images_atoms = [len(image)
-                            for hash, image in images.iteritems()]
-        atomic_numbers = [an[atom.symbol]
-                          for hash, image in images.iteritems()
-                          for atom in image]
+        num_images_atoms = [len(image) for image in images.values()]
+        atomic_numbers = [atomic_numbers[atom.symbol]
+                          for image in images.values() for atom in image]
 
         def ravel_fingerprints(images,
                                fingerprints):
@@ -917,7 +922,7 @@ def ravel_data(train_forces,
             """
             raveled_fingerprints = []
             elements = []
-            for hash, image in images.iteritems():
+            for hash, image in images.items():
                 for index in range(len(image)):
                     elements += [fingerprints[hash][index][0]]
                     raveled_fingerprints += [fingerprints[hash][index][1]]
@@ -932,14 +937,13 @@ def ravel_data(train_forces,
                                                             fingerprints)
     else:
         atomic_positions = [image.positions.ravel()
-                            for hash, image in images.iteritems()]
+                            for image in images.values()]
 
     if train_forces is True:
 
         actual_forces = \
             [image.get_forces(apply_constraint=False)[index]
-             for hash, image in images.iteritems()
-             for index in range(len(image))]
+             for image in images.values() for index in range(len(image))]
 
         if mode == 'atom-centered':
 
@@ -957,13 +961,13 @@ def ravel_data(train_forces,
                 num_neighbors = []
                 raveled_neighborlists = []
                 raveled_fingerprintprimes = []
-                for hash, image in images.iteritems():
+                for hash, image in images.items():
                     for atom in image:
                         selfindex = atom.index
                         selfsymbol = atom.symbol
                         selfneighborindices = []
                         selfneighborsymbols = []
-                        for key, derafp in fingerprintprimes[hash].iteritems():
+                        for key, derafp in fingerprintprimes[hash].items():
                             # key = (selfindex, selfsymbol, nindex, nsymbol, i)
                             # i runs from 0 to 2. neighbor indices and symbols
                             # should be added just once.

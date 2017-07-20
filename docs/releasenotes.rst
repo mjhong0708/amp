@@ -18,6 +18,8 @@ Development version
 
 * The helper function :func:`~amp.descriptor.gaussian.make_symmetry_functions` has been added to more easily customize Gaussian fingerprint parameters.
 
+*Amp has been ported to Python 3. The only module that is not yet ported is TensorFlow.
+
 0.5
 ---
 Release date: February 24, 2017

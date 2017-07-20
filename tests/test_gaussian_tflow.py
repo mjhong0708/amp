@@ -54,8 +54,8 @@ def train_test():
 
     calc.train(images=train_images,)
     for image in train_images:
-        print "energy =", calc.get_potential_energy(image)
-        print "forces =", calc.get_forces(image)
+        print ("energy =", calc.get_potential_energy(image))
+        print ("forces =", calc.get_forces(image))
 
 
 if __name__ == '__main__':

@@ -47,7 +47,8 @@ def test():
 
     calc = Amp(descriptor=Gaussian(),
                model=NeuralNetwork(),
-               label='fpplot-test')
+               label='fpplot-test'
+               )
     calc.model.lossfunction = LossFunction(convergence={'energy_rmse': 1.00,
                                                         'force_rmse': 1.00})
     calc.train(images='fpplot-training.traj')
