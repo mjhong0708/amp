@@ -190,7 +190,7 @@ class NeighborlistCalculator:
                          bothways=True,
                          skin=0.)
         n.update(image)
-        return [n.get_neighbors(index) for index in xrange(len(image))]
+        return [n.get_neighbors(index) for index in range(len(image))]
 
 
 class FingerprintCalculator:

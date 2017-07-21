@@ -161,12 +161,12 @@ class Bispectrum(object):
         for element in p.elements:
             count = 0
             if isinstance(p.jmax, dict):
-                for _2j1 in xrange(int(2 * p.jmax[element]) + 1):
-                    for j in xrange(int(min(_2j1, p.jmax[element])) + 1):
+                for _2j1 in range(int(2 * p.jmax[element]) + 1):
+                    for j in range(int(min(_2j1, p.jmax[element])) + 1):
                         count += 1
             else:
-                for _2j1 in xrange(int(2 * p.jmax) + 1):
-                    for j in xrange(int(min(_2j1, p.jmax)) + 1):
+                for _2j1 in range(int(2 * p.jmax) + 1):
+                    for j in range(int(min(_2j1, p.jmax)) + 1):
                         count += 1
             no_of_descriptors[element] = count
 
@@ -219,7 +219,7 @@ class NeighborlistCalculator:
                          bothways=True,
                          skin=0.)
         n.update(image)
-        return [n.get_neighbors(index) for index in xrange(len(image))]
+        return [n.get_neighbors(index) for index in range(len(image))]
 
 
 class FingerprintCalculator:
@@ -234,7 +234,7 @@ class FingerprintCalculator:
         self.parallel_command = 'calculate_fingerprints'
 
         self.factorial = [1]
-        for _ in xrange(int(3. * jmax) + 2):
+        for _ in range(int(3. * jmax) + 2):
             if _ > 0:
                 self.factorial += [_ * self.factorial[_ - 1]]
 
@@ -336,10 +336,10 @@ class FingerprintCalculator:
                 phis += [phi]
 
         fingerprint = []
-        for _2j1 in xrange(int(2 * jmax) + 1):
+        for _2j1 in range(int(2 * jmax) + 1):
             j1 = 0.5 * _2j1
             j2 = 0.5 * _2j1
-            for j in xrange(int(min(_2j1, jmax)) + 1):
+            for j in range(int(min(_2j1, jmax)) + 1):
                 value = calculate_B(j1, j2, 1.0 * j, self.globals.Gs[symbol],
                                     Rc, cutoff['name'],
                                     self.factorial, n_symbols,
@@ -418,7 +418,7 @@ def m_values(j):
 
     assert j >= 0, '2*j should be a non-negative integer.'
 
-    return [j - i for i in xrange(int(2 * j + 1))]
+    return [j - i for i in range(int(2 * j + 1))]
 
 ###############################################################################
 
@@ -442,7 +442,7 @@ def WignerD(j, m, mp, alpha, beta, gamma, factorial):
     if abs(beta - np.pi / 2.) < 10.**(-10.):
         # Varshalovich Eq. (5), Section 4.16, Page 113.
         # j, m, and mp here are J, M, and M', respectively, in Eq. (5).
-        for k in xrange(int(2 * j + 1)):
+        for k in range(int(2 * j + 1)):
             if k > j + mp or k > j - m:
                 break
             elif k < mp - m:
@@ -463,7 +463,7 @@ def WignerD(j, m, mp, alpha, beta, gamma, factorial):
         for mpp in mvals:
             # temp1 = WignerD(j, m, mpp, 0, np.pi/2, 0) = d(j, m, mpp, np.pi/2)
             temp1 = 0.
-            for k in xrange(int(2 * j + 1)):
+            for k in range(int(2 * j + 1)):
                 if k > j + mpp or k > j - m:
                     break
                 elif k < mpp - m:
@@ -478,7 +478,7 @@ def WignerD(j, m, mp, alpha, beta, gamma, factorial):
             # temp2 = WignerD(j, mpp, mp, 0, np.pi/2, 0) = d(j, mpp, mp,
             # np.pi/2)
             temp2 = 0.
-            for k in xrange(int(2 * j + 1)):
+            for k in range(int(2 * j + 1)):
                 if k > j - mp or k > j - mpp:
                     break
                 elif k < - mp - mpp:
@@ -560,7 +560,7 @@ def CG(a, alpha, b, beta, c, gamma, factorial):
             zmin = max(a + beta - c, b - alpha - c, 0.)
             zmax = min(b + beta, a - alpha, a + b - c)
             sumres = 0.
-            for z in xrange(int(zmin), int(zmax) + 1):
+            for z in range(int(zmin), int(zmax) + 1):
                 value = \
                     factorial[int(z)] * \
                     factorial[int(a + b - c - z)] * \

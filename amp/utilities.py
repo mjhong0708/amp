@@ -4,6 +4,7 @@ import numpy as np
 import hashlib
 import time
 import os
+import sys
 import copy
 import math
 import random
@@ -13,12 +14,12 @@ import traceback
 from datetime import datetime
 from getpass import getuser
 from ase import io as aseio
-from ase.parallel import paropen
 from ase.db import connect
+from ase.calculators.calculator import PropertyNotImplementedError
 try:
-    import cPickle as pickle  # python2
+    import cPickle as pickle    # Python2
 except ImportError:
-    import pickle  # python3
+    import pickle               # Python3
 
 
 # Parallel processing ########################################################
@@ -39,7 +40,7 @@ def assign_cores(cores, log=None):
                'error.')
         log(msg % q)
         log('Environment dump:')
-        for key, value in os.environ.iteritems():
+        for key, value in os.environ.items():
             log('%s: %s' % (key, value))
         if traceback_text:
             log('\n' + '='*70 + '\nTraceback of last error encountered:')
@@ -48,7 +49,7 @@ def assign_cores(cores, log=None):
 
     def success(q, cores, log):
         log('Parallel configuration determined from environment for %s:' % q)
-        for key, value in cores.iteritems():
+        for key, value in cores.items():
             log('  %s: %i' % (key, value))
 
     if cores is not None:
@@ -142,13 +143,14 @@ def make_sublists(masterlist, n):
     keys to each task in parallel processing. This also destroys
     the masterlist (to save some memory).
     """
+    masterlist = list(masterlist)
     np.random.shuffle(masterlist)
     N = len(masterlist)
     sublist_lengths = [
         N // n if _ >= (N % n) else N // n + 1 for _ in range(n)]
     sublists = []
     for sublist_length in sublist_lengths:
-        sublists.append([masterlist.pop() for _ in xrange(sublist_length)])
+        sublists.append([masterlist.pop() for _ in range(sublist_length)])
     return sublists
 
 
@@ -197,7 +199,7 @@ def setup_parallel(parallel, workercommand, log):
     log(' Establishing worker sessions.')
     connections = []
     pid_count = 0
-    for workerhostname, nprocesses in parallel['cores'].iteritems():
+    for workerhostname, nprocesses in parallel['cores'].items():
         pids = range(pid_count, pid_count + nprocesses)
         pid_count += nprocesses
         connections.append(start_workers(pids,
@@ -216,7 +218,7 @@ def start_workers(process_ids, workerhostname, workercommand, log,
     """
     if workerhostname != 'localhost':
         workercommand += ' &'
-        log('Starting non-local connections.')
+        log(' Starting non-local connections.')
         pxssh = importer('pxssh')
         ssh = pxssh.pxssh()
         ssh.login(workerhostname, getuser())
@@ -232,8 +234,7 @@ def start_workers(process_ids, workerhostname, workercommand, log,
                 (process_id, workerhostname, ssh.before.strip()))
         return ssh
     import pexpect
-    log('Starting local connections.')
-    log(workercommand)
+    log(' Starting local connections.')
     children = []
     for process_id in process_ids:
         child = pexpect.spawn(workercommand % process_id)
@@ -318,7 +319,7 @@ class FileDatabase:
             with open(path, 'r') as f:
                 if f.read() == pickle.dumps(value):
                     return  # Nothing to update.
-        with open(path, 'w') as f:
+        with open(path, 'wb') as f:
             pickle.dump(value, f)
 
     def __getitem__(self, key):
@@ -326,7 +327,7 @@ class FileDatabase:
             return self._memdict[key]
         keypath = os.path.join(self.loosepath, key)
         if os.path.exists(keypath):
-            with open(keypath, 'r') as f:
+            with open(keypath, 'rb') as f:
                 return pickle.load(f)
         elif os.path.exists(self.tarpath):
             with tarfile.open(self.tarpath) as tf:
@@ -335,7 +336,7 @@ class FileDatabase:
             raise KeyError(str(key))
 
     def update(self, newitems):
-        for key, value in newitems.iteritems():
+        for key, value in newitems.items():
             self.__setitem__(key, value)
 
     def archive(self):
@@ -423,7 +424,10 @@ class Data:
             d.close()  # Necessary to get out of write mode and unlock?
             log(' Calculated %i new images.' % len(calcs_needed))
         else:
-            workercommand = 'python -m %s' % self.calc.__module__
+            if sys.version_info[0] == 2:  # Python2 or Python3.
+                workercommand = 'python2 -m %s' % self.calc.__module__
+            else:
+                workercommand = 'python3 -m %s' % self.calc.__module__
             server, connections, n_pids = setup_parallel(parallel,
                                                          workercommand, log)
 
@@ -513,7 +517,7 @@ class Logger:
             return
         if isinstance(file, str):
             self.filename = file
-            file = paropen(file, 'a')
+            file = open(file, 'a')
         self.file = file
         self.tics = {}
 
@@ -557,7 +561,7 @@ class Logger:
             dt = (time.time() - tic) / 60.
             dt = ' %.1f min.' % dt
         if self.file.closed:
-            self.file = paropen(self.filename, 'a')
+            self.file = open(self.filename, 'a')
         self.file.write(message + dt + '\n')
         self.file.flush()
         if tic:
@@ -592,7 +596,7 @@ def make_filename(label, base_filename):
     return filename
 
 
-# Images and hasing ##########################################################
+# Images and hashing #########################################################
 
 def get_hash(atoms):
     """Creates a unique signature for a particular ASE atoms object.
@@ -616,7 +620,7 @@ def get_hash(atoms):
     for number in atoms.get_positions().flatten():
         string += '%.15f' % number
 
-    md5 = hashlib.md5(string)
+    md5 = hashlib.md5(string.encode('utf-8'))
     hash = md5.hexdigest()
     return hash
 
@@ -674,6 +678,31 @@ def hash_images(images, log=None, ordered=False):
         return dict_images
 
 
+def check_images(images, forces):
+    """Checks that all images have energies, and optionally forces,
+    calculated, so that they can be used for training. Raises a
+    MissingDataError if any are missing."""
+    missing_energies, missing_forces = 0, 0
+    for index, image in enumerate(images.values()):
+        try:
+            image.get_potential_energy()
+        except PropertyNotImplementedError:
+            missing_energies += 1
+        if forces is True:
+            try:
+                image.get_forces()
+            except PropertyNotImplementedError:
+                missing_forces += 1
+    if missing_energies + missing_forces == 0:
+        return
+    msg = ''
+    if missing_energies > 0:
+        msg += 'Missing energy in {} image(s).'.format(missing_energies)
+    if missing_forces > 0:
+        msg += ' Missing forces in {} image(s).'.format(missing_forces)
+    raise MissingDataError(msg)
+
+
 def randomize_images(images, fraction=0.8):
     """Randomly assigns 'fraction' of the images to a training set and (1
     - 'fraction') to a test set. Returns two lists of ASE images.
@@ -728,6 +757,12 @@ class ConvergenceOccurred(Exception):
 class TrainingConvergenceError(Exception):
     """Error to be raised if training does not converge.
     """
+    pass
+
+
+class MissingDataError(Exception):
+    """Error to be raised if any images are missing key data,
+    like energy or forces."""
     pass
 
 

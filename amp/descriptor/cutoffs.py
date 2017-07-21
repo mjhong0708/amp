@@ -48,7 +48,7 @@ class Cosine(object):
         Returns
         -------
         float
-            The vaule of the cutoff function.
+            The value of the cutoff function.
         """
         if Rij > self.Rc:
             return 0.
@@ -66,7 +66,7 @@ class Cosine(object):
         Returns
         -------
         float
-            The vaule of derivative of the cutoff function.
+            The value of derivative of the cutoff function.
         """
         if Rij > self.Rc:
             return 0.
@@ -97,7 +97,7 @@ class Polynomial(object):
         self.gamma = gamma
         self.Rc = Rc
 
-    def __call__(self, Rij, gamma):
+    def __call__(self, Rij):
         """
         Parameters
         ----------
@@ -107,7 +107,7 @@ class Polynomial(object):
         Returns
         -------
         value : float
-            The vaule of the cutoff function.
+            The value of the cutoff function.
         """
         if Rij > self.Rc:
             return 0.
@@ -116,20 +116,18 @@ class Polynomial(object):
                 (self.gamma + 1) * (Rij / self.Rc) ** self.gamma
             return value
 
-    def prime(self, Rij, gamma):
-        """Derivative of the Cosine cutoff function.
+    def prime(self, Rij):
+        """Derivative of the Polynomial cutoff function.
 
         Parameters
         ----------
-        Rc : float
-            Radius above which neighbor interactions are ignored.
         Rij : float
             Distance between pair atoms.
 
         Returns
         -------
         float
-            The vaule of derivative of the cutoff function.
+            The value of derivative of the cutoff function.
         """
         if Rij > self.Rc:
             return 0.

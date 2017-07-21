@@ -6,9 +6,15 @@ Release notes
 Development version
 -------------------
 
-* Incorporation of Behler's G5 angular symmetry function.
+(Significant changes since the last release are itemized here.)
 
-(Significant changes since the last release should be itemized here.)
+* A community page has been added with resources such as the new mailing list and issue tracker.
+* The default convergence parameters have been changed to energy-only training; force-training can be added by the user via the loss function.
+* Convergence plots show maximum residuals as well as root mean-squared error.
+* Parameters to make the Gaussian feature vectors are now output to the log file.
+* The helper function :func:`~amp.descriptor.gaussian.make_symmetry_functions` has been added to more easily customize Gaussian fingerprint parameters.
+* Amp has been ported to Python 3. The only module that is not yet ported is TensorFlow.
+* Incorporation of Behler's G5 angular symmetry function.
 
 0.5
 ---

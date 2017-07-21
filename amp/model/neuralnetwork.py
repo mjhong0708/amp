@@ -78,8 +78,9 @@ class NeuralNetwork(Model):
         If True, allows for extrapolation, if False, does not allow.
     checkpoints : int
         Frequency with which to save parameter checkpoints upon training. E.g.,
-        100 saves a checpoint on each 100th training setp.  Specify None for no
-        checkpoints.
+        100 saves a checkpoint on each 100th training setp.  Specify None for
+        no checkpoints. Note: You can make this negative to not overwrite
+        previous checkpoints.
 
     .. note:: Dimensions of weight two dimensional arrays should be consistent
               with hiddenlayers.
@@ -194,7 +195,7 @@ class NeuralNetwork(Model):
         if p.mode == 'image-centered':
             log(' %s' % str(p.hiddenlayers))
         elif p.mode == 'atom-centered':
-            for item in p.hiddenlayers.iteritems():
+            for item in p.hiddenlayers.items():
                 log(' %2s: %s' % item)
 
         if p.weights is None:
@@ -281,15 +282,18 @@ class NeuralNetwork(Model):
             filename = self.parent.save(filename, overwrite=True)
         if self.checkpoints:
             if self.step % self.checkpoints == 0:
-                path = os.path.join(self.parent.label + '-checkpoints/')
-                if self.step == 0:
-                    if not os.path.exists(path):
-                        os.mkdir(path)
                 self._log('Saving checkpoint data.')
-                filename = make_filename(path,
-                                         'parameters-checkpoint-%d.amp'
-                                         % self.step)
-                filename = self.parent.save(filename, overwrite=True)
+                if self.checkpoints < 0:
+                    path = os.path.join(self.parent.label + '-checkpoints')
+                    if self.step == 0:
+                        if not os.path.exists(path):
+                            os.mkdir(path)
+                    filename = os.path.join(path,
+                                            '{}.amp'.format(int(self.step)))
+                else:
+                    filename = make_filename(self.parent.label,
+                                             '-checkpoint.amp')
+                self.parent.save(filename, overwrite=True)
         loss = self.lossfunction.get_loss(vector, lossprime=False)['loss']
         if hasattr(self, 'observer'):
             self.observer(self, vector, loss)
@@ -439,7 +443,7 @@ class NeuralNetwork(Model):
         for elm in p.weights.keys():
             self.W[elm] = {}
             weight = p.weights[elm]
-            for _ in xrange(len(weight)):
+            for _ in range(len(weight)):
                 self.W[elm][_ + 1] = np.delete(weight[_ + 1], -1, 0)
         W = self.W[symbol]
 
@@ -453,7 +457,7 @@ class NeuralNetwork(Model):
         dAtomicEnergy_dScalings[symbol]['intercept'] = 1.
         dAtomicEnergy_dScalings[symbol][
             'slope'] = float(outputs[len(outputs) - 1])
-        for k in xrange(1, len(outputs)):
+        for k in range(1, len(outputs)):
             dAtomicEnergy_dWeights[symbol][k] = float(scaling['slope']) * \
                 np.dot(np.matrix(ohat[k - 1]).T, np.matrix(delta[k]).T)
 
@@ -500,7 +504,7 @@ class NeuralNetwork(Model):
         for elm in p.weights.keys():
             self.W[elm] = {}
             weight = p.weights[elm]
-            for _ in xrange(len(weight)):
+            for _ in range(len(weight)):
                 self.W[elm][_ + 1] = np.delete(weight[_ + 1], -1, 0)
         W = self.W[nsymbol]
 
@@ -516,11 +520,11 @@ class NeuralNetwork(Model):
 
         N = len(outputs) - 2
         dD_dInputs = {}
-        for k in xrange(1, N + 2):
+        for k in range(1, N + 2):
             # Calculating coordinate derivative of D matrix
             dD_dInputs[k] = np.zeros(shape=(np.size(outputs[k]),
                                             np.size(outputs[k])))
-            for j in xrange(np.size(outputs[k])):
+            for j in range(np.size(outputs[k])):
                 if activation == 'linear':  # linear
                     dD_dInputs[k][j, j] = 0.
                 elif activation == 'tanh':  # tanh
@@ -536,7 +540,7 @@ class NeuralNetwork(Model):
         # hidden layers
         temp1 = {}
         temp2 = {}
-        for k in xrange(N, 0, -1):
+        for k in range(N, 0, -1):
             temp1[k] = np.dot(W[k + 1], delta[k + 1])
             temp2[k] = np.dot(W[k + 1], dDelta_dInputs[k + 1])
             dDelta_dInputs[k] = \
@@ -545,10 +549,10 @@ class NeuralNetwork(Model):
         # coordinates weights derivative of atomic_output
         dOhat_dInputs = {}
         dOutput_dInputsdWeights = {}
-        for k in xrange(1, N + 2):
+        for k in range(1, N + 2):
             dOhat_dInputs[k - 1] = [None] * (1 + len(dOutputs_dInputs[k - 1]))
             bound = len(dOutputs_dInputs[k - 1])
-            for count in xrange(bound):
+            for count in range(bound):
                 dOhat_dInputs[k - 1][count] = dOutputs_dInputs[k - 1][count]
             dOhat_dInputs[k - 1][count + 1] = 0.
             dOutput_dInputsdWeights[k] = \
@@ -557,7 +561,7 @@ class NeuralNetwork(Model):
                 np.dot(np.matrix(ohat[k - 1]).T,
                        np.matrix(dDelta_dInputs[k]).T)
 
-        for k in xrange(1, N + 2):
+        for k in range(1, N + 2):
             dForce_dWeights[nsymbol][k] = float(scaling['slope']) * \
                 dOutput_dInputsdWeights[k]
         dForce_dScalings[nsymbol]['slope'] = dOutputs_dInputs[N + 1][0]
@@ -601,7 +605,7 @@ def calculate_nodal_outputs(parameters, afp, symbol,):
 
     fprange = parameters.fprange[symbol]
     # Scale the fingerprints to be in [-1, 1] range.
-    for _ in xrange(np.shape(_afp)[0]):
+    for _ in range(np.shape(_afp)[0]):
         if (fprange[_][1] - fprange[_][0]) > (10.**(-8.)):
             _afp[_] = -1.0 + 2.0 * ((_afp[_] - fprange[_][0]) /
                                     (fprange[_][1] - fprange[_][0]))
@@ -615,7 +619,7 @@ def calculate_nodal_outputs(parameters, afp, symbol,):
     len_of_afp = len(_afp)
     # a temp variable is defined to construct the output matix o
     temp = np.zeros((1, len_of_afp + 1))
-    for _ in xrange(len_of_afp):
+    for _ in range(len_of_afp):
         temp[0, _] = _afp[_]
     temp[0, len(_afp)] = 1.0
     ohat[0] = temp
@@ -628,7 +632,7 @@ def calculate_nodal_outputs(parameters, afp, symbol,):
         o[1] = 1. / (1. + np.exp(-net[1]))
     temp = np.zeros((1, np.shape(o[1])[1] + 1))
     bound = np.shape(o[1])[1]
-    for _ in xrange(bound):
+    for _ in range(bound):
         temp[0, _] = o[1][0, _]
     temp[0, np.shape(o[1])[1]] = 1.0
     ohat[1] = temp
@@ -644,7 +648,7 @@ def calculate_nodal_outputs(parameters, afp, symbol,):
             o[layer] = 1. / (1. + np.exp(-net[layer]))
         temp = np.zeros((1, np.size(o[layer]) + 1))
         bound = np.size(o[layer])
-        for _ in xrange(bound):
+        for _ in range(bound):
             temp[0, _] = o[layer][0, _]
         temp[0, np.size(o[layer])] = 1.0
         ohat[layer] = temp
@@ -662,7 +666,7 @@ def calculate_nodal_outputs(parameters, afp, symbol,):
 
     len_of_afp = len(_afp)
     temp = np.zeros((1, len_of_afp))
-    for _ in xrange(len_of_afp):
+    for _ in range(len_of_afp):
         temp[0, _] = _afp[_]
     o[0] = temp
 
@@ -697,7 +701,7 @@ def calculate_dOutputs_dInputs(parameters, derafp, outputs, nsymbol,):
 
     fprange = parameters.fprange[nsymbol]
     # Scaling derivative of fingerprints.
-    for _ in xrange(len(_derafp)):
+    for _ in range(len(_derafp)):
         if (fprange[_][1] - fprange[_][0]) > (10.**(-8.)):
             _derafp[_] = 2.0 * (_derafp[_] / (fprange[_][1] - fprange[_][0]))
 
@@ -710,7 +714,7 @@ def calculate_dOutputs_dInputs(parameters, derafp, outputs, nsymbol,):
                       np.delete(weight[layer], -1, 0))
         dOutputs_dInputs[layer] = [None] * np.size(outputs[layer])
         bound = np.size(outputs[layer])
-        for j in xrange(bound):
+        for j in range(bound):
             if activation == 'linear':  # linear function
                 dOutputs_dInputs[layer][j] = float(temp[0, j])
             elif activation == 'sigmoid':  # sigmoid function
@@ -758,9 +762,9 @@ def calculate_ohat_D_delta(parameters, outputs, W):
 
     N = len(outputs) - 2  # number of hiddenlayers
     D = {}
-    for k in xrange(N + 2):
+    for k in range(N + 2):
         D[k] = np.zeros(shape=(np.size(outputs[k]), np.size(outputs[k])))
-        for j in xrange(np.size(outputs[k])):
+        for j in range(np.size(outputs[k])):
             if activation == 'linear':  # linear
                 D[k][j, j] = 1.
             elif activation == 'sigmoid':  # sigmoid
@@ -774,14 +778,14 @@ def calculate_ohat_D_delta(parameters, outputs, W):
     delta[N + 1] = D[N + 1]
     # hidden layers
 
-    for k in xrange(N, 0, -1):  # backpropagate starting from output layer
+    for k in range(N, 0, -1):  # backpropagate starting from output layer
         delta[k] = np.dot(D[k], np.dot(W[k + 1], delta[k + 1]))
     # Calculating ohat
     ohat = {}
-    for k in xrange(1, N + 2):
+    for k in range(1, N + 2):
         bound = np.size(outputs[k - 1])
         ohat[k - 1] = np.zeros(shape=(1, bound + 1))
-        for j in xrange(bound):
+        for j in range(bound):
             ohat[k - 1][0, j] = outputs[k - 1][0, j]
         ohat[k - 1][0, bound] = 1.0
 
@@ -858,7 +862,7 @@ def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
             normalized_arg_range - \
             normalized_arg_range / 2.
         len_of_hiddenlayers = len(list(nn_structure)) - 3
-        for layer in xrange(len_of_hiddenlayers):
+        for layer in range(len_of_hiddenlayers):
             epsilon = np.sqrt(6. / (nn_structure[layer + 1] +
                                     nn_structure[layer + 2]))
             normalized_arg_range = 2. * epsilon
@@ -876,9 +880,9 @@ def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
 
         if False:  # This seemed to be setting all biases to zero?
             len_of_weight = len(weight)
-            for _ in xrange(len_of_weight):  # biases
+            for _ in range(len_of_weight):  # biases
                 size = weight[_ + 1][-1].size
-                for __ in xrange(size):
+                for __ in range(size):
                     weight[_ + 1][-1][__] = 0.
 
     else:
@@ -907,7 +911,7 @@ def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
                 normalized_arg_range - \
                 normalized_arg_range / 2.
             len_of_hiddenlayers = len(list(nn_structure[element])) - 3
-            for layer in xrange(len_of_hiddenlayers):
+            for layer in range(len_of_hiddenlayers):
                 epsilon = np.sqrt(6. / (nn_structure[element][layer + 1] +
                                         nn_structure[element][layer + 2]))
                 normalized_arg_range = 2. * epsilon
@@ -925,9 +929,9 @@ def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
 
             if False:  # This seemed to be setting all biases to zero?
                 len_of_weight = len(weight[element])
-                for _ in xrange(len_of_weight):  # biases
+                for _ in range(len_of_weight):  # biases
                     size = weight[element][_ + 1][-1].size
-                    for __ in xrange(size):
+                    for __ in range(size):
                         weight[element][_ + 1][-1][__] = 0.
 
     return weight
@@ -951,15 +955,16 @@ def get_random_scalings(images, activation, elements=None):
     float
         scalings
     """
-    hashs = images.keys()
+    hashs = list(images.keys())
+
     no_of_images = len(hashs)
 
     max_act_energy = max(image.get_potential_energy(apply_constraint=False)
-                         for hash, image in images.iteritems())
+                         for image in images.values())
     min_act_energy = min(image.get_potential_energy(apply_constraint=False)
-                         for hash, image in images.iteritems())
+                         for image in images.values())
 
-    for count in xrange(no_of_images):
+    for count in range(no_of_images):
         hash = hashs[count]
         image = images[hash]
         no_of_atoms = len(image)
@@ -1056,13 +1061,15 @@ class Raveler:
 
         vector = np.zeros(self.count)
         count = 0
-        for k in sorted(self.weightskeys):
+
+        for k in self.weightskeys:
             lweights = np.array(weights[k['key1']][k['key2']]).ravel()
             vector[count:(count + lweights.size)] = lweights
             count += lweights.size
-        for k in sorted(self.scalingskeys):
+        for k in self.scalingskeys:
             vector[count] = scalings[k['key1']][k['key2']]
             count += 1
+
         return vector
 
     def to_dicts(self, vector):
@@ -1074,7 +1081,8 @@ class Raveler:
         count = 0
         weights = OrderedDict()
         scalings = OrderedDict()
-        for k in sorted(self.weightskeys):
+
+        for k in self.weightskeys:
             if k['key1'] not in weights.keys():
                 weights[k['key1']] = OrderedDict()
             matrix = vector[count:count + k['size']]
@@ -1082,7 +1090,7 @@ class Raveler:
             matrix = np.matrix(matrix.reshape(k['shape']))
             weights[k['key1']][k['key2']] = matrix.tolist()
             count += k['size']
-        for k in sorted(self.scalingskeys):
+        for k in self.scalingskeys:
             if k['key1'] not in scalings.keys():
                 scalings[k['key1']] = OrderedDict()
             scalings[k['key1']][k['key2']] = vector[count]
@@ -1117,14 +1125,13 @@ class NodePlot:
         """ Creates a plot of the output of each node, as a violin plot.
         """
         calc = self.calc
-        data = {}
         log = Logger('develop.log')
         images = hash_images(images, log=log)
         calc.descriptor.calculate_fingerprints(images=images,
                                                parallel={'cores': 1},
                                                log=log,
                                                calculate_derivatives=False)
-        for hash, image in images.iteritems():
+        for hash in images.keys():
             fingerprints = calc.descriptor.fingerprints[hash]
             for fp in fingerprints:
                 outputs = calculate_nodal_outputs(calc.model.parameters,
@@ -1135,7 +1142,7 @@ class NodePlot:
         self._finalize_table()
 
         with self.PdfPages(filename) as pdf:
-            for symbol, data in self.data.iteritems():
+            for symbol in self.data.keys():
                 fig = self._makefig(symbol)
                 pdf.savefig(fig)
                 self.pyplot.close(fig)
@@ -1176,8 +1183,8 @@ class NodePlot:
     def _accumulate(self, symbol, output):
         """Accumulates the data for the symbol."""
         data = self.data
-        layerkeys = output.keys()  # Correspond to layers.
-        layerkeys.sort()
+        layerkeys = list(output.keys())  # Correspond to layers.
+
         if symbol not in data:
             # Create headers, structure.
             data[symbol] = {'header': [],
