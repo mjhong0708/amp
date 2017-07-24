@@ -9,12 +9,14 @@ from ..regression import Regressor
 from ase.calculators.calculator import Parameters
 import numpy as np
 from ..utilities import ConvergenceOccurred, make_filename
+import itertools
 
 from scipy.optimize import fmin
 from scipy.spatial.distance import pdist, squareform
 
 from sklearn.linear_model.ridge import _solve_cholesky_kernel
 from sklearn.kernel_ridge import KernelRidge
+from sklearn.metrics.pairwise import rbf_kernel
 
 
 class KRR(Model):
@@ -154,20 +156,27 @@ class KRR(Model):
         for hash, image in tp.trainingimages.iteritems():
             #energy = image.get_potential_energy()
             #self.energies.append(energy)
-            features = []
+            afps = []
             hashes.append(hash)
             for element, afp in tp.fingerprints[hash]:
                 #afp = np.asarray(afp)[:, np.newaxis]    # I append in column vectors
                 afp = np.asarray(afp)
-                features.append(afp)
+                afps.append(afp)
                 #features.append(self.kernel_matrix(afp, kernel=self.kernel)) I don't think this is correct
 
-            feature_matrix.append(features)
+            feature_matrix.append(afps)
             #kernel = self.kernel_matrix(features[0], kernel=self.kernel)
 
         kij = []
+        features = list(itertools.chain.from_iterable(feature_matrix))
         for index, _ in enumerate(feature_matrix):
-            kernel = self.kernel_matrix(_, kernel=self.kernel)
+            kernel = []
+            for atom, afp in enumerate(_):
+                _kernel = self.kernel_matrix(afp, features, kernel=self.kernel)
+                print(_kernel)
+                kernel.append(_kernel)
+                print('kernel of atom %s on image %s is %s' % (atom, hashes[index], kernel))
+
             """This is here to test if kernels are computed correctly
             from sklearn.metrics.pairwise import rbf_kernel
             kernel_sci = rbf_kernel(_, Y=None, gamma=1.)
@@ -178,6 +187,8 @@ class KRR(Model):
             self.kernel_dict[hashes[index]] = kernel
             kij.append(kernel)
 
+        print('KERNEL FINAL FINAL FINAL')
+        print(kij)
         kij = np.asarray(kij)
         return kij
 
@@ -340,7 +351,7 @@ class KRR(Model):
             atomic_amp_energy = sum(self.kernel_dict[hash][index].dot(weight))
         return np.asscalar(atomic_amp_energy)
 
-    def kernel_matrix(self, features, kernel='rbf', sigma=1.):
+    def kernel_matrix(self, feature, features, kernel='rbf', sigma=1.):
         """This method takes as arguments a feature vector and a string that refers
         to the kernel type used.
 
@@ -371,7 +382,7 @@ class KRR(Model):
 
         # All kernels in this control flow share the same structure
         elif kernel == 'rbf' or kernel == 'laplacian' or kernel == 'exponential':
-            K = rbf(features, sigma=self.sigma)
+            K = rbf(feature, features, sigma=self.sigma)
 
         else:
             raise NotImplementedError('This kernel needs to be coded.')
@@ -385,10 +396,9 @@ def linear(features):
     linear = np.dot(features, features.T)
     return linear
 
-def rbf(features, sigma=1.):
+def rbf(feature, features, sigma=1.):
     """ Compute the rbf (AKA Gaussian) kernel.  """
-    pairwise_dists = squareform(pdist(features, 'euclidean'))
-    rbf =  np.exp(-pairwise_dists ** 2 / (sigma ** 2))
+    rbf= rbf_kernel(feature, Y=features, gamma=sigma)
     return rbf
 
 def exponential(features, sigma=1.):
