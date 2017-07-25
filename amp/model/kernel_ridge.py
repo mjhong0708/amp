@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # This module is the implementation of kernel ridge regression model into Amp.
 #
-# Author: Muammar El Khatib <muammarelkhatib@brown.com>
+# Author: Muammar El Khatib <muammarelkhatib@brown.edu>
 
 import os
 from . import LossFunction, Model
@@ -106,7 +106,6 @@ class KRR(Model):
         tp.descriptor = descriptor
         tp.fingerprints = tp.descriptor.fingerprints
 
-
         if p.mode is None:
             p.mode = descriptor.parameters.mode
         else:
@@ -119,7 +118,6 @@ class KRR(Model):
         if self.forcetraining == True:
             tp.fingerprintprimes = tp.descriptor.fingerprintprimes
 
-
         if len(list(self.kernel_dict.keys())) == 0:
             log('Computing %s kernel.' % self.kernel)
             kij = self._get_kernel()
@@ -129,16 +127,13 @@ class KRR(Model):
             if p.mode == 'image-centered':
                 raise NotImplementedError('Needs to be coded.')
             elif p.mode == 'atom-centered':
-                p.weights = np.zeros(np.asarray(kij[0]).shape[-1])
+                size = kij.shape[-1]
+                #weights = np.array([np.ones(size) for x in range(size)])
+                weights = np.ones(size)
+                p.weights = weights
+                print(len(p.weights))
         else:
             log('Initial weights already present.')
-
-        #resultado = fmin(self._get_loss, p.weights, maxfun=99999999, maxiter=9999999999)
-        #print(resultado)
-
-        #print('Real energies: %s' % self.energies)
-        #for kernel_image in self.kij:
-        #    print(kernel_image.dot(resultado))
 
         if only_setup:
             return
@@ -149,46 +144,30 @@ class KRR(Model):
 
     def _get_kernel(self):
         """Local method to get the kernel on the fly when needed"""
-        #self.energies = []
         tp = self.trainingparameters
         feature_matrix = []
         hashes = []
         for hash, image in tp.trainingimages.iteritems():
-            #energy = image.get_potential_energy()
-            #self.energies.append(energy)
             afps = []
             hashes.append(hash)
             for element, afp in tp.fingerprints[hash]:
-                #afp = np.asarray(afp)[:, np.newaxis]    # I append in column vectors
                 afp = np.asarray(afp)
                 afps.append(afp)
-                #features.append(self.kernel_matrix(afp, kernel=self.kernel)) I don't think this is correct
 
             feature_matrix.append(afps)
-            #kernel = self.kernel_matrix(features[0], kernel=self.kernel)
 
         kij = []
         features = list(itertools.chain.from_iterable(feature_matrix))
+
         for index, _ in enumerate(feature_matrix):
             kernel = []
             for atom, afp in enumerate(_):
                 _kernel = self.kernel_matrix(afp, features, kernel=self.kernel)
-                print(_kernel)
                 kernel.append(_kernel)
-                print('kernel of atom %s on image %s is %s' % (atom, hashes[index], kernel))
 
-            """This is here to test if kernels are computed correctly
-            from sklearn.metrics.pairwise import rbf_kernel
-            kernel_sci = rbf_kernel(_, Y=None, gamma=1.)
-            if kernel.all() == kernel_sci.all():
-                print('SCIKIT-LEARN AND AMP HAVE THE SAME KERNEL RBF MATRIX')
-            alphas = np.ones(np.asarray(kernel[0]).shape[-1])
-            """
             self.kernel_dict[hashes[index]] = kernel
             kij.append(kernel)
 
-        print('KERNEL FINAL FINAL FINAL')
-        print(kij)
         kij = np.asarray(kij)
         return kij
 
@@ -257,19 +236,6 @@ class KRR(Model):
             self.observer(self, vector, loss)
         self.step += 1
         return loss
-
-    #def _get_loss(self, weights):
-    #    """Calculate the loss function with parameters alpha."""
-
-    #    term2 = term1 = 0.
-    #    predictions = [ _.dot(weights) for _ in self.kij ]
-    #    diffs = np.array(self.energies) - np.array(predictions)
-    #    term1 = np.dot(diffs, diffs)
-    #    for _k in self.kij:
-    #        term2 += np.array(self.lamda) * weights.dot(_k)
-    #    self._losses.append([term1, term2])
-
-    #    return float(term1 + term2)
 
     def get_lossprime(self, vector):
         """Method to be called by the regression master.
@@ -341,14 +307,14 @@ class KRR(Model):
             raise AssertionError('calculate_atomic_energy should only be '
                                  ' called in atom-centered mode.')
 
-        weight = self.parameters.weights[index]
+        weights = self.parameters.weights
 
         if len(list(self.kernel_dict.keys())) == 0:
             features = [ afp for element, afp in fingerprint ]
             kernel = self.kernel_matrix(features, kernel=kernel, sigma=sigma)[index]
             atomic_amp_energy = sum(kernel.dot(weight))
         else:
-            atomic_amp_energy = sum(self.kernel_dict[hash][index].dot(weight))
+            atomic_amp_energy = sum(self.kernel_dict[hash][index].dot(weights))
         return np.asscalar(atomic_amp_energy)
 
     def kernel_matrix(self, feature, features, kernel='rbf', sigma=1.):

@@ -1017,7 +1017,6 @@ def get_random_scalings(images, activation, elements=None):
 
 
 class Raveler:
-
     """Class to ravel and unravel variable values into a single vector.
 
     This is used for feeding into the optimizer. Feed in a list of dictionaries
