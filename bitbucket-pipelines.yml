@@ -24,6 +24,30 @@ pipelines:
           - AMP=`pwd`
           - export PYTHONPATH=$AMP:$PYTHONPATH
           - cd amp/
-          - make
-          - make tests
+          - make python2
+          - make py2tests
+          
+image: python:3.6.2
+
+pipelines:
+  default:
+    - step:
+        script: # Modify the commands below to build your repository.
+          - pip3 install -U nose
+          - pip3 install -U nose-timer
+          - pip3 install -U numpy
+          - pip3 install -U scipy
+          - pip3 install -U matplotlib
+          - pip3 install -U pyzmq
+          - pip3 install -U pexpect
+          - export TF_BINARY_URL=https://storage.googleapis.com/tensorflow/linux/cpu/tensorflow-0.11.0-cp27-none-linux_x86_64.whl
+          - pip3 install -U --upgrade $TF_BINARY_URL
+          - pip3 install ase
+          - apt-get update
+          - apt-get -y install gfortran
+          - AMP=`pwd`
+          - export PYTHONPATH=$AMP:$PYTHONPATH
+          - cd amp/
+          - make python3
+          - make py3tests
           
