@@ -365,10 +365,8 @@ class LossFunction:
             self.images = self._model.trainingparameters.trainingimages
 
         if self._parallel['cores'] != 1:  # Initialize workers.
-            if sys.version_info[0] == 2:    # Check Python2 or Python3.
-                workercommand = 'python2 -m %s' % self.__module__
-            else:
-                workercommand = 'python3 -m %s' % self.__module__
+            python = sys.executable
+            workercommand = '%s -m %s' % (python, self.__module__)
             server, connections, n_pids = setup_parallel(self._parallel,
                                                          workercommand, log)
             self._sessions = {'master': server,
