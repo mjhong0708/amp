@@ -9,7 +9,6 @@ import numpy as np
 from ase import Atoms
 from amp.descriptor.zernike import Zernike
 from amp.utilities import hash_images, assign_cores
-from amp.utilities import Logger
 
 # Making the list of images
 
@@ -38,20 +37,14 @@ def make_images():
 
 def test():
 
-    log.tic()
     images = make_images()
-    log('images made', toc=True)
     images = hash_images(images, ordered=True)
-    log('images hashed', toc=True)
 
     ref_fps = {}
     ref_fp_primes = {}
     count = 0
     for fortran in [True, False]:
-        log('count {}'.format(count), toc=True)
-        log('fortran {}'.format(str(fortran)), toc=True)
         for ncores in range(1, 3):
-            log('ncores {}'.format(ncores), toc=True)
             cores = assign_cores(ncores)
             descriptor = Zernike(fortran=fortran,
                                  dblabel='Zernike-%s-%d' % (fortran, ncores))
@@ -60,9 +53,7 @@ def test():
                                                         'envcommand': None},
                                               log=None,
                                               calculate_derivatives=True)
-            log('calculated fingerprints', toc=True)
             for hash, image in images.items():
-                log('checking image {}'.format(hash), toc=True)
                 if count == 0:
                     ref_fps[hash] = descriptor.fingerprints[hash]
                     ref_fp_primes[hash] = descriptor.fingerprintprimes[hash]
@@ -88,5 +79,4 @@ def test():
             count += 1
 
 if __name__ == '__main__':
-    log = Logger(file='log.txt')
     test()
