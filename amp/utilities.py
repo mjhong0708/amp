@@ -424,10 +424,8 @@ class Data:
             d.close()  # Necessary to get out of write mode and unlock?
             log(' Calculated %i new images.' % len(calcs_needed))
         else:
-            if sys.version_info[0] == 2:  # Python2 or Python3.
-                workercommand = 'python2 -m %s' % self.calc.__module__
-            else:
-                workercommand = 'python3 -m %s' % self.calc.__module__
+            python = sys.executable
+            workercommand = '%s -m %s' % (python, self.calc.__module__)
             server, connections, n_pids = setup_parallel(parallel,
                                                          workercommand, log)
 
