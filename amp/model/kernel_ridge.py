@@ -4,20 +4,22 @@
 # Author: Muammar El Khatib <muammarelkhatib@brown.edu>
 
 import os
-from . import LossFunction, Model
-from ..regression import Regressor
-from ase.calculators.calculator import Parameters
 import numpy as np
-from ..utilities import ConvergenceOccurred, make_filename
 import itertools
 
 from scipy.optimize import fmin
 from scipy.spatial.distance import pdist, squareform
 
+from ase.calculators.calculator import Parameters
+from ase.io import Trajectory
+
 from sklearn.linear_model.ridge import _solve_cholesky_kernel
 from sklearn.kernel_ridge import KernelRidge
 from sklearn.metrics.pairwise import rbf_kernel
 
+from . import LossFunction, Model
+from ..regression import Regressor
+from ..utilities import ConvergenceOccurred, make_filename, hash_images
 
 class KRR(Model):
     """Class implementing Kernelized Ridge Regression
@@ -36,10 +38,14 @@ class KRR(Model):
         checkpoints.
     lossfunction : object
         Loss function object, if at all desired by the user.
+    trainingimages : str
+        PATH to Trajectory file containing the images in the training set. That
+        is useful for predicting new structures.
     """
     def __init__(self, sigma=1., kernel='linear', lamda=0., degree=3, coef0=1,
             kernel_parwms=None, weights=None, regressor=None, mode=None,
-            version=None, fortran=False, checkpoints=100, lossfunction=None):
+            trainingimages=None, version=None, fortran=False, checkpoints=100,
+            lossfunction=None):
 
         # Version check, particularly if restarting.
         compatibleversions = ['2015.12', ]
@@ -61,6 +67,7 @@ class KRR(Model):
         p.kernel = self.kernel = kernel
         p.sigma = self.sigma = sigma
         p.lamda = self.lamda = lamda
+        self.trainingimages = p.trainingimages = trainingimages
         #p.kernel = self.kernel_dict = {}
         self.kernel_dict = {}
 
@@ -74,7 +81,6 @@ class KRR(Model):
             self.lossfunction = LossFunction()
 
         self._losses = []
-
 
     def fit(self, trainingimages, descriptor, log, parallel, only_setup=False):
         """Fit kernel ridge model using a loss function.
@@ -120,7 +126,7 @@ class KRR(Model):
 
         if len(list(self.kernel_dict.keys())) == 0:
             log('Computing %s kernel.' % self.kernel)
-            kij = self._get_kernel()
+            kij = self._get_kernel(tp.trainingimages, tp.fingerprints)[0]
 
         if p.weights is None:
             log('Initializing weights.')
@@ -131,7 +137,6 @@ class KRR(Model):
                 #weights = np.array([np.ones(size) for x in range(size)])
                 weights = np.ones(size)
                 p.weights = weights
-                print(len(p.weights))
         else:
             log('Initial weights already present.')
 
@@ -142,15 +147,15 @@ class KRR(Model):
         result = self.regressor.regress(model=self, log=log)
         return result  # True / False
 
-    def _get_kernel(self):
+    def _get_kernel(self, images, fingerprints):
         """Local method to get the kernel on the fly when needed"""
-        tp = self.trainingparameters
         feature_matrix = []
         hashes = []
-        for hash, image in tp.trainingimages.iteritems():
+
+        for hash, image in images.iteritems():
             afps = []
             hashes.append(hash)
-            for element, afp in tp.fingerprints[hash]:
+            for element, afp in fingerprints[hash]:
                 afp = np.asarray(afp)
                 afps.append(afp)
 
@@ -169,7 +174,7 @@ class KRR(Model):
             kij.append(kernel)
 
         kij = np.asarray(kij)
-        return kij
+        return kij, self.kernel_dict
 
     @property
     def forcetraining(self):
@@ -274,12 +279,8 @@ class KRR(Model):
             lossfunction.attach_model(self)  # Allows access to methods.
         self._lossfunction = lossfunction
 
-    def get_kernel(self, hash):
-        """Method to return the kernel of an image"""
-        return self.kernel_dict[hash]
-
     def calculate_atomic_energy(self, index, symbol, hash=None,
-            fingerprint=None, kernel=None, sigma=None):
+            fingerprints=None, trainingimages=None, kernel=None, sigma=None):
         """
         Given input to the KRR model, output (which corresponds to energy)
         is calculated about the specified atom. The sum of these for all
@@ -310,11 +311,10 @@ class KRR(Model):
         weights = self.parameters.weights
 
         if len(list(self.kernel_dict.keys())) == 0:
-            features = [ afp for element, afp in fingerprint ]
-            kernel = self.kernel_matrix(features, kernel=kernel, sigma=sigma)[index]
-            atomic_amp_energy = sum(kernel.dot(weight))
-        else:
-            atomic_amp_energy = sum(self.kernel_dict[hash][index].dot(weights))
+            #trainingimages = hash_images(Trajectory(trainingimages))
+            self.kernel_dict = self._get_kernel(trainingimages, fingerprints)[1]
+
+        atomic_amp_energy = sum(self.kernel_dict[hash][index].dot(weights))
         return np.asscalar(atomic_amp_energy)
 
     def kernel_matrix(self, feature, features, kernel='rbf', sigma=1.):

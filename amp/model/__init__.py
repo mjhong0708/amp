@@ -40,7 +40,7 @@ class Model(object):
         np.set_printoptions(precision=30, threshold=999999999)
         return self.parameters.tostring()
 
-    def calculate_energy(self, fingerprints, hash=None):
+    def calculate_energy(self, fingerprints, hash=None, trainingimages=None):
         """Calculates the model-predicted energy for an image, based on its
         fingerprint.
 
@@ -55,6 +55,12 @@ class Model(object):
         elif self.parameters.mode == 'atom-centered':
             self.atomic_energies = []
             energy = 0.0
+
+            _fingerprints = fingerprints
+
+            if not isinstance(fingerprints, list):
+                fingerprints = fingerprints[hash]
+
             for index, (symbol, afp) in enumerate(fingerprints):
                 arguments = dict(
                         afp=afp,
@@ -64,9 +70,10 @@ class Model(object):
                 if hash != None:
                     arguments['hash'] = hash
                     del arguments['afp']
-                    arguments['fingerprint'] = fingerprints
+                    arguments['fingerprints'] = _fingerprints
                     arguments['kernel'] = self.parameters.kernel
                     arguments['sigma'] = self.parameters.sigma
+                    arguments['trainingimages'] = trainingimages
 
                 atom_energy = self.calculate_atomic_energy(**arguments)
                 self.atomic_energies.append(atom_energy)

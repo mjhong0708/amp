@@ -248,10 +248,17 @@ class Amp(Calculator, object):
                                                    calculate_derivatives=False)
             if self.model.__class__.__name__ == 'NeuralNetwork':
                 energy = self.model.calculate_energy(self.descriptor.fingerprints[key])
+
             elif self.model.__class__.__name__ == 'KRR':
+                trainingimages = hash_images(ase.io.Trajectory(self.model.trainingimages))
+                self.descriptor.calculate_fingerprints(images=trainingimages,
+                                                   log=log,
+                                                   calculate_derivatives=False)
+
                 energy = self.model.calculate_energy(
-                        self.descriptor.fingerprints[key],
-                        hash=key
+                        self.descriptor.fingerprints,
+                        hash=key,
+                        trainingimages=trainingimages,
                         )
             self.results['energy'] = energy
             log('...potential energy calculated.', toc='pot-energy')
