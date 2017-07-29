@@ -10,8 +10,6 @@ from ase import Atoms
 from amp.descriptor.zernike import Zernike
 from amp.utilities import hash_images, assign_cores
 
-# Making the list of images
-
 
 def make_images():
     """Makes test images."""
@@ -32,10 +30,10 @@ def make_images():
     return images
 
 
-# Testing pure-python and fortran versions of Zernike fingerprint on different
-# number of processes and different number of images
-
 def test():
+    """Testing pure-python and fortran versions of Zernike fingerprint on
+    different number of processes and different number of images.
+    """
 
     images = make_images()
     images = hash_images(images, ordered=True)
