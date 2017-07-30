@@ -41,6 +41,7 @@ def generate_data(count):
 
 
 def train_test():
+    """Gaussian/Neural train test."""
     label = 'train_test/calc'
     train_images = generate_data(2)
 

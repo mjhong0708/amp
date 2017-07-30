@@ -32,6 +32,7 @@ def rotate_atom(x, y, z, phi, theta, psi):
 
 
 def test():
+    """Rotational/translational invariance."""
 
     for descriptor in [Gaussian(fortran=False), ]:
 

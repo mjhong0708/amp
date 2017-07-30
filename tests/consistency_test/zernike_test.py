@@ -31,8 +31,10 @@ def make_images():
 
 
 def test():
-    """Testing pure-python and fortran versions of Zernike fingerprint on
-    different number of processes and different number of images.
+    """Zernike fingerprints consistency.
+
+    Tests that pure-python and fortran, plus different number of cores
+    give same results.
     """
 
     images = make_images()
