@@ -443,12 +443,10 @@ class Data:
             active = 0  # count of processes actively calculating
             log(' Parallel calculations starting...', tic='parallel')
             active = n_pids  # currently active workers
-            log('  ACTIVE: {}'.format(str(active)))
             while True:
                 message = server.recv_pyobj()
                 if message['subject'] == '<purpose>':
                     server.send_pyobj(self.calc.parallel_command)
-                    #active += 1
                 elif message['subject'] == '<request>':
                     request = message['data']  # Variable name.
                     if request == 'images':
@@ -468,7 +466,6 @@ class Data:
                     results.update(result)
                 elif message['subject'] == '<info>':
                     server.send_string('meaningless reply')
-                log('  ACTIVE: {}'.format(str(active)))
                 if active == 0:
                     break
             log('  %i new results.' % len(results))
