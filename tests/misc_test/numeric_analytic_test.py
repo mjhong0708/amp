@@ -43,6 +43,7 @@ def generate_data(count):
 
 
 def test():
+    """Gaussian/Neural numeric-analytic consistency."""
     images = generate_data(2)
     regressor = Regressor(optimizer='BFGS')
 

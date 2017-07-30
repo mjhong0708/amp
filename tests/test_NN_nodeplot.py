@@ -72,6 +72,7 @@ def train_data(images, setup_only=False):
 
 
 def test_nodeplot():
+    """Nodeplot creation test."""
     images = generate_data(2)
     calc = train_data(images, setup_only=True)
     nodeplot = NodePlot(calc)

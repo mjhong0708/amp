@@ -15,7 +15,7 @@ from amp import Amp
 from amp.descriptor.gaussian import Gaussian
 
 
-def perform_test():
+def perform():
     """Determines whether or not to perform the test.
     This should only perform the test if the python version is 2.x
     and tensorflow is installed. If returns False (meaning don't
@@ -30,8 +30,8 @@ def perform_test():
 
 
 def non_periodic_test():
-    """The test function for non-periodic systems."""
-    perform, reason = perform_test()
+    """Gaussian/tflowNeural non-periodic."""
+    perform, reason = perform()
     if not perform:
         print('Skipping this test because {}'.format(reason))
         return
@@ -217,8 +217,8 @@ def non_periodic_test():
 
 
 def periodic_test():
-    """The test function for periodic systems."""
-    perform, reason = perform_test()
+    """Gaussian/tflowNeural periodic."""
+    perform, reason = perform()
     if not perform:
         print('Skipping this test because {}'.format(reason))
         return
