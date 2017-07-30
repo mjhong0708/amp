@@ -16,7 +16,7 @@ from amp import Amp
 from amp.descriptor.gaussian import Gaussian
 
 
-def perform():
+def check_perform():
     """Determines whether or not to perform the test.
     This should only perform the test if the python version is 2.x
     and tensorflow is installed. If returns False (meaning don't
@@ -55,7 +55,7 @@ def generate_data(count):
 
 def train_test():
     """Gaussian/tflow train test."""
-    perform, reason = perform()
+    perform, reason = check_perform()
     if not perform:
         print('Skipping this test because {}.'.format(reason))
         return
