@@ -5,7 +5,7 @@ Release notes
 
 0.6
 ---
-
+Release date: July 31, 2017
 
 * Python 3 compatibility. Following the release of python3-compatible ASE, we decided to jump on the wagon ourselves. The code should still work fine in python 2.7. (The exception is the tensorflow module, which still only lives inside python 2, unfortunately.)
 * A community page has been added with resources such as the new mailing list and issue tracker.
