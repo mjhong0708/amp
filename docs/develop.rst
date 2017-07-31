@@ -65,25 +65,28 @@ Releases
 
 To create a release, we go through the following steps.
 
+* On the master branch, update the release notes.
+  Generally the changes should have been catalogued under a "Development version" heading; these can be moved to a new heading for this release, along with a release date.
+
 * Create a new branch on the bitbucket repository with the version name, as in `v0.5`.
   (Don't create a separate branch if this is a bugfix release, e.g., 0.5.1 --- just add those to the v0.5 branch.)
-  All subsequent work is in the new branch.
   Note the branch name starts with "v", while the tag names will not, to avoid naming conflicts.
 
 * Check out the new branch to your local machine (e.g., `git fetch && git checkout v0.5`).
+  All subsequent work is in the new branch.
 
 * Change `docs/conf.py`'s version information to match the new version number.
 
 * Change the version that prints out in the Amp headers by changing the `_ampversion` variable in `amp/__init__.py`.
 
-* Change revision history to include this release; generally the changes should have been catalogued under a "Development version" heading.
+* On the Release Notes page, delete the "Development version" heading.
 
 * Commit and push the changes to the new branch on bitbucket.
 
 * Tag the release with the release number, e.g., '0.5' or '0.5.1', the latter being for bug fixes.
   Do this on a local machine (on the correct branch) with `git tag -a 0.5`, followed by `git push origin --tags`.
 
-* Add the version to readthedocs' available versions; also set it as the default stable version.
+* Add the version to readthedocs' available versions (it may already be there); also set it as the default stable version.
 
 * Change the nightly tests to test this branch as the "stable" build.
 
