@@ -20,6 +20,8 @@ Release date: July 31, 2017
 * Parameters to make the Gaussian feature vectors are now output to the log file.
 * The helper function :func:`~amp.descriptor.gaussian.make_symmetry_functions` has been added to more easily customize Gaussian fingerprint parameters.
 
+Permanently available at https://doi.org/10.5281/zenodo.836788
+
 0.5
 ---
 Release date: February 24, 2017
