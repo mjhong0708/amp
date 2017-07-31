@@ -65,9 +65,12 @@ Releases
 
 To create a release, we go through the following steps.
 
-* Note this release on the master branch first.
-  For Release Notes, the changes should have been catalogued under a "Development version" heading; move these to a new heading for this release, along with a release date.
-  Also note the latest stable release on the index.rst page.
+* Reserve a DOI for the new release via zenodo.org.
+  Do this by creating a new upload, and choosing "pre-reserve" before adding any files.
+
+* Prepare the master branch for the release.
+  (1) Update Release Notes, where the changes should have been catalogued under a "Development version" heading; move these to a new heading for this release, along with a release date and the DOI from above.
+  (2) Also note the latest stable release on the index.rst page.
 
 * Create a new branch on the bitbucket repository with the version name, as in `v0.5`.
   (Don't create a separate branch if this is a bugfix release, e.g., 0.5.1 --- just add those to the v0.5 branch.)
@@ -87,11 +90,12 @@ To create a release, we go through the following steps.
 * Tag the release with the release number, e.g., '0.5' or '0.5.1', the latter being for bug fixes.
   Do this on a local machine (on the correct branch) with `git tag -a 0.5`, followed by `git push origin --tags`.
 
-* Add the version to readthedocs' available versions (it may already be there); also set it as the default stable version.
+* Add the version to readthedocs' available versions; also set it as the default stable version.
+  (This may already be done automatically.)
 
 * Change the nightly tests to test this branch as the "stable" build.
 
-* Create a DOI for the release via zenodo.org.
-  Note that all the ".git" files and folders should be removed from the files before uploading to Zenodo.
-  The DOI can then be added to the development version's release notes.
-  (I don't think there's a way to get it into the archival version on Zenodo!)
+* Upload an archive and finalize the DOI via zenodo.org.
+  Note that all the ".git" files and folders should be removed from the .tar.gz archive before uploading to Zenodo.
+
+* Send a note to the amp-users list summarizing the release.
