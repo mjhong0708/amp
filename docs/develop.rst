@@ -65,8 +65,9 @@ Releases
 
 To create a release, we go through the following steps.
 
-* On the master branch, update the release notes.
-  Generally the changes should have been catalogued under a "Development version" heading; these can be moved to a new heading for this release, along with a release date.
+* Note this release on the master branch first.
+  For Release Notes, the changes should have been catalogued under a "Development version" heading; move these to a new heading for this release, along with a release date.
+  Also note the latest stable release on the index.rst page.
 
 * Create a new branch on the bitbucket repository with the version name, as in `v0.5`.
   (Don't create a separate branch if this is a bugfix release, e.g., 0.5.1 --- just add those to the v0.5 branch.)
