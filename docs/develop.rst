@@ -70,6 +70,8 @@ To create a release, we go through the following steps.
   All subsequent work is in the new branch.
   Note the branch name starts with "v", while the tag names will not, to avoid naming conflicts.
 
+* Check out the new branch to your local machine (e.g., `git fetch && git checkout v0.5`).
+
 * Change `docs/conf.py`'s version information to match the new version number.
 
 * Change the version that prints out in the Amp headers by changing the `_ampversion` variable in `amp/__init__.py`.
