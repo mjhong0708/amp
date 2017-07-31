@@ -33,7 +33,7 @@ else:
                            'with f2py as described in the README. '
                            'Correct version is %i.' % fmodules_version)
 
-_ampversion = '(development)'
+_ampversion = '0.6'
 
 
 class Amp(Calculator, object):
