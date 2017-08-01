@@ -69,4 +69,10 @@ Release date: November 12, 2014
 
 Permanently available at https://doi.org/10.5281/zenodo.12665.
 
-First public bitbucket release: September, 2014.
+
+Alpha version milestones
+------------------------
+
+First public code (bitbucket): September 1, 2014.
+
+First project commit: May 5, 2014.
