@@ -126,7 +126,10 @@ class KRR(Model):
 
         if len(list(self.kernel_dict.keys())) == 0:
             log('Computing %s kernel.' % self.kernel)
-            kij = self._get_kernel(tp.trainingimages, tp.fingerprints)[0]
+            kij = self._get_kernel(
+                    trainingimages=tp.trainingimages,
+                    fp_trainingimages=tp.fingerprints
+                    )[0]
 
         if p.weights is None:
             log('Initializing weights.')
@@ -147,15 +150,15 @@ class KRR(Model):
         result = self.regressor.regress(model=self, log=log)
         return result  # True / False
 
-    def _get_kernel(self, images, fingerprints):
+    def _get_kernel(self, trainingimages=None, fp_trainingimages=None):
         """Local method to get the kernel on the fly when needed"""
         feature_matrix = []
         hashes = []
 
-        for hash, image in images.iteritems():
+        for hash, image in trainingimages.iteritems():
             afps = []
             hashes.append(hash)
-            for element, afp in fingerprints[hash]:
+            for element, afp in fp_trainingimages[hash]:
                 afp = np.asarray(afp)
                 afps.append(afp)
 
@@ -279,8 +282,8 @@ class KRR(Model):
             lossfunction.attach_model(self)  # Allows access to methods.
         self._lossfunction = lossfunction
 
-    def calculate_atomic_energy(self, index, symbol, hash=None,
-            fingerprints=None, trainingimages=None, kernel=None, sigma=None):
+    def calculate_atomic_energy(self, index, symbol, fingerprints, hash=None,
+            fp_trainingimages=None, trainingimages=None, kernel=None, sigma=None):
         """
         Given input to the KRR model, output (which corresponds to energy)
         is calculated about the specified atom. The sum of these for all
@@ -312,7 +315,10 @@ class KRR(Model):
 
         if len(list(self.kernel_dict.keys())) == 0:
             #trainingimages = hash_images(Trajectory(trainingimages))
-            self.kernel_dict = self._get_kernel(trainingimages, fingerprints)[1]
+            self.kernel_dict = self._get_kernel(
+                    trainingimages=trainingimages,
+                    fp_trainingimages=fp_trainingimages
+                    )[1]
 
         atomic_amp_energy = sum(self.kernel_dict[hash][index].dot(weights))
         return np.asscalar(atomic_amp_energy)

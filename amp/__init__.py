@@ -243,22 +243,31 @@ class Amp(Calculator, object):
 
         if properties == ['energy']:
             log('Calculating potential energy...', tic='pot-energy')
-            self.descriptor.calculate_fingerprints(images=images,
-                                                   log=log,
-                                                   calculate_derivatives=False)
             if self.model.__class__.__name__ == 'NeuralNetwork':
+                self.descriptor.calculate_fingerprints(images=images,
+                                                       log=log,
+                                                       calculate_derivatives=False)
                 energy = self.model.calculate_energy(self.descriptor.fingerprints[key])
 
             elif self.model.__class__.__name__ == 'KRR':
+                self.descriptor.calculate_fingerprints(images=images,
+                                                       log=log,
+                                                       calculate_derivatives=False)
+                fingerprints = self.descriptor.fingerprints
+
+                log('Loading the training set')
                 trainingimages = hash_images(ase.io.Trajectory(self.model.trainingimages))
-                self.descriptor.calculate_fingerprints(images=trainingimages,
+
+                fp_train = self.descriptor.calculate_fingerprints(images=trainingimages,
                                                    log=log,
                                                    calculate_derivatives=False)
+                fp_trainingimages= self.descriptor.fingerprints
 
                 energy = self.model.calculate_energy(
-                        self.descriptor.fingerprints,
+                        fingerprints,
                         hash=key,
                         trainingimages=trainingimages,
+                        fp_trainingimages=fp_trainingimages
                         )
             self.results['energy'] = energy
             log('...potential energy calculated.', toc='pot-energy')

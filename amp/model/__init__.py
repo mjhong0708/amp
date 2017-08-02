@@ -40,7 +40,8 @@ class Model(object):
         np.set_printoptions(precision=30, threshold=999999999)
         return self.parameters.tostring()
 
-    def calculate_energy(self, fingerprints, hash=None, trainingimages=None):
+    def calculate_energy(self, fingerprints, hash=None, trainingimages=None,
+            fp_trainingimages=None):
         """Calculates the model-predicted energy for an image, based on its
         fingerprint.
 
@@ -56,8 +57,6 @@ class Model(object):
             self.atomic_energies = []
             energy = 0.0
 
-            _fingerprints = fingerprints
-
             if not isinstance(fingerprints, list):
                 fingerprints = fingerprints[hash]
 
@@ -65,12 +64,15 @@ class Model(object):
                 arguments = dict(
                         afp=afp,
                         index=index,
-                        symbol=symbol
+                        symbol=symbol,
                         )
+
+                # This is called when using KRR model.
                 if hash != None:
                     arguments['hash'] = hash
                     del arguments['afp']
-                    arguments['fingerprints'] = _fingerprints
+                    arguments['fingerprints'] = fingerprints
+                    arguments['fp_trainingimages'] = fp_trainingimages
                     arguments['kernel'] = self.parameters.kernel
                     arguments['sigma'] = self.parameters.sigma
                     arguments['trainingimages'] = trainingimages
