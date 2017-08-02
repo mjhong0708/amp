@@ -17,7 +17,7 @@ To get more features, such as parallelization in training, a few more packages a
 * Pexpect (or pxssh)
 * ZMQ (or PyZMQ, the python version of ØMQ).
 
-Certain advanced modules may contain dependencies that will be noted when they are used; for example Tensorflow for the tflow module or matplotlib for the plotting modules.
+Certain advanced modules may contain dependencies that will be noted when they are used; for example Tensorflow for the tflow module or matplotlib (version > 1.5.0) for the plotting modules.
 
 Basic installation instructions follow.
 
@@ -29,7 +29,7 @@ We always test against the latest version (svn checkout) of ASE, but slightly ol
 Follow the instructions at the `ASE <https://wiki.fysik.dtu.dk/ase/download.html>`_ website.
 ASE itself depends upon python with the standard numeric and scientific packages.
 Verify that you have working versions of `NumPy <http://numpy.org>`_ and `SciPy <http://scipy.org>`_.
-We also recommend `matplotlib <http://matplotlib.org>`_ in order to generate plots.
+We also recommend `matplotlib <http://matplotlib.org>`_ (version > 1.5.0) in order to generate plots.
 
 ----------------------------------
 Get the code
