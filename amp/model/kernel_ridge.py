@@ -151,32 +151,47 @@ class KRR(Model):
         return result  # True / False
 
     def _get_kernel(self, trainingimages=None, fp_trainingimages=None):
-        """Local method to get the kernel on the fly when needed"""
-        feature_matrix = []
+        """Local method to get the kernel on the fly
+
+        Parameters
+        ----------
+        trainingimages : object
+            This is an ASE object containing information about the images. Note
+            that you have to hash them before passing them to this method.
+        fp_trainingimages : object
+            Fingerprints calculated using the trainingimages.
+        """
+
+        _reference_features = []
         hashes = []
+        features = []
 
         for hash, image in trainingimages.iteritems():
             afps = []
             hashes.append(hash)
+
             for element, afp in fp_trainingimages[hash]:
                 afp = np.asarray(afp)
                 afps.append(afp)
 
-            feature_matrix.append(afps)
+            _reference_features.append(afps)
 
         kij = []
-        features = list(itertools.chain.from_iterable(feature_matrix))
 
-        for index, _ in enumerate(feature_matrix):
+        self.reference_features = list(itertools.chain.from_iterable(_reference_features))
+
+        features = _reference_features
+        for index, _ in enumerate(features):
             kernel = []
             for atom, afp in enumerate(_):
-                _kernel = self.kernel_matrix(afp, features, kernel=self.kernel)
+                _kernel = self.kernel_matrix(afp, self.reference_features, kernel=self.kernel)
                 kernel.append(_kernel)
 
             self.kernel_dict[hashes[index]] = kernel
             kij.append(kernel)
 
         kij = np.asarray(kij)
+
         return kij, self.kernel_dict
 
     @property
@@ -313,14 +328,16 @@ class KRR(Model):
 
         weights = self.parameters.weights
 
-        if len(list(self.kernel_dict.keys())) == 0:
-            #trainingimages = hash_images(Trajectory(trainingimages))
-            self.kernel_dict = self._get_kernel(
+        if len(list(self.kernel_dict.keys())) == 0 or hash not in self.kernel_dict:
+            kernel = self._get_kernel(
                     trainingimages=trainingimages,
                     fp_trainingimages=fp_trainingimages
-                    )[1]
-
-        atomic_amp_energy = sum(self.kernel_dict[hash][index].dot(weights))
+                    )[1].values()
+            afp = np.asarray(fingerprints[index][1])
+            kernel = self.kernel_matrix(afp, self.reference_features, kernel=self.kernel)
+            atomic_amp_energy = kernel.dot(weights)
+        else:
+            atomic_amp_energy = sum(self.kernel_dict[hash][index].dot(weights))
         return np.asscalar(atomic_amp_energy)
 
     def kernel_matrix(self, feature, features, kernel='rbf', sigma=1.):

@@ -258,7 +258,7 @@ class Amp(Calculator, object):
                 log('Loading the training set')
                 trainingimages = hash_images(ase.io.Trajectory(self.model.trainingimages))
 
-                fp_train = self.descriptor.calculate_fingerprints(images=trainingimages,
+                self.descriptor.calculate_fingerprints(images=trainingimages,
                                                    log=log,
                                                    calculate_derivatives=False)
                 fp_trainingimages= self.descriptor.fingerprints
