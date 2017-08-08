@@ -13,10 +13,14 @@ from amp import Amp
 from amp.descriptor.gaussian import Gaussian
 from amp.model.neuralnetwork import NeuralNetwork
 
-# The test function for non-periodic systems
 
 
 def non_periodic_test():
+    """Gaussian/Neural non-periodic standard.
+
+    Checks that the answer matches that expected from previous Mathematica
+    calculations.
+    """
 
     # Making the list of non-periodic images
     images = [Atoms(symbols='PdOPd2',
@@ -193,8 +197,12 @@ def non_periodic_test():
                             'is wrong!' % (direction, index, image_no + 1)
 
 
-# The test function for periodic systems
 def periodic_test():
+    """Gaussian/Neural periodic standard.
+
+    Checks that the answer matches that expected from previous Mathematica
+    calculations.
+    """
 
     # Making the list of periodic images
     images = [Atoms(symbols='PdOPd',

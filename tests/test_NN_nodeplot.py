@@ -55,8 +55,8 @@ def train_data(images, setup_only=False):
     if not setup_only:
         calc.train(images=train_images, )
         for image in train_images:
-            print "energy =", calc.get_potential_energy(image)
-            print "forces =", calc.get_forces(image)
+            print ("energy =", calc.get_potential_energy(image))
+            print ("forces =", calc.get_forces(image))
     else:
         images = hash_images(train_images)
         calc.descriptor.calculate_fingerprints(images=images,
@@ -72,6 +72,7 @@ def train_data(images, setup_only=False):
 
 
 def test_nodeplot():
+    """Nodeplot creation test."""
     images = generate_data(2)
     calc = train_data(images, setup_only=True)
     nodeplot = NodePlot(calc)

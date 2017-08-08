@@ -43,6 +43,7 @@ def generate_data(count):
 
 
 def test():
+    """Gaussian/Neural numeric-analytic consistency."""
     images = generate_data(2)
     regressor = Regressor(optimizer='BFGS')
 
@@ -123,10 +124,11 @@ def test():
         for i in range(3):
             diff = abs(forces[image_no][atom_no][i] -
                        ref_forces[image_no][atom_no][i])
-            print "diff =", diff
-            assert (diff < 10.**(-9.)), \
+            print("diff =", diff)
+            assert (diff < 10.**(-6.)), \
                 'The calculated %i force of atom %i of ' \
-                'image %i is wrong!' % (i, atom_no, image_no + 1)
+                'image %i is wrong! (Diff = %f)' \
+                % (i, atom_no, image_no + 1, diff)
 
 if __name__ == '__main__':
     test()

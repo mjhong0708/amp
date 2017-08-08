@@ -66,10 +66,12 @@ def make_images():
     return images
 
 
-# Testing pure-python and fortran versions of Gaussian fingerprint on different
-# number of processes and different number of images
-
 def test():
+    """Gaussian fingerprints consistency.
+
+    Tests that pure-python and fortran, plus different number of cores
+    give same results.
+    """
 
     images = make_images()
     images = hash_images(images, ordered=True)

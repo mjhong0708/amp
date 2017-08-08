@@ -166,7 +166,7 @@ class KRR(Model):
         hashes = []
         features = []
 
-        for hash, image in trainingimages.iteritems():
+        for hash in hash_images(self.trainingimages).keys():
             afps = []
             hashes.append(hash)
 

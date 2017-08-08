@@ -18,6 +18,7 @@ from amp.model.neuralnetwork import NeuralNetwork
 
 
 def test():
+    """Displaced atom test."""
 
     ###########################################################################
     # Parameters

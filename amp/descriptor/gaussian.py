@@ -147,10 +147,23 @@ class Gaussian(object):
 
         if p.Gs is None:
             log('No symmetry functions supplied; creating defaults.')
-            p.Gs = make_symmetry_functions(p.elements)
+            p.Gs = make_default_symmetry_functions(p.elements)
         log('Number of symmetry functions for each element:')
         for _ in p.Gs.keys():
             log(' %2s: %i' % (_, len(p.Gs[_])))
+        for element, fingerprints in p.Gs.items():
+            log('{} feature vector functions:'.format(element))
+            for index, fp in enumerate(fingerprints):
+                if fp['type'] == 'G2':
+                    log(' {}: {}, {}, eta = {}'
+                        .format(index, fp['type'], fp['element'], fp['eta']))
+                elif fp['type'] == 'G4':
+                    log(' {}: {}, ({}, {}), eta={}, gamma={}, zeta={}'
+                        .format(index, fp['type'], fp['elements'][0],
+                                fp['elements'][1], fp['eta'], fp['gamma'],
+                                fp['zeta']))
+                else:
+                    log(str(fp))
 
         log('Calculating neighborlists...', tic='nl')
         if not hasattr(self, 'neighborlist'):
@@ -230,7 +243,7 @@ class NeighborlistCalculator:
                          bothways=True,
                          skin=0.)
         n.update(image)
-        return [n.get_neighbors(index) for index in xrange(len(image))]
+        return [n.get_neighbors(index) for index in range(len(image))]
 
 
 class FingerprintCalculator:
@@ -321,7 +334,7 @@ class FingerprintCalculator:
         num_symmetries = len(self.globals.Gs[symbol])
         fingerprint = [None] * num_symmetries
 
-        for count in xrange(num_symmetries):
+        for count in range(num_symmetries):
             G = self.globals.Gs[symbol][count]
 
             if G['type'] == 'G2':
@@ -399,7 +412,7 @@ class FingerprintPrimeCalculator:
                                      in zip(selfneighborindices,
                                             selfneighboroffsets)]
 
-            for i in xrange(3):
+            for i in range(3):
                 # Calculating derivative of fingerprints of self atom w.r.t.
                 # coordinates of itself.
                 fpprime = self.get_fingerprintprime(
@@ -484,7 +497,7 @@ class FingerprintPrimeCalculator:
         Rindex = self.atoms.positions[index]
         fingerprintprime = [None] * num_symmetries
 
-        for count in xrange(num_symmetries):
+        for count in range(num_symmetries):
             G = self.globals.Gs[symbol][count]
             if G['type'] == 'G2':
                 ridge = calculate_G2_prime(
@@ -587,7 +600,7 @@ def calculate_G2(neighborsymbols,
         cutoff_fxn = dict2cutoff(cutoff)
         ridge = 0.  # One aspect of a fingerprint :)
         num_neighbors = len(neighborpositions)   # number of neighboring atoms
-        for count in xrange(num_neighbors):
+        for count in range(num_neighbors):
             symbol = neighborsymbols[count]
             Rj = neighborpositions[count]
             if symbol == G_element:
@@ -700,25 +713,66 @@ def calculate_G4(neighborsymbols, neighborpositions,
         return ridge
 
 
-def make_symmetry_functions(elements):
-    """Makes symmetry functions as in Nano Letters function by Artrith.
-
-    Elements is a list of the elements, as in: ["C", "O", "H", "Cu"].  G[0]
-    = {"type":"G2", "element": "O", "eta": 0.0009} G[40] = {"type":"G4",
-    "elements": ["O", "Au"], "eta": 0.0001, "gamma": 1.0, "zeta": 1.0}
-
-    If G (a list) is fed in, this will add to it and return an expanded
-    version. If not, it will create a new one.
+def make_symmetry_functions(elements, type, etas, zetas=None, gammas=None):
+    """Helper function to create Gaussian symmetry functions.
+    Returns a list of dictionaries with symmetry function parameters
+    in the format expected by the Gaussian class.
 
     Parameters
     ----------
     elements : list of str
-        List of symbols of all atoms.
+        List of element types. The first in the list is considered the
+        central element for this fingerprint. #FIXME: Does that matter?
+    type : str
+        Either G2 or G4.
+    etas : list of floats
+        eta values to use in G2 or G4 fingerprints
+    zetas : list of floats
+        zeta values to use in G4 fingerprints
+    gammas : list of floats
+        gamma values to use in G4 fingerprints
+
+    Returns
+    -------
+    G : list of dicts
+        A list, each item in the list contains a dictionary of fingerprint
+        parameters.
+    """
+    if type == 'G2':
+        G = [{'type': 'G2', 'element': element, 'eta': eta}
+             for eta in etas
+             for element in elements]
+        return G
+    elif type == 'G4':
+        G = []
+        for eta in etas:
+            for zeta in zetas:
+                for gamma in gammas:
+                    for i1, el1 in enumerate(elements):
+                        for el2 in elements[i1:]:
+                            els = sorted([el1, el2])
+                            G.append({'type': 'G4',
+                                      'elements': els,
+                                      'eta': eta,
+                                      'gamma': gamma,
+                                      'zeta': zeta})
+        return G
+    raise NotImplementedError('Unknown type: {}.'.format(type))
+
+
+def make_default_symmetry_functions(elements):
+    """Makes symmetry functions as in Nano Letters 14:2670, 2014.
+
+
+    Parameters
+    ----------
+    elements : list of str
+        List of the elements, as in: ["C", "O", "H", "Cu"].
 
     Returns
     -------
     G : dict of lists
-        Symmetry functions if not given by the user.
+        The generated symmetry function parameters.
     """
     G = {}
     for element0 in elements:
@@ -975,7 +1029,7 @@ def calculate_G2_prime(neighborindices, neighborsymbols, neighborpositions,
         cutoff_fxn = dict2cutoff(cutoff)
         ridge = 0.  # One aspect of a fingerprint :)
         num_neighbors = len(neighborpositions)   # number of neighboring atoms
-        for count in xrange(num_neighbors):
+        for count in range(num_neighbors):
             symbol = neighborsymbols[count]
             Rj = neighborpositions[count]
             j = neighborindices[count]

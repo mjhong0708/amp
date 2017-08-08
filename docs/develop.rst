@@ -32,6 +32,7 @@ We follow the same basic model as ASE; please see the ASE documentation for comp
 As good coding practice, make sure your code passes both the pyflakes and pep8 tests.
 (On linux, you should be able to run `pyflakes file.py` and `pep8 file.py`, and then correct it by `autopep8 --in-place file.py`.)
 If adding a new feature: consider adding a (very brief) test to the tests folder to ensure your new code continues to work, and also be sure to write clear documentation.
+Finally, to make users aware of your new feature or change, add a bullet point to the release notes page of the documentation under the Development version heading.
 
 It is also a good idea to send us an email if you are planning something complicated.
 
@@ -64,16 +65,25 @@ Releases
 
 To create a release, we go through the following steps.
 
+* Reserve a DOI for the new release via zenodo.org.
+  Do this by creating a new upload, and choosing "pre-reserve" before adding any files.
+
+* Prepare the master branch for the release.
+  (1) Update Release Notes, where the changes should have been catalogued under a "Development version" heading; move these to a new heading for this release, along with a release date and the DOI from above.
+  (2) Also note the latest stable release on the index.rst page.
+
 * Create a new branch on the bitbucket repository with the version name, as in `v0.5`.
   (Don't create a separate branch if this is a bugfix release, e.g., 0.5.1 --- just add those to the v0.5 branch.)
-  All subsequent work is in the new branch.
   Note the branch name starts with "v", while the tag names will not, to avoid naming conflicts.
+
+* Check out the new branch to your local machine (e.g., `git fetch && git checkout v0.5`).
+  All subsequent work is in the new branch.
 
 * Change `docs/conf.py`'s version information to match the new version number.
 
 * Change the version that prints out in the Amp headers by changing the `_ampversion` variable in `amp/__init__.py`.
 
-* Change revision history to include this release; generally the changes should have been catalogued under a "Development version" heading.
+* On the Release Notes page, delete the "Development version" heading.
 
 * Commit and push the changes to the new branch on bitbucket.
 
@@ -81,10 +91,11 @@ To create a release, we go through the following steps.
   Do this on a local machine (on the correct branch) with `git tag -a 0.5`, followed by `git push origin --tags`.
 
 * Add the version to readthedocs' available versions; also set it as the default stable version.
+  (This may already be done automatically.)
 
 * Change the nightly tests to test this branch as the "stable" build.
 
-* Create a DOI for the release via zenodo.org.
-  Note that all the ".git" files and folders should be removed from the files before uploading to Zenodo.
-  The DOI can then be added to the development version's release notes.
-  (I don't think there's a way to get it into the archival version on Zenodo!)
+* Upload an archive and finalize the DOI via zenodo.org.
+  Note that all the ".git" files and folders should be removed from the .tar.gz archive before uploading to Zenodo.
+
+* Send a note to the amp-users list summarizing the release.

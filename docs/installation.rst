@@ -7,7 +7,7 @@ Installation
 AMP is python-based and is designed to integrate closely with the `Atomic Simulation Environment <https://wiki.fysik.dtu.dk/ase/>`_ (ASE).
 In its most basic form, it has few requirements:
 
-* Python, version 2.7 is recommended.
+* Python, version 2.7 is recommended (it also supports Python3).
 * ASE.
 * NumPy.
 * SciPy.
@@ -17,7 +17,7 @@ To get more features, such as parallelization in training, a few more packages a
 * Pexpect (or pxssh)
 * ZMQ (or PyZMQ, the python version of ØMQ).
 
-Certain advanced modules may contain dependencies that will be noted when they are used; for example Tensorflow for the tflow module or matplotlib for the plotting modules.
+Certain advanced modules may contain dependencies that will be noted when they are used; for example Tensorflow for the tflow module or matplotlib (version > 1.5.0) for the plotting modules.
 
 Basic installation instructions follow.
 
@@ -29,7 +29,7 @@ We always test against the latest version (svn checkout) of ASE, but slightly ol
 Follow the instructions at the `ASE <https://wiki.fysik.dtu.dk/ase/download.html>`_ website.
 ASE itself depends upon python with the standard numeric and scientific packages.
 Verify that you have working versions of `NumPy <http://numpy.org>`_ and `SciPy <http://scipy.org>`_.
-We also recommend `matplotlib <http://matplotlib.org>`_ in order to generate plots.
+We also recommend `matplotlib <http://matplotlib.org>`_ (version > 1.5.0) in order to generate plots.
 
 ----------------------------------
 Get the code
@@ -76,7 +76,20 @@ The compilation of the Fortran 90 code and integration with the python parts is 
 A Fortran 90 compiler will also be necessary on the system; a reasonable open-source option is GNU Fortran, or gfortran.
 This compiler will generate Fortran modules (.mod).
 gfortran will also be used by f2py to generate extension module fmodules.so on Linux or fmodules.pyd on Windows.
-In order to prepare the extension module the following steps need to be taken:
+We have included a `Make` file that automatizes the building of Fortran modules.
+To use it, install `GNU Makefile <https://www.gnu.org/software/make/>`_
+on your Linux distribution or macOS.
+For Python2, then simply do::
+
+    $ cd <installation-directory>/amp/
+    $ make python2
+
+For Python3::
+
+    $ cd <installation-directory>/amp/
+    $ make python3
+
+If you do not have the GNU Makefile installed, you can prepare the Fortran extension modules manually in the following steps:
 
 1. Compile model Fortran subroutines inside the model and descriptor folders by::
 
@@ -101,6 +114,7 @@ In order to prepare the extension module the following steps need to be taken:
 
     $ f2py -c -m fmodules model.f90 descriptor/cutoffs.f90 descriptor/gaussian.f90 descriptor/zernike.f90 model/neuralnetwork.f90
 
+Note that for Python3, you need to use `f2py3` instead of `f2py`.
 
 or on a Windows machine by::
 
@@ -115,7 +129,13 @@ Recommended step: Run the tests
 We include tests in the package to ensure that it still runs as intended as we continue our development; we run these
 tests on the latest build every night to try to keep bugs out. It is a good idea to run these tests after you install the
 package to see if your installation is working. The tests are in the folder `tests`; they are designed to run with
-`nose <https://nose.readthedocs.org/>`_. If you have nose installed, run the commands below::
+`nose <https://nose.readthedocs.org/>`_.
+If you have nose and GNU Makefile installed, simply do::
+
+   $ make py2tests      (for Python2)
+   $ make py3tests      (for Python3)
+
+Otherwise, if you have only nose installed (and not GNU Makefile), run the commands below::
 
    $ mkdir /tmp/amptests
    $ cd /tmp/amptests

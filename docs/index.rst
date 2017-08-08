@@ -9,7 +9,7 @@ Amp: Atomistic Machine-learning Package
 Amp is an open-source package designed to easily bring machine-learning to atomistic calculations.
 This project is being developed at Brown University in the School of Engineering, primarily by **Andrew Peterson** and **Alireza Khorshidi**, and is released under the GNU General Public License.
 
-The latest stable release of Amp is version 0.5, released on February 24, 2017; see the :ref:`ReleaseNotes` page for a download link.
+The latest stable release of Amp is version 0.6, released on July 31, 2017; see the :ref:`ReleaseNotes` page for a download link.
 Please see the project's `git repository <https://bitbucket.org/andrewpeterson/amp>`_ for the latest development version or a place to report an issue.
 
 You can read about Amp in the below paper; if you find this project useful, we would appreciate if you cite this work:
@@ -41,10 +41,10 @@ https://listserv.brown.edu/?A0=AMP-USERS
    releasenotes.rst
    examplescripts.rst
    analysis.rst
-   neuralnetwork.rst
    building.rst
    moredescriptor.rst
    moremodel.rst
+   gaussian.rst
    tensorflow.rst
    databases.rst
    develop.rst

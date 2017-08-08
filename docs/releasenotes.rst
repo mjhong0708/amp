@@ -6,13 +6,21 @@ Release notes
 Development version
 -------------------
 
-(Significant changes since the last release should be itemized here.)
+(Significant changes since the last release are itemized here.)
 
-A community page has been added with resources such as the new mailing list and issue tracker.
+0.6
+---
+Release date: July 31, 2017
 
-The default convergence parameters have been changed to energy-only training; force-training can be added by the user via the loss function.
+* Python 3 compatibility. Following the release of python3-compatible ASE, we decided to jump on the wagon ourselves. The code should still work fine in python 2.7. (The exception is the tensorflow module, which still only lives inside python 2, unfortunately.)
+* A community page has been added with resources such as the new mailing list and issue tracker.
+* The default convergence parameters have been changed to energy-only training; force-training can be added by the user via the loss function.
+  This makes convergence easier for new users.
+* Convergence plots show maximum residuals as well as root mean-squared error.
+* Parameters to make the Gaussian feature vectors are now output to the log file.
+* The helper function :func:`~amp.descriptor.gaussian.make_symmetry_functions` has been added to more easily customize Gaussian fingerprint parameters.
 
-Convergence plots show maximum residuals as well as root mean-squared error.
+Permanently available at https://doi.org/10.5281/zenodo.836788
 
 0.5
 ---
@@ -61,4 +69,10 @@ Release date: November 12, 2014
 
 Permanently available at https://doi.org/10.5281/zenodo.12665.
 
-First public bitbucket release: September, 2014.
+
+Alpha version milestones
+------------------------
+
+First public code (bitbucket): September 1, 2014.
+
+First project commit: May 5, 2014.

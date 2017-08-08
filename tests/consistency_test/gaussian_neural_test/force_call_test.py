@@ -5,16 +5,11 @@ fortran modules, and check consistency between them.
 
 """
 
-#
-
 import numpy as np
 from ase import Atoms
 from amp import Amp
 from amp.descriptor.gaussian import Gaussian
 from amp.model.neuralnetwork import NeuralNetwork
-
-#
-# Making the list of images
 
 
 def make_images():
@@ -503,11 +498,13 @@ scalings = {"O": {"intercept": 4.2468934359280288,
             "Pd": {"intercept": 4.2468934359280288,
                    "slope": 3.1965614888424687}}
 
-#
-# Testing pure-python and fortran versions of gaussian-neural force call
 
 
 def test():
+    """Guassian/Neural force call.
+
+    Checks consistency of pure-python and fortran versions.
+    """
 
     images = make_images()
 

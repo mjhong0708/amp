@@ -43,11 +43,13 @@ def generate_data(count, filename='training.traj'):
 
 
 def test():
+    "FingerprintPlot test."""
     generate_data(2, filename='fpplot-training.traj')
 
     calc = Amp(descriptor=Gaussian(),
                model=NeuralNetwork(),
-               label='fpplot-test')
+               label='fpplot-test'
+               )
     calc.model.lossfunction = LossFunction(convergence={'energy_rmse': 1.00,
                                                         'force_rmse': 1.00})
     calc.train(images='fpplot-training.traj')
