@@ -335,10 +335,12 @@ class KRR(Model):
                     )[1].values()
             afp = np.asarray(fingerprints[index][1])
             kernel = self.kernel_matrix(afp, self.reference_features, kernel=self.kernel)
-            atomic_amp_energy = kernel.dot(weights)
+            #atomic_amp_energy = kernel.dot(weights)
+            atomic_amp_energy = sum(kernel.dot(weights))
         else:
             atomic_amp_energy = sum(self.kernel_dict[hash][index].dot(weights))
-        return np.asscalar(atomic_amp_energy)
+        #return asscalar(atomic_amp_energy)
+        return atomic_amp_energy
 
     def kernel_matrix(self, feature, features, kernel='rbf', sigma=1.):
         """This method takes as arguments a feature vector and a string that refers
@@ -387,7 +389,9 @@ def linear(features):
 
 def rbf(feature, features, sigma=1.):
     """ Compute the rbf (AKA Gaussian) kernel.  """
-    rbf= rbf_kernel(feature, Y=features, gamma=sigma)
+    feature = feature.reshape(-1, 1)
+    features = features.reshape(-1, 1)
+    rbf = rbf_kernel(feature, Y=features, gamma=sigma)
     return rbf
 
 def exponential(features, sigma=1.):
