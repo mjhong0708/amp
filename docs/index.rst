@@ -46,6 +46,7 @@ https://listserv.brown.edu/?A0=AMP-USERS
    moremodel.rst
    gaussian.rst
    tensorflow.rst
+   bootstrap.rst
    databases.rst
    develop.rst
 
