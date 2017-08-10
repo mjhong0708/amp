@@ -5,7 +5,6 @@ import numpy as np
 from string import Template
 import time
 import json
-from StringIO import StringIO
 from scipy.stats.mstats import mquantiles
 import tarfile
 import tempfile
@@ -15,6 +14,10 @@ import ase.io
 from ..utilities import hash_images, Logger
 from .. import Amp
 
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
 
 calc_text = """
 from amp import Amp
