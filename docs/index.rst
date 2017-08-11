@@ -61,6 +61,7 @@ https://listserv.brown.edu/?A0=AMP-USERS
    modules/regression.rst
    modules/utilities.rst
    modules/analysis.rst
+   modules/stats.rst
 
 
 **Indices and tables**

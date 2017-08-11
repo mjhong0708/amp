@@ -89,6 +89,8 @@ class BootStrap:
               start_command='python run.py', sleep=0.1,
               train_line=train_line, label='bootstrap'):
         """Trains a bootstrap ensemble of calculators.
+
+
         This is set up to enable the submision of each as a job through
         the local queuing system, but can also run in serial.
         On first call to this method, jobs are created/submitted.
@@ -96,25 +98,25 @@ class BootStrap:
         If all are converged, an ensemble is created and the training
         directory is archived.
 
-        Creates a lot of individual runs in directories
-
+        Parameters
+        ----------
         n: int
            size of ensemble (number of calculators to train)
-        calc_text: text
+        calc_text: str
            text that is used to initiate the Amp calculator.
            see the example in this module in calc_text; must produce
            a 'calc' object
-        headerlines: text
+        headerlines: str
            lines in the top of the python script that will be submitted
            this would typically contain comment lines for the batching
-           system, such as '#SBATCH -n=3\n #SBATCH -cores=8\n...'
-        start_command: text
+           system, such as '#SBATCH -n=8...'
+        start_command: str
            command to start the job in the current queuing system,
            such as 'sbatch run.py' ('run.py' is the scriptname here)
            for serial operation use 'python run.py'
         sleep : float
            time (s) to sleep between job submissions
-        train_line: text
+        train_line: str
            line to use to train each amp instance; usually the default is
            fine but user may want to use this to insert additional keywords
            such as train_forces=False
@@ -231,14 +233,18 @@ class BootStrap:
     def get_potential_energy(self, atoms, output=(.5,)):
         """Returns the potential energy from the ensemble for the atoms
         object.
+
         By default only returns the median prediction (50th percentile)
         of the ensemble, such that it works like a normal ASE calculator.
         To get uncertainty information, use the output keyword with the
         following codes:
+
             <q>: (where <q> is a float) return the q quantile of the
             ensemble (where the quantile is a decimal, as in 0.5 for 50th
             percentile)
+
             e: return the whole ensemble prediction as a list
+
         Join the arguments with commas. For example, to return the median
         prediction plus a centered spread covering 90% of the ensemble
         prediction, use output=[.5, .05, .95].
@@ -268,14 +274,18 @@ class BootStrap:
     def get_forces(self, atoms, output=(.5,)):
         """Returns the atomic forces from the ensemble for the atoms
         object.
+
         By default only returns the median prediction (50th percentile)
         of the ensemble, such that it works like a normal ASE calculator.
         To get uncertainty information, use the output keyword with the
         following codes:
+
             <q>: (where <q> is a float) return the q quantile of the
             ensemble (where the quantile is a decimal, as in 0.5 for 50th
             percentile)
+
             e: return the whole ensemble prediction as a list
+
         Join the arguments with commas. For example, to return the median
         prediction plus a centered spread covering 90% of the ensemble
         prediction, use output=[.5, .05, .95].
