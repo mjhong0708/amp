@@ -367,7 +367,7 @@ class Amp(Calculator, object):
         log('Brown University.')
         log('PI Website: http://brown.edu/go/catalyst')
         log('Official repository: http://bitbucket.org/andrewpeterson/amp')
-        log('Official documentation: http://amp.readthedocs.org/')
+        log('Official documentation: http://amp.readthedocs.io/')
         log('Citation:')
         log('  Alireza Khorshidi & Andrew A. Peterson,')
         log('  Computer Physics Communications 207: 310-324 (2016).')
