@@ -8,6 +8,8 @@ Development version
 
 (Significant changes since the last release are itemized here.)
 
+* A *documented* bootstrap module, complete with examples of use, is included for uncertainty predictions.
+
 0.6
 ---
 Release date: July 31, 2017
