@@ -202,8 +202,11 @@ class NeuralNetwork(Model):
             if p.mode == 'image-centered':
                 raise NotImplementedError('Needs to be coded.')
             elif p.mode == 'atom-centered':
-                p.weights = get_random_weights(p.hiddenlayers, p.activation,
-                                               None, p.fprange)
+                len_of_fps = {element: len(p.fprange[element]) for element in p.fprange.keys()}
+                p.weights = get_random_weights(hiddenlayers=p.hiddenlayers,
+                                               activation=p.activation,
+                                               len_of_fps=len_of_fps,
+                                               )
         else:
             log('Initial weights already present.')
 
@@ -791,8 +794,8 @@ def calculate_ohat_D_delta(parameters, outputs, W):
     return ohat, D, delta
 
 
-def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
-                       fprange=None):
+def get_random_weights(hiddenlayers, activation,
+                       len_of_fps=None, no_of_atoms=None,):
     """Generates random weight arrays from variables.
 
     hiddenlayers: dict
@@ -820,16 +823,14 @@ def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
         Assigns the type of activation funtion. "linear" refers to linear
         function, "tanh" refers to tanh function, and "sigmoid" refers to
         sigmoid function.
+    len_of_fps : dict
+        Length of fingerprints of each element, e.g:
+
+        >>> len_of_fps={"O": 20, "Pd":20}
+
     no_of_atoms : int
         Number of atoms in atomic systems; used only in the case of no
         descriptor.
-
-    fprange : dict
-        Range of fingerprints of each chemical species.  Should be fed as
-        a dictionary of chemical species and a list of minimum and maximun,
-        e.g:
-
-        >>> fprange={"Pd": [0.31, 0.59], "O":[0.56, 0.72]}
 
     Returns
     -------
@@ -885,16 +886,15 @@ def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
                     weight[_ + 1][-1][__] = 0.
 
     else:
-        elements = fprange.keys()
-
+        elements = hiddenlayers.keys()
         for element in sorted(elements):
-            len_of_fps = len(fprange[element])
+            _len_of_fps = len_of_fps[element]
             if isinstance(hiddenlayers[element], int):
-                nn_structure[element] = ([len_of_fps] +
+                nn_structure[element] = ([_len_of_fps] +
                                          [hiddenlayers[element]] + [1])
             else:
                 nn_structure[element] = (
-                    [len_of_fps] +
+                    [_len_of_fps] +
                     [layer for layer in hiddenlayers[element]] + [1])
             weight[element] = {}
             # Instead try Andrew Ng coursera approach. +/- epsilon
@@ -904,7 +904,7 @@ def get_random_weights(hiddenlayers, activation, no_of_atoms=None,
             epsilon = np.sqrt(6. / (nn_structure[element][0] +
                                     nn_structure[element][1]))
             normalized_arg_range = 2. * epsilon
-            weight[element][1] = np.random.random((len(fprange[element]) + 1,
+            weight[element][1] = np.random.random((_len_of_fps + 1,
                                                    nn_structure[
                                                    element][1])) * \
                 normalized_arg_range - \
