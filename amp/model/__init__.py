@@ -1,5 +1,7 @@
 import sys
 import numpy as np
+import threading
+import time
 from ase.calculators.calculator import Parameters
 from ..utilities import (Logger, ConvergenceOccurred, make_sublists, now,
                          setup_parallel)
@@ -341,7 +343,7 @@ class LossFunction:
         self.fingerprintprimes = fingerprintprimes
         self.images = images
 
-    def _initialize(self):
+    def _initialize(self, args):
         """Procedures to be run on the first call only, such as establishing
         SSH sessions, etc."""
         if self._initialized is True:
@@ -364,14 +366,89 @@ class LossFunction:
         if self.images is None:
             self.images = self._model.trainingparameters.trainingimages
 
-        if self._parallel['cores'] != 1:  # Initialize workers.
+        if self._parallel['cores'] != 1:
+            # Initialize workers and send them parameters.
+
             python = sys.executable
             workercommand = '%s -m %s' % (python, self.__module__)
-            server, connections, n_pids = setup_parallel(self._parallel,
-                                                         workercommand, log)
-            self._sessions = {'master': server,
-                              'connections': connections,  # SSH's/nodes
-                              'n_pids': n_pids}  # total no. of workers
+            self._sessions = setup_parallel(self._parallel, workercommand, log,
+                                            setup_publisher=True)
+            n_pids = self._sessions['n_pids']
+            workerkeys = make_sublists(self.images.keys(), n_pids)
+            server = self._sessions['master']
+            setup_complete = np.array([False] * n_pids)
+            while not setup_complete.all():
+                message = server.recv_pyobj()
+                if message['subject'] == 'purpose':
+                    server.send_string('calculate_loss_function')
+                elif message['subject'] == 'setup complete':
+                    server.send_pyobj('thank you')
+                    print('Setup of {} complete.'.format(message['id']))
+                    setup_complete[int(message['id'])] = True
+                    print(setup_complete)
+                elif message['subject'] == 'request':
+                    request = message['data']  # Variable name.
+                    if request == 'images':
+                        subimages = {k: self.images[k] for k in
+                                     workerkeys[int(message['id'])]}
+                        server.send_pyobj(subimages)
+                    elif request == 'fortran':
+                        server.send_pyobj(self._model.fortran)
+                    elif request == 'modelstring':
+                        server.send_pyobj(self._model.tostring())
+                    elif request == 'lossfunctionstring':
+                        server.send_pyobj(self.parameters.tostring())
+                    elif request == 'fingerprints':
+                        print('Sending fingerprints to {}...'
+                              .format(message['id']))
+                        server.send_pyobj({k: self.fingerprints[k] for k in
+                                           workerkeys[int(message['id'])]})
+                        print('...sent fingerprints to {}'
+                              .format(message['id']))
+                    elif request == 'fingerprintprimes':
+                        print('Sending fingerprint-primes to {}...'
+                              .format(message['id']))
+                        if self.fingerprintprimes is not None:
+                            server.send_pyobj({k: self.fingerprintprimes[k] for k
+                                               in workerkeys[int(message['id'])]})
+                        else:
+                            server.send_pyobj(None)
+                        print('...sent fingerprint-primes to {}'
+                              .format(message['id']))
+                    elif request == 'args':
+                        server.send_pyobj(args)
+                    elif request == 'publisher':
+                        server.send_pyobj(self._sessions['publisher_socket'])
+                    else:
+                        raise NotImplementedError('Unknown request: {}'
+                                                  .format(request))
+            print('Exited setup loop.')
+            subscribers_working = np.array([False] * n_pids)
+            print(subscribers_working)
+            def thread_function():
+                """Broadcast from the background."""
+                print('In thread function.')
+                thread = threading.current_thread()
+                while True:
+                    if thread.abort is True:
+                        break
+                    self._sessions['publisher'].send_pyobj('test message')
+                    time.sleep(0.1)
+                    print('publishing')
+            thread = threading.Thread(target=thread_function)
+            thread.abort = False  # to cleanly exit the thread
+            thread.start()
+            print('Started test message publisher thread.')
+            while not subscribers_working.all():
+                print('Waiting for message.')
+                message = server.recv_pyobj()
+                print('Received message.')
+                server.send_pyobj('meaningless reply')
+                if message['subject'] == 'subscriber working':
+                    subscribers_working[int(message['id'])] = True
+            thread.abort = True
+            self._sessions['publisher'].send_pyobj('done')
+
 
         if self.log_losses:
             p = self.parameters
@@ -485,7 +562,7 @@ class LossFunction:
         finished = np.array([False] * self._sessions['n_pids'])
         while not finished.all():
             message = server.recv_pyobj()
-            if (message['subject'] == '<request>' and
+            if (message['subject'] == 'request' and
                     message['data'] == 'parameters'):
                 server.send_pyobj('<stop>')
                 finished[int(message['id'])] = True
@@ -509,7 +586,7 @@ class LossFunction:
             only return zero for dloss_dparameters.
         """
 
-        self._initialize()
+        self._initialize(args={'lossprime': lossprime, 'd': self.d})
 
         if self._parallel['cores'] == 1:
             if self._model.fortran:
@@ -530,17 +607,10 @@ class LossFunction:
             server = self._sessions['master']
             n_pids = self._sessions['n_pids']
 
-            # Subdivide tasks.
-            keys = make_sublists(self.images.keys(), n_pids)
-
-            args = {'lossprime': lossprime,
-                    'd': self.d}
 
             results = self.process_parallels(parametervector,
                                              server,
-                                             n_pids,
-                                             keys,
-                                             args=args)
+                                             n_pids)
             loss = results['loss']
             dloss_dparameters = results['dloss_dparameters']
             energy_loss = results['energy_loss']
@@ -701,7 +771,7 @@ class LossFunction:
     # d['subject']: what the message is asking for / telling you.
     # d['data']: optional data passed from worker.
 
-    def process_parallels(self, vector, server, n_pids, keys, args):
+    def process_parallels(self, vector, server, n_pids):
         """
 
         Parameters
@@ -712,67 +782,41 @@ class LossFunction:
             Master session of parallel processing.
         processes: list of objects
             Worker sessions for parallel processing.
-        keys : list
-            List of images keys for worker processes.
-        args : dict
-            Dictionary containing arguments of the method to be called on each
-            worker process.
         """
-        # For each process
-        finished = np.array([False] * n_pids)
+        #FIXME/ap: We don't need to pass in most of the arguments.
+        # They are stored already.
         results = {'loss': 0.,
                    'dloss_dparameters': [0.] * len(vector),
                    'energy_loss': 0.,
                    'force_loss': 0.,
                    'energy_maxresid': 0.,
                    'force_maxresid': 0.}
+
+        publisher = self._sessions['publisher']
+
+        # Broadcast parameters for this call. 
+        print('Publishing parameters')
+        publisher.send_pyobj(vector)
+
+        # Receive the result.
+        finished = np.array([False] * self._sessions['n_pids'])
         while not finished.all():
             message = server.recv_pyobj()
-            if message['subject'] == '<purpose>':
-                server.send_string('calculate_loss_function')
-            elif message['subject'] == '<request>':
-                request = message['data']  # Variable name.
-                if request == 'images':
-                    subimages = {k: self.images[k] for k in
-                                 keys[int(message['id'])]}
-                    server.send_pyobj(subimages)
-                elif request == 'fortran':
-                    server.send_pyobj(self._model.fortran)
-                elif request == 'modelstring':
-                    server.send_pyobj(self._model.tostring())
-                elif request == 'lossfunctionstring':
-                    server.send_pyobj(self.parameters.tostring())
-                elif request == 'fingerprints':
-                    server.send_pyobj({k: self.fingerprints[k] for k in
-                                       keys[int(message['id'])]})
-                elif request == 'fingerprintprimes':
-                    if self.fingerprintprimes is not None:
-                        server.send_pyobj({k: self.fingerprintprimes[k] for k
-                                           in keys[int(message['id'])]})
-                    else:
-                        server.send_pyobj(None)
-                elif request == 'args':
-                    server.send_pyobj(args)
-                elif request == 'parameters':
-                    if finished[int(message['id'])]:
-                        server.send_pyobj('<continue>')
-                    else:
-                        server.send_pyobj(vector)
-                else:
-                    raise NotImplementedError()
-            elif message['subject'] == '<result>':
-                result = message['data']
-                server.send_string('meaningless reply')
+            server.send_pyobj('thank you')
 
-                results['loss'] += result['loss']
-                results['dloss_dparameters'] += result['dloss_dparameters']
-                results['energy_loss'] += result['energy_loss']
-                results['force_loss'] += result['force_loss']
-                if result['energy_maxresid'] > results['energy_maxresid']:
-                    results['energy_maxresid'] = result['energy_maxresid']
-                if result['force_maxresid'] > results['force_maxresid']:
-                    results['force_maxresid'] = result['force_maxresid']
-                finished[int(message['id'])] = True
+            assert message['subject'] == 'result'
+            print('Received result from {}.'.format(message['id']))
+            result = message['data']
+
+            results['loss'] += result['loss']
+            results['dloss_dparameters'] += result['dloss_dparameters']
+            results['energy_loss'] += result['energy_loss']
+            results['force_loss'] += result['force_loss']
+            if result['energy_maxresid'] > results['energy_maxresid']:
+                results['energy_maxresid'] = result['energy_maxresid']
+            if result['force_maxresid'] > results['force_maxresid']:
+                results['force_maxresid'] = result['force_maxresid']
+            finished[int(message['id'])] = True
 
         return results
 
