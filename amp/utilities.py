@@ -154,7 +154,7 @@ def make_sublists(masterlist, n):
     return sublists
 
 
-def setup_parallel(parallel, workercommand, log):
+def setup_parallel(parallel, workercommand, log, setup_publisher=False):
     """Starts the worker processes and the master to control them.
 
     This makes an SSH connection to each node (including the one the master
@@ -170,6 +170,9 @@ def setup_parallel(parallel, workercommand, log):
     this will be " <pid> <serversocket> &" where <pid> is the unique ID
     assigned to each process and <serversocket> is the address of the
     server, like 'node321:34292'.
+
+    If setup_publisher is True, also sets up a publisher instead of just a reply
+    socket.
 
     Returns
     -------
@@ -193,6 +196,15 @@ def setup_parallel(parallel, workercommand, log):
     port = server.bind_to_random_port('tcp://*')
     serversocket = '%s:%s' % (serverhostname, port)
     log(' Established server at %s.' % serversocket)
+    sessions = {'master': server,
+                'mastersocket': serversocket}
+    if setup_publisher:
+        publisher = context.socket(zmq.PUB)
+        port = publisher.bind_to_random_port('tcp://*')
+        publishersocket = '{}:{}'.format(serverhostname, port)
+        log(' Established publisher at {}.'.format(publishersocket))
+        sessions['publisher'] = publisher
+        sessions['publisher_socket'] = publishersocket
 
     workercommand += ' %s ' + serversocket
 
@@ -208,7 +220,9 @@ def setup_parallel(parallel, workercommand, log):
                                          log,
                                          parallel['envcommand']))
 
-    return server, connections, pid_count
+    sessions['n_pids'] = pid_count
+    sessions['connections'] = connections
+    return sessions
 
 
 def start_workers(process_ids, workerhostname, workercommand, log,
@@ -426,8 +440,10 @@ class Data:
         else:
             python = sys.executable
             workercommand = '%s -m %s' % (python, self.calc.__module__)
-            server, connections, n_pids = setup_parallel(parallel,
-                                                         workercommand, log)
+            sessions = setup_parallel(parallel, workercommand, log)
+            server = sessions['master']
+            connections = sessions['connections']
+            n_pids = sessions['n_pids']
 
             globals = self.calc.globals
             keyed = self.calc.keyed
