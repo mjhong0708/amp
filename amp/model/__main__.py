@@ -107,7 +107,7 @@ if purpose == 'calculate_loss_function':
     test_message = subscriber.recv_pyobj()
     log('Received a test message. Checking.')
     if test_message == 'test message':
-        log('Sending response.')
+        log('Correct; sending response.')
         socket.send_pyobj(msg('subscriber working'))
         socket.recv_pyobj()
     else:
@@ -125,7 +125,6 @@ if purpose == 'calculate_loss_function':
             # FIXME/ap: I removed an fmodules.deallocate_variables() call
             # here. Do we need to add this to LossFunction?
             break
-        log('Received parameters.')
         output = lossfunction.get_loss(parameters,
                                        lossprime=args['lossprime'])
 

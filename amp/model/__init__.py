@@ -383,9 +383,7 @@ class LossFunction:
                     server.send_string('calculate_loss_function')
                 elif message['subject'] == 'setup complete':
                     server.send_pyobj('thank you')
-                    print('Setup of {} complete.'.format(message['id']))
                     setup_complete[int(message['id'])] = True
-                    print(setup_complete)
                 elif message['subject'] == 'request':
                     request = message['data']  # Variable name.
                     if request == 'images':
@@ -399,22 +397,15 @@ class LossFunction:
                     elif request == 'lossfunctionstring':
                         server.send_pyobj(self.parameters.tostring())
                     elif request == 'fingerprints':
-                        print('Sending fingerprints to {}...'
-                              .format(message['id']))
                         server.send_pyobj({k: self.fingerprints[k] for k in
                                            workerkeys[int(message['id'])]})
-                        print('...sent fingerprints to {}'
-                              .format(message['id']))
                     elif request == 'fingerprintprimes':
-                        print('Sending fingerprint-primes to {}...'
-                              .format(message['id']))
                         if self.fingerprintprimes is not None:
-                            server.send_pyobj({k: self.fingerprintprimes[k] for k
-                                               in workerkeys[int(message['id'])]})
+                            server.send_pyobj({k: self.fingerprintprimes[k]
+                                               for k in
+                                               workerkeys[int(message['id'])]})
                         else:
                             server.send_pyobj(None)
-                        print('...sent fingerprint-primes to {}'
-                              .format(message['id']))
                     elif request == 'args':
                         server.send_pyobj(args)
                     elif request == 'publisher':
@@ -422,33 +413,27 @@ class LossFunction:
                     else:
                         raise NotImplementedError('Unknown request: {}'
                                                   .format(request))
-            print('Exited setup loop.')
             subscribers_working = np.array([False] * n_pids)
-            print(subscribers_working)
+
             def thread_function():
                 """Broadcast from the background."""
-                print('In thread function.')
                 thread = threading.current_thread()
                 while True:
                     if thread.abort is True:
                         break
                     self._sessions['publisher'].send_pyobj('test message')
                     time.sleep(0.1)
-                    print('publishing')
+
             thread = threading.Thread(target=thread_function)
             thread.abort = False  # to cleanly exit the thread
             thread.start()
-            print('Started test message publisher thread.')
             while not subscribers_working.all():
-                print('Waiting for message.')
                 message = server.recv_pyobj()
-                print('Received message.')
                 server.send_pyobj('meaningless reply')
                 if message['subject'] == 'subscriber working':
                     subscribers_working[int(message['id'])] = True
             thread.abort = True
             self._sessions['publisher'].send_pyobj('done')
-
 
         if self.log_losses:
             p = self.parameters
@@ -558,14 +543,8 @@ class LossFunction:
         if not hasattr(self, '_sessions'):
             return
         server = self._sessions['master']
-
-        finished = np.array([False] * self._sessions['n_pids'])
-        while not finished.all():
-            message = server.recv_pyobj()
-            if (message['subject'] == 'request' and
-                    message['data'] == 'parameters'):
-                server.send_pyobj('<stop>')
-                finished[int(message['id'])] = True
+        # Need to properly close socket connection (python3).
+        server.close()
 
         for _ in self._sessions['connections']:
             if hasattr(_, 'logout'):
@@ -607,7 +586,6 @@ class LossFunction:
             server = self._sessions['master']
             n_pids = self._sessions['n_pids']
 
-
             results = self.process_parallels(parametervector,
                                              server,
                                              n_pids)
@@ -638,10 +616,6 @@ class LossFunction:
                                                    force_maxresid)
                 if converged:
                     self._cleanup()
-                    if self._parallel['cores'] != 1:
-                        # Needed to properly close socket connection
-                        # (python3).
-                        server.close()
                     raise ConvergenceOccurred()
 
         return {'loss': self.loss,
@@ -783,7 +757,7 @@ class LossFunction:
         processes: list of objects
             Worker sessions for parallel processing.
         """
-        #FIXME/ap: We don't need to pass in most of the arguments.
+        # FIXME/ap: We don't need to pass in most of the arguments.
         # They are stored already.
         results = {'loss': 0.,
                    'dloss_dparameters': [0.] * len(vector),
@@ -794,8 +768,7 @@ class LossFunction:
 
         publisher = self._sessions['publisher']
 
-        # Broadcast parameters for this call. 
-        print('Publishing parameters')
+        # Broadcast parameters for this call.
         publisher.send_pyobj(vector)
 
         # Receive the result.
@@ -805,7 +778,6 @@ class LossFunction:
             server.send_pyobj('thank you')
 
             assert message['subject'] == 'result'
-            print('Received result from {}.'.format(message['id']))
             result = message['data']
 
             results['loss'] += result['loss']
