@@ -68,8 +68,8 @@ class KRR(Model):
         p.sigma = self.sigma = sigma
         p.lamda = self.lamda = lamda
         self.trainingimages = p.trainingimages = trainingimages
-        #p.kernel = self.kernel_dict = {}
-        self.kernel_dict = {}
+        self.kernel_e = {}  # Kernel dictionary for energies
+        self.kernel_f = {}  # Kernel dictionary for forces
 
         self.regressor = regressor
         self.parent = None  # Can hold a reference to main Amp instance.
@@ -118,18 +118,25 @@ class KRR(Model):
             assert p.mode == descriptor.parameters.mode
         log('Regression in %s mode.' % p.mode)
 
-        """
-        This checks if we need fingerprintprime.
-        """
-        if self.forcetraining == True:
-            tp.fingerprintprimes = tp.descriptor.fingerprintprimes
 
-        if len(list(self.kernel_dict.keys())) == 0:
+        if len(list(self.kernel_e.keys())) == 0:
             log('Computing %s kernel.' % self.kernel)
-            kij = self._get_kernel(
+            kij_args = dict(
                     trainingimages=tp.trainingimages,
-                    fp_trainingimages=tp.fingerprints
-                    )[0]
+                    fp_trainingimages=tp.fingerprints,
+                    )
+
+            # This is needed for both setting the size of parameters to
+            # optimize and also to return the kernel for energies
+            kij = self.get_energy_kernel(**kij_args)[0]
+
+            if self.forcetraining is True:
+                kijf_args = dict(
+                    trainingimages=tp.trainingimages,
+                    descriptor = tp.descriptor
+                    )
+                self.get_forces_kernel(**kijf_args)
+                #print(tp.descriptor.neighborlist['4cfa45109444691ee4864f916b7aa4e7'])
 
         if p.weights is None:
             log('Initializing weights.')
@@ -137,7 +144,6 @@ class KRR(Model):
                 raise NotImplementedError('Needs to be coded.')
             elif p.mode == 'atom-centered':
                 size = kij.shape[-1]
-                #weights = np.array([np.ones(size) for x in range(size)])
                 weights = np.ones(size)
                 p.weights = weights
         else:
@@ -150,7 +156,7 @@ class KRR(Model):
         result = self.regressor.regress(model=self, log=log)
         return result  # True / False
 
-    def _get_kernel(self, trainingimages=None, fp_trainingimages=None):
+    def get_energy_kernel(self, trainingimages=None, fp_trainingimages=None):
         """Local method to get the kernel on the fly
 
         Parameters
@@ -162,11 +168,11 @@ class KRR(Model):
             Fingerprints calculated using the trainingimages.
         """
 
-        _reference_features = []
+        energy_features = []
         hashes = []
         features = []
 
-        for hash in hash_images(self.trainingimages).keys():
+        for hash in hash_images(trainingimages).keys():
             afps = []
             hashes.append(hash)
 
@@ -174,25 +180,148 @@ class KRR(Model):
                 afp = np.asarray(afp)
                 afps.append(afp)
 
-            _reference_features.append(afps)
+            energy_features.append(afps)
 
+        print(hashes)
         kij = []
 
-        self.reference_features = list(itertools.chain.from_iterable(_reference_features))
+        self.reference_features = list(itertools.chain.from_iterable(energy_features))
 
-        features = _reference_features
-        for index, _ in enumerate(features):
+        for index, _ in enumerate(energy_features):
             kernel = []
             for atom, afp in enumerate(_):
                 _kernel = self.kernel_matrix(afp, self.reference_features, kernel=self.kernel)
                 kernel.append(_kernel)
 
-            self.kernel_dict[hashes[index]] = kernel
+            self.kernel_e[hashes[index]] = kernel
             kij.append(kernel)
 
         kij = np.asarray(kij)
 
-        return kij, self.kernel_dict
+        return kij, self.kernel_e
+
+    def get_forces_kernel(self, trainingimages=None, descriptor=None):
+        """Local method to get the kernel on the fly
+
+        Parameters
+        ----------
+        trainingimages : object
+            This is an ASE object containing information about the images. Note
+            that you have to hash them before passing them to this method.
+        fpp_trainingimages : object
+            Fingerprints primes calculated using the trainingimages.
+        """
+
+        #print('I will do something.')
+        forces_features = []
+        hashes = []
+        features = []
+        fingerprintprimes = descriptor.fingerprintprimes
+
+        for hash in hash_images(trainingimages).keys():
+            print(hash)
+            print(fingerprintprimes[hash])
+            afps = []
+            hashes.append(hash)
+            nl = descriptor.neighborlist[hash]
+            image = trainingimages[hash]
+
+            for atom in image:
+                selfsymbol = atom.symbol
+                selfindex = atom.index
+                selfneighborindices, selfneighboroffsets = nl[selfindex]
+                #print(atom)
+                #print(fpp_trainingimages[hash].keys())
+
+                #selfsymbol = atom.symbol
+                #selfindex = atom.index
+                #selfneighborindices, selfneighboroffsets = nl[selfindex]
+                selfneighborsymbols = [image[_].symbol for _ in selfneighborindices]
+
+                #selfneighborpositions = [image.positions[_index] +
+                #                         np.dot(_offset, image.get_cell())
+                #                         for _index, _offset
+                #                         in zip(selfneighborindices,
+                #                                selfneighboroffsets)]
+
+                for i in range(3):
+                    # Calculating derivative of fingerprints of self atom w.r.t.
+                    # coordinates of itself.
+                    #fpprime = self.get_fingerprintprime(
+                    #    selfindex, selfsymbol,
+                    #    selfneighborindices,
+                    #    selfneighborsymbols,
+                    #    selfneighborpositions, selfindex, i)
+
+                    #fingerprintprimes[
+                    #    (selfindex, selfsymbol, selfindex, selfsymbol, i)] = \
+                    #    fpprime
+                    # Calculating derivative of fingerprints of neighbor atom
+                    # w.r.t. coordinates of self atom.
+                    for nindex, nsymbol, noffset in zip(selfneighborindices, selfneighborsymbols, selfneighboroffsets):
+                        # for calculating forces, summation runs over neighbor
+                        # atoms of type II (within the main cell only)
+                        if noffset.all() == 0:
+                            #nneighborindices, nneighboroffsets = nl[nindex]
+                            #nneighborsymbols = [image[_].symbol for _ in nneighborindices]
+
+                            #neighborpositions = [image.positions[_index] +
+                            #                     np.dot(_offset, image.get_cell())
+                            #                     for _index, _offset
+                            #                     in zip(nneighborindices,
+                            #                            nneighboroffsets)]
+
+                            ## for calculating derivatives of fingerprints,
+                            ## summation runs over neighboring atoms of type
+                            ## I (either inside or outside the main cell)
+                            #fpprime = self.get_fingerprintprime(
+                            #    nindex, nsymbol,
+                            #    nneighborindices,
+                            #    nneighborsymbols,
+                            #    neighborpositions, selfindex, i)
+
+                            #fingerprintprimes[
+                            #    (selfindex, selfsymbol, nindex, nsymbol, i)] = \
+                            #    fpprime
+                            print(selfindex, selfsymbol, nindex, nsymbol, i)
+
+
+        exit
+
+        print(hashes)
+        """
+        for hash in hash_images(self.trainingimages).keys():
+            afps = []
+            hashes.append(hash)
+
+            print(hash)
+            #print(fpp_trainingimages[hash].keys())
+
+            for element, afp in fpp_trainingimages[hash]:
+                print(afp)
+                afp = np.asarray(afp)
+                afps.append(afp)
+
+            energy_features.append(afps)
+
+
+        kij = []
+
+        self.reference_features = list(itertools.chain.from_iterable(energy_features))
+
+        for index, _ in enumerate(energy_features):
+            kernel = []
+            for atom, afp in enumerate(_):
+                _kernel = self.kernel_matrix(afp, self.reference_features, kernel=self.kernel)
+                kernel.append(_kernel)
+
+            self.kernel_e[hashes[index]] = kernel
+            kij.append(kernel)
+
+        kij = np.asarray(kij)
+
+        return kij, self.kernel_e
+        """
 
     @property
     def forcetraining(self):
@@ -328,8 +457,8 @@ class KRR(Model):
 
         weights = self.parameters.weights
 
-        if len(list(self.kernel_dict.keys())) == 0 or hash not in self.kernel_dict:
-            kernel = self._get_kernel(
+        if len(list(self.kernel_e.keys())) == 0 or hash not in self.kernel_e:
+            kernel = self.get_energy_kernel(
                     trainingimages=trainingimages,
                     fp_trainingimages=fp_trainingimages
                     )[1].values()
@@ -338,9 +467,45 @@ class KRR(Model):
             #atomic_amp_energy = kernel.dot(weights)
             atomic_amp_energy = sum(kernel.dot(weights))
         else:
-            atomic_amp_energy = sum(self.kernel_dict[hash][index].dot(weights))
+            atomic_amp_energy = sum(self.kernel_e[hash][index].dot(weights))
         #return asscalar(atomic_amp_energy)
         return atomic_amp_energy
+
+    def calculate_force(self, afp, derafp,
+                        direction,
+                        nindex=None, nsymbol=None,):
+        """Given derivative of input to the neural network, derivative of output
+        (which corresponds to forces) is calculated.
+
+        Parameters
+        ----------
+        afp : list
+            Atomic fingerprints in the form of a list to be used as input to
+            the neural network.
+        derafp : list
+            Derivatives of atomic fingerprints in the form of a list to be used
+            as input to the neural network.
+        direction : int
+            Direction of force.
+        nindex : int
+            Index of the neighbor atom which force is acting at.  (only used in
+            the atom-centered mode)
+        nsymbol : str
+            Symbol of the neighbor atom which force is acting at.  (only used
+            in the atom-centered mode)
+
+        Returns
+        -------
+        float
+            Force.
+        """
+
+        #print('I will do something one day')
+        # force is multiplied by -1, because it is -dE/dx and not dE/dx.
+        force = 1
+        force *= -1.
+
+        return force
 
     def kernel_matrix(self, feature, features, kernel='rbf', sigma=1.):
         """This method takes as arguments a feature vector and a string that refers

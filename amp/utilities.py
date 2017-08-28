@@ -809,7 +809,7 @@ o      o   o       o   o
 
 def importer(name):
     """Handles strange import cases, like pxssh which might show
-    up in eithr the package pexpect or pxssh.
+    up in either the package pexpect or pxssh.
     """
 
     if name == 'pxssh':

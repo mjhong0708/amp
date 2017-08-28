@@ -274,16 +274,29 @@ class Amp(Calculator, object):
             log('...potential energy calculated.', toc='pot-energy')
 
         if properties == ['forces']:
-            log('Calculating forces...', tic='forces')
-            self.descriptor.calculate_fingerprints(images=images,
-                                                   log=log,
-                                                   calculate_derivatives=True)
-            forces = \
-                self.model.calculate_forces(
-                    self.descriptor.fingerprints[key],
-                    self.descriptor.fingerprintprimes[key])
-            self.results['forces'] = forces
-            log('...forces calculated.', toc='forces')
+            if self.model.__class__.__name__ == 'NeuralNetwork':
+                log('Calculating forces...', tic='forces')
+                self.descriptor.calculate_fingerprints(images=images,
+                                                       log=log,
+                                                       calculate_derivatives=True)
+                forces = \
+                    self.model.calculate_forces(
+                        self.descriptor.fingerprints[key],
+                        self.descriptor.fingerprintprimes[key])
+                self.results['forces'] = forces
+                log('...forces calculated.', toc='forces')
+
+            elif self.model.__class__.__name__ == 'KRR':
+                self.descriptor.calculate_fingerprints(images=images,
+                                                       log=log,
+                                                       calculate_derivatives=True)
+                forces = \
+                    self.model.calculate_forces(
+                        self.descriptor.fingerprints[key],
+                        self.descriptor.fingerprintprimes[key])
+                self.results['forces'] = forces
+                log('...forces calculated.', toc='forces')
+
 
     def train(self,
               images,
@@ -319,6 +332,8 @@ class Amp(Calculator, object):
                 parallel=self._parallel,
                 log=log,
                 calculate_derivatives=train_forces)
+        print(images.keys())
+        #print(self.descriptor.neighborlist['37ce251fb43b1f1f75f5be3f2db291c3'])
 
         log('\nModel fitting\n=============')
         result = self.model.fit(trainingimages=images,

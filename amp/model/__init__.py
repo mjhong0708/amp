@@ -712,10 +712,11 @@ class LossFunction:
                 doverfitloss_dparameters = \
                     2 * p.overfit * np.array(parametervector)
                 dloss_dparameters += doverfitloss_dparameters
+
         elif model.__class__.__name__ == 'KRR':
             predictions =[]
             targets = []
-            kernels =[]
+
             for hash in self.images.keys():
                 image = self.images[hash]
                 no_of_atoms = len(image)
@@ -728,7 +729,29 @@ class LossFunction:
                     energy_maxresid = residual_per_atom
                 energyloss += residual_per_atom ** 2    #L2 loss function
 
+
+                if p.force_coefficient is not None:
+                    amp_forces = \
+                        model.calculate_forces(
+                                self.fingerprints[hash],
+                                self.fingerprintprimes[hash]
+                                )
+                    actual_forces = image.get_forces(apply_constraint=False)
+                    for index in range(no_of_atoms):
+                        for i in range(3):
+                            force_resid = abs(amp_forces[index][i] -
+                                              actual_forces[index][i])
+                            if force_resid > force_maxresid:
+                                force_maxresid = force_resid
+                            temp = (1. / 3.) * (amp_forces[index][i] -
+                                                actual_forces[index][i]) ** 2. / \
+                                no_of_atoms
+                            forceloss += temp
+
             loss = energyloss * p.energy_coefficient
+
+            # if model.lamda coefficient is more than zero, overfit
+            # contribution to loss and dloss_dparameters is also added.
 
             if model.lamda > 0.:
                 overfitloss = 0.
