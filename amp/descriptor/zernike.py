@@ -37,6 +37,12 @@ class Zernike(object):
         Maximum degree of Zernike polynomials that will be included in the
         fingerprint vector. Can be different values for different species fed
         as a dictionary with chemical elements as keys.
+        The length of the fingerprint vector is quadratically proportional to nmax:
+        If nmax is even, then the length of fingerprint vector is
+        nmax + (nmax / 2)^2 + 1.
+        If nmax is odd, then the length of fingerprint vector is
+        nmax + (nmax^2 - 1) / 4 + 1,
+        regardless of how many chemical species exist.
     dblabel : str
         Optional separate prefix/location for database files, including
         fingerprints, fingerprint derivatives, and neighborlists. This file

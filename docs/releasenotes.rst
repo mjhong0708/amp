@@ -10,6 +10,8 @@ Development version
 
 * A *documented* bootstrap module, complete with examples of use, is included for uncertainty predictions.
 
+* Improved interprocess communication which should reduce network traffic for parallel jobs.
+
 0.6
 ---
 Release date: July 31, 2017
