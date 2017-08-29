@@ -37,7 +37,7 @@ ${headerlines}
 
 from amp.utilities import TrainingConvergenceError, hash_images
 from ase.parallel import paropen
-from bunquant.bootstrap import hash_with_duplicates
+from amp.stats.bootstrap import hash_with_duplicates
 import os
 
 ${calc_text}
