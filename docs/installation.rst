@@ -35,8 +35,8 @@ We also recommend `matplotlib <http://matplotlib.org>`_ (version > 1.5.0) in ord
 Get the code
 ----------------------------------
 
-The latest stable release of Amp is version 0.5, which is permanently available at `https://doi.org/10.5281/zenodo.322427 <https://doi.org/10.5281/zenodo.322427>`_.
-If installing version 0.5, you should follow ignore the rest of this page and follow the instructions included with the download (see docs/installation.rst or look for v0.5 on `http://amp.readthedocs.io <http://amp.readthedocs.io>`_).
+The latest stable release of Amp is available on the Release Notes page.
+If installing the latest version, you should ignore the rest of this page and follow the instructions included with the download (see docs/installation.rst or look your version number on `http://amp.readthedocs.io <http://amp.readthedocs.io>`_).
 
 We are constantly improving *Amp* and adding features, so depending on your needs it may be preferable to use the development version rather than "stable" releases.
 We run daily unit tests to try to make sure that our development code works as intended.
