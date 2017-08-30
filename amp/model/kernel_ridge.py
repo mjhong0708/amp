@@ -219,8 +219,8 @@ class KRR(Model):
         fingerprintprimes = descriptor.fingerprintprimes
 
         for hash in hash_images(trainingimages).keys():
-            print(hash)
-            print(fingerprintprimes[hash])
+            print('hash = {}' .format(hash))
+            #print(fingerprintprimes[hash])
             afps = []
             hashes.append(hash)
             nl = descriptor.neighborlist[hash]
@@ -230,12 +230,7 @@ class KRR(Model):
                 selfsymbol = atom.symbol
                 selfindex = atom.index
                 selfneighborindices, selfneighboroffsets = nl[selfindex]
-                #print(atom)
-                #print(fpp_trainingimages[hash].keys())
 
-                #selfsymbol = atom.symbol
-                #selfindex = atom.index
-                #selfneighborindices, selfneighboroffsets = nl[selfindex]
                 selfneighborsymbols = [image[_].symbol for _ in selfneighborindices]
 
                 #selfneighborpositions = [image.positions[_index] +
@@ -258,6 +253,7 @@ class KRR(Model):
                     #    fpprime
                     # Calculating derivative of fingerprints of neighbor atom
                     # w.r.t. coordinates of self atom.
+                    fprime_sum = 0.
                     for nindex, nsymbol, noffset in zip(selfneighborindices, selfneighborsymbols, selfneighboroffsets):
                         # for calculating forces, summation runs over neighbor
                         # atoms of type II (within the main cell only)
@@ -283,10 +279,12 @@ class KRR(Model):
                             #fingerprintprimes[
                             #    (selfindex, selfsymbol, nindex, nsymbol, i)] = \
                             #    fpprime
-                            print(selfindex, selfsymbol, nindex, nsymbol, i)
-
-
-        exit
+                            key = selfindex, selfsymbol, nindex, nsymbol, i
+                            #print('key: %s, %s' % (key, fingerprintprimes[hash][key]))
+                            fprime = np.array(fingerprintprimes[hash][key])
+                            fprime_sum += fprime
+                    print('component {}' .format(i))
+                    print(fprime_sum)
 
         print(hashes)
         """
