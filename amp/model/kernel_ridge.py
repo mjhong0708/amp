@@ -208,8 +208,13 @@ class KRR(Model):
         trainingimages : object
             This is an ASE object containing information about the images. Note
             that you have to hash them before passing them to this method.
-        fpp_trainingimages : object
-            Fingerprints primes calculated using the trainingimages.
+        descriptor : object
+            Descriptor object containing the fingerprintprimes..
+
+        Returns
+        -------
+        self.kernel_f : dictionary
+            Dictionary containing hashes and kernels
         """
 
         #print('I will do something.')
@@ -230,6 +235,8 @@ class KRR(Model):
                 selfsymbol = atom.symbol
                 selfindex = atom.index
                 selfneighborindices, selfneighboroffsets = nl[selfindex]
+
+                print('atom {} with index {}' .format(selfsymbol, selfindex))
 
                 selfneighborsymbols = [image[_].symbol for _ in selfneighborindices]
 
