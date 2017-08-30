@@ -214,84 +214,65 @@ class KRR(Model):
         Returns
         -------
         self.kernel_f : dictionary
-            Dictionary containing hashes and kernels
+            Dictionary containing images hashes and kernels per atom.
         """
 
-        #print('I will do something.')
-        forces_features = []
+        forces_features_x = []
+        forces_features_y = []
+        forces_features_z = []
         hashes = []
         features = []
+        atoms = []
         fingerprintprimes = descriptor.fingerprintprimes
 
         for hash in hash_images(trainingimages).keys():
-            print('hash = {}' .format(hash))
-            #print(fingerprintprimes[hash])
-            afps = []
             hashes.append(hash)
+            afps = []
+            print('hash = {}' .format(hash))
             nl = descriptor.neighborlist[hash]
             image = trainingimages[hash]
+            afps_prime_x = []
+            afps_prime_y = []
+            afps_prime_z = []
 
+            # This loop assures that we are iterating from atom with index 0.
             for atom in image:
                 selfsymbol = atom.symbol
                 selfindex = atom.index
+                atoms.append(selfindex)
                 selfneighborindices, selfneighboroffsets = nl[selfindex]
 
                 print('atom {} with index {}' .format(selfsymbol, selfindex))
 
                 selfneighborsymbols = [image[_].symbol for _ in selfneighborindices]
 
-                #selfneighborpositions = [image.positions[_index] +
-                #                         np.dot(_offset, image.get_cell())
-                #                         for _index, _offset
-                #                         in zip(selfneighborindices,
-                #                                selfneighboroffsets)]
-
                 for i in range(3):
-                    # Calculating derivative of fingerprints of self atom w.r.t.
-                    # coordinates of itself.
-                    #fpprime = self.get_fingerprintprime(
-                    #    selfindex, selfsymbol,
-                    #    selfneighborindices,
-                    #    selfneighborsymbols,
-                    #    selfneighborpositions, selfindex, i)
-
-                    #fingerprintprimes[
-                    #    (selfindex, selfsymbol, selfindex, selfsymbol, i)] = \
-                    #    fpprime
-                    # Calculating derivative of fingerprints of neighbor atom
-                    # w.r.t. coordinates of self atom.
                     fprime_sum = 0.
-                    for nindex, nsymbol, noffset in zip(selfneighborindices, selfneighborsymbols, selfneighboroffsets):
+                    for nindex, nsymbol, noffset in zip(selfneighborindices,
+                            selfneighborsymbols, selfneighboroffsets):
                         # for calculating forces, summation runs over neighbor
                         # atoms of type II (within the main cell only)
                         if noffset.all() == 0:
-                            #nneighborindices, nneighboroffsets = nl[nindex]
-                            #nneighborsymbols = [image[_].symbol for _ in nneighborindices]
-
-                            #neighborpositions = [image.positions[_index] +
-                            #                     np.dot(_offset, image.get_cell())
-                            #                     for _index, _offset
-                            #                     in zip(nneighborindices,
-                            #                            nneighboroffsets)]
-
-                            ## for calculating derivatives of fingerprints,
-                            ## summation runs over neighboring atoms of type
-                            ## I (either inside or outside the main cell)
-                            #fpprime = self.get_fingerprintprime(
-                            #    nindex, nsymbol,
-                            #    nneighborindices,
-                            #    nneighborsymbols,
-                            #    neighborpositions, selfindex, i)
-
-                            #fingerprintprimes[
-                            #    (selfindex, selfsymbol, nindex, nsymbol, i)] = \
-                            #    fpprime
                             key = selfindex, selfsymbol, nindex, nsymbol, i
                             #print('key: %s, %s' % (key, fingerprintprimes[hash][key]))
                             fprime = np.array(fingerprintprimes[hash][key])
                             fprime_sum += fprime
-                    print('component {}' .format(i))
-                    print(fprime_sum)
+                    #print('component {}' .format(i))
+                    #print(fprime_sum)
+
+                    if i == 0:
+                        afps_prime_x.append(fprime_sum)
+                    elif i == 1:
+                        afps_prime_y.append(fprime_sum)
+                    else:
+                        afps_prime_z.append(fprime_sum)
+            print(afps_prime_x)
+            print(afps_prime_y)
+            print(afps_prime_z)
+            print(atoms)
+            forces_features_x.append(afps_prime_x)
+            forces_features_y.append(afps_prime_y)
+            forces_features_z.append(afps_prime_z)
 
         print(hashes)
         """
