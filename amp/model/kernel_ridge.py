@@ -274,6 +274,10 @@ class KRR(Model):
             forces_features_y.append(afps_prime_y)
             forces_features_z.append(afps_prime_z)
 
+        self.reference_features_x = list(itertools.chain.from_iterable(forces_features_x))
+        self.reference_features_y = list(itertools.chain.from_iterable(forces_features_y))
+        self.reference_features_z = list(itertools.chain.from_iterable(forces_features_z))
+
         print(hashes)
         """
         for hash in hash_images(self.trainingimages).keys():
