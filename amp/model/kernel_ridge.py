@@ -21,6 +21,7 @@ from . import LossFunction, Model
 from ..regression import Regressor
 from ..utilities import ConvergenceOccurred, make_filename, hash_images
 
+
 class KRR(Model):
     """Class implementing Kernelized Ridge Regression
 
@@ -34,8 +35,8 @@ class KRR(Model):
         Strength of the regularization in the loss function.
     checkpoints : int
         Frequency with which to save parameter checkpoints upon training. E.g.,
-        100 saves a checkpoint on each 100th training setp.  Specify None for no
-        checkpoints.
+        100 saves a checkpoint on each 100th training setp.  Specify None for
+        no checkpoints.
     lossfunction : object
         Loss function object, if at all desired by the user.
     trainingimages : str
@@ -43,9 +44,9 @@ class KRR(Model):
         is useful for predicting new structures.
     """
     def __init__(self, sigma=1., kernel='linear', lamda=0., degree=3, coef0=1,
-            kernel_parwms=None, weights=None, regressor=None, mode=None,
-            trainingimages=None, version=None, fortran=False, checkpoints=100,
-            lossfunction=None):
+                 kernel_parwms=None, weights=None, regressor=None, mode=None,
+                 trainingimages=None, version=None, fortran=False,
+                 checkpoints=100, lossfunction=None):
 
         # Version check, particularly if restarting.
         compatibleversions = ['2015.12', ]
@@ -118,7 +119,6 @@ class KRR(Model):
             assert p.mode == descriptor.parameters.mode
         log('Regression in %s mode.' % p.mode)
 
-
         if len(list(self.kernel_e.keys())) == 0:
             log('Computing %s kernel.' % self.kernel)
             kij_args = dict(
@@ -133,7 +133,7 @@ class KRR(Model):
             if self.forcetraining is True:
                 kijf_args = dict(
                     trainingimages=tp.trainingimages,
-                    descriptor = tp.descriptor
+                    descriptor=tp.descriptor
                     )
                 self.get_forces_kernel(**kijf_args)
                 #print(tp.descriptor.neighborlist['4cfa45109444691ee4864f916b7aa4e7'])
@@ -185,12 +185,20 @@ class KRR(Model):
         print(hashes)
         kij = []
 
-        self.reference_features = list(itertools.chain.from_iterable(energy_features))
+        # This creates a list containing all features in all images on the
+        # training set.
+        self.reference_features = list(
+                itertools.chain.from_iterable(energy_features)
+                )
 
         for index, _ in enumerate(energy_features):
             kernel = []
             for atom, afp in enumerate(_):
-                _kernel = self.kernel_matrix(afp, self.reference_features, kernel=self.kernel)
+                _kernel = self.kernel_matrix(
+                        afp,
+                        self.reference_features,
+                        kernel=self.kernel
+                        )
                 kernel.append(_kernel)
 
             self.kernel_e[hashes[index]] = kernel
@@ -274,9 +282,21 @@ class KRR(Model):
             forces_features_y.append(afps_prime_y)
             forces_features_z.append(afps_prime_z)
 
-        self.reference_features_x = list(itertools.chain.from_iterable(forces_features_x))
-        self.reference_features_y = list(itertools.chain.from_iterable(forces_features_y))
-        self.reference_features_z = list(itertools.chain.from_iterable(forces_features_z))
+
+        # List containing all force features per component.
+        self.reference_force_features = [
+            list(itertools.chain.from_iterable(forces_features_x)),
+            list(itertools.chain.from_iterable(forces_features_y)),
+            list(itertools.chain.from_iterable(forces_features_z))
+        ]
+
+        for hash in hashes:
+            image = trainingimages[hash]
+            for atom in image:
+                print(atom.index, atom.symbol)
+                for component in range(3):
+                    print(component)
+                    print(self.reference_force_features[component])
 
         print(hashes)
         """
@@ -439,7 +459,7 @@ class KRR(Model):
         Returns
         -------
         atomic_amp_energy : float
-            Energy.
+            Total energy.
         """
         if self.parameters.mode != 'atom-centered':
             raise AssertionError('calculate_atomic_energy should only be '
