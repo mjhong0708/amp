@@ -170,7 +170,6 @@ class KRR(Model):
 
         energy_features = []
         hashes = []
-        features = []
 
         for hash in hash_images(trainingimages).keys():
             afps = []
@@ -229,12 +228,13 @@ class KRR(Model):
         forces_features_y = []
         forces_features_z = []
         hashes = []
-        features = []
         atoms = []
         fingerprintprimes = descriptor.fingerprintprimes
 
+        features = {}
         for hash in hash_images(trainingimages).keys():
             hashes.append(hash)
+            features[hash] = {}
             afps = []
             print('hash = {}' .format(hash))
             nl = descriptor.neighborlist[hash]
@@ -249,46 +249,53 @@ class KRR(Model):
                 selfindex = atom.index
                 atoms.append(selfindex)
                 selfneighborindices, selfneighboroffsets = nl[selfindex]
+                features[hash][(selfsymbol, selfindex)] = {}
 
                 print('atom {} with index {}' .format(selfsymbol, selfindex))
 
                 selfneighborsymbols = [image[_].symbol for _ in selfneighborindices]
 
-                for i in range(3):
+                for component in range(3):
                     fprime_sum = 0.
                     for nindex, nsymbol, noffset in zip(selfneighborindices,
                             selfneighborsymbols, selfneighboroffsets):
                         # for calculating forces, summation runs over neighbor
                         # atoms of type II (within the main cell only)
                         if noffset.all() == 0:
-                            key = selfindex, selfsymbol, nindex, nsymbol, i
+                            key = selfindex, selfsymbol, nindex, nsymbol, component
                             #print('key: %s, %s' % (key, fingerprintprimes[hash][key]))
                             fprime = np.array(fingerprintprimes[hash][key])
                             fprime_sum += fprime
                     #print('component {}' .format(i))
                     #print(fprime_sum)
 
-                    if i == 0:
+                    if component == 0:
                         afps_prime_x.append(fprime_sum)
-                    elif i == 1:
+                        features[hash][(selfsymbol, selfindex)][component] = fprime_sum
+                    elif component == 1:
                         afps_prime_y.append(fprime_sum)
+                        features[hash][(selfsymbol, selfindex)][component] = fprime_sum
                     else:
                         afps_prime_z.append(fprime_sum)
-            print(afps_prime_x)
-            print(afps_prime_y)
-            print(afps_prime_z)
-            print(atoms)
+                        features[hash][(selfsymbol, selfindex)][component] = fprime_sum
+
+            #print(afps_prime_x)
+            #print(afps_prime_y)
+            #print(afps_prime_z)
+            #print(atoms)
             forces_features_x.append(afps_prime_x)
             forces_features_y.append(afps_prime_y)
             forces_features_z.append(afps_prime_z)
 
 
-        # List containing all force features per component.
+        # List containing all force features per component. Useful for
+        # computing the kernels.
         self.reference_force_features = [
             list(itertools.chain.from_iterable(forces_features_x)),
             list(itertools.chain.from_iterable(forces_features_y)),
             list(itertools.chain.from_iterable(forces_features_z))
         ]
+        print(features)
 
         for hash in hashes:
             image = trainingimages[hash]
@@ -296,7 +303,7 @@ class KRR(Model):
                 print(atom.index, atom.symbol)
                 for component in range(3):
                     print(component)
-                    print(self.reference_force_features[component])
+                    #print(self.reference_force_features[component])
 
         print(hashes)
         """
