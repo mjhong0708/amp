@@ -166,6 +166,13 @@ class KRR(Model):
             that you have to hash them before passing them to this method.
         fp_trainingimages : object
             Fingerprints calculated using the trainingimages.
+
+        Returns
+        -------
+        kij : list
+            The kernel in form of a list.
+        kernel_e : dictionary
+            The kernel in a dictionary where keys are images' hashes.
         """
 
         energy_features = []
@@ -228,10 +235,10 @@ class KRR(Model):
         forces_features_y = []
         forces_features_z = []
         hashes = []
-        atoms = []
         fingerprintprimes = descriptor.fingerprintprimes
 
         features = {}
+
         for hash in hash_images(trainingimages).keys():
             hashes.append(hash)
             features[hash] = {}
@@ -247,9 +254,9 @@ class KRR(Model):
             for atom in image:
                 selfsymbol = atom.symbol
                 selfindex = atom.index
-                atoms.append(selfindex)
                 selfneighborindices, selfneighboroffsets = nl[selfindex]
-                features[hash][(selfsymbol, selfindex)] = {}
+
+                features[hash][(selfindex, selfsymbol)] = {}
 
                 print('atom {} with index {}' .format(selfsymbol, selfindex))
 
@@ -263,26 +270,28 @@ class KRR(Model):
                         # atoms of type II (within the main cell only)
                         if noffset.all() == 0:
                             key = selfindex, selfsymbol, nindex, nsymbol, component
-                            #print('key: %s, %s' % (key, fingerprintprimes[hash][key]))
+                            print('key: %s, %s' % (key, fingerprintprimes[hash][key]))
                             fprime = np.array(fingerprintprimes[hash][key])
+                            print(fprime)
                             fprime_sum += fprime
-                    #print('component {}' .format(i))
-                    #print(fprime_sum)
+                    print('component {}' .format(component))
+                    print('fprime_sum')
+                    print(fprime_sum)
 
                     if component == 0:
                         afps_prime_x.append(fprime_sum)
-                        features[hash][(selfsymbol, selfindex)][component] = fprime_sum
+                        features[hash][(selfindex, selfsymbol)][component] = fprime_sum
                     elif component == 1:
                         afps_prime_y.append(fprime_sum)
-                        features[hash][(selfsymbol, selfindex)][component] = fprime_sum
+                        features[hash][(selfindex, selfsymbol)][component] = fprime_sum
                     else:
                         afps_prime_z.append(fprime_sum)
-                        features[hash][(selfsymbol, selfindex)][component] = fprime_sum
+                        features[hash][(selfindex, selfsymbol)][component] = fprime_sum
 
-            #print(afps_prime_x)
-            #print(afps_prime_y)
-            #print(afps_prime_z)
-            #print(atoms)
+            print('afps_primes')
+            print(afps_prime_x)
+            print(afps_prime_y)
+            print(afps_prime_z)
             forces_features_x.append(afps_prime_x)
             forces_features_y.append(afps_prime_y)
             forces_features_z.append(afps_prime_z)
@@ -299,46 +308,29 @@ class KRR(Model):
 
         for hash in hashes:
             image = trainingimages[hash]
+            self.kernel_f[hash] = {}    # This updates the kernel dictionary
+                                        # with a new dictionary.
+
             for atom in image:
-                print(atom.index, atom.symbol)
+                selfsymbol = atom.symbol
+                selfindex = atom.index
+                self.kernel_f[hash][(selfindex, selfsymbol)] = {}
                 for component in range(3):
-                    print(component)
-                    #print(self.reference_force_features[component])
+                    #print(component)
+                    afp = features[hash][(selfindex, selfsymbol)][component]
+                    #print(afp)
+                    _kernel = self.kernel_matrix(
+                            afp,
+                            self.reference_force_features[component],
+                            kernel=self.kernel
+                            )
+                    #print('kernel = {}' .format(_kernel))
+                    self.kernel_f[hash][(selfindex, selfsymbol)][component] = _kernel
 
+        print(self.kernel_f)
         print(hashes)
-        """
-        for hash in hash_images(self.trainingimages).keys():
-            afps = []
-            hashes.append(hash)
 
-            print(hash)
-            #print(fpp_trainingimages[hash].keys())
-
-            for element, afp in fpp_trainingimages[hash]:
-                print(afp)
-                afp = np.asarray(afp)
-                afps.append(afp)
-
-            energy_features.append(afps)
-
-
-        kij = []
-
-        self.reference_features = list(itertools.chain.from_iterable(energy_features))
-
-        for index, _ in enumerate(energy_features):
-            kernel = []
-            for atom, afp in enumerate(_):
-                _kernel = self.kernel_matrix(afp, self.reference_features, kernel=self.kernel)
-                kernel.append(_kernel)
-
-            self.kernel_e[hashes[index]] = kernel
-            kij.append(kernel)
-
-        kij = np.asarray(kij)
-
-        return kij, self.kernel_e
-        """
+        return self.kernel_f
 
     @property
     def forcetraining(self):
