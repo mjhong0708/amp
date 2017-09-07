@@ -71,7 +71,7 @@ class Model(object):
                         )
 
                 # This is called when using KRR model.
-                if hash != None:
+                if hash is not None:
                     arguments['hash'] = hash
                     del arguments['afp']
                     arguments['fingerprints'] = fingerprints
@@ -85,7 +85,7 @@ class Model(object):
                 energy += atom_energy
         return energy
 
-    def calculate_forces(self, fingerprints, fingerprintprimes):
+    def calculate_forces(self, fingerprints, fingerprintprimes, hash=None):
         """Calculates the model-predicted forces for an image, based on
         derivatives of fingerprints.
 
@@ -106,13 +106,16 @@ class Model(object):
             forces = np.zeros((len(selfindices), 3))
             for key in fingerprintprimes.keys():
                 selfindex, selfsymbol, nindex, nsymbol, i = key
-                derafp = fingerprintprimes[key]
-                afp = fingerprints[nindex][1]
-                dforce = self.calculate_force(afp=afp,
-                                              derafp=derafp,
-                                              nindex=nindex,
-                                              nsymbol=nsymbol,
-                                              direction=i,)
+                arguments = dict(
+                    afp=fingerprints[nindex][1],
+                    derafp= fingerprintprimes[key],
+                    nindex=nindex,
+                    nsymbol=nsymbol,
+                    direction=i
+                    )
+                if hash is not None:
+                    arguments['hash'] = hash
+                dforce = self.calculate_force(**arguments)
                 forces[selfindex][i] += dforce
         return forces
 
@@ -667,7 +670,7 @@ class LossFunction:
         force_maxresid = 0.
         dloss_dparameters = np.array([0.] * len(parametervector))
         model = self._model
-        if model.__class__.__name__ == 'NeuralNetwork':
+        if model.__class__.__name__ is 'NeuralNetwork':
             for hash in self.images.keys():
                 image = self.images[hash]
                 no_of_atoms = len(image)
@@ -769,16 +772,37 @@ class LossFunction:
                 actual_energy = image.get_potential_energy(apply_constraint=False)
                 targets.append(actual_energy)
                 residual_per_atom = abs(amp_energy - actual_energy) / len(image)
+
                 if residual_per_atom > energy_maxresid:
                     energy_maxresid = residual_per_atom
                 energyloss += residual_per_atom ** 2    #L2 loss function
 
+                # Calculates derivative of the loss function with respect to
+                # parameters if lossprime is true
+                if lossprime:
+                    if model.parameters.mode == 'image-centered':
+                        raise NotImplementedError('This needs to be coded.')
+                    elif model.parameters.mode == 'atom-centered':
+                        if self.d is None:
+                            denergy_dparameters = \
+                                model.calculate_dEnergy_dParameters(
+                                    self.fingerprints[hash])
+                        else:
+                            denergy_dparameters = \
+                                model.calculate_numerical_dEnergy_dParameters(
+                                    self.fingerprints[hash], d=self.d)
+                        temp = p.energy_coefficient * 2. * \
+                            (amp_energy - actual_energy) * \
+                            denergy_dparameters / \
+                            (no_of_atoms ** 2.)
+                        dloss_dparameters += temp
 
                 if p.force_coefficient is not None:
                     amp_forces = \
                         model.calculate_forces(
                                 self.fingerprints[hash],
-                                self.fingerprintprimes[hash]
+                                self.fingerprintprimes[hash],
+                                hash=hash
                                 )
                     actual_forces = image.get_forces(apply_constraint=False)
                     for index in range(no_of_atoms):

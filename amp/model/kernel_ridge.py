@@ -81,8 +81,6 @@ class KRR(Model):
         if self.lossfunction is None:
             self.lossfunction = LossFunction()
 
-        self._losses = []
-
     def fit(self, trainingimages, descriptor, log, parallel, only_setup=False):
         """Fit kernel ridge model using a loss function.
 
@@ -136,7 +134,6 @@ class KRR(Model):
                     descriptor=tp.descriptor
                     )
                 self.get_forces_kernel(**kijf_args)
-                #print(tp.descriptor.neighborlist['4cfa45109444691ee4864f916b7aa4e7'])
 
         if p.weights is None:
             log('Initializing weights.')
@@ -188,7 +185,6 @@ class KRR(Model):
 
             energy_features.append(afps)
 
-        print(hashes)
         kij = []
 
         # This creates a list containing all features in all images on the
@@ -243,7 +239,6 @@ class KRR(Model):
             hashes.append(hash)
             features[hash] = {}
             afps = []
-            print('hash = {}' .format(hash))
             nl = descriptor.neighborlist[hash]
             image = trainingimages[hash]
             afps_prime_x = []
@@ -258,7 +253,6 @@ class KRR(Model):
 
                 features[hash][(selfindex, selfsymbol)] = {}
 
-                print('atom {} with index {}' .format(selfsymbol, selfindex))
 
                 selfneighborsymbols = [image[_].symbol for _ in selfneighborindices]
 
@@ -270,13 +264,8 @@ class KRR(Model):
                         # atoms of type II (within the main cell only)
                         if noffset.all() == 0:
                             key = selfindex, selfsymbol, nindex, nsymbol, component
-                            print('key: %s, %s' % (key, fingerprintprimes[hash][key]))
                             fprime = np.array(fingerprintprimes[hash][key])
-                            print(fprime)
                             fprime_sum += fprime
-                    print('component {}' .format(component))
-                    print('fprime_sum')
-                    print(fprime_sum)
 
                     if component == 0:
                         afps_prime_x.append(fprime_sum)
@@ -288,10 +277,6 @@ class KRR(Model):
                         afps_prime_z.append(fprime_sum)
                         features[hash][(selfindex, selfsymbol)][component] = fprime_sum
 
-            print('afps_primes')
-            print(afps_prime_x)
-            print(afps_prime_y)
-            print(afps_prime_z)
             forces_features_x.append(afps_prime_x)
             forces_features_y.append(afps_prime_y)
             forces_features_z.append(afps_prime_z)
@@ -304,7 +289,6 @@ class KRR(Model):
             list(itertools.chain.from_iterable(forces_features_y)),
             list(itertools.chain.from_iterable(forces_features_z))
         ]
-        print(features)
 
         for hash in hashes:
             image = trainingimages[hash]
@@ -316,19 +300,14 @@ class KRR(Model):
                 selfindex = atom.index
                 self.kernel_f[hash][(selfindex, selfsymbol)] = {}
                 for component in range(3):
-                    #print(component)
                     afp = features[hash][(selfindex, selfsymbol)][component]
-                    #print(afp)
                     _kernel = self.kernel_matrix(
                             afp,
                             self.reference_force_features[component],
                             kernel=self.kernel
                             )
-                    #print('kernel = {}' .format(_kernel))
                     self.kernel_f[hash][(selfindex, selfsymbol)][component] = _kernel
 
-        print(self.kernel_f)
-        print(hashes)
 
         return self.kernel_f
 
@@ -473,16 +452,15 @@ class KRR(Model):
                     )[1].values()
             afp = np.asarray(fingerprints[index][1])
             kernel = self.kernel_matrix(afp, self.reference_features, kernel=self.kernel)
-            #atomic_amp_energy = kernel.dot(weights)
+
             atomic_amp_energy = sum(kernel.dot(weights))
         else:
             atomic_amp_energy = sum(self.kernel_e[hash][index].dot(weights))
-        #return asscalar(atomic_amp_energy)
+
         return atomic_amp_energy
 
-    def calculate_force(self, afp, derafp,
-                        direction,
-                        nindex=None, nsymbol=None,):
+    def calculate_force(self, afp, derafp, direction, nindex=None,
+            nsymbol=None, hash=None):
         """Given derivative of input to the neural network, derivative of output
         (which corresponds to forces) is calculated.
 
@@ -508,10 +486,11 @@ class KRR(Model):
         float
             Force.
         """
+        weights = self.parameters.weights
 
-        #print('I will do something one day')
-        # force is multiplied by -1, because it is -dE/dx and not dE/dx.
-        force = 1
+        print('Component {}, Atom {} {}' .format(direction, nindex, nsymbol))
+        force = sum(self.kernel_f[hash][(nindex, nsymbol)][direction].dot(weights))
+        print(force)
         force *= -1.
 
         return force

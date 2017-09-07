@@ -332,8 +332,6 @@ class Amp(Calculator, object):
                 parallel=self._parallel,
                 log=log,
                 calculate_derivatives=train_forces)
-        print(images.keys())
-        #print(self.descriptor.neighborlist['37ce251fb43b1f1f75f5be3f2db291c3'])
 
         log('\nModel fitting\n=============')
         result = self.model.fit(trainingimages=images,
