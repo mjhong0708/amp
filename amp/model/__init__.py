@@ -818,6 +818,9 @@ class LossFunction:
 
             loss = energyloss * p.energy_coefficient
 
+            if p.force_coefficient is not None:
+                loss += p.force_coefficient * forceloss
+
             # if model.lamda coefficient is more than zero, overfit
             # contribution to loss and dloss_dparameters is also added.
 
