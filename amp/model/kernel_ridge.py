@@ -7,7 +7,6 @@ import os
 import numpy as np
 import itertools
 
-from scipy.optimize import fmin
 from scipy.spatial.distance import pdist, squareform
 
 from ase.calculators.calculator import Parameters
@@ -173,12 +172,10 @@ class KRR(Model):
         """
 
         energy_features = []
-        hashes = []
+        hashes = list(hash_images(trainingimages).keys())
 
-        for hash in hash_images(trainingimages).keys():
+        for hash in hashes:
             afps = []
-            hashes.append(hash)
-
             for element, afp in fp_trainingimages[hash]:
                 afp = np.asarray(afp)
                 afps.append(afp)
@@ -193,17 +190,25 @@ class KRR(Model):
                 itertools.chain.from_iterable(energy_features)
                 )
 
-        for index, _ in enumerate(energy_features):
+        for hash in hashes:
+            image = trainingimages[hash]
+            self.kernel_e[hash] = {}    # This updates the kernel dictionary
+                                        # with a new dictionary for each hash.
             kernel = []
-            for atom, afp in enumerate(_):
+
+            for atom in image:
+                selfsymbol = atom.symbol
+                selfindex = atom.index
+                print(fp_trainingimages[hash])
+                #FIXME the fingerprint object has to contain the index of the
+                #atom. Then this method can be finished.
                 _kernel = self.kernel_matrix(
                         afp,
                         self.reference_features,
                         kernel=self.kernel
                         )
+                self.kernel_e[hash][(selfindex, selfsymbol)] = _kernel
                 kernel.append(_kernel)
-
-            self.kernel_e[hashes[index]] = kernel
             kij.append(kernel)
 
         kij = np.asarray(kij)
@@ -230,13 +235,13 @@ class KRR(Model):
         forces_features_x = []
         forces_features_y = []
         forces_features_z = []
-        hashes = []
+        hashes = list(hash_images(trainingimages).keys())
+
         fingerprintprimes = descriptor.fingerprintprimes
 
         features = {}
 
-        for hash in hash_images(trainingimages).keys():
-            hashes.append(hash)
+        for hash in hashes:
             features[hash] = {}
             afps = []
             nl = descriptor.neighborlist[hash]
@@ -455,7 +460,8 @@ class KRR(Model):
 
             atomic_amp_energy = sum(kernel.dot(weights))
         else:
-            atomic_amp_energy = sum(self.kernel_e[hash][index].dot(weights))
+            atomic_amp_energy = sum(self.kernel_e[hash][((index, symbol))].dot(weights))
+            print(index, symbol, atomic_amp_energy)
 
         return atomic_amp_energy
 
