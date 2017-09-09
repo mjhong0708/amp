@@ -176,7 +176,7 @@ class KRR(Model):
 
         for hash in hashes:
             afps = []
-            for element, afp in fp_trainingimages[hash]:
+            for index, (element, afp) in enumerate(fp_trainingimages[hash]):
                 afp = np.asarray(afp)
                 afps.append(afp)
 
@@ -191,19 +191,15 @@ class KRR(Model):
                 )
 
         for hash in hashes:
-            image = trainingimages[hash]
             self.kernel_e[hash] = {}    # This updates the kernel dictionary
                                         # with a new dictionary for each hash.
             kernel = []
 
-            for atom in image:
-                selfsymbol = atom.symbol
-                selfindex = atom.index
-                print(fp_trainingimages[hash])
-                #FIXME the fingerprint object has to contain the index of the
-                #atom. Then this method can be finished.
+            for index, (element, afp) in enumerate(fp_trainingimages[hash]):
+                selfsymbol = element
+                selfindex = index
                 _kernel = self.kernel_matrix(
-                        afp,
+                        np.asarray(afp),
                         self.reference_features,
                         kernel=self.kernel
                         )
