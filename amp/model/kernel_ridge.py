@@ -6,15 +6,10 @@
 import os
 import numpy as np
 import itertools
-
-from scipy.spatial.distance import pdist, squareform
+from collections import OrderedDict
 
 from ase.calculators.calculator import Parameters
 from ase.io import Trajectory
-
-from sklearn.linear_model.ridge import _solve_cholesky_kernel
-from sklearn.kernel_ridge import KernelRidge
-from sklearn.metrics.pairwise import rbf_kernel
 
 from . import LossFunction, Model
 from ..regression import Regressor
@@ -140,7 +135,12 @@ class KRR(Model):
                 raise NotImplementedError('Needs to be coded.')
             elif p.mode == 'atom-centered':
                 size = kij.shape[-1]
-                weights = np.ones(size)
+                weights = OrderedDict()
+                for hash in tp.trainingimages.keys():
+                    imagefingerprints = tp.fingerprints[hash]
+                    for element, fingerprint in imagefingerprints:
+                        if element not in weights:
+                            weights[element] = np.ones(size)
                 p.weights = weights
         else:
             log('Initial weights already present.')
@@ -326,8 +326,8 @@ class KRR(Model):
 
     @property
     def vector(self):
-        """Access to get or set the model parameters as a single vector, useful
-        in particular for regression.
+        """Access to get or set the model parameters (weights each kernel) as
+        a single vector, useful in particular for regression.
 
         Parameters
         ----------
@@ -337,13 +337,18 @@ class KRR(Model):
         if self.parameters['weights'] is None:
             return None
         p = self.parameters
-        vector = p.weights
-        return vector
+        if not hasattr(self, 'ravel'):
+            self.ravel = Raveler(p.weights)
+        return self.ravel.to_vector(weights=p.weights)
 
     @vector.setter
     def vector(self, vector):
         p = self.parameters
-        p['weights'] = vector
+
+        if not hasattr(self, 'ravel'):
+            self.ravel = Raveler(p.weights)
+        weights = self.ravel.to_dicts(vector)
+        p['weights'] = weights
 
     def get_loss(self, vector):
         """Method to be called by the regression master.
@@ -454,10 +459,9 @@ class KRR(Model):
             afp = np.asarray(fingerprints[index][1])
             kernel = self.kernel_matrix(afp, self.reference_features, kernel=self.kernel)
 
-            atomic_amp_energy = sum(kernel.dot(weights))
+            atomic_amp_energy = kernel[hash][((index, symbol))].dot(weights[symbol])
         else:
-            atomic_amp_energy = sum(self.kernel_e[hash][((index, symbol))].dot(weights))
-            print(index, symbol, atomic_amp_energy)
+            atomic_amp_energy = self.kernel_e[hash][((index, symbol))].dot(weights[symbol])
 
         return atomic_amp_energy
 
@@ -490,9 +494,7 @@ class KRR(Model):
         """
         weights = self.parameters.weights
 
-        print('Component {}, Atom {} {}' .format(direction, nindex, nsymbol))
         force = sum(self.kernel_f[hash][(nindex, nsymbol)][direction].dot(weights))
-        print(force)
         force *= -1.
 
         return force
@@ -522,13 +524,16 @@ class KRR(Model):
         end of the KRR class.
         """
         features = np.asarray(features)
+        feature = np.asarray(feature)
+        K = []
 
         if kernel == 'linear':
             K = linear(features)
 
         # All kernels in this control flow share the same structure
         elif kernel == 'rbf' or kernel == 'laplacian' or kernel == 'exponential':
-            K = rbf(feature, features, sigma=self.sigma)
+            for index, afp  in enumerate(features):
+                K.append(rbf(feature, afp, sigma=self.sigma))
 
         else:
             raise NotImplementedError('This kernel needs to be coded.')
@@ -542,11 +547,9 @@ def linear(features):
     linear = np.dot(features, features.T)
     return linear
 
-def rbf(feature, features, sigma=1.):
+def rbf(featurex, featurey, sigma=1.):
     """ Compute the rbf (AKA Gaussian) kernel.  """
-    feature = feature.reshape(-1, 1)
-    features = features.reshape(-1, 1)
-    rbf = rbf_kernel(feature, Y=features, gamma=sigma)
+    rbf = np.exp(-(np.linalg.norm(featurex - featurey)**2) / sigma)
     return rbf
 
 def exponential(features, sigma=1.):
@@ -560,3 +563,36 @@ def laplacian(features, sigma=1.):
     pairwise_dists = squareform(pdist(features, 'euclidean'))
     laplacian =  np.exp(-pairwise_dists / sigma)
     return laplacian
+
+class Raveler(object):
+    """Raveler class inspired by neuralnetwork.py """
+    def __init__(self, weights):
+        self.count = 0
+        self.weights_keys = []
+
+        for key in weights.keys():
+            self.weights_keys.append(key)
+            self.count += len(weights[key])
+
+    def to_vector(self, weights):
+        vector = [weights[key] for key in self.weights_keys]
+        vector = np.ravel(vector)
+        return vector
+
+    def to_dicts(self, vector):
+        """Puts the vector back into weights and scalings dictionaries of the
+        form initialized. vector must have same length as the output of
+        unravel."""
+
+        assert len(vector) == self.count
+        first = 0
+        last = 0
+        weights = OrderedDict()
+        step = int(len(vector) / len(self.weights_keys))
+
+        for k in self.weights_keys:
+            if k not in weights.keys():
+                last += step
+                weights[k] = vector[first:last]
+                first += step
+        return weights
