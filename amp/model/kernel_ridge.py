@@ -17,16 +17,16 @@ from ..utilities import ConvergenceOccurred, make_filename, hash_images
 
 
 class KRR(Model):
-    """Class implementing Kernelized Ridge Regression
+    """Class implementing Kernelized Ridge Regression in Amp
 
     Parameters
     ----------
     kernel : str
-        Choose the kernel. Default is 'linear'.
+        Choose the kernel. Default is 'rbf'.
     sigma : float
         Length scale of the Gaussian in the case of RBF. Default is 1.
     lamda : float
-        Strength of the regularization in the loss function.
+        Strength of the regularization in the loss when minimizing error.
     checkpoints : int
         Frequency with which to save parameter checkpoints upon training. E.g.,
         100 saves a checkpoint on each 100th training setp.  Specify None for
@@ -37,7 +37,7 @@ class KRR(Model):
         PATH to Trajectory file containing the images in the training set. That
         is useful for predicting new structures.
     """
-    def __init__(self, sigma=1., kernel='linear', lamda=0., degree=3, coef0=1,
+    def __init__(self, sigma=1., kernel='rbf', lamda=0., degree=3, coef0=1,
                  kernel_parwms=None, weights=None, regressor=None, mode=None,
                  trainingimages=None, version=None, fortran=False,
                  checkpoints=100, lossfunction=None):
@@ -152,7 +152,8 @@ class KRR(Model):
         result = self.regressor.regress(model=self, log=log)
         return result  # True / False
 
-    def get_energy_kernel(self, trainingimages=None, fp_trainingimages=None):
+    def get_energy_kernel(self, trainingimages=None, fp_trainingimages=None,
+            only_features=False):
         """Local method to get the kernel on the fly
 
         Parameters
@@ -162,6 +163,8 @@ class KRR(Model):
             that you have to hash them before passing them to this method.
         fp_trainingimages : object
             Fingerprints calculated using the trainingimages.
+        only_features : bool
+            If set to True, only the self.reference_features are built.
 
         Returns
         -------
@@ -190,26 +193,27 @@ class KRR(Model):
                 itertools.chain.from_iterable(energy_features)
                 )
 
-        for hash in hashes:
-            self.kernel_e[hash] = {}    # This updates the kernel dictionary
-                                        # with a new dictionary for each hash.
-            kernel = []
+        if only_features is not True:
+            for hash in hashes:
+                self.kernel_e[hash] = {}    # This updates the kernel dictionary
+                                            # with a new dictionary for each hash.
+                kernel = []
 
-            for index, (element, afp) in enumerate(fp_trainingimages[hash]):
-                selfsymbol = element
-                selfindex = index
-                _kernel = self.kernel_matrix(
-                        np.asarray(afp),
-                        self.reference_features,
-                        kernel=self.kernel
-                        )
-                self.kernel_e[hash][(selfindex, selfsymbol)] = _kernel
-                kernel.append(_kernel)
-            kij.append(kernel)
+                for index, (element, afp) in enumerate(fp_trainingimages[hash]):
+                    selfsymbol = element
+                    selfindex = index
+                    _kernel = self.kernel_matrix(
+                            np.asarray(afp),
+                            self.reference_features,
+                            kernel=self.kernel
+                            )
+                    self.kernel_e[hash][(selfindex, selfsymbol)] = _kernel
+                    kernel.append(_kernel)
+                kij.append(kernel)
 
-        kij = np.asarray(kij)
+            kij = np.asarray(kij)
 
-        return kij, self.kernel_e
+            return kij, self.kernel_e
 
     def get_forces_kernel(self, trainingimages=None, descriptor=None):
         """Local method to get the kernel on the fly
@@ -420,7 +424,7 @@ class KRR(Model):
             lossfunction.attach_model(self)  # Allows access to methods.
         self._lossfunction = lossfunction
 
-    def calculate_atomic_energy(self, index, symbol, fingerprints, hash=None,
+    def calculate_atomic_energy(self, afp, index, symbol, hash=None,
             fp_trainingimages=None, trainingimages=None, kernel=None, sigma=None):
         """
         Given input to the KRR model, output (which corresponds to energy)
@@ -452,17 +456,24 @@ class KRR(Model):
         weights = self.parameters.weights
 
         if len(list(self.kernel_e.keys())) == 0 or hash not in self.kernel_e:
-            kernel = self.get_energy_kernel(
+            kij_args = dict(
                     trainingimages=trainingimages,
-                    fp_trainingimages=fp_trainingimages
-                    )[1].values()
-            afp = np.asarray(fingerprints[index][1])
-            kernel = self.kernel_matrix(afp, self.reference_features, kernel=self.kernel)
+                    fp_trainingimages=fp_trainingimages,
+                    only_features=True
+                    )
 
-            atomic_amp_energy = kernel[hash][((index, symbol))].dot(weights[symbol])
+            # This is needed for both setting the size of parameters to
+            # optimize and also to return the kernel for energies
+            self.get_energy_kernel(**kij_args)
+            kernel = self.kernel_matrix(
+                            np.asarray(afp),
+                            self.reference_features,
+                            kernel=self.kernel,
+                            sigma=sigma
+                            )
+            atomic_amp_energy = kernel.dot(weights[symbol])
         else:
             atomic_amp_energy = self.kernel_e[hash][((index, symbol))].dot(weights[symbol])
-
         return atomic_amp_energy
 
     def calculate_force(self, afp, derafp, direction, nindex=None,
@@ -532,13 +543,15 @@ class KRR(Model):
 
         # All kernels in this control flow share the same structure
         elif kernel == 'rbf' or kernel == 'laplacian' or kernel == 'exponential':
-            for index, afp  in enumerate(features):
+
+            for afp in features:
                 K.append(rbf(feature, afp, sigma=self.sigma))
 
         else:
             raise NotImplementedError('This kernel needs to be coded.')
 
         return np.asarray(K)
+
 """
 Auxiliary functions to compute different kernels
 """
@@ -549,19 +562,18 @@ def linear(features):
 
 def rbf(featurex, featurey, sigma=1.):
     """ Compute the rbf (AKA Gaussian) kernel.  """
-    rbf = np.exp(-(np.linalg.norm(featurex - featurey)**2) / sigma)
+    rbf = np.exp(-(np.linalg.norm(featurex - featurey)**2) / 2 * sigma**2)
     return rbf
 
-def exponential(features, sigma=1.):
+def exponential(featurex, featurey, sigma=1.):
     """ Compute the exponential kernel"""
-    pairwise_dists = squareform(pdist(features, 'euclidean'))
-    exponential =  np.exp(-pairwise_dists / (2 * sigma ** 2))
+    exponential = np.exp(-(np.linalg.norm(featurex - featurey)) / 2 * sigma**2)
     return exponential
 
-def laplacian(features, sigma=1.):
+def laplacian(featurex, featurey, sigma=1.):
     """ Compute the laplacian kernel"""
     pairwise_dists = squareform(pdist(features, 'euclidean'))
-    laplacian =  np.exp(-pairwise_dists / sigma)
+    laplacian = np.exp(-(np.linalg.norm(featurex - featurey)) / sigma)
     return laplacian
 
 class Raveler(object):
@@ -576,8 +588,7 @@ class Raveler(object):
 
     def to_vector(self, weights):
         vector = [weights[key] for key in self.weights_keys]
-        vector = np.ravel(vector)
-        return vector
+        return np.ravel(vector)
 
     def to_dicts(self, vector):
         """Puts the vector back into weights and scalings dictionaries of the

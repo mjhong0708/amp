@@ -73,8 +73,6 @@ class Model(object):
                 # This is called when using KRR model.
                 if hash is not None:
                     arguments['hash'] = hash
-                    del arguments['afp']
-                    arguments['fingerprints'] = fingerprints
                     arguments['fp_trainingimages'] = fp_trainingimages
                     arguments['kernel'] = self.parameters.kernel
                     arguments['sigma'] = self.parameters.sigma
