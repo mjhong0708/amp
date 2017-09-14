@@ -113,6 +113,8 @@ class Model(object):
                     )
                 if hash is not None:
                     arguments['hash'] = hash
+                    arguments['index'] = selfindex
+                    arguments['symbol'] = selfsymbol
                 dforce = self.calculate_force(**arguments)
                 forces[selfindex][i] += dforce
         return forces

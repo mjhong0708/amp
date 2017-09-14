@@ -173,25 +173,18 @@ class KRR(Model):
         kernel_e : dictionary
             The kernel in a dictionary where keys are images' hashes.
         """
+        # This creates a list containing all features in all images on the
+        # training set.
+        self.reference_features = []
 
-        energy_features = []
         hashes = list(hash_images(trainingimages).keys())
 
         for hash in hashes:
-            afps = []
-            for index, (element, afp) in enumerate(fp_trainingimages[hash]):
+            for element, afp in fp_trainingimages[hash]:
                 afp = np.asarray(afp)
-                afps.append(afp)
-
-            energy_features.append(afps)
+                self.reference_features.append(afp)
 
         kij = []
-
-        # This creates a list containing all features in all images on the
-        # training set.
-        self.reference_features = list(
-                itertools.chain.from_iterable(energy_features)
-                )
 
         if only_features is not True:
             for hash in hashes:
@@ -476,8 +469,8 @@ class KRR(Model):
             atomic_amp_energy = self.kernel_e[hash][((index, symbol))].dot(weights[symbol])
         return atomic_amp_energy
 
-    def calculate_force(self, afp, derafp, direction, nindex=None,
-            nsymbol=None, hash=None):
+    def calculate_force(self, afp, derafp, direction, index=None,
+            symbol=None, nindex=None, nsymbol=None, hash=None):
         """Given derivative of input to the neural network, derivative of output
         (which corresponds to forces) is calculated.
 
@@ -504,8 +497,11 @@ class KRR(Model):
             Force.
         """
         weights = self.parameters.weights
+        key = index, symbol, nindex, nsymbol, direction
+        #print('key {}' .format(key))
 
-        force = sum(self.kernel_f[hash][(nindex, nsymbol)][direction].dot(weights))
+        print(self.kernel_f[hash][key])
+        force = self.kernel_f[hash][key].dot(weights[symbol])
         force *= -1.
 
         return force
