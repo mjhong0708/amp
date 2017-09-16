@@ -251,29 +251,33 @@ class KRR(Model):
 
                 features[hash][(selfindex, selfsymbol)] = {}
 
-
                 selfneighborsymbols = [image[_].symbol for _ in selfneighborindices]
 
+                fprime_sum_x,  fprime_sum_y, fprime_sum_z= 0., 0., 0.
+
                 for component in range(3):
-                    fprime_sum = 0.
                     for nindex, nsymbol, noffset in zip(selfneighborindices,
                             selfneighborsymbols, selfneighboroffsets):
                         # for calculating forces, summation runs over neighbor
                         # atoms of type II (within the main cell only)
                         if noffset.all() == 0:
                             key = selfindex, selfsymbol, nindex, nsymbol, component
-                            fprime = np.array(fingerprintprimes[hash][key])
-                            fprime_sum += fprime
+                            if component == 0:
+                                fprime_sum_x += np.array(fingerprintprimes[hash][key])
+                            elif component == 1:
+                                fprime_sum_y += np.array(fingerprintprimes[hash][key])
+                            else:
+                                fprime_sum_z += np.array(fingerprintprimes[hash][key])
 
                     if component == 0:
-                        afps_prime_x.append(fprime_sum)
-                        features[hash][(selfindex, selfsymbol)][component] = fprime_sum
+                        afps_prime_x.append(fprime_sum_x)
+                        features[hash][(selfindex, selfsymbol)][component] = fprime_sum_x
                     elif component == 1:
-                        afps_prime_y.append(fprime_sum)
-                        features[hash][(selfindex, selfsymbol)][component] = fprime_sum
+                        afps_prime_y.append(fprime_sum_y)
+                        features[hash][(selfindex, selfsymbol)][component] = fprime_sum_y
                     else:
-                        afps_prime_z.append(fprime_sum)
-                        features[hash][(selfindex, selfsymbol)][component] = fprime_sum
+                        afps_prime_z.append(fprime_sum_z)
+                        features[hash][(selfindex, selfsymbol)][component] = fprime_sum_z
 
             forces_features_x.append(afps_prime_x)
             forces_features_y.append(afps_prime_y)
@@ -305,7 +309,6 @@ class KRR(Model):
                             kernel=self.kernel
                             )
                     self.kernel_f[hash][(selfindex, selfsymbol)][component] = _kernel
-
 
         return self.kernel_f
 
@@ -469,8 +472,7 @@ class KRR(Model):
             atomic_amp_energy = self.kernel_e[hash][((index, symbol))].dot(weights[symbol])
         return atomic_amp_energy
 
-    def calculate_force(self, afp, derafp, direction, index=None,
-            symbol=None, nindex=None, nsymbol=None, hash=None):
+    def calculate_force(self, index, symbol, component, hash=None):
         """Given derivative of input to the neural network, derivative of output
         (which corresponds to forces) is calculated.
 
@@ -497,13 +499,10 @@ class KRR(Model):
             Force.
         """
         weights = self.parameters.weights
-        key = index, symbol, nindex, nsymbol, direction
-        #print('key {}' .format(key))
+        key = index, symbol
 
-        print(self.kernel_f[hash][key])
-        force = self.kernel_f[hash][key].dot(weights[symbol])
+        force = self.kernel_f[hash][key][component].dot(weights[symbol])
         force *= -1.
-
         return force
 
     def kernel_matrix(self, feature, features, kernel='rbf', sigma=1.):

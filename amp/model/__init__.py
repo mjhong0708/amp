@@ -102,21 +102,31 @@ class Model(object):
         elif self.parameters.mode == 'atom-centered':
             selfindices = set([key[0] for key in fingerprintprimes.keys()])
             forces = np.zeros((len(selfindices), 3))
-            for key in fingerprintprimes.keys():
-                selfindex, selfsymbol, nindex, nsymbol, i = key
-                arguments = dict(
-                    afp=fingerprints[nindex][1],
-                    derafp= fingerprintprimes[key],
-                    nindex=nindex,
-                    nsymbol=nsymbol,
-                    direction=i
-                    )
-                if hash is not None:
-                    arguments['hash'] = hash
-                    arguments['index'] = selfindex
-                    arguments['symbol'] = selfsymbol
-                dforce = self.calculate_force(**arguments)
-                forces[selfindex][i] += dforce
+
+            if self.__class__.__name__ is 'NeuralNetwork':
+                for key in fingerprintprimes.keys():
+                    selfindex, selfsymbol, nindex, nsymbol, i = key
+                    arguments = dict(
+                        afp=fingerprints[nindex][1],
+                        derafp= fingerprintprimes[key],
+                        nindex=nindex,
+                        nsymbol=nsymbol,
+                        direction=i
+                        )
+                    dforce = self.calculate_force(**arguments)
+                    forces[selfindex][i] += dforce
+
+            elif self.__class__.__name__ is 'KRR':
+                for selfindex, (symbol, afp) in enumerate(fingerprints):
+                    for component in range(3):
+                        arguments = dict(
+                                index=selfindex,
+                                symbol=symbol,
+                                component=component,
+                                hash=hash
+                                )
+                        dforce = self.calculate_force(**arguments)
+                        forces[selfindex][component] += dforce
         return forces
 
     def calculate_dEnergy_dParameters(self, fingerprints):
