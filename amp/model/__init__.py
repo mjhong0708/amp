@@ -787,26 +787,6 @@ class LossFunction:
                     energy_maxresid = residual_per_atom
                 energyloss += residual_per_atom ** 2    #L2 loss function
 
-                # Calculates derivative of the loss function with respect to
-                # parameters if lossprime is true
-                if lossprime:
-                    if model.parameters.mode == 'image-centered':
-                        raise NotImplementedError('This needs to be coded.')
-                    elif model.parameters.mode == 'atom-centered':
-                        if self.d is None:
-                            denergy_dparameters = \
-                                model.calculate_dEnergy_dParameters(
-                                    self.fingerprints[hash])
-                        else:
-                            denergy_dparameters = \
-                                model.calculate_numerical_dEnergy_dParameters(
-                                    self.fingerprints[hash], d=self.d)
-                        temp = p.energy_coefficient * 2. * \
-                            (amp_energy - actual_energy) * \
-                            denergy_dparameters / \
-                            (no_of_atoms ** 2.)
-                        dloss_dparameters += temp
-
                 if p.force_coefficient is not None:
                     amp_forces = \
                         model.calculate_forces(

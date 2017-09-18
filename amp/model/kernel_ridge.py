@@ -136,15 +136,21 @@ class KRR(Model):
             if p.mode == 'image-centered':
                 raise NotImplementedError('Needs to be coded.')
             elif p.mode == 'atom-centered':
-                size = kij.shape[-1]
+                self.size = kij.shape[-1]
                 weights = OrderedDict()
                 for prop in self.properties:
                     weights[prop] = OrderedDict()
                     for hash in tp.trainingimages.keys():
                         imagefingerprints = tp.fingerprints[hash]
                         for element, fingerprint in imagefingerprints:
-                            if element not in weights:
-                                weights[prop][element] = np.ones(size)
+                            if (element not in weights and
+                               prop is 'energy'):
+                                weights[prop][element] = np.ones(self.size)
+                            elif (element not in weights and
+                                  prop is 'forces'):
+                                weights[prop][element] = np.ones(
+                                        (3, self.size)
+                                        )
                 p.weights = weights
         else:
             log('Initial weights already present.')
@@ -354,7 +360,7 @@ class KRR(Model):
             return None
         p = self.parameters
         if not hasattr(self, 'ravel'):
-            self.ravel = Raveler(p.weights)
+            self.ravel = Raveler(p.weights, size=self.size)
         return self.ravel.to_vector(weights=p.weights)
 
     @vector.setter
@@ -519,7 +525,9 @@ class KRR(Model):
         weights = self.parameters.weights
         key = index, symbol
 
-        force = self.kernel_f[hash][key][component].dot(weights['forces'][symbol])
+        force = self.kernel_f[hash][key][component].dot(
+                weights['forces'][symbol][component]
+                )
         force *= -1.
         return force
 
@@ -598,22 +606,33 @@ def laplacian(featurex, featurey, sigma=1.):
 
 class Raveler(object):
     """Raveler class inspired by neuralnetwork.py """
-    def __init__(self, weights):
+    def __init__(self, weights, size=None):
         self.count = 0
         self.weights_keys = []
         self.properties_keys = []
+        self.size = size
 
         for prop in weights.keys():
             self.properties_keys.append(prop)
             for key in weights[prop].keys():
-                self.weights_keys.append(key)
-                self.count += len(weights[prop][key])
+                if prop is 'energy':
+                    self.weights_keys.append(key)
+                    self.count += len(weights[prop][key])
+                elif prop is 'forces':
+                    for component in range(3):
+                        self.count += len(weights[prop][key][component])
 
     def to_vector(self, weights):
         vector = []
         for prop in weights.keys():
-            for key in weights[prop].keys():
-                vector.append(weights[prop][key])
+            if prop is 'energy':
+                for key in weights[prop].keys():
+                    vector.append(weights[prop][key])
+            elif prop is 'forces':
+                for component in range(3):
+                    for key in weights[prop].keys():
+                        vector.append(weights[prop][key][component])
+
         return np.ravel(vector)
 
     def to_dicts(self, vector):
@@ -625,13 +644,22 @@ class Raveler(object):
         first = 0
         last = 0
         weights = OrderedDict()
-        step = int(len(vector) / len(self.weights_keys))
+        step = self.size
 
         for prop in self.properties_keys:
             weights[prop] = OrderedDict()
-            for k in self.weights_keys:
-                if k not in weights[prop].keys():
-                    last += step
-                    weights[prop][k] = vector[first:last]
-                    first += step
+            if prop is 'energy':
+                for k in self.weights_keys:
+                    if k not in weights[prop].keys():
+                        last += step
+                        weights[prop][k] = vector[first:last]
+                        first += step
+            elif prop is 'forces':
+                for k in self.weights_keys:
+                    if k not in weights[prop].keys():
+                        weights[prop][k] = np.zeros((3, self.size))
+                        for component in range(3):
+                            last += step
+                            weights[prop][k][component] = vector[first:last]
+                            first += step
         return weights
