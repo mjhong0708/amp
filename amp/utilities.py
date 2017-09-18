@@ -15,11 +15,13 @@ from datetime import datetime
 from getpass import getuser
 from ase import io as aseio
 from ase.db import connect
-from ase.calculators.calculator import PropertyNotImplementedError
 try:
     import cPickle as pickle    # Python2
 except ImportError:
     import pickle               # Python3
+
+class PropertyNotImplementedError(NotImplementedError):
+    pass
 
 
 # Parallel processing ########################################################

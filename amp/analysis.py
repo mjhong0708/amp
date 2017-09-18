@@ -78,10 +78,10 @@ def plot_sensitivity(load,
 
     calc._log('\nDescriptor\n==========')
     calc.descriptor.calculate_fingerprints(
-            images=images,
-            parallel=calc._parallel,
-            log=calc._log,
-            calculate_derivatives=calculate_derivatives)
+        images=images,
+        parallel=calc._parallel,
+        log=calc._log,
+        calculate_derivatives=calculate_derivatives)
 
     vector = calc.model.vector.copy()
 
@@ -93,10 +93,10 @@ def plot_sensitivity(load,
 
     # Set up local loss function.
     calc.model.lossfunction.attach_model(
-                calc.model,
-                fingerprints=calc.descriptor.fingerprints,
-                fingerprintprimes=calc.descriptor.fingerprintprimes,
-                images=images)
+        calc.model,
+        fingerprints=calc.descriptor.fingerprints,
+        fingerprintprimes=calc.descriptor.fingerprintprimes,
+        images=images)
 
     originalloss = calc.model.lossfunction.get_loss(
         vector, lossprime=False)['loss']
@@ -177,8 +177,7 @@ def plot_parity(load,
                 color='b.',
                 overwrite=False,
                 returndata=False,
-                energy_coefficient=1.0,
-                force_coefficient=0.04):
+                ):
     """Makes a parity plot of Amp energies and forces versus real energies and
     forces.
 
@@ -208,10 +207,6 @@ def plot_parity(load,
         If a plot or an script containing values found overwrite it.
     returndata : bool
         Whether to return a reference to the figures and their data or not.
-    energy_coefficient : float
-        Coefficient of energy loss in the total loss function.
-    force_coefficient : float
-        Coefficient of force loss in the total loss function.
     """
 
     calc = Amp.load(file=load, label=label, dblabel=dblabel)
@@ -224,7 +219,7 @@ def plot_parity(load,
                       ' set overwrite=True or manually delete.'
                       % plotfile)
 
-    if (force_coefficient != 0.) or (plot_forces is True):
+    if plot_forces is True:
         calculate_derivatives = True
     else:
         calculate_derivatives = False
@@ -237,10 +232,10 @@ def plot_parity(load,
 
     calc._log('\nDescriptor\n==========')
     calc.descriptor.calculate_fingerprints(
-            images=images,
-            parallel=calc._parallel,
-            log=calc._log,
-            calculate_derivatives=calculate_derivatives)
+        images=images,
+        parallel=calc._parallel,
+        log=calc._log,
+        calculate_derivatives=calculate_derivatives)
 
     calc._log('Calculating potential energies...', tic='pot-energy')
     energy_data = {}
@@ -252,9 +247,9 @@ def plot_parity(load,
     calc._log('...potential energies calculated.', toc='pot-energy')
 
     min_act_energy = min([energy_data[hash][0]
-                         for hash, image in images.iteritems()])
+                          for hash, image in images.iteritems()])
     max_act_energy = max([energy_data[hash][0]
-                         for hash, image in images.iteritems()])
+                          for hash, image in images.iteritems()])
 
     if plot_forces is False:
         fig = pyplot.figure(figsize=(5., 5.))
@@ -291,14 +286,14 @@ def plot_parity(load,
         calc._log('...forces calculated.', toc='forces')
 
         min_act_force = min([force_data[hash][0][index][k]
-                            for hash, image in images.iteritems()
-                            for index in range(len(image))
-                            for k in range(3)])
+                             for hash, image in images.iteritems()
+                             for index in range(len(image))
+                             for k in range(3)])
 
         max_act_force = max([force_data[hash][0][index][k]
-                            for hash, image in images.iteritems()
-                            for index in range(len(image))
-                            for k in range(3)])
+                             for hash, image in images.iteritems()
+                             for index in range(len(image))
+                             for k in range(3)])
 
         calc._log('Plotting forces...', tic='force-plot')
         for hash, image in images.iteritems():
@@ -334,8 +329,7 @@ def plot_error(load,
                color='b.',
                overwrite=False,
                returndata=False,
-               energy_coefficient=1.0,
-               force_coefficient=0.04):
+               ):
     """Makes an error plot of Amp energies and forces versus real energies and
     forces.
 
@@ -365,10 +359,6 @@ def plot_error(load,
         If a plot or an script containing values found overwrite it.
     returndata : bool
         Whether to return a reference to the figures and their data or not.
-    energy_coefficient : float
-        Coefficient of energy loss in the total loss function.
-    force_coefficient : float
-        Coefficient of force loss in the total loss function.
     """
 
     calc = Amp.load(file=load)
@@ -383,7 +373,7 @@ def plot_error(load,
 
     calc.dblabel = label if dblabel is None else dblabel
 
-    if (force_coefficient != 0.) or (plot_forces is True):
+    if plot_forces is True:
         calculate_derivatives = True
     else:
         calculate_derivatives = False
@@ -396,10 +386,10 @@ def plot_error(load,
 
     calc._log('\nDescriptor\n==========')
     calc.descriptor.calculate_fingerprints(
-            images=images,
-            parallel=calc._parallel,
-            log=calc._log,
-            calculate_derivatives=calculate_derivatives)
+        images=images,
+        parallel=calc._parallel,
+        log=calc._log,
+        calculate_derivatives=calculate_derivatives)
 
     calc._log('Calculating potential energy errors...', tic='pot-energy')
     energy_data = {}
@@ -477,14 +467,14 @@ def plot_error(load,
         force_rmse = np.sqrt(force_square_error / len(images))
 
         min_act_force = min([force_data[hash][0][index][k]
-                            for hash, image in images.iteritems()
-                            for index in range(len(image))
-                            for k in range(3)])
+                             for hash, image in images.iteritems()
+                             for index in range(len(image))
+                             for k in range(3)])
 
         max_act_force = max([force_data[hash][0][index][k]
-                            for hash, image in images.iteritems()
-                            for index in range(len(image))
-                            for k in range(3)])
+                             for hash, image in images.iteritems()
+                             for index in range(len(image))
+                             for k in range(3)])
 
         calc._log('Plotting force errors...', tic='force-plot')
         for hash, image in images.iteritems():
