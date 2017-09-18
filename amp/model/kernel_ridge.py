@@ -70,6 +70,7 @@ class KRR(Model):
         self.fortran = fortran
         self.checkpoints = checkpoints
         self.lossfunction = lossfunction
+        self.properties = []
 
         if self.lossfunction is None:
             self.lossfunction = LossFunction()
@@ -120,8 +121,10 @@ class KRR(Model):
             # This is needed for both setting the size of parameters to
             # optimize and also to return the kernel for energies
             kij = self.get_energy_kernel(**kij_args)[0]
+            self.properties.append('energy')
 
             if self.forcetraining is True:
+                self.properties.append('forces')
                 kijf_args = dict(
                     trainingimages=tp.trainingimages,
                     descriptor=tp.descriptor
@@ -135,11 +138,13 @@ class KRR(Model):
             elif p.mode == 'atom-centered':
                 size = kij.shape[-1]
                 weights = OrderedDict()
-                for hash in tp.trainingimages.keys():
-                    imagefingerprints = tp.fingerprints[hash]
-                    for element, fingerprint in imagefingerprints:
-                        if element not in weights:
-                            weights[element] = np.ones(size)
+                for prop in self.properties:
+                    weights[prop] = OrderedDict()
+                    for hash in tp.trainingimages.keys():
+                        imagefingerprints = tp.fingerprints[hash]
+                        for element, fingerprint in imagefingerprints:
+                            if element not in weights:
+                                weights[prop][element] = np.ones(size)
                 p.weights = weights
         else:
             log('Initial weights already present.')
@@ -479,10 +484,10 @@ class KRR(Model):
                             kernel=self.kernel,
                             sigma=sigma
                             )
-            atomic_amp_energy = kernel.dot(weights[symbol])
+            atomic_amp_energy = kernel.dot(weights['energy'][symbol])
         else:
             atomic_amp_energy = self.kernel_e[hash][
-                    ((index, symbol))].dot(weights[symbol])
+                    ((index, symbol))].dot(weights['energy'][symbol])
         return atomic_amp_energy
 
     def calculate_force(self, index, symbol, component, hash=None):
@@ -514,7 +519,7 @@ class KRR(Model):
         weights = self.parameters.weights
         key = index, symbol
 
-        force = self.kernel_f[hash][key][component].dot(weights[symbol])
+        force = self.kernel_f[hash][key][component].dot(weights['forces'][symbol])
         force *= -1.
         return force
 
@@ -596,13 +601,19 @@ class Raveler(object):
     def __init__(self, weights):
         self.count = 0
         self.weights_keys = []
+        self.properties_keys = []
 
-        for key in weights.keys():
-            self.weights_keys.append(key)
-            self.count += len(weights[key])
+        for prop in weights.keys():
+            self.properties_keys.append(prop)
+            for key in weights[prop].keys():
+                self.weights_keys.append(key)
+                self.count += len(weights[prop][key])
 
     def to_vector(self, weights):
-        vector = [weights[key] for key in self.weights_keys]
+        vector = []
+        for prop in weights.keys():
+            for key in weights[prop].keys():
+                vector.append(weights[prop][key])
         return np.ravel(vector)
 
     def to_dicts(self, vector):
@@ -616,9 +627,11 @@ class Raveler(object):
         weights = OrderedDict()
         step = int(len(vector) / len(self.weights_keys))
 
-        for k in self.weights_keys:
-            if k not in weights.keys():
-                last += step
-                weights[k] = vector[first:last]
-                first += step
+        for prop in self.properties_keys:
+            weights[prop] = OrderedDict()
+            for k in self.weights_keys:
+                if k not in weights[prop].keys():
+                    last += step
+                    weights[prop][k] = vector[first:last]
+                    first += step
         return weights
