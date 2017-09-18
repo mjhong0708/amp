@@ -9,11 +9,10 @@ import itertools
 from collections import OrderedDict
 
 from ase.calculators.calculator import Parameters
-from ase.io import Trajectory
 
 from . import LossFunction, Model
 from ..regression import Regressor
-from ..utilities import ConvergenceOccurred, make_filename, hash_images
+from ..utilities import make_filename, hash_images
 
 
 class KRR(Model):
@@ -153,7 +152,7 @@ class KRR(Model):
         return result  # True / False
 
     def get_energy_kernel(self, trainingimages=None, fp_trainingimages=None,
-            only_features=False):
+                          only_features=False):
         """Local method to get the kernel on the fly
 
         Parameters
@@ -188,11 +187,11 @@ class KRR(Model):
 
         if only_features is not True:
             for hash in hashes:
-                self.kernel_e[hash] = {}    # This updates the kernel dictionary
-                                            # with a new dictionary for each hash.
+                self.kernel_e[hash] = {}
                 kernel = []
 
-                for index, (element, afp) in enumerate(fp_trainingimages[hash]):
+                for index, (element, afp) in enumerate(
+                        fp_trainingimages[hash]):
                     selfsymbol = element
                     selfindex = index
                     _kernel = self.kernel_matrix(
@@ -236,7 +235,6 @@ class KRR(Model):
 
         for hash in hashes:
             features[hash] = {}
-            afps = []
             nl = descriptor.neighborlist[hash]
             image = trainingimages[hash]
             afps_prime_x = []
@@ -251,38 +249,51 @@ class KRR(Model):
 
                 features[hash][(selfindex, selfsymbol)] = {}
 
-                selfneighborsymbols = [image[_].symbol for _ in selfneighborindices]
+                selfneighborsymbols = [
+                        image[_].symbol
+                        for _ in selfneighborindices
+                        ]
 
-                fprime_sum_x,  fprime_sum_y, fprime_sum_z= 0., 0., 0.
+                fprime_sum_x,  fprime_sum_y, fprime_sum_z = 0., 0., 0.
 
                 for component in range(3):
-                    for nindex, nsymbol, noffset in zip(selfneighborindices,
-                            selfneighborsymbols, selfneighboroffsets):
+                    for nindex, nsymbol, noffset in zip(
+                            selfneighborindices, selfneighborsymbols,
+                            selfneighboroffsets):
                         # for calculating forces, summation runs over neighbor
                         # atoms of type II (within the main cell only)
                         if noffset.all() == 0:
-                            key = selfindex, selfsymbol, nindex, nsymbol, component
+                            key = selfindex, selfsymbol, nindex, nsymbol, \
+                                  component
                             if component == 0:
-                                fprime_sum_x += np.array(fingerprintprimes[hash][key])
+                                fprime_sum_x += np.array(
+                                        fingerprintprimes[hash][key])
                             elif component == 1:
-                                fprime_sum_y += np.array(fingerprintprimes[hash][key])
+                                fprime_sum_y += np.array(
+                                        fingerprintprimes[hash][key])
                             else:
-                                fprime_sum_z += np.array(fingerprintprimes[hash][key])
+                                fprime_sum_z += np.array(
+                                        fingerprintprimes[hash][key])
 
                     if component == 0:
                         afps_prime_x.append(fprime_sum_x)
-                        features[hash][(selfindex, selfsymbol)][component] = fprime_sum_x
+                        features[hash][(
+                            selfindex,
+                            selfsymbol)][component] = fprime_sum_x
                     elif component == 1:
                         afps_prime_y.append(fprime_sum_y)
-                        features[hash][(selfindex, selfsymbol)][component] = fprime_sum_y
+                        features[hash][(
+                            selfindex,
+                            selfsymbol)][component] = fprime_sum_y
                     else:
                         afps_prime_z.append(fprime_sum_z)
-                        features[hash][(selfindex, selfsymbol)][component] = fprime_sum_z
+                        features[hash][(
+                            selfindex,
+                            selfsymbol)][component] = fprime_sum_z
 
             forces_features_x.append(afps_prime_x)
             forces_features_y.append(afps_prime_y)
             forces_features_z.append(afps_prime_z)
-
 
         # List containing all force features per component. Useful for
         # computing the kernels.
@@ -294,8 +305,7 @@ class KRR(Model):
 
         for hash in hashes:
             image = trainingimages[hash]
-            self.kernel_f[hash] = {}    # This updates the kernel dictionary
-                                        # with a new dictionary.
+            self.kernel_f[hash] = {}
 
             for atom in image:
                 selfsymbol = atom.symbol
@@ -308,7 +318,8 @@ class KRR(Model):
                             self.reference_force_features[component],
                             kernel=self.kernel
                             )
-                    self.kernel_f[hash][(selfindex, selfsymbol)][component] = _kernel
+                    self.kernel_f[hash][
+                            (selfindex, selfsymbol)][component] = _kernel
 
         return self.kernel_f
 
@@ -421,7 +432,8 @@ class KRR(Model):
         self._lossfunction = lossfunction
 
     def calculate_atomic_energy(self, afp, index, symbol, hash=None,
-            fp_trainingimages=None, trainingimages=None, kernel=None, sigma=None):
+                                fp_trainingimages=None, trainingimages=None,
+                                kernel=None, sigma=None):
         """
         Given input to the KRR model, output (which corresponds to energy)
         is calculated about the specified atom. The sum of these for all
@@ -469,7 +481,8 @@ class KRR(Model):
                             )
             atomic_amp_energy = kernel.dot(weights[symbol])
         else:
-            atomic_amp_energy = self.kernel_e[hash][((index, symbol))].dot(weights[symbol])
+            atomic_amp_energy = self.kernel_e[hash][
+                    ((index, symbol))].dot(weights[symbol])
         return atomic_amp_energy
 
     def calculate_force(self, index, symbol, component, hash=None):
@@ -537,7 +550,8 @@ class KRR(Model):
             K = linear(features)
 
         # All kernels in this control flow share the same structure
-        elif kernel == 'rbf' or kernel == 'laplacian' or kernel == 'exponential':
+        elif (kernel == 'rbf' or kernel == 'laplacian' or
+              kernel == 'exponential'):
 
             for afp in features:
                 K.append(rbf(feature, afp, sigma=self.sigma))
@@ -547,29 +561,35 @@ class KRR(Model):
 
         return np.asarray(K)
 
+
 """
 Auxiliary functions to compute different kernels
 """
+
+
 def linear(features):
     """ Compute a linear kernel """
     linear = np.dot(features, features.T)
     return linear
+
 
 def rbf(featurex, featurey, sigma=1.):
     """ Compute the rbf (AKA Gaussian) kernel.  """
     rbf = np.exp(-(np.linalg.norm(featurex - featurey)**2) / 2 * sigma**2)
     return rbf
 
+
 def exponential(featurex, featurey, sigma=1.):
     """ Compute the exponential kernel"""
     exponential = np.exp(-(np.linalg.norm(featurex - featurey)) / 2 * sigma**2)
     return exponential
 
+
 def laplacian(featurex, featurey, sigma=1.):
     """ Compute the laplacian kernel"""
-    pairwise_dists = squareform(pdist(features, 'euclidean'))
     laplacian = np.exp(-(np.linalg.norm(featurex - featurey)) / sigma)
     return laplacian
+
 
 class Raveler(object):
     """Raveler class inspired by neuralnetwork.py """
