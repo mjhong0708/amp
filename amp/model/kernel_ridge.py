@@ -218,7 +218,8 @@ class KRR(Model):
 
             return kij, self.kernel_e
 
-    def get_forces_kernel(self, trainingimages=None, descriptor=None):
+    def get_forces_kernel(self, trainingimages=None, descriptor=None,
+                          only_features=False):
         """Local method to get the kernel on the fly
 
         Parameters
@@ -228,6 +229,8 @@ class KRR(Model):
             that you have to hash them before passing them to this method.
         descriptor : object
             Descriptor object containing the fingerprintprimes..
+        only_features : bool
+            If set to True, only the self.reference_features are built.
 
         Returns
         -------
@@ -242,10 +245,10 @@ class KRR(Model):
 
         fingerprintprimes = descriptor.fingerprintprimes
 
-        features = {}
+        self.force_features = {}
 
         for hash in hashes:
-            features[hash] = {}
+            self.force_features[hash] = {}
             nl = descriptor.neighborlist[hash]
             image = trainingimages[hash]
             afps_prime_x = []
@@ -258,7 +261,7 @@ class KRR(Model):
                 selfindex = atom.index
                 selfneighborindices, selfneighboroffsets = nl[selfindex]
 
-                features[hash][(selfindex, selfsymbol)] = {}
+                self.force_features[hash][(selfindex, selfsymbol)] = {}
 
                 selfneighborsymbols = [
                         image[_].symbol
@@ -288,17 +291,17 @@ class KRR(Model):
 
                     if component == 0:
                         afps_prime_x.append(fprime_sum_x)
-                        features[hash][(
+                        self.force_features[hash][(
                             selfindex,
                             selfsymbol)][component] = fprime_sum_x
                     elif component == 1:
                         afps_prime_y.append(fprime_sum_y)
-                        features[hash][(
+                        self.force_features[hash][(
                             selfindex,
                             selfsymbol)][component] = fprime_sum_y
                     else:
                         afps_prime_z.append(fprime_sum_z)
-                        features[hash][(
+                        self.force_features[hash][(
                             selfindex,
                             selfsymbol)][component] = fprime_sum_z
 
@@ -314,25 +317,27 @@ class KRR(Model):
             list(itertools.chain.from_iterable(forces_features_z))
         ]
 
-        for hash in hashes:
-            image = trainingimages[hash]
-            self.kernel_f[hash] = {}
+        if only_features is not True:
 
-            for atom in image:
-                selfsymbol = atom.symbol
-                selfindex = atom.index
-                self.kernel_f[hash][(selfindex, selfsymbol)] = {}
-                for component in range(3):
-                    afp = features[hash][(selfindex, selfsymbol)][component]
-                    _kernel = self.kernel_matrix(
-                            afp,
-                            self.reference_force_features[component],
-                            kernel=self.kernel
-                            )
-                    self.kernel_f[hash][
-                            (selfindex, selfsymbol)][component] = _kernel
+            for hash in hashes:
+                image = trainingimages[hash]
+                self.kernel_f[hash] = {}
 
-        return self.kernel_f
+                for atom in image:
+                    selfsymbol = atom.symbol
+                    selfindex = atom.index
+                    self.kernel_f[hash][(selfindex, selfsymbol)] = {}
+                    for component in range(3):
+                        afp = self.force_features[hash][(selfindex, selfsymbol)][component]
+                        _kernel = self.kernel_matrix(
+                                afp,
+                                self.reference_force_features[component],
+                                kernel=self.kernel
+                                )
+                        self.kernel_f[hash][
+                                (selfindex, selfsymbol)][component] = _kernel
+
+            return self.kernel_f
 
     @property
     def forcetraining(self):
@@ -390,15 +395,18 @@ class KRR(Model):
             filename = self.parent.save(filename, overwrite=True)
         if self.checkpoints:
             if self.step % self.checkpoints == 0:
-                path = os.path.join(self.parent.label + '-checkpoints/')
-                if self.step == 0:
-                    if not os.path.exists(path):
-                        os.mkdir(path)
                 self._log('Saving checkpoint data.')
-                filename = make_filename(path,
-                                         'parameters-checkpoint-%d.amp'
-                                         % self.step)
-                filename = self.parent.save(filename, overwrite=True)
+                if self.checkpoints < 0:
+                    path = os.path.join(self.parent.label + '-checkpoints')
+                    if self.step == 0:
+                        if not os.path.exists(path):
+                            os.mkdir(path)
+                    filename = os.path.join(path,
+                                            '{}.amp'.format(int(self.step)))
+                else:
+                    filename = make_filename(self.parent.label,
+                                             '-checkpoint.amp')
+                self.parent.save(filename, overwrite=True)
         loss = self.lossfunction.get_loss(vector, lossprime=False)['loss']
         if hasattr(self, 'observer'):
             self.observer(self, vector, loss)
@@ -462,11 +470,12 @@ class KRR(Model):
             hash of desired image to compute
         kernel : str
             The kernel to be computed in the case that Amp.load is used.
+        sigma : float
 
         Returns
         -------
         atomic_amp_energy : float
-            Total energy.
+            Atomic energy on atom with index=index.
         """
         if self.parameters.mode != 'atom-centered':
             raise AssertionError('calculate_atomic_energy should only be '
@@ -496,38 +505,58 @@ class KRR(Model):
                     ((index, symbol))].dot(weights['energy'][symbol])
         return atomic_amp_energy
 
-    def calculate_force(self, index, symbol, component, hash=None):
+    def calculate_force(self, index, symbol, component, trainingimages=None,
+                        descriptor=None, sigma=None, hash=None):
         """Given derivative of input to the neural network, derivative of output
         (which corresponds to forces) is calculated.
 
         Parameters
         ----------
-        afp : list
-            Atomic fingerprints in the form of a list to be used as input to
-            the neural network.
-        derafp : list
-            Derivatives of atomic fingerprints in the form of a list to be used
-            as input to the neural network.
-        direction : int
-            Direction of force.
-        nindex : int
-            Index of the neighbor atom which force is acting at.  (only used in
-            the atom-centered mode)
-        nsymbol : str
-            Symbol of the neighbor atom which force is acting at.  (only used
-            in the atom-centered mode)
+        index : integer
+            Index of central atom for which the atomic force will be computed.
+        symbol : str
+            Symbol of central atom for which the atomic force will be computed.
+        component : int
+            Direction of the force.
+        trainingimages : list
+            Object or list containing the training set. This is needed when
+            performing predictions of unseen data.
+        descriptor : object
+            Object containing the information about fingerprints.
+        hash : str
+            Unique key for the image of interest.
+        sigma : float
 
         Returns
         -------
-        float
-            Force.
+        force : float
+            Atomic force on Atom with index=index and symbol=symbol.
         """
         weights = self.parameters.weights
         key = index, symbol
 
-        force = self.kernel_f[hash][key][component].dot(
-                weights['forces'][symbol][component]
-                )
+        if len(list(self.kernel_f.keys())) == 0 or hash not in self.kernel_f:
+            kij_args = dict(
+                    trainingimages=trainingimages,
+                    descriptor=descriptor,
+                    only_features=True
+                    )
+
+            # This is needed for both setting the size of parameters to
+            # optimize and also to return the kernel for energies
+            self.get_forces_kernel(**kij_args)
+            afp = self.force_features[hash][(index, symbol)]
+            kernel = self.kernel_matrix(
+                            np.asarray(afp),
+                            self.reference_force_features[component],
+                            kernel=self.kernel,
+                            sigma=sigma
+                            )
+        else:
+
+            force = self.kernel_f[hash][key][component].dot(
+                    weights['forces'][symbol][component]
+                    )
         force *= -1.
         return force
 
@@ -558,6 +587,9 @@ class KRR(Model):
         features = np.asarray(features)
         feature = np.asarray(feature)
         K = []
+
+        if self.sigma is None:
+            self.sigma = sigma
 
         if kernel == 'linear':
             K = linear(features)

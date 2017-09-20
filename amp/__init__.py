@@ -244,16 +244,13 @@ class Amp(Calculator, object):
 
         if properties == ['energy']:
             log('Calculating potential energy...', tic='pot-energy')
+            self.descriptor.calculate_fingerprints(images=images,
+                                                   log=log,
+                                                   calculate_derivatives=False)
             if self.model.__class__.__name__ == 'NeuralNetwork':
-                self.descriptor.calculate_fingerprints(images=images,
-                                                       log=log,
-                                                       calculate_derivatives=False)
                 energy = self.model.calculate_energy(self.descriptor.fingerprints[key])
 
             elif self.model.__class__.__name__ == 'KRR':
-                self.descriptor.calculate_fingerprints(images=images,
-                                                       log=log,
-                                                       calculate_derivatives=False)
                 fingerprints = self.descriptor.fingerprints
 
                 log('Loading the training set')
@@ -287,13 +284,20 @@ class Amp(Calculator, object):
                 log('...forces calculated.', toc='forces')
 
             elif self.model.__class__.__name__ == 'KRR':
+                log('Calculating forces...', tic='forces')
+                log('Loading the training set')
+                trainingimages = hash_images(ase.io.Trajectory(self.model.trainingimages))
                 self.descriptor.calculate_fingerprints(images=images,
                                                        log=log,
                                                        calculate_derivatives=True)
                 forces = \
                     self.model.calculate_forces(
                         self.descriptor.fingerprints[key],
-                        self.descriptor.fingerprintprimes[key])
+                        self.descriptor.fingerprintprimes[key],
+                        hash=key,
+                        trainingimages=trainingimages,
+                        descriptor=self.descriptor
+                        )
                 self.results['forces'] = forces
                 log('...forces calculated.', toc='forces')
 

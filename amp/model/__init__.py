@@ -43,7 +43,7 @@ class Model(object):
         return self.parameters.tostring()
 
     def calculate_energy(self, fingerprints, hash=None, trainingimages=None,
-            fp_trainingimages=None):
+                         fp_trainingimages=None):
         """Calculates the model-predicted energy for an image, based on its
         fingerprint.
 
@@ -83,7 +83,9 @@ class Model(object):
                 energy += atom_energy
         return energy
 
-    def calculate_forces(self, fingerprints, fingerprintprimes, hash=None):
+    def calculate_forces(self, fingerprints, fingerprintprimes, hash=None,
+                         trainingimages=None, fp_trainingimages=None,
+                         descriptor=None):
         """Calculates the model-predicted forces for an image, based on
         derivatives of fingerprints.
 
@@ -123,7 +125,10 @@ class Model(object):
                                 index=selfindex,
                                 symbol=symbol,
                                 component=component,
-                                hash=hash
+                                hash=hash,
+                                descriptor=descriptor,
+                                sigma=self.parameters.sigma,
+                                trainingimages=trainingimages
                                 )
                         dforce = self.calculate_force(**arguments)
                         forces[selfindex][component] += dforce
@@ -674,12 +679,12 @@ class LossFunction:
         self._model.vector = parametervector
         p = self.parameters
         energyloss = 0.
-        term2 = 0.
         forceloss = 0.
         energy_maxresid = 0.
         force_maxresid = 0.
         dloss_dparameters = np.array([0.] * len(parametervector))
         model = self._model
+
         if model.__class__.__name__ is 'NeuralNetwork':
             for hash in self.images.keys():
                 image = self.images[hash]
@@ -788,11 +793,13 @@ class LossFunction:
                 energyloss += residual_per_atom ** 2    #L2 loss function
 
                 if p.force_coefficient is not None:
+                    descriptor = self._model.trainingparameters.descriptor
                     amp_forces = \
                         model.calculate_forces(
                                 self.fingerprints[hash],
                                 self.fingerprintprimes[hash],
-                                hash=hash
+                                hash=hash,
+                                descriptor=descriptor
                                 )
                     actual_forces = image.get_forces(apply_constraint=False)
                     for index in range(no_of_atoms):
