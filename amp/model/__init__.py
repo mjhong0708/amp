@@ -776,17 +776,15 @@ class LossFunction:
                 dloss_dparameters += doverfitloss_dparameters
 
         elif model.__class__.__name__ == 'KRR':
-            predictions =[]
-            targets = []
+
+            force_resid = 0.
 
             for hash in self.images.keys():
                 image = self.images[hash]
                 no_of_atoms = len(image)
                 amp_energy = model.calculate_energy(self.fingerprints[hash], hash)
-                predictions.append(amp_energy)
                 actual_energy = image.get_potential_energy(apply_constraint=False)
-                targets.append(actual_energy)
-                residual_per_atom = abs(amp_energy - actual_energy) / len(image)
+                residual_per_atom = abs(amp_energy - actual_energy) / no_of_atoms
 
                 if residual_per_atom > energy_maxresid:
                     energy_maxresid = residual_per_atom
@@ -801,8 +799,15 @@ class LossFunction:
                                 hash=hash,
                                 descriptor=descriptor
                                 )
+                    print('amp_forces')
+                    print(amp_forces)
                     actual_forces = image.get_forces(apply_constraint=False)
+                    print('actual_forces')
+                    print(actual_forces)
                     for index in range(no_of_atoms):
+                        temp_f = np.linalg.norm(amp_forces[index] - actual_forces[index], ord=1)
+                        force_resid += temp_f
+                        """
                         for i in range(3):
                             force_resid = abs(amp_forces[index][i] -
                                               actual_forces[index][i])
@@ -812,8 +817,17 @@ class LossFunction:
                                                 actual_forces[index][i]) ** 2. / \
                                 no_of_atoms
                             forceloss += temp
+                        """
+                    force_resid = force_resid / no_of_atoms
+
+                    if force_resid > force_maxresid:
+                        force_maxresid = force_resid
+
+                    forceloss = (1. / 3.) * force_resid **2
 
             loss = energyloss * p.energy_coefficient
+            print('coeficientes')
+            print(p.energy_coefficient, p.force_coefficient)
 
             if p.force_coefficient is not None:
                 loss += p.force_coefficient * forceloss

@@ -254,41 +254,34 @@ class KRR(Model):
             afps_prime_x = []
             afps_prime_y = []
             afps_prime_z = []
+            print(hash)
 
             # This loop assures that we are iterating from atom with index 0.
+            print(len(fingerprintprimes[hash].keys()))
             for atom in image:
                 selfsymbol = atom.symbol
                 selfindex = atom.index
-                selfneighborindices, selfneighboroffsets = nl[selfindex]
-
                 self.force_features[hash][(selfindex, selfsymbol)] = {}
-
-                selfneighborsymbols = [
-                        image[_].symbol
-                        for _ in selfneighborindices
-                        ]
 
                 fprime_sum_x,  fprime_sum_y, fprime_sum_z = 0., 0., 0.
 
-                for component in range(3):
-                    for nindex, nsymbol, noffset in zip(
-                            selfneighborindices, selfneighborsymbols,
-                            selfneighboroffsets):
-                        # for calculating forces, summation runs over neighbor
-                        # atoms of type II (within the main cell only)
-                        if noffset.all() == 0:
-                            key = selfindex, selfsymbol, nindex, nsymbol, \
-                                  component
-                            if component == 0:
-                                fprime_sum_x += np.array(
-                                        fingerprintprimes[hash][key])
-                            elif component == 1:
-                                fprime_sum_y += np.array(
-                                        fingerprintprimes[hash][key])
-                            else:
-                                fprime_sum_z += np.array(
-                                        fingerprintprimes[hash][key])
+                x, y, z = 0, 0, 0
+                for key in fingerprintprimes[hash].keys():
+                    if selfindex == key[0] and selfsymbol == key[1]:
+                        print(key)
+                        if key[-1] == 0:
+                            x += 1
+                            fprime_sum_x += np.array(fingerprintprimes[hash][key])
+                        elif key[-1] == 1:
+                            y += 1
+                            fprime_sum_y += np.array(fingerprintprimes[hash][key])
+                        else:
+                            z += 1
+                            fprime_sum_z += np.array(fingerprintprimes[hash][key])
 
+
+                print('x, y, z = {}, {}, {}' .format(x, y, z))
+                for component in range(3):
                     if component == 0:
                         afps_prime_x.append(fprime_sum_x)
                         self.force_features[hash][(
@@ -304,6 +297,54 @@ class KRR(Model):
                         self.force_features[hash][(
                             selfindex,
                             selfsymbol)][component] = fprime_sum_z
+                print('Lengths %s, %s, %s' % (len(afps_prime_x), len(afps_prime_y), len(afps_prime_z)))
+
+                #selfneighborindices, selfneighboroffsets = nl[selfindex]
+
+                #self.force_features[hash][(selfindex, selfsymbol)] = {}
+
+                #selfneighborsymbols = [
+                #        image[_].symbol
+                #        for _ in selfneighborindices
+                #        ]
+
+                #fprime_sum_x,  fprime_sum_y, fprime_sum_z = 0., 0., 0.
+
+                ##for component in range(3):
+                #    for nindex, nsymbol, noffset in zip(
+                #            selfneighborindices, selfneighborsymbols,
+                #            selfneighboroffsets):
+                #        # for calculating forces, summation runs over neighbor
+                #        # atoms of type II (within the main cell only)
+                #        counter += 1
+                #        if noffset.all() == 0:
+                #            key = selfindex, selfsymbol, nindex, nsymbol, \
+                #                  component
+                #            if component == 0:
+                #                fprime_sum_x += np.array(
+                #                        fingerprintprimes[hash][key])
+                #            elif component == 1:
+                #                fprime_sum_y += np.array(
+                #                        fingerprintprimes[hash][key])
+                #            else:
+                #                fprime_sum_z += np.array(
+                #                        fingerprintprimes[hash][key])
+
+                #    if component == 0:
+                #        afps_prime_x.append(fprime_sum_x)
+                #        self.force_features[hash][(
+                #            selfindex,
+                #            selfsymbol)][component] = fprime_sum_x
+                #    elif component == 1:
+                #        afps_prime_y.append(fprime_sum_y)
+                #        self.force_features[hash][(
+                #            selfindex,
+                #            selfsymbol)][component] = fprime_sum_y
+                #    else:
+                #        afps_prime_z.append(fprime_sum_z)
+                #        self.force_features[hash][(
+                #            selfindex,
+                #            selfsymbol)][component] = fprime_sum_z
 
             forces_features_x.append(afps_prime_x)
             forces_features_y.append(afps_prime_y)
