@@ -27,6 +27,8 @@ An amp-users mailing list has been started, for general discussions about the us
 
 https://listserv.brown.edu/?A0=AMP-USERS
 
+Amp is now part of the Debian archives! This means it will soon be available via your package manager in linux releases like Ubuntu.
+
 **Manual**:
 
 .. toctree::
