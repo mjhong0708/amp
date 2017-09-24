@@ -36,10 +36,9 @@ class KRR(Model):
         PATH to Trajectory file containing the images in the training set. That
         is useful for predicting new structures.
     """
-    def __init__(self, sigma=1., kernel='rbf', lamda=0., degree=3, coef0=1,
-                 kernel_parwms=None, weights=None, regressor=None, mode=None,
-                 trainingimages=None, version=None, fortran=False,
-                 checkpoints=100, lossfunction=None):
+    def __init__(self, sigma=1., kernel='rbf', lamda=0., weights=None,
+                 regressor=None, mode=None, trainingimages=None, version=None,
+                 fortran=False, checkpoints=100, lossfunction=None):
 
         # Version check, particularly if restarting.
         compatibleversions = ['2015.12', ]
