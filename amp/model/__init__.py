@@ -821,7 +821,7 @@ class LossFunction:
                     if force_resid > force_maxresid:
                         force_maxresid = force_resid
 
-                    forceloss = (1. / 3.) * force_resid ** 2
+                    forceloss += (1. / 3.) * force_resid ** 2
 
             loss = energyloss * p.energy_coefficient
 
