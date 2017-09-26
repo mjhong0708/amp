@@ -12,6 +12,8 @@ Development version
 
 * Improved interprocess communication which should reduce network traffic for parallel jobs.
 
+* Amp is now part of the Debian archives! This means it should soon be available in package managers for linux releases such as Ubuntu.
+
 0.6
 ---
 Release date: July 31, 2017

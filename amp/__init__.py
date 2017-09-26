@@ -515,7 +515,7 @@ def get_git_commit(ampdirectory):
                                               '--pretty=%H\t%ci'],
                                              stderr=devnull)
     except:
-        output = 'unknown hash\tunknown date'
+        output = b'unknown hash\tunknown date'
     output = output.strip()
     commithash, commitdate = output.split(b'\t')
     os.chdir(pwd)
