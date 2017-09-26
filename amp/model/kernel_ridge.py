@@ -23,7 +23,8 @@ class KRR(Model):
     kernel : str
         Choose the kernel. Default is 'rbf'.
     sigma : float
-        Length scale of the Gaussian in the case of RBF. Default is 1.
+        Length scale of the Gaussian in the case of RBF, exponential, and
+        laplacian kernels. Default is 1.
     lamda : float
         Strength of the regularization in the loss when minimizing error.
     checkpoints : int
@@ -126,7 +127,7 @@ class KRR(Model):
                 self.properties.append('forces')
                 kijf_args = dict(
                     trainingimages=tp.trainingimages,
-                    descriptor=tp.descriptor
+                    t_descriptor=tp.descriptor
                     )
                 self.get_forces_kernel(**kijf_args)
 
@@ -217,17 +218,18 @@ class KRR(Model):
 
             return kij, self.kernel_e
 
-    def get_forces_kernel(self, trainingimages=None, descriptor=None,
+    def get_forces_kernel(self, trainingimages=None, t_descriptor=None,
                           only_features=False):
         """Local method to get the kernel on the fly
 
         Parameters
         ----------
         trainingimages : object
-            This is an ASE object containing information about the images. Note
-            that you have to hash them before passing them to this method.
-        descriptor : object
-            Descriptor object containing the fingerprintprimes..
+            This is an ASE object containing the training set images. Note that
+            images have to be hashed before passing them to this method.
+        t_descriptor : object
+            Descriptor object containing the fingerprintprimes from the
+            training set.
         only_features : bool
             If set to True, only the self.reference_features are built.
 
@@ -240,9 +242,9 @@ class KRR(Model):
         forces_features_x = []
         forces_features_y = []
         forces_features_z = []
-        hashes = list(hash_images(trainingimages).keys())
 
-        fingerprintprimes = descriptor.fingerprintprimes
+        hashes = list(hash_images(trainingimages).keys())
+        fingerprintprimes = t_descriptor.fingerprintprimes
 
         self.force_features = {}
 
@@ -261,19 +263,15 @@ class KRR(Model):
 
                 fprime_sum_x,  fprime_sum_y, fprime_sum_z = 0., 0., 0.
 
-                x, y, z = 0, 0, 0
                 for key in fingerprintprimes[hash].keys():
                     if selfindex == key[0] and selfsymbol == key[1]:
                         if key[-1] == 0:
-                            x += 1
                             fprime_sum_x += np.array(
                                     fingerprintprimes[hash][key])
                         elif key[-1] == 1:
-                            y += 1
                             fprime_sum_y += np.array(
                                     fingerprintprimes[hash][key])
                         else:
-                            z += 1
                             fprime_sum_z += np.array(
                                     fingerprintprimes[hash][key])
 
@@ -306,8 +304,7 @@ class KRR(Model):
             list(itertools.chain.from_iterable(forces_features_z))
         ]
 
-        if only_features is not True:
-
+        if only_features is False:
             for hash in hashes:
                 image = trainingimages[hash]
                 self.kernel_f[hash] = {}
@@ -495,8 +492,9 @@ class KRR(Model):
                     ((index, symbol))].dot(weights['energy'][symbol])
         return atomic_amp_energy
 
-    def calculate_force(self, index, symbol, component, trainingimages=None,
-                        descriptor=None, sigma=None, hash=None):
+    def calculate_force(self, index, symbol, component, fingerprintprimes=None,
+                        trainingimages=None, t_descriptor=None, sigma=None,
+                        hash=None):
         """Given derivative of input to the neural network, derivative of output
         (which corresponds to forces) is calculated.
 
@@ -508,6 +506,8 @@ class KRR(Model):
             Symbol of central atom for which the atomic force will be computed.
         component : int
             Direction of the force.
+        fingerprintprimes : list
+            List of fingerprint primes.
         trainingimages : list
             Object or list containing the training set. This is needed when
             performing predictions of unseen data.
@@ -526,7 +526,27 @@ class KRR(Model):
         key = index, symbol
 
         if len(list(self.kernel_f.keys())) == 0 or hash not in self.kernel_f:
-            raise NotImplementedError('This needs to be coded.')
+            self.get_forces_kernel(
+                    trainingimages=trainingimages,
+                    t_descriptor=t_descriptor,
+                    only_features=True
+                    )
+
+            fprime = 0
+            for afp in fingerprintprimes:
+                if (index == afp[0] and symbol == afp[1] and
+                   component == afp[-1]):
+                    fprime += np.array(fingerprintprimes[afp])
+
+            features = self.reference_force_features[component]
+            kernel = self.kernel_matrix(
+                            fprime,
+                            features,
+                            kernel=self.kernel,
+                            sigma=sigma
+                            )
+
+            force = kernel.dot(weights['forces'][symbol][component])
         else:
 
             force = self.kernel_f[hash][key][component].dot(
@@ -541,11 +561,17 @@ class KRR(Model):
 
         Parameters
         ----------
+        feature : list or numpy array
+            Single feature.
         features : list or numpy array
-            Column vector containing the fingerprint of the atoms in images.
+            Column vector containing the fingerprints of all atoms in the
+            training set.
         kernel : str
             Select the kernel to be used. Supported kernels are: 'linear',
             rbf', 'exponential, and 'laplacian'.
+        sigma : float
+            Length scale of the Gaussian in the case of RBF, exponential and
+            laplacian kernels.
 
         Returns
         -------
@@ -554,9 +580,9 @@ class KRR(Model):
 
         Notes
         -----
-        Kernels may differ a lot between them. The kernel_matrix method has to
-        contain algorithms needed to build the desired matrix. The computation
-        of the kernel, is done by auxiliary functions that are located at the
+        Kernels may differ a lot between them. The kernel_matrix method in this
+        class contains algorithms to build the desired matrix. The computation
+        of the kernel is done by auxiliary functions that are located at the
         end of the KRR class.
         """
         features = np.asarray(features)
@@ -580,6 +606,103 @@ class KRR(Model):
             raise NotImplementedError('This kernel needs to be coded.')
 
         return np.asarray(K)
+
+
+class Raveler(object):
+    """Raveler class inspired by neuralnetwork.py
+
+    Takes a weights dictionary created by KRR class and convert it into vector
+    and back to dictionaries. This is needed for doing the optimization of the
+    loss function.
+
+    Parameters
+    ----------
+    weights : dict
+        Dictionary containing weights per atom.
+    size : int
+        Number of elements in the dictionary.
+
+    """
+    def __init__(self, weights, size=None):
+        self.count = 0
+        self.weights_keys = []
+        self.properties_keys = []
+        self.size = size
+
+        for prop in weights.keys():
+            self.properties_keys.append(prop)
+            for key in weights[prop].keys():
+                if prop is 'energy':
+                    self.weights_keys.append(key)
+                    self.count += len(weights[prop][key])
+                elif prop is 'forces':
+                    for component in range(3):
+                        self.count += len(weights[prop][key][component])
+
+    def to_vector(self, weights):
+        """Convert weights dictionaries to one dimensional vectors.
+
+        Parameters
+        ----------
+        weights : dict
+            Dictionary of weights.
+
+        Returns
+        -------
+        vector : ndarray
+            One-dimensional weight vector to be used by the optimizer.
+        """
+        vector = []
+        for prop in weights.keys():
+            if prop is 'energy':
+                for key in weights[prop].keys():
+                    vector.append(weights[prop][key])
+            elif prop is 'forces':
+                for component in range(3):
+                    for key in weights[prop].keys():
+                        vector.append(weights[prop][key][component])
+
+        vector = np.ravel(vector)
+
+        return vector
+
+    def to_dicts(self, vector):
+        """Convert vector of weights back into weights dictionaries.
+
+        Parameters
+        ----------
+        vector : ndarray
+            One-dimensional weight vector.
+
+        Returns
+        -------
+        weights : dict
+            Dictionary of weights.
+        """
+
+        assert len(vector) == self.count
+        first = 0
+        last = 0
+        weights = OrderedDict()
+        step = self.size
+
+        for prop in self.properties_keys:
+            weights[prop] = OrderedDict()
+            if prop is 'energy':
+                for k in self.weights_keys:
+                    if k not in weights[prop].keys():
+                        last += step
+                        weights[prop][k] = vector[first:last]
+                        first += step
+            elif prop is 'forces':
+                for k in self.weights_keys:
+                    if k not in weights[prop].keys():
+                        weights[prop][k] = np.zeros((3, self.size))
+                        for component in range(3):
+                            last += step
+                            weights[prop][k][component] = vector[first:last]
+                            first += step
+        return weights
 
 
 """
@@ -609,64 +732,3 @@ def laplacian(featurex, featurey, sigma=1.):
     """ Compute the laplacian kernel"""
     laplacian = np.exp(-(np.linalg.norm(featurex - featurey)) / sigma)
     return laplacian
-
-
-class Raveler(object):
-    """Raveler class inspired by neuralnetwork.py """
-    def __init__(self, weights, size=None):
-        self.count = 0
-        self.weights_keys = []
-        self.properties_keys = []
-        self.size = size
-
-        for prop in weights.keys():
-            self.properties_keys.append(prop)
-            for key in weights[prop].keys():
-                if prop is 'energy':
-                    self.weights_keys.append(key)
-                    self.count += len(weights[prop][key])
-                elif prop is 'forces':
-                    for component in range(3):
-                        self.count += len(weights[prop][key][component])
-
-    def to_vector(self, weights):
-        vector = []
-        for prop in weights.keys():
-            if prop is 'energy':
-                for key in weights[prop].keys():
-                    vector.append(weights[prop][key])
-            elif prop is 'forces':
-                for component in range(3):
-                    for key in weights[prop].keys():
-                        vector.append(weights[prop][key][component])
-
-        return np.ravel(vector)
-
-    def to_dicts(self, vector):
-        """Puts the vector back into weights and scalings dictionaries of the
-        form initialized. vector must have same length as the output of
-        unravel."""
-
-        assert len(vector) == self.count
-        first = 0
-        last = 0
-        weights = OrderedDict()
-        step = self.size
-
-        for prop in self.properties_keys:
-            weights[prop] = OrderedDict()
-            if prop is 'energy':
-                for k in self.weights_keys:
-                    if k not in weights[prop].keys():
-                        last += step
-                        weights[prop][k] = vector[first:last]
-                        first += step
-            elif prop is 'forces':
-                for k in self.weights_keys:
-                    if k not in weights[prop].keys():
-                        weights[prop][k] = np.zeros((3, self.size))
-                        for component in range(3):
-                            last += step
-                            weights[prop][k][component] = vector[first:last]
-                            first += step
-        return weights

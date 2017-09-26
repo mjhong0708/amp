@@ -85,7 +85,7 @@ class Model(object):
 
     def calculate_forces(self, fingerprints, fingerprintprimes, hash=None,
                          trainingimages=None, fp_trainingimages=None,
-                         descriptor=None):
+                         t_descriptor=None):
         """Calculates the model-predicted forces for an image, based on
         derivatives of fingerprints.
 
@@ -126,9 +126,10 @@ class Model(object):
                                 symbol=symbol,
                                 component=component,
                                 hash=hash,
-                                descriptor=descriptor,
+                                t_descriptor=t_descriptor,
                                 sigma=self.parameters.sigma,
-                                trainingimages=trainingimages
+                                trainingimages=trainingimages,
+                                fingerprintprimes=fingerprintprimes
                                 )
                         dforce = self.calculate_force(**arguments)
                         forces[selfindex][component] += dforce
@@ -806,7 +807,7 @@ class LossFunction:
                                 self.fingerprints[hash],
                                 self.fingerprintprimes[hash],
                                 hash=hash,
-                                descriptor=descriptor
+                                t_descriptor=descriptor
                                 )
                     actual_forces = image.get_forces(apply_constraint=False)
                     for index in range(no_of_atoms):

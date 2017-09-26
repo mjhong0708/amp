@@ -248,18 +248,24 @@ class Amp(Calculator, object):
                                                    log=log,
                                                    calculate_derivatives=False)
             if self.model.__class__.__name__ == 'NeuralNetwork':
-                energy = self.model.calculate_energy(self.descriptor.fingerprints[key])
+                energy = self.model.calculate_energy(
+                        self.descriptor.fingerprints[key]
+                        )
 
             elif self.model.__class__.__name__ == 'KRR':
                 fingerprints = self.descriptor.fingerprints
 
                 log('Loading the training set')
-                trainingimages = hash_images(ase.io.Trajectory(self.model.trainingimages))
+                trainingimages = hash_images(
+                        ase.io.Trajectory(self.model.trainingimages)
+                        )
 
-                self.descriptor.calculate_fingerprints(images=trainingimages,
-                                                   log=log,
-                                                   calculate_derivatives=False)
-                fp_trainingimages= self.descriptor.fingerprints
+                self.descriptor.calculate_fingerprints(
+                        images=trainingimages,
+                        log=log,
+                        calculate_derivatives=False
+                        )
+                fp_trainingimages = self.descriptor.fingerprints
 
                 energy = self.model.calculate_energy(
                         fingerprints,
@@ -273,9 +279,11 @@ class Amp(Calculator, object):
         if properties == ['forces']:
             if self.model.__class__.__name__ == 'NeuralNetwork':
                 log('Calculating forces...', tic='forces')
-                self.descriptor.calculate_fingerprints(images=images,
-                                                       log=log,
-                                                       calculate_derivatives=True)
+                self.descriptor.calculate_fingerprints(
+                        images=images,
+                        log=log,
+                        calculate_derivatives=True
+                        )
                 forces = \
                     self.model.calculate_forces(
                         self.descriptor.fingerprints[key],
@@ -285,22 +293,31 @@ class Amp(Calculator, object):
 
             elif self.model.__class__.__name__ == 'KRR':
                 log('Calculating forces...', tic='forces')
+                self.descriptor.calculate_fingerprints(
+                        images=images,
+                        log=log,
+                        calculate_derivatives=True
+                        )
                 log('Loading the training set')
-                trainingimages = hash_images(ase.io.Trajectory(self.model.trainingimages))
-                self.descriptor.calculate_fingerprints(images=images,
-                                                       log=log,
-                                                       calculate_derivatives=True)
+                trainingimages = hash_images(
+                        ase.io.Trajectory(self.model.trainingimages)
+                        )
+                self.descriptor.calculate_fingerprints(
+                        images=trainingimages,
+                        log=log,
+                        calculate_derivatives=True
+                        )
+                t_descriptor = self.descriptor
                 forces = \
                     self.model.calculate_forces(
                         self.descriptor.fingerprints[key],
                         self.descriptor.fingerprintprimes[key],
                         hash=key,
                         trainingimages=trainingimages,
-                        descriptor=self.descriptor
+                        t_descriptor=t_descriptor,
                         )
                 self.results['forces'] = forces
                 log('...forces calculated.', toc='forces')
-
 
     def train(self,
               images,
