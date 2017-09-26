@@ -36,10 +36,14 @@ class KRR(Model):
     trainingimages : str
         PATH to Trajectory file containing the images in the training set. That
         is useful for predicting new structures.
+    cholesky : bool
+        Wether or not we are using Cholesky decomposition to determine the
+        weights.
     """
     def __init__(self, sigma=1., kernel='rbf', lamda=0., weights=None,
                  regressor=None, mode=None, trainingimages=None, version=None,
-                 fortran=False, checkpoints=100, lossfunction=None):
+                 fortran=False, checkpoints=100, lossfunction=None,
+                 cholesky=False):
 
         # Version check, particularly if restarting.
         compatibleversions = ['2015.12', ]
