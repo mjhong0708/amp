@@ -4,9 +4,10 @@
 # Author: Muammar El Khatib <muammarelkhatib@brown.edu>
 
 import os
-import numpy as np
+import time
 import itertools
 from collections import OrderedDict
+import numpy as np
 
 from ase.calculators.calculator import Parameters
 
@@ -26,15 +27,16 @@ class KRR(Model):
         Length scale of the Gaussian in the case of RBF, exponential, and
         laplacian kernels. Default is 1.
     lamda : float
-        Strength of the regularization in the loss when minimizing error.
+        Strength of the regularization in the loss function when minimizing
+        error.
     checkpoints : int
         Frequency with which to save parameter checkpoints upon training. E.g.,
         100 saves a checkpoint on each 100th training setp.  Specify None for
-        no checkpoints.
+        no checkpoints. Default is None.
     lossfunction : object
-        Loss function object, if at all desired by the user.
+        Loss function object.
     trainingimages : str
-        PATH to Trajectory file containing the images in the training set. That
+        Path to Trajectory file containing the images in the training set. This
         is useful for predicting new structures.
     cholesky : bool
         Wether or not we are using Cholesky decomposition to determine the
@@ -42,7 +44,7 @@ class KRR(Model):
     """
     def __init__(self, sigma=1., kernel='rbf', lamda=0., weights=None,
                  regressor=None, mode=None, trainingimages=None, version=None,
-                 fortran=False, checkpoints=100, lossfunction=None,
+                 fortran=False, checkpoints=None, lossfunction=None,
                  cholesky=False):
 
         # Version check, particularly if restarting.
@@ -80,14 +82,14 @@ class KRR(Model):
             self.lossfunction = LossFunction()
 
     def fit(self, trainingimages, descriptor, log, parallel, only_setup=False):
-        """Fit kernel ridge model using a loss function.
+        """Fit kernel ridge model using a L2 loss function.
 
         Parameters
         ----------
         trainingimages : dict
             Hashed dictionary of training images.
         descriptor : object
-            Class representing local atomic environment.
+            Class with local atomic environment information.
         log : Logger object
             Write function at which to log data. Note this must be a callable
             function.
@@ -116,12 +118,14 @@ class KRR(Model):
         log('Regression in %s mode.' % p.mode)
 
         if len(list(self.kernel_e.keys())) == 0:
-            log('Computing %s kernel.' % self.kernel)
+
+            log('Computing %s kernel.' % self.kernel, tic='k')
             kij_args = dict(
                     trainingimages=tp.trainingimages,
                     fp_trainingimages=tp.fingerprints,
                     )
 
+            log('kernel %s computed.' % self.kernel)
             # This is needed for both setting the size of parameters to
             # optimize and also to return the kernel for energies
             kij = self.get_energy_kernel(**kij_args)[0]
@@ -134,6 +138,8 @@ class KRR(Model):
                     t_descriptor=tp.descriptor
                     )
                 self.get_forces_kernel(**kijf_args)
+
+            log('Kernel computed.' % self.kernel, toc='k')
 
         if p.weights is None:
             log('Initializing weights.')
@@ -174,7 +180,8 @@ class KRR(Model):
         ----------
         trainingimages : object
             This is an ASE object containing information about the images. Note
-            that you have to hash them before passing them to this method.
+            that you have to hash the images before passing them to this
+            method.
         fp_trainingimages : object
             Fingerprints calculated using the trainingimages.
         only_features : bool
