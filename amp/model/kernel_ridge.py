@@ -4,7 +4,6 @@
 # Author: Muammar El Khatib <muammarelkhatib@brown.edu>
 
 import os
-import time
 import itertools
 from collections import OrderedDict
 import numpy as np
@@ -606,7 +605,8 @@ class KRR(Model):
             self.sigma = sigma
 
         if kernel == 'linear':
-            K = linear(features)
+            for afp in features:
+                K.append(linear(feature, afp))
 
         # All kernels in this control flow share the same structure
         elif (kernel == 'rbf' or kernel == 'laplacian' or
@@ -723,25 +723,26 @@ Auxiliary functions to compute different kernels
 """
 
 
-def linear(features):
+def linear(feature_i, feature_j):
     """ Compute a linear kernel """
-    linear = np.dot(features, features.T)
+    linear = np.dot(feature_i, feature_j)
     return linear
 
 
-def rbf(featurex, featurey, sigma=1.):
+def rbf(feature_i, feature_j, sigma=1.):
     """ Compute the rbf (AKA Gaussian) kernel.  """
-    rbf = np.exp(-(np.linalg.norm(featurex - featurey)**2) / 2 * sigma**2)
+    rbf = np.exp(-(np.linalg.norm(feature_i - feature_j)**2) / 2 * sigma**2)
     return rbf
 
 
-def exponential(featurex, featurey, sigma=1.):
+def exponential(feature_i, feature_j, sigma=1.):
     """ Compute the exponential kernel"""
-    exponential = np.exp(-(np.linalg.norm(featurex - featurey)) / 2 * sigma**2)
+    exponential = np.exp(-(np.linalg.norm(feature_i - feature_j)) /
+                         2 * sigma**2)
     return exponential
 
 
-def laplacian(featurex, featurey, sigma=1.):
+def laplacian(feature_i, feature_j, sigma=1.):
     """ Compute the laplacian kernel"""
-    laplacian = np.exp(-(np.linalg.norm(featurex - featurey)) / sigma)
+    laplacian = np.exp(-(np.linalg.norm(feature_i - feature_j)) / sigma)
     return laplacian
