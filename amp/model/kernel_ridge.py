@@ -119,13 +119,15 @@ class KRR(Model):
 
         if len(list(self.kernel_e.keys())) == 0:
 
-            log('Computing %s kernel.' % self.kernel, tic='k')
+            log('Calculating %s kernel...' % self.kernel, tic='kernel')
+            log('Parameters:')
+            log(' lamda = %s' % self.lamda)
+            log(' sigma = %s' % self.sigma)
             kij_args = dict(
                     trainingimages=tp.trainingimages,
                     fp_trainingimages=tp.fingerprints,
                     )
 
-            log('kernel %s computed.' % self.kernel)
             # This is needed for both setting the size of parameters to
             # optimize and also to return the kernel for energies
             kij = self.get_energy_kernel(**kij_args)[0]
@@ -139,7 +141,7 @@ class KRR(Model):
                     )
                 self.get_forces_kernel(**kijf_args)
 
-            log('Kernel computed.' % self.kernel, toc='k')
+            log('...kernel computed in', toc='kernel')
 
         if p.weights is None:
             log('Initializing weights.')
