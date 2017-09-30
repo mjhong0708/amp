@@ -7,6 +7,7 @@ import os
 import itertools
 from collections import OrderedDict
 import numpy as np
+from scipy.linalg import cholesky
 
 from ase.calculators.calculator import Parameters
 
@@ -71,6 +72,7 @@ class KRR(Model):
         p.kernel = self.kernel = kernel
         p.sigma = self.sigma = sigma
         p.lamda = self.lamda = lamda
+        p.cholesky = self.cholesky = cholesky
         self.trainingimages = p.trainingimages = trainingimages
         self.kernel_e = {}  # Kernel dictionary for energies
         self.kernel_f = {}  # Kernel dictionary for forces
@@ -181,9 +183,20 @@ class KRR(Model):
         if only_setup:
             return
 
-        self.step = 0
-        result = self.regressor.regress(model=self, log=log)
-        return result  # True / False
+        if self.cholesky is False:
+            self.step = 0
+            result = self.regressor.regress(model=self, log=log)
+            return result  # True / False
+        else:
+            """
+            This method would require to solve to systems of linear equations.
+            In a atom-centered mode we don't know a priori the energy per atom
+            but per image. Therefore this would work for image-centered mode.
+            """
+            raise NotImplementedError('Needs to be coded.')
+            I = np.identity(self.size)
+            K = kij.reshape(self.size, self.size)
+            cholesky_U = cholesky((K + self.lamda * I))
 
     def get_energy_kernel(self, trainingimages=None, fp_trainingimages=None,
                           only_features=False):
