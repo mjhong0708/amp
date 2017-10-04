@@ -639,6 +639,12 @@ class KRR(Model):
         feature = np.asarray(feature)
         K = []
 
+        call = {
+                'exponential': exponential,
+                'laplacian': laplacian,
+                'rbf': rbf
+                }
+
         if self.sigma is None:
             self.sigma = sigma
 
@@ -651,7 +657,7 @@ class KRR(Model):
               kernel == 'exponential'):
 
             for afp in features:
-                K.append(rbf(feature, afp, sigma=self.sigma))
+                K.append(call[kernel](feature, afp, sigma=self.sigma))
 
         else:
             raise NotImplementedError('This kernel needs to be coded.')
