@@ -702,7 +702,6 @@ class Raveler(object):
                 self.weights_keys.append(key)
                 self.count += len(weights[key])
 
-
     def to_vector(self, weights):
         """Convert weights dictionaries to one dimensional vectors.
 
@@ -769,7 +768,8 @@ class Raveler(object):
                             weights[prop][k] = np.zeros((3, self.size))
                             for component in range(3):
                                 last += step
-                                weights[prop][k][component] = vector[first:last]
+                                weights[prop][k][
+                                        component] = vector[first:last]
                                 first += step
         else:
             for k in self.weights_keys:
