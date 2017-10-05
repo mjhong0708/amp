@@ -7,6 +7,8 @@ import numpy as np
 from matplotlib import pyplot
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib import rcParams
+from ase.io import Trajectory
+
 rcParams.update({'figure.autolayout': True})
 
 
@@ -240,8 +242,24 @@ def plot_parity(load,
     calc._log('Calculating potential energies...', tic='pot-energy')
     energy_data = {}
     for hash, image in images.iteritems():
-        amp_energy = calc.model.calculate_energy(
-            calc.descriptor.fingerprints[hash], hash)
+        energy_args = dict(
+                fingerprints=calc.descriptor.fingerprints[hash],
+                hash=hash
+                )
+
+        if calc.model.trainingimages is not None:
+            trainingimages = hash_images(Trajectory(calc.model.trainingimages))
+            energy_args['trainingimages'] = trainingimages
+            calc.descriptor.calculate_fingerprints(
+                    images=trainingimages,
+                    parallel=calc._parallel,
+                    log=calc._log,
+                    calculate_derivatives=calculate_derivatives
+                    )
+            fp_trainingimages = calc.descriptor.fingerprints
+            energy_args['fp_trainingimages'] = fp_trainingimages
+
+        amp_energy = calc.model.calculate_energy(**energy_args)
         actual_energy = image.get_potential_energy(apply_constraint=False)
         energy_data[hash] = [actual_energy, amp_energy]
     calc._log('...potential energies calculated.', toc='pot-energy')
