@@ -156,26 +156,22 @@ class KRR(Model):
             elif p.mode == 'atom-centered':
                 self.size = kij.shape[-1]
                 weights = OrderedDict()
-                if p.weights_independent is True:
-                    for prop in self.properties:
-                        weights[prop] = OrderedDict()
-                        for hash in tp.trainingimages.keys():
-                            imagefingerprints = tp.fingerprints[hash]
-                            for element, fingerprint in imagefingerprints:
-                                if (element not in weights and
-                                   prop is 'energy'):
-                                    weights[prop][element] = np.ones(self.size)
-                                elif (element not in weights and
-                                      prop is 'forces'):
-                                    weights[prop][element] = np.ones(
-                                            (3, self.size)
-                                            )
-                else:
+                for prop in self.properties:
+                    weights[prop] = OrderedDict()
                     for hash in tp.trainingimages.keys():
                         imagefingerprints = tp.fingerprints[hash]
                         for element, fingerprint in imagefingerprints:
-                            if element not in weights:
-                                weights[element] = np.ones(self.size)
+                            if (element not in weights and
+                               prop is 'energy'):
+                                weights[prop][element] = np.ones(self.size)
+                            elif (element not in weights and
+                                  prop is 'forces'):
+                                if p.weights_independent is True:
+                                    weights[prop][element] = np.ones(
+                                            (3, self.size)
+                                            )
+                                else:
+                                    weights[prop][element] = np.ones(self.size)
                 p.weights = weights
         else:
             log('Initial weights already present.')
@@ -529,12 +525,8 @@ class KRR(Model):
                             )
             atomic_amp_energy = kernel.dot(weights['energy'][symbol])
         else:
-            if self.weights_independent is True:
-                atomic_amp_energy = self.kernel_e[hash][
+            atomic_amp_energy = self.kernel_e[hash][
                         ((index, symbol))].dot(weights['energy'][symbol])
-            else:
-                atomic_amp_energy = self.kernel_e[hash][
-                        ((index, symbol))].dot(weights[symbol])
         return atomic_amp_energy
 
     def calculate_force(self, index, symbol, component, fingerprintprimes=None,
@@ -600,7 +592,7 @@ class KRR(Model):
                         )
             else:
                 force = self.kernel_f[hash][key][component].dot(
-                        weights[symbol]
+                        weights['forces'][symbol]
                         )
         force *= -1.
         return force
@@ -687,20 +679,18 @@ class Raveler(object):
         self.size = size
         self.weights_independent = weights_independent
 
-        if weights_independent is True:
-            for prop in weights.keys():
-                self.properties_keys.append(prop)
-                for key in weights[prop].keys():
-                    if prop is 'energy':
-                        self.weights_keys.append(key)
-                        self.count += len(weights[prop][key])
-                    elif prop is 'forces':
+        for prop in weights.keys():
+            self.properties_keys.append(prop)
+            for key in weights[prop].keys():
+                if prop is 'energy':
+                    self.weights_keys.append(key)
+                    self.count += len(weights[prop][key])
+                elif prop is 'forces':
+                    if self.weights_independent is True:
                         for component in range(3):
                             self.count += len(weights[prop][key][component])
-        else:
-            for key in weights.keys():
-                self.weights_keys.append(key)
-                self.count += len(weights[key])
+                    else:
+                        self.count += len(weights[prop][key])
 
     def to_vector(self, weights):
         """Convert weights dictionaries to one dimensional vectors.
@@ -716,18 +706,18 @@ class Raveler(object):
             One-dimensional weight vector to be used by the optimizer.
         """
         vector = []
-        if self.weights_independent is True:
-            for prop in weights.keys():
-                if prop is 'energy':
-                    for key in weights[prop].keys():
-                        vector.append(weights[prop][key])
-                elif prop is 'forces':
+        for prop in weights.keys():
+            if prop is 'energy':
+                for key in weights[prop].keys():
+                    vector.append(weights[prop][key])
+            elif prop is 'forces':
+                if self.weights_independent is True:
                     for component in range(3):
                         for key in weights[prop].keys():
                             vector.append(weights[prop][key][component])
-        else:
-            for key in weights.keys():
-                vector.append(weights[key])
+                else:
+                    for key in weights[prop].keys():
+                        vector.append(weights[prop][key])
 
         vector = np.ravel(vector)
 
@@ -753,30 +743,29 @@ class Raveler(object):
         weights = OrderedDict()
         step = self.size
 
-        if self.weights_independent is True:
-            for prop in self.properties_keys:
-                weights[prop] = OrderedDict()
-                if prop is 'energy':
-                    for k in self.weights_keys:
-                        if k not in weights[prop].keys():
+        for prop in self.properties_keys:
+            weights[prop] = OrderedDict()
+            if prop is 'energy':
+                for k in self.weights_keys:
+                    if k not in weights[prop].keys():
+                        last += step
+                        weights[prop][k] = vector[first:last]
+                        first += step
+            elif prop is 'forces':
+                for k in self.weights_keys:
+                    if (k not in weights[prop].keys() and
+                            self.weights_independent is True):
+                        weights[prop][k] = np.zeros((3, self.size))
+                        for component in range(3):
                             last += step
-                            weights[prop][k] = vector[first:last]
+                            weights[prop][k][
+                                    component] = vector[first:last]
                             first += step
-                elif prop is 'forces':
-                    for k in self.weights_keys:
-                        if k not in weights[prop].keys():
-                            weights[prop][k] = np.zeros((3, self.size))
-                            for component in range(3):
-                                last += step
-                                weights[prop][k][
-                                        component] = vector[first:last]
-                                first += step
-        else:
-            for k in self.weights_keys:
-                if k not in weights.keys():
-                    last += step
-                    weights[k] = vector[first:last]
-                    first += step
+                    elif (k not in weights[prop].keys() and
+                            self.weights_independent is False):
+                        last += step
+                        weights[prop][k] = vector[first:last]
+                        first += step
         return weights
 
 
