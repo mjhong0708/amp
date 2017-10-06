@@ -295,10 +295,23 @@ def plot_parity(load,
         calc._log('Calculating forces...', tic='forces')
         force_data = {}
         for hash, image in images.iteritems():
+            forces_args = dict(
+                    fingerprints=calc.descriptor.fingerprints[hash],
+                    fingerprintprimes=calc.descriptor.fingerprintprimes[hash]
+                    )
+
+            if calc.model.trainingimages is not None:
+                trainingimages = hash_images(Trajectory(calc.model.trainingimages))
+                calc.descriptor.calculate_fingerprints(
+                        images=trainingimages,
+                        calculate_derivatives=True
+                        )
+                t_descriptor = calc.descriptor
+                forces_args['trainingimages'] = trainingimages
+                forces_args['t_descriptor'] = t_descriptor
+
             amp_forces = \
-                calc.model.calculate_forces(
-                    calc.descriptor.fingerprints[hash],
-                    calc.descriptor.fingerprintprimes[hash])
+                calc.model.calculate_forces(**forces_args)
             actual_forces = image.get_forces(apply_constraint=False)
             force_data[hash] = [actual_forces, amp_forces]
         calc._log('...forces calculated.', toc='forces')
