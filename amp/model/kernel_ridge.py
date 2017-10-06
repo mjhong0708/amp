@@ -583,7 +583,10 @@ class KRR(Model):
                             sigma=sigma
                             )
 
-            force = kernel.dot(weights['forces'][symbol][component])
+            if self.weights_independent is True:
+                force = kernel.dot(weights['forces'][symbol][component])
+            else:
+                force = kernel.dot(weights['forces'][symbol])
         else:
 
             if self.weights_independent is True:
