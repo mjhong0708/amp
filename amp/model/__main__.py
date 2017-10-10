@@ -101,7 +101,7 @@ if purpose == 'calculate_loss_function':
     log('Establishing subscriber at {}.'.format(publisher_address))
     subscriber = context.socket(zmq.SUB)
     subscriber.connect('tcp://%s' % publisher_address)
-    subscriber.setsockopt(zmq.SUBSCRIBE, '')
+    subscriber.setsockopt(zmq.SUBSCRIBE, b'')
     log('Subscriber established.')
 
     test_message = subscriber.recv_pyobj()
