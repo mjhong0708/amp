@@ -49,7 +49,8 @@ class KRR(Model):
     def __init__(self, sigma=1., kernel='rbf', lamda=0., weights=None,
                  regressor=None, mode=None, trainingimages=None, version=None,
                  fortran=False, checkpoints=None, lossfunction=None,
-                 cholesky=False, weights_independent=True):
+                 cholesky=False, weights_independent=True,
+                 numeric_force=False):
 
         # Version check, particularly if restarting.
         compatibleversions = ['2015.12', ]
@@ -73,6 +74,7 @@ class KRR(Model):
         p.sigma = self.sigma = sigma
         p.lamda = self.lamda = lamda
         p.cholesky = self.cholesky = cholesky
+        p.numeric_force = self.numeric_force = numeric_force
         self.trainingimages = p.trainingimages = trainingimages
         self.kernel_e = {}  # Kernel dictionary for energies
         self.kernel_f = {}  # Kernel dictionary for forces

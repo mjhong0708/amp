@@ -802,13 +802,15 @@ class LossFunction:
 
                 if p.force_coefficient is not None:
                     descriptor = self._model.trainingparameters.descriptor
-                    amp_forces = \
-                        model.calculate_forces(
-                                self.fingerprints[hash],
-                                self.fingerprintprimes[hash],
-                                hash=hash,
-                                t_descriptor=descriptor
-                                )
+                    if model.numeric_force is False:
+                        amp_forces = \
+                            model.calculate_forces(
+                                    self.fingerprints[hash],
+                                    self.fingerprintprimes[hash],
+                                    hash=hash,
+                                    t_descriptor=descriptor
+                                    )
+
                     actual_forces = image.get_forces(apply_constraint=False)
                     for index in range(no_of_atoms):
                         temp_f = np.linalg.norm(
