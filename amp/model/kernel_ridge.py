@@ -76,8 +76,6 @@ class KRR(Model):
         p.cholesky = self.cholesky = cholesky
         p.numeric_force = self.numeric_force = numeric_force
         self.trainingimages = p.trainingimages = trainingimages
-        self.kernel_e = {}  # Kernel dictionary for energies
-        self.kernel_f = {}  # Kernel dictionary for forces
 
         self.regressor = regressor
         self.parent = None  # Can hold a reference to main Amp instance.
@@ -85,6 +83,9 @@ class KRR(Model):
         self.checkpoints = checkpoints
         self.lossfunction = lossfunction
         self.properties = []
+
+        self.kernel_e = {}  # Kernel dictionary for energies
+        self.kernel_f = {}  # Kernel dictionary for forces
 
         if self.lossfunction is None:
             self.lossfunction = LossFunction()
@@ -136,9 +137,10 @@ class KRR(Model):
                     fp_trainingimages=tp.fingerprints,
                     )
 
-            # This is needed for both setting the size of parameters to
-            # optimize and also to return the kernel for energies
-            kij = self.get_energy_kernel(**kij_args)[0]
+            if self.fortran is True:
+                kij_args['only_features'] = True
+
+            self.get_energy_kernel(**kij_args)
             self.properties.append('energy')
 
             if self.forcetraining is True:
@@ -147,6 +149,8 @@ class KRR(Model):
                     trainingimages=tp.trainingimages,
                     t_descriptor=tp.descriptor
                     )
+                if self.fortran is True:
+                    kijf_args['only_features'] = True
                 self.get_forces_kernel(**kijf_args)
 
             log('...kernel computed in', toc='kernel')
@@ -156,7 +160,7 @@ class KRR(Model):
             if p.mode == 'image-centered':
                 raise NotImplementedError('Needs to be coded.')
             elif p.mode == 'atom-centered':
-                self.size = kij.shape[-1]
+                self.size = len(self.reference_features)
                 weights = OrderedDict()
                 for prop in self.properties:
                     weights[prop] = OrderedDict()
@@ -251,7 +255,7 @@ class KRR(Model):
 
             kij = np.asarray(kij)
 
-            return kij, self.kernel_e
+            return self.kernel_e
 
     def get_forces_kernel(self, trainingimages=None, t_descriptor=None,
                           only_features=False):

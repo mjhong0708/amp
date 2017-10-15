@@ -1376,8 +1376,8 @@
               slope * doutput_dinputsdweights(p, q)
               ! force is multiplied by -1, because it is -dE/dx and
               ! not dE/dx.
-			  unraveled_dforce_dweights(layer)%twodarray(p, q) = &
-			  -1.0d0 * unraveled_dforce_dweights(layer)%twodarray(p, q)
+                unraveled_dforce_dweights(layer)%twodarray(p, q) = &
+               -1.0d0 * unraveled_dforce_dweights(layer)%twodarray(p, q)
               end do
           end do
           deallocate(dohat_dinputs)
@@ -1764,8 +1764,8 @@
       unraveled_dforce_dparameters(element)%slope = &
       doutputs_dinputs(nn + 2)%onedarray(1)
       ! force is multiplied by -1, because it is -dE/dx and not dE/dx.
-	  unraveled_dforce_dparameters(element)%slope = &
-	  -1.0d0 * unraveled_dforce_dparameters(element)%slope
+      unraveled_dforce_dparameters(element)%slope = &
+      -1.0d0 * unraveled_dforce_dparameters(element)%slope
       do layer = 1, nn + 1
           allocate(dohat_dinputs(&
           size(doutputs_dinputs(layer)%onedarray) + 1))
@@ -1799,7 +1799,7 @@
               doutput_dinputsdweights(p, q)
               ! force is multiplied by -1, because it is -dE/dx and
               ! not dE/dx.
-	          unraveled_dforce_dparameters(element)%weights(&
+              unraveled_dforce_dparameters(element)%weights(&
               layer)%twodarray(p, q) = &
               -1.0d0 * unraveled_dforce_dparameters(element)%weights(&
               layer)%twodarray(p, q)
