@@ -77,24 +77,32 @@ class Model(object):
             if not isinstance(fingerprints, list):
                 fingerprints = fingerprints[hash]
 
-            for index, (symbol, afp) in enumerate(fingerprints):
-                arguments = dict(
-                        afp=afp,
-                        index=index,
-                        symbol=symbol,
+
+            if self.cholesky is False:
+                for index, (symbol, afp) in enumerate(fingerprints):
+                    arguments = dict(
+                            afp=afp,
+                            index=index,
+                            symbol=symbol,
+                            )
+
+                    if hash is not None:
+                        arguments['hash'] = hash
+                        arguments['fp_trainingimages'] = fp_trainingimages
+                        arguments['kernel'] = self.parameters.kernel
+                        arguments['sigma'] = self.parameters.sigma
+                        arguments['trainingimages'] = trainingimages
+
+                    atom_energy = self.calculate_atomic_energy(**arguments)
+                    self.atomic_energies.append(atom_energy)
+                    energy += atom_energy
+            else:
+                energy = self.calculate_total_energy(
+                        hash=hash,
+                        fp_trainingimages=fp_trainingimages,
+                        kernel=self.parameters.sigma,
+                        trainingimages=trainingimages
                         )
-
-                # This is called when using KRR model.
-                if hash is not None:
-                    arguments['hash'] = hash
-                    arguments['fp_trainingimages'] = fp_trainingimages
-                    arguments['kernel'] = self.parameters.kernel
-                    arguments['sigma'] = self.parameters.sigma
-                    arguments['trainingimages'] = trainingimages
-
-                atom_energy = self.calculate_atomic_energy(**arguments)
-                self.atomic_energies.append(atom_energy)
-                energy += atom_energy
         return energy
 
     def calculate_forces(self, fingerprints, fingerprintprimes, hash=None,
@@ -1060,7 +1068,9 @@ class KRR(Model):
             I = np.identity(self.size)
             K = self.kij.reshape(self.size, self.size)
             try:
+                log('... Starting Cholesky Decomposing to get upper triangular matrix.')
                 cholesky_U = cholesky((K + self.lamda * I))
+                log('... Cholesky Decomposing finished.')
                 betas = np.linalg.solve(cholesky_U, self.energy_targets)
                 p.weights['energy'] = np.linalg.solve(cholesky_U.T, betas)
                 return True
@@ -1423,6 +1433,44 @@ class KRR(Model):
             atomic_amp_energy = self.kernel_e[hash][
                         ((index, symbol))].dot(weights['energy'][symbol])
         return atomic_amp_energy
+
+    def calculate_total_energy(self, hash=None, fp_trainingimages=None,
+                               trainingimages=None, kernel=None, sigma=None):
+        """
+        Given input to the KRR model, output (which corresponds to energy)
+        is calculated about the specified atom. The sum of these for all
+        atoms is the total energy (in atom-centered mode).
+
+        Parameters
+        ---------
+        hash : str
+            hash of desired image to compute
+        kernel : str
+            The kernel to be computed in the case that Amp.load is used.
+        sigma : float
+
+        Returns
+        -------
+        atomic_amp_energy : float
+            Atomic energy on atom with index=index.
+        """
+        if self.parameters.mode != 'atom-centered':
+            raise AssertionError('calculate_atomic_energy should only be '
+                                 ' called in atom-centered mode.')
+
+        weights = self.parameters.weights
+
+        if len(list(self.kernel_e.keys())) == 0 or hash not in self.kernel_e:
+            kij_args = dict(
+                    trainingimages=trainingimages,
+                    fp_trainingimages=fp_trainingimages,
+                    )
+
+            self.get_energy_kernel(**kij_args)
+            total_amp_energy = self.kernel_e[hash].dot(weights['energy'])
+        else:
+            total_amp_energy = self.kernel_e[hash].dot(weights['energy'])
+        return total_amp_energy
 
     def calculate_force(self, index, symbol, component, fingerprintprimes=None,
                         trainingimages=None, t_descriptor=None, sigma=None,
