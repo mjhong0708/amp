@@ -9,7 +9,6 @@ import time
 import sys
 import os
 import numpy as np
-
 from collections import OrderedDict
 from scipy.linalg import cholesky
 
@@ -1031,11 +1030,9 @@ class KRR(Model):
                     for hash in tp.trainingimages.keys():
                         imagefingerprints = tp.fingerprints[hash]
                         for element, fingerprint in imagefingerprints:
-                            if (element not in weights and
-                               prop is 'energy'):
+                            if (element not in weights and prop is 'energy'):
                                 weights[prop][element] = np.ones(self.size)
-                            elif (element not in weights and
-                                  prop is 'forces'):
+                            elif (element not in weights and prop is 'forces'):
                                 if p.weights_independent is True:
                                     weights[prop][element] = np.ones(
                                             (3, self.size)
@@ -1470,7 +1467,7 @@ class KRR(Model):
             fprime = 0
             for afp in fingerprintprimes:
                 if (index == afp[0] and symbol == afp[1] and
-                   component == afp[-1]):
+                        component == afp[-1]):
                     fprime += np.array(fingerprintprimes[afp])
 
             features = self.reference_force_features[component]
@@ -1547,7 +1544,7 @@ class KRR(Model):
 
         # All kernels in this control flow share the same structure
         elif (kernel == 'rbf' or kernel == 'laplacian' or
-              kernel == 'exponential'):
+                kernel == 'exponential'):
 
             for afp in features:
                 K.append(call[kernel](feature, afp, sigma=self.sigma))
