@@ -100,8 +100,10 @@ class Model(object):
                 energy = self.calculate_total_energy(
                         hash=hash,
                         fp_trainingimages=fp_trainingimages,
-                        kernel=self.parameters.sigma,
-                        trainingimages=trainingimages
+                        kernel=self.parameters.kernel,
+                        trainingimages=trainingimages,
+                        sigma=self.parameters.sigma,
+                        fingerprints=fingerprints
                         )
         return energy
 
@@ -1071,8 +1073,8 @@ class KRR(Model):
                 log('... Starting Cholesky Decomposing to get upper triangular matrix.')
                 cholesky_U = cholesky((K + self.lamda * I))
                 log('... Cholesky Decomposing finished.')
-                betas = np.linalg.solve(cholesky_U, self.energy_targets)
-                p.weights['energy'] = np.linalg.solve(cholesky_U.T, betas)
+                betas = np.linalg.solve(cholesky_U.T, self.energy_targets)
+                p.weights['energy'] = np.linalg.solve(cholesky_U, betas)
                 return True
             except:
                 return False
@@ -1435,7 +1437,8 @@ class KRR(Model):
         return atomic_amp_energy
 
     def calculate_total_energy(self, hash=None, fp_trainingimages=None,
-                               trainingimages=None, kernel=None, sigma=None):
+                               trainingimages=None, kernel=None, sigma=None,
+                               fingerprints=None):
         """
         Given input to the KRR model, output (which corresponds to energy)
         is calculated about the specified atom. The sum of these for all
@@ -1464,10 +1467,22 @@ class KRR(Model):
             kij_args = dict(
                     trainingimages=trainingimages,
                     fp_trainingimages=fp_trainingimages,
+                    only_features=True
                     )
 
+            # This is needed for both setting the size of parameters to
+            # optimize and also to return the kernel for energies
             self.get_energy_kernel(**kij_args)
-            total_amp_energy = self.kernel_e[hash].dot(weights['energy'])
+            afp = []
+            for element, afp in fingerprints:
+                afp += afp
+            kernel = self.kernel_matrix(
+                            np.asarray(afp),
+                            self.reference_features,
+                            kernel=self.kernel,
+                            sigma=sigma
+                            )
+            total_amp_energy = kernel.dot(weights['energy'])
         else:
             total_amp_energy = self.kernel_e[hash].dot(weights['energy'])
         return total_amp_energy
