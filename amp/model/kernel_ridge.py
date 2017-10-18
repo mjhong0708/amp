@@ -21,30 +21,42 @@ class KRR(Model):
 
     Parameters
     ----------
-    kernel : str
-        Choose the kernel. Default is 'rbf'.
     sigma : float
         Length scale of the Gaussian in the case of RBF, exponential, and
         laplacian kernels. Default is 1.
+    kernel : str
+        Choose the kernel. Available kernels are: 'linear', 'rbf', 'laplacian',
+        and 'exponential'. Default is 'rbf'.
     lamda : float
         Strength of the regularization in the loss function when minimizing
         error.
+    weights: dict
+        Dictionary of weights.
+    regressor : object
+        Regressor class to be used.
+    mode : str
+        Atom- or image-centered mode.
+    trainingimages : str
+        Path to Trajectory file containing the images in the training set. This
+        is useful for predicting new structures.
+    version : str
+        Version.
+    fortran : bool
+        Use fortran code.
     checkpoints : int
         Frequency with which to save parameter checkpoints upon training. E.g.,
         100 saves a checkpoint on each 100th training setp.  Specify None for
         no checkpoints. Default is None.
     lossfunction : object
         Loss function object.
-    trainingimages : str
-        Path to Trajectory file containing the images in the training set. This
-        is useful for predicting new structures.
     cholesky : bool
         Wether or not we are using Cholesky decomposition to determine the
         weights.
-    weights: dict
-        Dictionary of weights.
     weights_independent : bool
         Wheter or not the weights are going to be split for energy and forces.
+    numeric_force : bool
+        Use numeric_force of atom energy predicted by Amp to minimize the loss
+        function. This is not yet implemented.
     """
     def __init__(self, sigma=1., kernel='rbf', lamda=0., weights=None,
                  regressor=None, mode=None, trainingimages=None, version=None,
@@ -98,7 +110,7 @@ class KRR(Model):
         trainingimages : dict
             Hashed dictionary of training images.
         descriptor : object
-            Class with local atomic environment information.
+            Class with local chemical environment per atoms.
         log : Logger object
             Write function at which to log data. Note this must be a callable
             function.
@@ -192,13 +204,19 @@ class KRR(Model):
         else:
             """
             This method would require to solve to systems of linear equations.
-            In a atom-centered mode we don't know a priori the energy per atom
-            but per image. Therefore this would work for image-centered mode.
+            In atom-centered mode we don't know a priori the energy per atom
+            but per image. Therefore I guess this would only work for
+            image-centered mode.
             """
-            raise NotImplementedError('Needs to be coded.')
             I = np.identity(self.size)
-            K = kij.reshape(self.size, self.size)
-            cholesky_U = cholesky((K + self.lamda * I))
+            K = self.kij.reshape(self.size, self.size)
+            try:
+                cholesky_U = cholesky((K + self.lamda * I))
+                betas = np.linalg.solve(cholesky_U, self.energy_targets)
+                p.weights['energy'] = np.linalg.solve(cholesky_U.T, betas)
+                return True
+            except:
+                return False
 
     def get_energy_kernel(self, trainingimages=None, fp_trainingimages=None,
                           only_features=False):
@@ -225,35 +243,55 @@ class KRR(Model):
         # This creates a list containing all features in all images on the
         # training set.
         self.reference_features = []
+        self.energy_targets = []
 
         hashes = list(hash_images(trainingimages).keys())
 
         for hash in hashes:
-            for element, afp in fp_trainingimages[hash]:
-                afp = np.asarray(afp)
+            if self.cholesky is False:
+                for element, afp in fp_trainingimages[hash]:
+                    afp = np.asarray(afp)
+                    self.reference_features.append(afp)
+            else:
+                energy = trainingimages[hash].get_potential_energy()
+                self.energy_targets.append(energy)
+                afp = []
+                for element, afp in fp_trainingimages[hash]:
+                    afp += afp
+
                 self.reference_features.append(afp)
 
-        kij = []
+        self.kij = []
 
         if only_features is not True:
-            for hash in hashes:
+            for index, hash in enumerate(hashes):
                 self.kernel_e[hash] = {}
                 kernel = []
 
-                for index, (element, afp) in enumerate(
-                        fp_trainingimages[hash]):
-                    selfsymbol = element
-                    selfindex = index
+                if self.cholesky is False:
+                    for index, (element, afp) in enumerate(
+                            fp_trainingimages[hash]):
+                        selfsymbol = element
+                        selfindex = index
+                        _kernel = self.kernel_matrix(
+                                np.asarray(afp),
+                                self.reference_features,
+                                kernel=self.kernel
+                                )
+                        self.kernel_e[hash][(selfindex, selfsymbol)] = _kernel
+                        kernel.append(_kernel)
+                    self.kij.append(kernel)
+                else:
                     _kernel = self.kernel_matrix(
-                            np.asarray(afp),
+                            np.asarray(self.reference_features[index]),
                             self.reference_features,
                             kernel=self.kernel
                             )
-                    self.kernel_e[hash][(selfindex, selfsymbol)] = _kernel
+                    self.kernel_e[hash] = _kernel
                     kernel.append(_kernel)
-                kij.append(kernel)
+                    self.kij.append(kernel)
 
-            kij = np.asarray(kij)
+            self.kij = np.asarray(self.kij)
 
             return self.kernel_e
 
@@ -303,14 +341,16 @@ class KRR(Model):
                 fprime_sum_x,  fprime_sum_y, fprime_sum_z = 0., 0., 0.
 
                 for key in fingerprintprimes[hash].keys():
-                    if selfindex == key[0] and selfsymbol == key[1]:
-                        if key[-1] == 0:
+                    if (selfindex == key[0] and selfsymbol == key[1] and
+                        key[-1] == 0):
                             fprime_sum_x += np.array(
                                     fingerprintprimes[hash][key])
-                        elif key[-1] == 1:
+                    elif (selfindex == key[0] and selfsymbol == key[1] and
+                        key[-1] == 1):
                             fprime_sum_y += np.array(
                                     fingerprintprimes[hash][key])
-                        else:
+                    elif (selfindex == key[0] and selfsymbol == key[1] and
+                        key[-1] == 2):
                             fprime_sum_z += np.array(
                                     fingerprintprimes[hash][key])
 
