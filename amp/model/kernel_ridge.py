@@ -925,6 +925,8 @@ class KRR(Model):
                  cholesky=False, weights_independent=True,
                  numeric_force=False):
 
+        np.set_printoptions(precision=30, threshold=999999999)
+
         # Version check, particularly if restarting.
         compatibleversions = ['2015.12', ]
         if (version is not None) and version not in compatibleversions:
@@ -936,19 +938,18 @@ class KRR(Model):
         else:
             version = compatibleversions[-1]
 
-        np.set_printoptions(precision=30, threshold=999999999)
         p = self.parameters = Parameters()
         p.importname = '.model.kernel_ridge.KRR'
         p.version = version
         p.weights = weights
-        self.weights_independent = p.weights_independent = weights_independent
+        p.weights_independent = self.weights_independent = weights_independent
         p.mode = mode
         p.kernel = self.kernel = kernel
         p.sigma = self.sigma = sigma
         p.lamda = self.lamda = lamda
         p.cholesky = self.cholesky = cholesky
         p.numeric_force = self.numeric_force = numeric_force
-        self.trainingimages = p.trainingimages = trainingimages
+        p.trainingimages = self.trainingimages = trainingimages
 
         self.regressor = regressor
         self.parent = None  # Can hold a reference to main Amp instance.
@@ -1064,8 +1065,7 @@ class KRR(Model):
             """
             This method would require to solve to systems of linear equations.
             In atom-centered mode we don't know a priori the energy per atom
-            but per image. Therefore I guess this would only work for
-            image-centered mode.
+            but per image.
             """
             I = np.identity(self.size)
             K = self.kij.reshape(self.size, self.size)
@@ -1117,10 +1117,10 @@ class KRR(Model):
                 energy = trainingimages[hash].get_potential_energy()
                 self.energy_targets.append(energy)
                 afp = []
-                for element, afp in fp_trainingimages[hash]:
-                    afp += afp
+                for element, _afp in fp_trainingimages[hash]:
+                    afp.append(_afp)
 
-                self.reference_features.append(afp)
+                self.reference_features.append(np.ravel(afp))
 
         self.kij = []
 
@@ -1143,8 +1143,11 @@ class KRR(Model):
                         kernel.append(_kernel)
                     self.kij.append(kernel)
                 else:
+                    afp = []
+                    for element, _afp in fp_trainingimages[hash]:
+                        afp.append(_afp)
                     _kernel = self.kernel_matrix(
-                            np.asarray(self.reference_features[index]),
+                            np.ravel(afp),
                             self.reference_features,
                             kernel=self.kernel
                             )
@@ -1474,12 +1477,13 @@ class KRR(Model):
             # optimize and also to return the kernel for energies
             self.get_energy_kernel(**kij_args)
             afp = []
-            for element, afp in fingerprints:
-                afp += afp
+            for element, _afp in fingerprints:
+                afp.append(_afp)
+
             kernel = self.kernel_matrix(
-                            np.asarray(afp),
+                            np.ravel(afp),
                             self.reference_features,
-                            kernel=self.kernel,
+                            kernel=kernel,
                             sigma=sigma
                             )
             total_amp_energy = kernel.dot(weights['energy'])
@@ -1541,17 +1545,18 @@ class KRR(Model):
                             sigma=sigma
                             )
 
-            if self.weights_independent is True:
+            if (self.weights_independent is True and self.cholesky is False):
                 force = kernel.dot(weights['forces'][symbol][component])
-            else:
+            elif (self.weights_independent is False and self.cholesky is False):
                 force = kernel.dot(weights['forces'][symbol])
         else:
 
-            if self.weights_independent is True:
+            if (self.weights_independent is True and self.cholesky is False):
                 force = self.kernel_f[hash][key][component].dot(
                         weights['forces'][symbol][component]
                         )
-            else:
+            elif (self.weights_independent is False and self.cholesky is
+                    False):
                 force = self.kernel_f[hash][key][component].dot(
                         weights['forces'][symbol]
                         )
