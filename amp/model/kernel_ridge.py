@@ -965,14 +965,18 @@ class KRR(Model):
             self.lossfunction = LossFunction()
 
     def fit(self, trainingimages, descriptor, log, parallel, only_setup=False):
-        """Fit kernel ridge model using a L2 loss function.
+        """Fit kernel ridge model
+
+        This function is capable to fit KRR using either a L2 loss function or
+        matrix factorization in the case when the cholesky keyword argument is
+        set to True.
 
         Parameters
         ----------
         trainingimages : dict
             Hashed dictionary of training images.
         descriptor : object
-            Class with local chemical environment per atoms.
+            Class with local chemical environments of atoms.
         log : Logger object
             Write function at which to log data. Note this must be a callable
             function.
@@ -1064,18 +1068,44 @@ class KRR(Model):
         else:
             """
             This method would require to solve to systems of linear equations.
-            In atom-centered mode we don't know a priori the energy per atom
-            but per image.
+            In the case of energies, we cannot operate in atom-centered because
+            we don't know a priori the energy per atom but per image.
+
+            For forces is different case because we do know the derivative of
+            the energy with respect to atom positions.
             """
-            I = np.identity(self.size)
-            K = self.kij.reshape(self.size, self.size)
+            I_e = np.identity(self.size)
+            K_e = self.kij.reshape(self.size, self.size)
+
             try:
-                log('... Starting Cholesky Decomposing to get upper triangular matrix.')
-                cholesky_U = cholesky((K + self.lamda * I))
-                log('... Cholesky Decomposing finished.')
+                log('Starting Cholesky decomposition to get upper triangular'
+                ' matrix.', tic='cholesky_energy_kernel')
+
+                cholesky_U = cholesky((K_e + self.lamda * I_e))
+
+                log('... Cholesky Decomposing finished in.',
+                         toc='cholesky_energy_kernel')
+
                 betas = np.linalg.solve(cholesky_U.T, self.energy_targets)
                 p.weights['energy'] = np.linalg.solve(cholesky_U, betas)
+
+                if self.forcetraining is True:
+                    for i in range(3):
+                        size = self.kernel_f_cholesky[i][0].size
+                        I_f = np.identity(size)
+                        K_f = self.kernel_f_cholesky[i].reshape(size, size)
+                        cholesky_U = cholesky((K_f + self.lamda * I_f))
+                        betas = np.linalg.solve(
+                                cholesky_U.T,
+                                self.force_targets[i]
+                                )
                 return True
+            except np.linalg.linalg.LinAlgError:
+                log('Your kernel matrix seems to be singular. Add more'
+                    'noise to its diagonal elements by increasing the'
+                    'the penalization term.'
+                    )
+                return False
             except:
                 return False
 
@@ -1204,6 +1234,8 @@ class KRR(Model):
 
                 fprime_sum_x,  fprime_sum_y, fprime_sum_z = 0., 0., 0.
 
+                # Here we sum all different contributions of the derivatives of
+                # the fingerprints
                 for key in fingerprintprimes[hash].keys():
                     if (selfindex == key[0] and selfsymbol == key[1] and
                             key[-1] == 0):
@@ -1248,26 +1280,71 @@ class KRR(Model):
         ]
 
         if only_features is False:
+            if self.cholesky is True:
+                self.kernel_f_cholesky = []
+                kernel_x, targets_x = [], []
+                kernel_y, targets_y = [], []
+                kernel_z, targets_z = [], []
+                self.force_targets = []
+
             for hash in hashes:
                 image = trainingimages[hash]
                 self.kernel_f[hash] = {}
+                kernel = []
 
-                for atom in image:
-                    selfsymbol = atom.symbol
-                    selfindex = atom.index
-                    self.kernel_f[hash][(selfindex, selfsymbol)] = {}
-                    for component in range(3):
-                        afp = self.force_features[hash][
-                                (selfindex, selfsymbol)][component]
-                        _kernel = self.kernel_matrix(
-                                afp,
-                                self.reference_force_features[component],
-                                kernel=self.kernel
-                                )
-                        self.kernel_f[hash][
-                                (selfindex, selfsymbol)][component] = _kernel
+                if self.cholesky is False:
+                    for atom in image:
+                        selfsymbol = atom.symbol
+                        selfindex = atom.index
+                        self.kernel_f[hash][(selfindex, selfsymbol)] = {}
+                        for component in range(3):
+                            afp = self.force_features[hash][
+                                    (selfindex, selfsymbol)][component]
+                            _kernel = self.kernel_matrix(
+                                    afp,
+                                    self.reference_force_features[component],
+                                    kernel=self.kernel
+                                    )
+                            self.kernel_f[hash][
+                                    (selfindex, selfsymbol)][
+                                            component] = _kernel
+                else:
+                    actual_forces = image.get_forces(apply_constraint=False)
+
+                    for i, atom in enumerate(image):
+                        for component in range(3):
+                            target = actual_forces[i][component]
+
+                            afp = np.ravel(self.force_features[hash][
+                                    (selfindex, selfsymbol)][component])
+                            _kernel = self.kernel_matrix(
+                                    afp,
+                                    self.reference_force_features[component],
+                                    kernel=self.kernel
+                                    )
+                            if component == 0:
+                                kernel_x.append(_kernel)
+                                targets_x.append(target)
+                            elif component == 1:
+                                kernel_y.append(_kernel)
+                                targets_y.append(target)
+                            else:
+                                kernel_z.append(_kernel)
+                                targets_z.append(target)
+
+                    self.kernel_f_cholesky = [
+                            np.array(kernel_x),
+                            np.array(kernel_y),
+                            np.array(kernel_z)
+                            ]
+                    self.force_targets = [
+                            np.array(targets_x),
+                            np.array(targets_y),
+                            np.array(targets_z)
+                            ]
 
             return self.kernel_f
+
 
     @property
     def forcetraining(self):
