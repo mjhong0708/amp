@@ -1105,6 +1105,12 @@ class KRR(Model):
                         force_weights.append(weights)
                     p.weights['forces'] = force_weights
                 return True
+            except np.linalg.linalg.LinAlgError:
+                log('Your kernel matrix seems to be singular. Add more\n'
+                'noise to its diagonal elements by increasing the'
+                'penalization term.'
+                )
+                return False
             except:
                 return False
 
@@ -1306,8 +1312,6 @@ class KRR(Model):
                                 self.reference_force_features[component],
                                 kernel=self.kernel
                                 )
-                        print('Componenet:', component)
-                        print(_kernel)
                         if self.cholesky is False:
                             self.kernel_f[hash][
                                     (selfindex, selfsymbol)][
