@@ -1074,10 +1074,10 @@ class KRR(Model):
             For forces is different case because we do know the derivative of
             the energy with respect to atom positions.
             """
-            I_e = np.identity(self.size)
-            K_e = self.kij.reshape(self.size, self.size)
-
             try:
+                I_e = np.identity(self.size)
+                K_e = self.kij.reshape(self.size, self.size)
+
                 log('Starting Cholesky decomposition to get upper triangular'
                 ' matrix.', tic='cholesky_energy_kernel')
 
@@ -1087,25 +1087,24 @@ class KRR(Model):
                          toc='cholesky_energy_kernel')
 
                 betas = np.linalg.solve(cholesky_U.T, self.energy_targets)
-                p.weights['energy'] = np.linalg.solve(cholesky_U, betas)
+                weights = np.linalg.solve(cholesky_U, betas)
+                p.weights['energy'] = weights
 
                 if self.forcetraining is True:
+                    force_weights = []
                     for i in range(3):
                         size = self.kernel_f_cholesky[i][0].size
                         I_f = np.identity(size)
                         K_f = self.kernel_f_cholesky[i].reshape(size, size)
                         cholesky_U = cholesky((K_f + self.lamda * I_f))
                         betas = np.linalg.solve(
-                                cholesky_U.T,
-                                self.force_targets[i]
-                                )
+                                   cholesky_U.T,
+                                   self.force_targets[i]
+                                   )
+                        weights = np.linalg.solve(cholesky_U, betas)
+                        force_weights.append(weights)
+                    p.weights['forces'] = force_weights
                 return True
-            except np.linalg.linalg.LinAlgError:
-                log('Your kernel matrix seems to be singular. Add more'
-                    'noise to its diagonal elements by increasing the'
-                    'the penalization term.'
-                    )
-                return False
             except:
                 return False
 
@@ -1292,57 +1291,50 @@ class KRR(Model):
                 self.kernel_f[hash] = {}
                 kernel = []
 
-                if self.cholesky is False:
-                    for atom in image:
-                        selfsymbol = atom.symbol
-                        selfindex = atom.index
-                        self.kernel_f[hash][(selfindex, selfsymbol)] = {}
-                        for component in range(3):
-                            afp = self.force_features[hash][
-                                    (selfindex, selfsymbol)][component]
-                            _kernel = self.kernel_matrix(
-                                    afp,
-                                    self.reference_force_features[component],
-                                    kernel=self.kernel
-                                    )
+                if self.cholesky is True:
+                    actual_forces = image.get_forces(apply_constraint=False)
+
+                for atom in image:
+                    selfsymbol = atom.symbol
+                    selfindex = atom.index
+                    self.kernel_f[hash][(selfindex, selfsymbol)] = {}
+                    for component in range(3):
+                        afp = self.force_features[hash][
+                                (selfindex, selfsymbol)][component]
+                        _kernel = self.kernel_matrix(
+                                afp,
+                                self.reference_force_features[component],
+                                kernel=self.kernel
+                                )
+                        print('Componenet:', component)
+                        print(_kernel)
+                        if self.cholesky is False:
                             self.kernel_f[hash][
                                     (selfindex, selfsymbol)][
                                             component] = _kernel
-                else:
-                    actual_forces = image.get_forces(apply_constraint=False)
-
-                    for i, atom in enumerate(image):
-                        for component in range(3):
-                            target = actual_forces[i][component]
-
-                            afp = np.ravel(self.force_features[hash][
-                                    (selfindex, selfsymbol)][component])
-                            _kernel = self.kernel_matrix(
-                                    afp,
-                                    self.reference_force_features[component],
-                                    kernel=self.kernel
-                                    )
+                        else:
+                            target = actual_forces[selfindex][component]
                             if component == 0:
                                 kernel_x.append(_kernel)
                                 targets_x.append(target)
                             elif component == 1:
                                 kernel_y.append(_kernel)
                                 targets_y.append(target)
-                            else:
+                            elif component == 2:
                                 kernel_z.append(_kernel)
                                 targets_z.append(target)
 
-                    self.kernel_f_cholesky = [
-                            np.array(kernel_x),
-                            np.array(kernel_y),
-                            np.array(kernel_z)
-                            ]
-                    self.force_targets = [
-                            np.array(targets_x),
-                            np.array(targets_y),
-                            np.array(targets_z)
-                            ]
-
+            if self.cholesky is True:
+                self.kernel_f_cholesky = [
+                        np.array(kernel_x),
+                        np.array(kernel_y),
+                        np.array(kernel_z)
+                        ]
+                self.force_targets = [
+                        np.array(targets_x),
+                        np.array(targets_y),
+                        np.array(targets_z)
+                        ]
             return self.kernel_f
 
 
