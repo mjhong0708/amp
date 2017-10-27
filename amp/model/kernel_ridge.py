@@ -97,7 +97,7 @@ class Model(object):
                     self.atomic_energies.append(atom_energy)
                     energy += atom_energy
             else:
-                energy = self.calculate_total_energy(
+                energy = self.total_energy_from_cholesky(
                         hash=hash,
                         fp_trainingimages=fp_trainingimages,
                         kernel=self.parameters.kernel,
@@ -141,7 +141,11 @@ class Model(object):
                             trainingimages=trainingimages,
                             fingerprintprimes=fingerprintprimes
                             )
-                    dforce = self.calculate_force(**arguments)
+                    if self.cholesky is False:
+                        dforce = self.calculate_force(**arguments)
+                    else:
+                        dforce = self.forces_from_cholesky(**arguments)
+
                     forces[selfindex][component] += dforce
         return forces
 
@@ -1068,10 +1072,10 @@ class KRR(Model):
         else:
             """
             This method would require to solve to systems of linear equations.
-            In the case of energies, we cannot operate in atom-centered because
-            we don't know a priori the energy per atom but per image.
+            In the case of energies, we cannot operate in an atom-centered mode
+            because we don't know a priori the energy per atom but per image.
 
-            For forces is different case because we do know the derivative of
+            For forces is a different case because we do know the derivative of
             the energy with respect to atom positions.
             """
             try:
@@ -1312,11 +1316,11 @@ class KRR(Model):
                                 self.reference_force_features[component],
                                 kernel=self.kernel
                                 )
-                        if self.cholesky is False:
-                            self.kernel_f[hash][
-                                    (selfindex, selfsymbol)][
-                                            component] = _kernel
-                        else:
+                        self.kernel_f[hash][
+                                (selfindex, selfsymbol)][
+                                        component] = _kernel
+
+                        if self.cholesky is True:
                             target = actual_forces[selfindex][component]
                             if component == 0:
                                 kernel_x.append(_kernel)
@@ -1512,7 +1516,7 @@ class KRR(Model):
                         ((index, symbol))].dot(weights['energy'][symbol])
         return atomic_amp_energy
 
-    def calculate_total_energy(self, hash=None, fp_trainingimages=None,
+    def total_energy_from_cholesky(self, hash=None, fp_trainingimages=None,
                                trainingimages=None, kernel=None, sigma=None,
                                fingerprints=None):
         """
@@ -1617,13 +1621,11 @@ class KRR(Model):
                             kernel=self.kernel,
                             sigma=sigma
                             )
-
             if (self.weights_independent is True and self.cholesky is False):
                 force = kernel.dot(weights['forces'][symbol][component])
             elif (self.weights_independent is False and self.cholesky is False):
                 force = kernel.dot(weights['forces'][symbol])
         else:
-
             if (self.weights_independent is True and self.cholesky is False):
                 force = self.kernel_f[hash][key][component].dot(
                         weights['forces'][symbol][component]
@@ -1634,6 +1636,70 @@ class KRR(Model):
                         weights['forces'][symbol]
                         )
         force *= -1.
+        return force
+
+    def forces_from_cholesky(self, index, symbol, component, fingerprintprimes=None,
+                        trainingimages=None, t_descriptor=None, sigma=None,
+                        hash=None):
+        """Given derivative of input to the neural network, derivative of output
+        (which corresponds to forces) is calculated.
+
+        Parameters
+        ----------
+        index : integer
+            Index of central atom for which the atomic force will be computed.
+        symbol : str
+            Symbol of central atom for which the atomic force will be computed.
+        component : int
+            Direction of the force.
+        fingerprintprimes : list
+            List of fingerprint primes.
+        trainingimages : list
+            Object or list containing the training set. This is needed when
+            performing predictions of unseen data.
+        descriptor : object
+            Object containing the information about fingerprints.
+        hash : str
+            Unique key for the image of interest.
+        sigma : float
+
+        Returns
+        -------
+        force : float
+            Atomic force on Atom with index=index and symbol=symbol.
+        """
+        weights = self.parameters.weights
+        key = index, symbol
+
+        if len(list(self.kernel_f.keys())) == 0 or hash not in self.kernel_f:
+            self.get_forces_kernel(
+                    trainingimages=trainingimages,
+                    t_descriptor=t_descriptor,
+                    only_features=True
+                    )
+
+            fprime = 0
+            for afp in fingerprintprimes:
+                if (index == afp[0] and symbol == afp[1] and
+                        component == afp[-1]):
+                    fprime += np.array(fingerprintprimes[afp])
+
+            features = self.reference_force_features[component]
+            kernel = self.kernel_matrix(
+                            fprime,
+                            features,
+                            kernel=self.kernel,
+                            sigma=sigma
+                            )
+            if (self.weights_independent is True and self.cholesky is True):
+                force = kernel.dot(weights['forces'][component])
+            #elif (self.weights_independent is False and self.cholesky is False):
+            #    force = kernel.dot(weights['forces'][symbol])
+        else:
+            if (self.weights_independent is True and self.cholesky is True):
+                force = self.kernel_f[hash][key][component].dot(
+                        weights['forces'][component]
+                        )
         return force
 
     def kernel_matrix(self, feature, features, kernel='rbf', sigma=1.):
