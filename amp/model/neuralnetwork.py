@@ -170,7 +170,7 @@ class NeuralNetwork(Model):
 
         p = self.parameters
         tp = self.trainingparameters = Parameters()
-        tp.trainingimages = trainingimages
+        tp.images = trainingimages
         tp.descriptor = descriptor
 
         if p.mode is None:
@@ -203,7 +203,8 @@ class NeuralNetwork(Model):
             if p.mode == 'image-centered':
                 raise NotImplementedError('Needs to be coded.')
             elif p.mode == 'atom-centered':
-                len_of_fps = {element: len(p.fprange[element]) for element in p.fprange.keys()}
+                len_of_fps = {element: len(p.fprange[element])
+                              for element in p.fprange.keys()}
                 p.weights = get_random_weights(hiddenlayers=p.hiddenlayers,
                                                activation=p.activation,
                                                len_of_fps=len_of_fps,
@@ -905,11 +906,9 @@ def get_random_weights(hiddenlayers, activation,
             epsilon = np.sqrt(6. / (nn_structure[element][0] +
                                     nn_structure[element][1]))
             normalized_arg_range = 2. * epsilon
-            weight[element][1] = np.random.random((_len_of_fps + 1,
-                                                   nn_structure[
-                                                   element][1])) * \
-                normalized_arg_range - \
-                normalized_arg_range / 2.
+            weight[element][1] = (np.random.random(
+                (_len_of_fps + 1, nn_structure[element][1])) *
+                normalized_arg_range - normalized_arg_range / 2.)
             len_of_hiddenlayers = len(list(nn_structure[element])) - 3
             for layer in range(len_of_hiddenlayers):
                 epsilon = np.sqrt(6. / (nn_structure[element][layer + 1] +
