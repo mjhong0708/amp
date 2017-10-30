@@ -353,6 +353,8 @@ class LossFunction:
             self._parallel = self._model._parallel
         log = self._model.log
 
+        self.images = self._model.trainingparameters.trainingimages
+
         if self.fingerprints is None:
             self.fingerprints = \
                 self._model.trainingparameters.descriptor.fingerprints
@@ -363,8 +365,6 @@ class LossFunction:
                 (self.fingerprintprimes is None)):
             self.fingerprintprimes = \
                 self._model.trainingparameters.descriptor.fingerprintprimes
-        if self.images is None:
-            self.images = self._model.trainingparameters.trainingimages
 
         if self._parallel['cores'] != 1:
             # Initialize workers and send them parameters.
@@ -468,6 +468,7 @@ class LossFunction:
                     ('=' * 5, '=' * 19, '=' * 12, '=' * 12, '=' * 12,
                      '=' * 12, '=' * 12))
 
+        self._data_sent = False  # (in case images changed)
         self._initialized = True
 
     def _send_data_to_fortran(self,):
