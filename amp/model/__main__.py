@@ -65,7 +65,6 @@ if purpose == 'calculate_loss_function':
                                 d=d, **dictionary)
     log('Loss function set up.')
 
-    images = None
     socket.send_pyobj(msg('request', 'images'))
     images = socket.recv_pyobj()
     log('Images received.')
@@ -81,6 +80,7 @@ if purpose == 'calculate_loss_function':
     log('Fingerprintprimes received.')
 
     # Set up local loss function.
+    model.lossfunction = lossfunction
     lossfunction.attach_model(model,
                               fingerprints=fingerprints,
                               fingerprintprimes=fingerprintprimes,
