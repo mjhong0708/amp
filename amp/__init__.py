@@ -313,6 +313,7 @@ class Amp(Calculator, object):
         if result is True:
             log('Amp successfully trained. Saving current parameters.')
             filename = self.label + '.amp'
+            self.reset()  # Clears any old calculations.
         else:
             log('Amp not trained successfully. Saving current parameters.')
             filename = make_filename(self.label, '-untrained-parameters.amp')
