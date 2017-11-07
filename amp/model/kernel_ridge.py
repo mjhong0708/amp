@@ -1082,7 +1082,7 @@ class KRR(Model):
                 I_e = np.identity(self.size)
                 K_e = self.kij.reshape(self.size, self.size)
 
-                log('Starting Cholesky decomposition of kernel energy matrix to'
+                log('Starting Cholesky decomposition of kernel energy matrix to '
                 'get upper triangular matrix.', tic='cholesky_energy_kernel')
 
                 cholesky_U = cholesky((K_e + self.lamda * I_e))
@@ -1095,7 +1095,7 @@ class KRR(Model):
                 p.weights['energy'] = weights
 
                 if self.forcetraining is True:
-                    log('Starting Cholesky decomposition of kernel force matrix to'
+                    log('Starting Cholesky decomposition of kernel force matrix to '
                     'get upper triangular matrix.', tic='cholesky_force_kernel')
                     force_weights = []
                     for i in range(3):
