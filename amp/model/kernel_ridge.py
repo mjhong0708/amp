@@ -965,7 +965,7 @@ class KRR(Model):
         self.kernel_e = {}  # Kernel dictionary for energies
         self.kernel_f = {}  # Kernel dictionary for forces
 
-        if self.lossfunction is None:
+        if self.lossfunction is None and cholesky is False:
             self.lossfunction = LossFunction()
 
     def fit(self, trainingimages, descriptor, log, parallel, only_setup=False):
@@ -993,7 +993,7 @@ class KRR(Model):
         self._parallel = parallel
         self._log = log
 
-        if self.regressor is None:
+        if self.regressor is None and self.cholesky is False:
             self.regressor = Regressor()
 
         p = self.parameters
@@ -1071,12 +1071,14 @@ class KRR(Model):
             return result  # True / False
         else:
             """
-            This method would require to solve to systems of linear equations.
+            This method would require solving to systems of linear equations.
             In the case of energies, we cannot operate in an atom-centered mode
             because we don't know a priori the energy per atom but per image.
 
-            For forces is a different case because we do know the derivative of
-            the energy with respect to atom positions.
+            For forces is a different history because we do know the derivative
+            of the energy with respect to atom positions (a per atom quantity).
+            Therefore, obtaining weights with Cholesky decomposition would be
+            the best for explicit-force training.
             """
             try:
                 I_e = np.identity(self.size)
@@ -1693,8 +1695,6 @@ class KRR(Model):
                             )
             if (self.weights_independent is True and self.cholesky is True):
                 force = kernel.dot(weights['forces'][component])
-            #elif (self.weights_independent is False and self.cholesky is False):
-            #    force = kernel.dot(weights['forces'][symbol])
         else:
             if (self.weights_independent is True and self.cholesky is True):
                 force = self.kernel_f[hash][key][component].dot(
@@ -1908,12 +1908,12 @@ def ravel_data(train_forces,
                mode,
                images,
                fingerprints,
-               fingerprintprimes,):
+               fingerprintprimes):
     """
     Reshapes data of images into lists.
 
     Parameters
-    ---------
+    ----------
     train_forces : bool
         Determining whether forces are also trained or not.
     mode : str
@@ -1923,7 +1923,6 @@ def ravel_data(train_forces,
         in ASE format. This is the training set of data. This can also be the
         path to an ASE trajectory (.traj) or database (.db) file. Energies can
         be obtained from any reference, e.g. DFT calculations.
-
     fingerprints : dict
         Dictionary with images hashs as keys and the corresponding fingerprints
         as values.
