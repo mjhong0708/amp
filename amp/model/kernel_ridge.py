@@ -1084,8 +1084,8 @@ class KRR(Model):
                 I_e = np.identity(self.size)
                 K_e = self.kij.reshape(self.size, self.size)
 
-                log('Starting Cholesky decomposition to get upper triangular'
-                ' matrix.', tic='cholesky_energy_kernel')
+                log('Starting Cholesky decomposition of kernel energy matrix to '
+                'get upper triangular matrix.', tic='cholesky_energy_kernel')
 
                 cholesky_U = cholesky((K_e + self.lamda * I_e))
 
@@ -1097,6 +1097,8 @@ class KRR(Model):
                 p.weights['energy'] = weights
 
                 if self.forcetraining is True:
+                    log('Starting Cholesky decomposition of kernel force matrix to '
+                    'get upper triangular matrix.', tic='cholesky_force_kernel')
                     force_weights = []
                     for i in range(3):
                         size = self.kernel_f_cholesky[i][0].size
@@ -1110,6 +1112,8 @@ class KRR(Model):
                         weights = np.linalg.solve(cholesky_U, betas)
                         force_weights.append(weights)
                     p.weights['forces'] = force_weights
+                    log('... Cholesky Decomposing finished in.',
+                             toc='cholesky_force_kernel')
                 return True
             except np.linalg.linalg.LinAlgError:
                 log('Your kernel matrix seems to be singular. Add more\n'
