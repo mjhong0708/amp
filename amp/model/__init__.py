@@ -344,7 +344,7 @@ class LossFunction:
         if fingerprintprimes is not None:
             descriptor.fingerprintprimes = fingerprintprimes
 
-    def _initialize(self, args):
+    def _initialize(self, args=None):
         """Procedures to be run on the first call only, such as establishing
         SSH sessions, etc."""
         if self._initialized is True:

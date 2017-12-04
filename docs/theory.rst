@@ -33,6 +33,7 @@ approximated using a regression method:
 .. math::
   \textbf{R}\xrightarrow{\text{regression}}E_\text{atom}=E_\text{atom}\left(\textbf{R}\right).
 
+
 ----------
 Descriptor
 ----------
@@ -43,6 +44,12 @@ as the input of the regression operator:
 
 .. math::
   \textbf{R}\xrightarrow{\textbf{G}}\textbf{G}\left(\textbf{R}\right)\xrightarrow{\text{regression}}E_\text{atom}=E_\text{atom}\left(\textbf{G}\left(\textbf{R}\right)\right).
+
+In net, this results in a scheme like shown below. The symmetry functions create "feature vectors" which in turn are fed into a machine-learning regression model.
+
+.. image:: _static/scheme.svg
+   :width: 500 px
+   :align: center
 
 ********
 Gaussian
