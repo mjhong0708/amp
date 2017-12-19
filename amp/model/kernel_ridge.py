@@ -602,7 +602,8 @@ class LossFunction:
                 _.logout()
         del self._sessions['connections']
 
-    def get_loss(self, parametervector, lossprime):
+    def get_loss(self, parametervector, energy_vector, energy_kernel,
+                 forces_vector, forces_kernel, lossprime):
         """Returns the current value of the loss function for a given set of
         parameters, or, if the energy is less than the energy_tol raises a
         ConvergenceException.
@@ -632,6 +633,10 @@ class LossFunction:
                 loss, dloss_dparameters, energy_loss, force_loss, \
                     energy_maxresid, force_maxresid = \
                     self.calculate_loss(parametervector,
+                                        energy_vector,
+                                        energy_kernel,
+                                        forces_vector,
+                                        forces_kernel,
                                         lossprime=lossprime)
         else:
             server = self._sessions['master']
@@ -678,7 +683,8 @@ class LossFunction:
                 'energy_maxresid': self.energy_maxresid,
                 'force_maxresid': self.force_maxresid, }
 
-    def calculate_loss(self, parametervector, lossprime):
+    def calculate_loss(self, parametervector, energy_vector, energy_kernel,
+                       forces_vector, forces_kernel, lossprime):
         """Method that calculates the loss, derivative of the loss with respect
         to parameters (if requested), and max_residual.
 
@@ -754,7 +760,14 @@ class LossFunction:
 
         if model.lamda > 0.:
             overfitloss = 0.
-            overfitloss = parametervector.dot(parametervector)
+            for symbol in energy_vector.keys():
+                _vector = energy_vector[symbol]
+                # Based on https://stats.stackexchange.com/a/70127/160746
+                overfitloss += _vector.T.dot(energy_kernel.dot(_vector))
+                if p.force_coefficient is not None:
+                    for component in range(3):
+                        _vector = forces_vector[symbol][component]
+                        overfitloss += _vector.T.dot(forces_kernel[component].dot(_vector))
             overfitloss *= model.lamda
             loss += overfitloss
 
@@ -994,6 +1007,7 @@ class KRR(Model):
         self._log = log
 
         if self.regressor is None and self.cholesky is False:
+            from ..regression import Regressor
             self.regressor = Regressor()
 
         p = self.parameters
@@ -1050,11 +1064,16 @@ class KRR(Model):
                         imagefingerprints = tp.fingerprints[hash]
                         for element, fingerprint in imagefingerprints:
                             if (element not in weights and prop is 'energy'):
-                                weights[prop][element] = np.ones(self.size)
+                                weights[prop][element] = np.random.uniform(
+                                        low=-1.0,
+                                        high=1.0,
+                                        size=(self.size))
                             elif (element not in weights and prop is 'forces'):
                                 if p.weights_independent is True:
-                                    weights[prop][element] = np.ones(
-                                            (3, self.size)
+                                    weights[prop][element] = np.random.uniform(
+                                            low=-1.0,
+                                            high=1.0,
+                                            size=(3, self.size)
                                             )
                                 else:
                                     weights[prop][element] = np.ones(self.size)
@@ -1116,7 +1135,7 @@ class KRR(Model):
                              toc='cholesky_force_kernel')
                 return True
             except np.linalg.linalg.LinAlgError:
-                log('Your kernel matrix seems to be singular. Add more\n'
+                log('The kernel matrix seems to be singular. Add more\n'
                 'noise to its diagonal elements by increasing the'
                 'penalization term.'
                 )
@@ -1295,20 +1314,20 @@ class KRR(Model):
         ]
 
         if only_features is False:
-            if self.cholesky is True:
-                self.kernel_f_cholesky = []
-                kernel_x, targets_x = [], []
-                kernel_y, targets_y = [], []
-                kernel_z, targets_z = [], []
-                self.force_targets = []
+            #if self.cholesky is True:
+            self.force_targets = []
+            self.kernel_f_cholesky = []
+            kernel_x, targets_x = [], []
+            kernel_y, targets_y = [], []
+            kernel_z, targets_z = [], []
 
             for hash in hashes:
                 image = trainingimages[hash]
                 self.kernel_f[hash] = {}
                 kernel = []
 
-                if self.cholesky is True:
-                    actual_forces = image.get_forces(apply_constraint=False)
+                #if self.cholesky is True:
+                actual_forces = image.get_forces(apply_constraint=False)
 
                 for atom in image:
                     selfsymbol = atom.symbol
@@ -1326,29 +1345,29 @@ class KRR(Model):
                                 (selfindex, selfsymbol)][
                                         component] = _kernel
 
-                        if self.cholesky is True:
-                            target = actual_forces[selfindex][component]
-                            if component == 0:
-                                kernel_x.append(_kernel)
-                                targets_x.append(target)
-                            elif component == 1:
-                                kernel_y.append(_kernel)
-                                targets_y.append(target)
-                            elif component == 2:
-                                kernel_z.append(_kernel)
-                                targets_z.append(target)
+                        #if self.cholesky is True:
+                        target = actual_forces[selfindex][component]
+                        if component == 0:
+                            kernel_x.append(_kernel)
+                            targets_x.append(target)
+                        elif component == 1:
+                            kernel_y.append(_kernel)
+                            targets_y.append(target)
+                        elif component == 2:
+                            kernel_z.append(_kernel)
+                            targets_z.append(target)
 
-            if self.cholesky is True:
-                self.kernel_f_cholesky = [
-                        np.array(kernel_x),
-                        np.array(kernel_y),
-                        np.array(kernel_z)
-                        ]
-                self.force_targets = [
-                        np.array(targets_x),
-                        np.array(targets_y),
-                        np.array(targets_z)
-                        ]
+            #if self.cholesky is True:
+            self.kernel_f_cholesky = [
+                    np.array(kernel_x),
+                    np.array(kernel_y),
+                    np.array(kernel_z)
+                    ]
+            self.force_targets = [
+                    np.array(targets_x),
+                    np.array(targets_y),
+                    np.array(targets_z)
+                    ]
             return self.kernel_f
 
 
@@ -1366,8 +1385,8 @@ class KRR(Model):
 
     @property
     def vector(self):
-        """Access to get or set the model parameters (weights each kernel) as
-        a single vector, useful in particular for regression.
+        """Access to get or set the model parameters (weights for each kernel)
+        as a single vector, useful in particular for regression.
 
         Parameters
         ----------
@@ -1377,6 +1396,7 @@ class KRR(Model):
         if self.parameters['weights'] is None:
             return None
         p = self.parameters
+
         if not hasattr(self, 'ravel'):
             self.ravel = Raveler(
                     p.weights,
@@ -1406,6 +1426,7 @@ class KRR(Model):
             Parameters of the regression model in the form of a list.
         """
 
+        p = self.parameters
         if self.step == 0:
             filename = make_filename(self.parent.label,
                                      '-initial-parameters.amp')
@@ -1424,7 +1445,17 @@ class KRR(Model):
                     filename = make_filename(self.parent.label,
                                              '-checkpoint.amp')
                 self.parent.save(filename, overwrite=True)
-        loss = self.lossfunction.get_loss(vector, lossprime=False)['loss']
+
+        K_e = self.kij.reshape(self.size, self.size)
+        K_f = self.kernel_f_cholesky
+        loss = self.lossfunction.get_loss(
+                vector,
+                p.weights['energy'],
+                K_e,
+                p.weights['forces'],
+                K_f ,
+                lossprime=False
+                )['loss']
         if hasattr(self, 'observer'):
             self.observer(self, vector, loss)
         self.step += 1
