@@ -1250,6 +1250,7 @@ class KRR(Model):
 
         hashes = list(hash_images(trainingimages).keys())
         fingerprintprimes = t_descriptor.fingerprintprimes
+        fingerprint_name = t_descriptor.__class__.__name__
 
         self.force_features = {}
 

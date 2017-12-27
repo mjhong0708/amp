@@ -14,6 +14,10 @@ Development version
 
 * Amp is now part of the Debian archives! This means it should soon be available in package managers for linux releases such as Ubuntu.
 
+* Added Botu - Ramprasad fingerprint for training forces.
+
+* Added Kernel Ridge Regression to Amp.
+
 0.6
 ---
 Release date: July 31, 2017
