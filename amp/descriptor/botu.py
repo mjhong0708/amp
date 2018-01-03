@@ -55,7 +55,7 @@ class Botu(object):
     """
 
     def __init__(self, cutoff=Cosine(6.5), Gs=None, dblabel=None,
-                 elements=None, version=None, fortran=False,
+                 elements=None, version=None, fortran=False, angular=False,
                  mode='atom-centered'):
 
         # Check of the version of descriptor, particularly if restarting.
@@ -94,6 +94,7 @@ class Botu(object):
         p.cutoff = cutoff.todict()
         p.Gs = Gs
         p.elements = elements
+        p.angular = self.angular = angular
 
         self.dblabel = dblabel
         self.fortran = fortran
@@ -147,7 +148,7 @@ class Botu(object):
 
         if p.Gs is None:
             log('No symmetry functions supplied; creating defaults.')
-            p.Gs = make_default_symmetry_functions(p.elements)
+            p.Gs = make_default_symmetry_functions(p.elements, self.angular)
         log('Number of symmetry functions for each element:')
         for _ in p.Gs.keys():
             log(' %2s: %i' % (_, len(p.Gs[_])))
@@ -179,7 +180,8 @@ class Botu(object):
             calc = FingerprintCalculator(neighborlist=self.neighborlist,
                                          Gs=p.Gs,
                                          cutoff=p.cutoff,
-                                         fortran=self.fortran)
+                                         fortran=self.fortran,
+                                         angular=self.angular)
             self.fingerprints = Data(filename='%s-fingerprints'
                                      % self.dblabel,
                                      calculator=calc)
@@ -194,7 +196,8 @@ class Botu(object):
                     FingerprintPrimeCalculator(neighborlist=self.neighborlist,
                                                Gs=p.Gs,
                                                cutoff=p.cutoff,
-                                               fortran=self.fortran)
+                                               fortran=self.fortran,
+                                               angular=self.angular)
                 self.fingerprintprimes = \
                     Data(filename='%s-fingerprint-primes'
                          % self.dblabel,
@@ -270,12 +273,14 @@ class FingerprintCalculator:
     fortran : bool
         If True, will use fortran modules, if False, will not.
     """
-    def __init__(self, neighborlist, Gs, cutoff, fortran):
+    def __init__(self, neighborlist, Gs, cutoff, fortran, angular):
         self.globals = Parameters({'cutoff': cutoff,
-                                   'Gs': Gs})
+                                   'Gs': Gs,
+                                   'angular': angular})
         self.keyed = Parameters({'neighborlist': neighborlist})
         self.parallel_command = 'calculate_fingerprints'
         self.fortran = fortran
+        self.angular = angular
 
     def calculate(self, image, key):
         """Makes a list of fingerprints, one per atom, for the fed image.
@@ -341,7 +346,7 @@ class FingerprintCalculator:
                 ridge = calculate_G2(neighborsymbols, neighborpositions,
                                      G['element'], G['eta'],
                                      self.globals.cutoff, Ri, self.fortran)
-            elif G['type'] == 'G4':
+            elif G['type'] == 'G4' and self.angular is True:
                 ridge = calculate_G4(neighborsymbols, neighborpositions,
                                      G['elements'], G['gamma'],
                                      G['zeta'], G['eta'], self.globals.cutoff,
@@ -378,12 +383,14 @@ class FingerprintPrimeCalculator:
         If True, will use fortran modules, if False, will not.
     """
 
-    def __init__(self, neighborlist, Gs, cutoff, fortran):
+    def __init__(self, neighborlist, Gs, cutoff, fortran, angular):
         self.globals = Parameters({'cutoff': cutoff,
-                                   'Gs': Gs})
+                                   'Gs': Gs,
+                                   'angular': angular})
         self.keyed = Parameters({'neighborlist': neighborlist})
         self.parallel_command = 'calculate_fingerprint_primes'
         self.fortran = fortran
+        self.angular = angular
 
     def calculate(self, image, key):
         """Makes a list of fingerprint derivatives, one per atom,
@@ -410,14 +417,15 @@ class FingerprintPrimeCalculator:
                                                neighboroffsets)]
             for component in range(3):
                 indexfp = self.get_fingerprintprime(
-                    index, symbol, neighborsymbols, neighborpositions, component)
+                          index, symbol, neighborsymbols, neighborpositions,
+                          component)
 
                 fingerprintprimes[index, symbol, component] = indexfp
 
         return fingerprintprimes
 
-    def get_fingerprintprime(self, index, symbol,
-                        neighborsymbols, neighborpositions, component):
+    def get_fingerprintprime(self, index, symbol, neighborsymbols,
+                             neighborpositions, component):
         """Returns the fingerprint of symmetry function values for atom
         specified by its index and symbol.
 
@@ -450,14 +458,15 @@ class FingerprintPrimeCalculator:
 
             if G['type'] == 'G2':
                 ridge = calculate_G2_prime(neighborsymbols, neighborpositions,
-                                     G['element'], G['eta'],
-                                     self.globals.cutoff, Ri, self.fortran,
-                                     component)
-            elif G['type'] == 'G4':
+                                           G['element'], G['eta'],
+                                           self.globals.cutoff, Ri,
+                                           self.fortran, component)
+            elif G['type'] == 'G4' and self.angular is True:
                 ridge = calculate_G4_prime(neighborsymbols, neighborpositions,
-                                     G['elements'], G['gamma'],
-                                     G['zeta'], G['eta'], self.globals.cutoff,
-                                     Ri, self.fortran)
+                                           G['elements'], G['gamma'],
+                                           G['zeta'], G['eta'],
+                                           self.globals.cutoff, Ri,
+                                           self.fortran)
             else:
                 raise NotImplementedError('Unknown G type: %s' % G['type'])
 
@@ -691,7 +700,7 @@ def make_symmetry_functions(elements, type, etas, zetas=None, gammas=None):
     raise NotImplementedError('Unknown type: {}.'.format(type))
 
 
-def make_default_symmetry_functions(elements):
+def make_default_symmetry_functions(elements, angular):
     """Makes symmetry functions as in Nano Letters 14:2670, 2014.
 
 
@@ -714,29 +723,30 @@ def make_default_symmetry_functions(elements):
               for eta in etas
               for element in elements]
 
-        # Angular symmetry functions.
-        # By default Botu only uses G2 element functions.
-        #etas = [0.005]
-        #zetas = [1., 4.]
-        #gammas = [+1., -1.]
-        #for eta in etas:
-        #    for zeta in zetas:
-        #        for gamma in gammas:
-        #            for i1, el1 in enumerate(elements):
-        #                for el2 in elements[i1:]:
-        #                    els = sorted([el1, el2])
-        #                    _G.append({'type': 'G4',
-        #                               'elements': els,
-        #                               'eta': eta,
-        #                               'gamma': gamma,
-        #                               'zeta': zeta})
+        if angular:
+            # Angular symmetry functions.
+            # By default Botu only uses G2 element functions.
+            etas = [0.005]
+            zetas = [1., 4.]
+            gammas = [+1., -1.]
+            for eta in etas:
+                for zeta in zetas:
+                    for gamma in gammas:
+                        for i1, el1 in enumerate(elements):
+                            for el2 in elements[i1:]:
+                                els = sorted([el1, el2])
+                                _G.append({'type': 'G4',
+                                           'elements': els,
+                                           'eta': eta,
+                                           'gamma': gamma,
+                                           'zeta': zeta})
 
         G[element0] = _G
     return G
 
 
-def calculate_G2_prime(neighborsymbols,
-                 neighborpositions, G_element, eta, cutoff, Ri, fortran, component):
+def calculate_G2_prime(neighborsymbols, neighborpositions, G_element, eta,
+                       cutoff, Ri, fortran, component):
     """Calculate G2 symmetry function.
 
     Ideally this will not be used but will be a template for how to build the
@@ -825,15 +835,16 @@ def calculate_G2_prime(neighborsymbols,
                     args_cutoff_fxn['gamma'] = cutoff['kwargs']['gamma']
                 proj = Rij_vector[component] / Rij
                 ridge += proj * (np.exp(-(Rij / eta) ** 2.) *
-                          cutoff_fxn(**args_cutoff_fxn))
+                                 cutoff_fxn(**args_cutoff_fxn))
     return ridge
+
 
 if __name__ == "__main__":
     """Directly calling this module; apparently from another node.
 
     Calls should come as
 
-        python -m amp.descriptor.gaussian id hostname:port
+        python -m amp.descriptor.botu id hostname:port
 
     This session will then start a zmq session with that socket, labeling
     itself with id. Instructions on what to do will come from the socket.
@@ -907,9 +918,11 @@ if __name__ == "__main__":
         neighborlist = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'images'))
         images = socket.recv_pyobj()
+        socket.send_pyobj(msg('<request>', 'angular'))
+        angular = socket.recv_pyobj()
 
         calc = FingerprintCalculator(neighborlist, Gs, cutoff,
-                                     fortran)
+                                     fortran, angular)
         result = {}
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.
@@ -932,9 +945,11 @@ if __name__ == "__main__":
         neighborlist = socket.recv_pyobj()
         socket.send_pyobj(msg('<request>', 'images'))
         images = socket.recv_pyobj()
+        socket.send_pyobj(msg('<request>', 'angular'))
+        angular = socket.recv_pyobj()
 
         calc = FingerprintPrimeCalculator(neighborlist, Gs, cutoff,
-                                          fortran)
+                                          fortran, angular)
         result = {}
         while len(images) > 0:
             key, image = images.popitem()  # Reduce memory.
