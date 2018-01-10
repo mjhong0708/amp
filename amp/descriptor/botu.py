@@ -833,7 +833,7 @@ def calculate_G2_prime(neighborsymbols, neighborpositions, G_element, eta,
                 args_cutoff_fxn = dict(Rij=Rij)
                 if cutoff['name'] == 'Polynomial':
                     args_cutoff_fxn['gamma'] = cutoff['kwargs']['gamma']
-                proj = Ri[component] - Rj[component] / Rij
+                proj = (Ri[component] - Rj[component]) / Rij
                 ridge += proj * (np.exp(-(Rij / eta) ** 2.) *
                                  cutoff_fxn(**args_cutoff_fxn))
     return ridge

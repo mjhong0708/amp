@@ -1225,7 +1225,7 @@ class KRR(Model):
 
     def get_forces_kernel(self, trainingimages=None, t_descriptor=None,
                           only_features=False):
-        """Local method to get the kernel on the fly
+        """Method to get the kernel on the fly
 
         Parameters
         ----------
@@ -1923,14 +1923,15 @@ def linear(feature_i, feature_j):
 
 def rbf(feature_i, feature_j, sigma=1.):
     """ Compute the rbf (AKA Gaussian) kernel.  """
-    rbf = np.exp(-(np.linalg.norm(feature_i - feature_j)**2) / 2 * sigma**2)
+    rbf = np.exp(-(np.linalg.norm(feature_i - feature_j) ** 2.) /
+            (2. * sigma ** 2.))
     return rbf
 
 
 def exponential(feature_i, feature_j, sigma=1.):
     """ Compute the exponential kernel"""
     exponential = np.exp(-(np.linalg.norm(feature_i - feature_j)) /
-                         2 * sigma**2)
+                         (2. * sigma ** 2))
     return exponential
 
 
