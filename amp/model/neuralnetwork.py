@@ -71,11 +71,14 @@ class NeuralNetwork(Model):
     mode : str
         Can be either 'atom-centered' or 'image-centered'.
     lossfunction : object
-        Loss function object, if at all desired by the user.
+        Loss function object.
+    retries : int
+        If model does not converge during training, number of times to retry
+        before giving up.
     version : object
         Version of this class.
     fortran : bool
-        If True, allows for extrapolation, if False, does not allow.
+        Can optionally shut off fortran, primarily for debugging.
     checkpoints : int
         Frequency with which to save parameter checkpoints upon training. E.g.,
         100 saves a checkpoint on each 100th training setp.  Specify None for
@@ -92,7 +95,7 @@ class NeuralNetwork(Model):
 
     def __init__(self, hiddenlayers=(5, 5), activation='tanh', weights=None,
                  scalings=None, fprange=None, regressor=None, mode=None,
-                 lossfunction=None, version=None, fortran=True,
+                 lossfunction=None, retries=0, version=None, fortran=True,
                  checkpoints=100):
 
         # Version check, particularly if restarting.
@@ -130,6 +133,7 @@ class NeuralNetwork(Model):
         self.lossfunction = lossfunction
         self.fortran = fortran
         self.checkpoints = checkpoints
+        self.retries = retries
         if self.lossfunction is None:
             self.lossfunction = LossFunction()
 
@@ -200,6 +204,47 @@ class NeuralNetwork(Model):
 
         if p.weights is None:
             log('Initializing with random weights.')
+            self.randomize(scalings=False)
+        else:
+            log('Initial weights already present.')
+
+        if p.scalings is None:
+            log('Initializing with random scalings.')
+            self.randomize(weights=False, trainingimages=trainingimages)
+        else:
+            log('Initial scalings already present.')
+
+        if only_setup:
+            return
+
+        # Regress the model.
+        result = False
+        tries = 0
+        while (result is False) and (tries <= self.retries):
+            log('Try {:d}/{:d}.'.format(tries, self.retries))
+            self.step = 0
+            if tries > 0:
+                self.randomize(trainingimages)
+            result = self.regressor.regress(model=self, log=log)
+            tries += 1
+        return result  # True / False
+
+    def randomize(self, trainingimages=None, weights=True, scalings=True):
+        """Randomizes the model parameters (i.e., re-initializes them);
+        this is typically used just before training.
+
+        Parameters
+        ----------
+        trainingimages : list
+            List of ASE atoms objects that are being trained. This is only
+            needed if scalings is True.
+        weights : bool
+            If False, do not randomize weights.
+        scalings : bool
+            If False, do not randomize scalings.
+        """
+        p = self.parameters
+        if weights:
             if p.mode == 'image-centered':
                 raise NotImplementedError('Needs to be coded.')
             elif p.mode == 'atom-centered':
@@ -209,26 +254,12 @@ class NeuralNetwork(Model):
                                                activation=p.activation,
                                                len_of_fps=len_of_fps,
                                                )
-        else:
-            log('Initial weights already present.')
-
-        if p.scalings is None:
-            log('Initializing with random scalings.')
+        if scalings:
             if p.mode == 'image-centered':
                 raise NotImplementedError('Need to code.')
             elif p.mode == 'atom-centered':
                 p.scalings = get_random_scalings(trainingimages, p.activation,
                                                  p.fprange.keys())
-        else:
-            log('Initial scalings already present.')
-
-        if only_setup:
-            return
-
-        # Regress the model.
-        self.step = 0
-        result = self.regressor.regress(model=self, log=log)
-        return result  # True / False
 
     @property
     def forcetraining(self):
