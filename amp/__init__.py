@@ -126,7 +126,7 @@ class Amp(Calculator, object):
         # the main Amp instance. Then descriptor can pull parameters directly
         # from Amp without needing them to be passed in each method call.
         self._descriptor = descriptor
-        self.reset()  # Clears any old calculations.
+        self.reset()  # Clears any calculation results.
 
     @property
     def model(self):
@@ -146,7 +146,7 @@ class Amp(Calculator, object):
         # Amp instance. Then model can pull parameters directly from Amp
         # without needing them to be passed in each method call.
         self._model = model
-        self.reset()  # Clears any old calculations.
+        self.reset()  # Clears any calculation results.
 
     @classmethod
     def load(Cls, file, Descriptor=None, Model=None, **kwargs):
@@ -313,7 +313,7 @@ class Amp(Calculator, object):
         if result is True:
             log('Amp successfully trained. Saving current parameters.')
             filename = self.label + '.amp'
-            self.reset()  # Clears any old calculations.
+            self.reset()  # Clears any calculation results.
         else:
             log('Amp not trained successfully. Saving current parameters.')
             filename = make_filename(self.label, '-untrained-parameters.amp')
