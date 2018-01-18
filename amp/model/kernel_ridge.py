@@ -931,16 +931,18 @@ class KRR(Model):
         Wether or not we are using Cholesky decomposition to determine the
         weights.
     weights_independent : bool
-        Wheter or not the weights are going to be split for energy and forces.
+        Whether or not the weights are going to be split for energy and forces.
     numeric_force : bool
         Use numeric_force of atom energy predicted by Amp to minimize the loss
         function. This is not yet implemented.
+    forcetraining : bool
+        Turn force training true.
     """
     def __init__(self, sigma=1., kernel='rbf', lamda=0., weights=None,
                  regressor=None, mode=None, trainingimages=None, version=None,
                  fortran=False, checkpoints=None, lossfunction=None,
                  cholesky=False, weights_independent=True,
-                 numeric_force=False):
+                 numeric_force=False, forcetraining=False):
 
         np.set_printoptions(precision=30, threshold=999999999)
 
@@ -980,6 +982,8 @@ class KRR(Model):
 
         if self.lossfunction is None:
             self.lossfunction = LossFunction()
+            if forcetraining is True and cholesky is True:
+                self.lossfunction.parameters['force_coefficient'] = True
 
     def fit(self, trainingimages, descriptor, log, parallel, only_setup=False):
         """Fit kernel ridge model
