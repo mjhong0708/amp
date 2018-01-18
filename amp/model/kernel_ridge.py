@@ -978,7 +978,7 @@ class KRR(Model):
         self.kernel_e = {}  # Kernel dictionary for energies
         self.kernel_f = {}  # Kernel dictionary for forces
 
-        if self.lossfunction is None and cholesky is False:
+        if self.lossfunction is None:
             self.lossfunction = LossFunction()
 
     def fit(self, trainingimages, descriptor, log, parallel, only_setup=False):
