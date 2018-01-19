@@ -14,7 +14,6 @@ from scipy.linalg import cholesky
 
 from ase.calculators.calculator import Parameters
 
-from ..regression import Regressor
 from ..utilities import (make_filename, hash_images, Logger,
                          ConvergenceOccurred, make_sublists, now,
                          setup_parallel)
@@ -1254,7 +1253,6 @@ class KRR(Model):
 
         hashes = list(hash_images(trainingimages).keys())
         fingerprintprimes = t_descriptor.fingerprintprimes
-        fingerprint_name = t_descriptor.__class__.__name__
 
         self.force_features = {}
 
