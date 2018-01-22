@@ -76,14 +76,9 @@ class Model(object):
             if not isinstance(fingerprints, list):
                 fingerprints = fingerprints[hash]
 
-
-            if self.cholesky is False:
+            if self.cholesky is False and self.nnpartition is None:
                 for index, (symbol, afp) in enumerate(fingerprints):
-                    arguments = dict(
-                            afp=afp,
-                            index=index,
-                            symbol=symbol,
-                            )
+                    arguments = dict(afp=afp, index=index, symbol=symbol)
 
                     if hash is not None:
                         arguments['hash'] = hash
@@ -95,15 +90,27 @@ class Model(object):
                     atom_energy = self.calculate_atomic_energy(**arguments)
                     self.atomic_energies.append(atom_energy)
                     energy += atom_energy
+            elif self.cholesky is True and self.nnpartition is not None:
+                for index, (symbol, afp) in enumerate(fingerprints):
+                    arguments = dict(afp=afp, hash=hash,
+                                     fp_trainingimages=fp_trainingimages,
+                                     kernel=self.parameters.kernel,
+                                     trainingimages=trainingimages,
+                                     sigma=self.parameters.sigma,
+                                     fingerprints=fingerprints)
+
+                    atom_energy = self.energy_from_cholesky(**arguments)
+                    self.atomic_energies.append(atom_energy)
+                    energy += atom_energy
             else:
-                energy = self.total_energy_from_cholesky(
-                        hash=hash,
-                        fp_trainingimages=fp_trainingimages,
-                        kernel=self.parameters.kernel,
-                        trainingimages=trainingimages,
-                        sigma=self.parameters.sigma,
-                        fingerprints=fingerprints
-                        )
+                arguments = dict(hash=hash,
+                                 fp_trainingimages=fp_trainingimages,
+                                 kernel=self.parameters.kernel,
+                                 trainingimages=trainingimages,
+                                 sigma=self.parameters.sigma,
+                                 fingerprints=fingerprints)
+
+                energy = self.energy_from_cholesky(**arguments)
         return energy
 
     def calculate_forces(self, fingerprints, fingerprintprimes, hash=None,
@@ -766,7 +773,8 @@ class LossFunction:
                 if p.force_coefficient is not None:
                     for component in range(3):
                         _vector = forces_vector[symbol][component]
-                        overfitloss += _vector.T.dot(forces_kernel[component].dot(_vector))
+                        overfitloss += _vector.T.dot(
+                                forces_kernel[component].dot(_vector))
             overfitloss *= model.lamda
             loss += overfitloss
 
@@ -936,12 +944,16 @@ class KRR(Model):
         function. This is not yet implemented.
     forcetraining : bool
         Turn force training true.
+    nnpartition : str
+        Use per-atom energy partition from an Amp neural network calculator.
+        You have to set the path to .amp file. Useful for energy training with
+        Cholesky factorization. Default is set to None.
     """
     def __init__(self, sigma=1., kernel='rbf', lamda=0., weights=None,
                  regressor=None, mode=None, trainingimages=None, version=None,
                  fortran=False, checkpoints=None, lossfunction=None,
                  cholesky=False, weights_independent=True,
-                 numeric_force=False, forcetraining=False):
+                 numeric_force=False, forcetraining=False, nnpartition=None):
 
         np.set_printoptions(precision=30, threshold=999999999)
 
@@ -966,6 +978,7 @@ class KRR(Model):
         p.sigma = self.sigma = sigma
         p.lamda = self.lamda = lamda
         p.cholesky = self.cholesky = cholesky
+        p.nnpartition = self.nnpartition = nnpartition
         p.numeric_force = self.numeric_force = numeric_force
         p.trainingimages = self.trainingimages = trainingimages
 
@@ -1095,32 +1108,39 @@ class KRR(Model):
             """
             This method would require solving to systems of linear equations.
             In the case of energies, we cannot operate in an atom-centered mode
-            because we don't know a priori the energy per atom but per image.
+            because we don't know a priori the energy per-atom but per image.
 
             For forces is a different history because we do know the derivative
             of the energy with respect to atom positions (a per atom quantity).
             Therefore, obtaining weights with Cholesky decomposition would be
             the best for explicit-force training.
+
+            I implemented the nnpartition for which users can provide the path
+            to a NN calculator and we take the energies per-atom from
+            .calculate_atomic_energy(). The strategy would be train the NN with
+            a very tight convergece criterion for energy training (1e-6 RSME).
             """
             try:
                 I_e = np.identity(self.size)
                 K_e = self.kij.reshape(self.size, self.size)
 
-                log('Starting Cholesky decomposition of kernel energy matrix to '
-                'get upper triangular matrix.', tic='cholesky_energy_kernel')
+                log('Starting Cholesky decomposition of kernel energy matrix '
+                    'to get upper triangular matrix.',
+                    tic='cholesky_energy_kernel')
 
                 cholesky_U = cholesky((K_e + self.lamda * I_e))
 
                 log('... Cholesky Decomposing finished in.',
-                         toc='cholesky_energy_kernel')
+                    toc='cholesky_energy_kernel')
 
                 betas = np.linalg.solve(cholesky_U.T, self.energy_targets)
                 weights = np.linalg.solve(cholesky_U, betas)
                 p.weights['energy'] = weights
 
                 if self.forcetraining is True:
-                    log('Starting Cholesky decomposition of kernel force matrix to '
-                    'get upper triangular matrix.', tic='cholesky_force_kernel')
+                    log('Starting Cholesky decomposition of kernel force '
+                        'matrix to get upper triangular matrix.',
+                        tic='cholesky_force_kernel')
                     force_weights = []
                     for i in range(3):
                         size = self.kernel_f_cholesky[i][0].size
@@ -1135,13 +1155,12 @@ class KRR(Model):
                         force_weights.append(weights)
                     p.weights['forces'] = force_weights
                     log('... Cholesky Decomposing finished in.',
-                             toc='cholesky_force_kernel')
+                        toc='cholesky_force_kernel')
                 return True
             except np.linalg.linalg.LinAlgError:
                 log('The kernel matrix seems to be singular. Add more\n'
-                'noise to its diagonal elements by increasing the'
-                'penalization term.'
-                )
+                    'noise to its diagonal elements by increasing the'
+                    'penalization term.')
                 return False
             except:
                 return False
@@ -1176,7 +1195,7 @@ class KRR(Model):
         hashes = list(hash_images(trainingimages).keys())
 
         for hash in hashes:
-            if self.cholesky is False:
+            if self.cholesky is False or self.nnpartition is not None:
                 for element, afp in fp_trainingimages[hash]:
                     afp = np.asarray(afp)
                     self.reference_features.append(afp)
@@ -1192,11 +1211,17 @@ class KRR(Model):
         self.kij = []
 
         if only_features is not True:
+            if self.nnpartition is not None:
+                # Load the neural network calculator
+                from .. import Amp
+                nn_calc = Amp.load(self.nnpartition)
+
             for index, hash in enumerate(hashes):
+                total_energy = 0.
                 self.kernel_e[hash] = {}
                 kernel = []
 
-                if self.cholesky is False:
+                if self.cholesky is False and self.nnpartition is None:
                     for index, (element, afp) in enumerate(
                             fp_trainingimages[hash]):
                         selfsymbol = element
@@ -1208,6 +1233,33 @@ class KRR(Model):
                                 )
                         self.kernel_e[hash][(selfindex, selfsymbol)] = _kernel
                         kernel.append(_kernel)
+                    self.kij.append(kernel)
+                elif self.cholesky is True and self.nnpartition is not None:
+                    """
+                    When using the per-atom energy partition from the neural
+                    network, self.energy_targets has to be populated in here
+                    using the atomic_energies.
+                    """
+                    energy = trainingimages[hash].get_potential_energy()
+                    for index, (element, afp) in enumerate(
+                            fp_trainingimages[hash]):
+                        selfsymbol = element
+                        selfindex = index
+                        _kernel = self.kernel_matrix(np.asarray(afp),
+                                                     self.reference_features,
+                                                     kernel=self.kernel)
+                        self.kernel_e[hash][(selfindex, selfsymbol)] = _kernel
+                        kernel.append(_kernel)
+                        atomic_energy = nn_calc.model.calculate_atomic_energy(
+                                        afp,
+                                        selfindex,
+                                        selfsymbol)
+                        self.energy_targets.append(np.array(atomic_energy))
+                        total_energy += atomic_energy
+                    """ For debugging purposes only
+                    print('DFT energy:', energy)
+                    print('ANN energy:', total_energy)
+                    """
                     self.kij.append(kernel)
                 else:
                     afp = []
@@ -1317,7 +1369,7 @@ class KRR(Model):
         ]
 
         if only_features is False:
-            #if self.cholesky is True:
+            # if self.cholesky is True:
             self.force_targets = []
             self.kernel_f_cholesky = []
             kernel_x, targets_x = [], []
@@ -1327,9 +1379,8 @@ class KRR(Model):
             for hash in hashes:
                 image = trainingimages[hash]
                 self.kernel_f[hash] = {}
-                kernel = []
 
-                #if self.cholesky is True:
+                # if self.cholesky is True:
                 actual_forces = image.get_forces(apply_constraint=False)
 
                 for atom in image:
@@ -1348,7 +1399,7 @@ class KRR(Model):
                                 (selfindex, selfsymbol)][
                                         component] = _kernel
 
-                        #if self.cholesky is True:
+                        # if self.cholesky is True:
                         target = actual_forces[selfindex][component]
                         if component == 0:
                             kernel_x.append(_kernel)
@@ -1360,7 +1411,7 @@ class KRR(Model):
                             kernel_z.append(_kernel)
                             targets_z.append(target)
 
-            #if self.cholesky is True:
+            # if self.cholesky is True:
             self.kernel_f_cholesky = [
                     np.array(kernel_x),
                     np.array(kernel_y),
@@ -1372,7 +1423,6 @@ class KRR(Model):
                     np.array(targets_z)
                     ]
             return self.kernel_f
-
 
     @property
     def forcetraining(self):
@@ -1451,14 +1501,9 @@ class KRR(Model):
 
         K_e = self.kij.reshape(self.size, self.size)
         K_f = self.kernel_f_cholesky
-        loss = self.lossfunction.get_loss(
-                vector,
-                p.weights['energy'],
-                K_e,
-                p.weights['forces'],
-                K_f ,
-                lossprime=False
-                )['loss']
+        loss = self.lossfunction.get_loss(vector, p.weights['energy'], K_e,
+                                          p.weights['forces'], K_f,
+                                          lossprime=False)['loss']
         if hasattr(self, 'observer'):
             self.observer(self, vector, loss)
         self.step += 1
@@ -1556,9 +1601,9 @@ class KRR(Model):
                         ((index, symbol))].dot(weights['energy'][symbol])
         return atomic_amp_energy
 
-    def total_energy_from_cholesky(self, hash=None, fp_trainingimages=None,
-                               trainingimages=None, kernel=None, sigma=None,
-                               fingerprints=None):
+    def energy_from_cholesky(self, afp=None, hash=None, fp_trainingimages=None,
+                             trainingimages=None, kernel=None, sigma=None,
+                             fingerprints=None):
         """
         Given input to the KRR model, output (which corresponds to energy)
         is calculated about the specified atom. The sum of these for all
@@ -1593,20 +1638,28 @@ class KRR(Model):
             # This is needed for both setting the size of parameters to
             # optimize and also to return the kernel for energies
             self.get_energy_kernel(**kij_args)
-            afp = []
-            for element, _afp in fingerprints:
-                afp.append(_afp)
+            if self.nnpartition is None:
+                afp = []
+                for element, _afp in fingerprints:
+                    afp.append(_afp)
 
-            kernel = self.kernel_matrix(
-                            np.ravel(afp),
-                            self.reference_features,
-                            kernel=kernel,
-                            sigma=sigma
-                            )
-            total_amp_energy = kernel.dot(weights['energy'])
+                kernel = self.kernel_matrix(
+                                np.ravel(afp),
+                                self.reference_features,
+                                kernel=kernel,
+                                sigma=sigma
+                                )
+            else:
+                kernel = self.kernel_matrix(
+                                afp,
+                                self.reference_features,
+                                kernel=kernel,
+                                sigma=sigma
+                                )
+            amp_energy = kernel.dot(weights['energy'])
         else:
-            total_amp_energy = self.kernel_e[hash].dot(weights['energy'])
-        return total_amp_energy
+            amp_energy = self.kernel_e[hash].dot(weights['energy'])
+        return amp_energy
 
     def calculate_force(self, index, symbol, component, fingerprintprimes=None,
                         trainingimages=None, t_descriptor=None, sigma=None,
@@ -1663,7 +1716,8 @@ class KRR(Model):
                             )
             if (self.weights_independent is True and self.cholesky is False):
                 force = kernel.dot(weights['forces'][symbol][component])
-            elif (self.weights_independent is False and self.cholesky is False):
+            elif (self.weights_independent is False and
+                    self.cholesky is False):
                 force = kernel.dot(weights['forces'][symbol])
         else:
             if (self.weights_independent is True and self.cholesky is False):
@@ -1678,9 +1732,9 @@ class KRR(Model):
         force *= -1.
         return force
 
-    def forces_from_cholesky(self, index, symbol, component, fingerprintprimes=None,
-                        trainingimages=None, t_descriptor=None, sigma=None,
-                        hash=None):
+    def forces_from_cholesky(self, index, symbol, component,
+                             fingerprintprimes=None, trainingimages=None,
+                             t_descriptor=None, sigma=None, hash=None):
         """Given derivative of input to the neural network, derivative of output
         (which corresponds to forces) is calculated.
 
@@ -1926,7 +1980,7 @@ def linear(feature_i, feature_j):
 def rbf(feature_i, feature_j, sigma=1.):
     """ Compute the rbf (AKA Gaussian) kernel.  """
     rbf = np.exp(-(np.linalg.norm(feature_i - feature_j) ** 2.) /
-            (2. * sigma ** 2.))
+                 (2. * sigma ** 2.))
     return rbf
 
 
