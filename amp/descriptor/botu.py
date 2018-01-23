@@ -48,6 +48,9 @@ class Botu(object):
         If True, will use fortran modules, if False, will not.
     mode : str
         Can be either 'atom-centered' or 'image-centered'.
+    angular : bool
+        Use angular symmetry functions for Botu fingerprint. Default is set to
+        False.
 
     Raises
     ------
