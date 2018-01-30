@@ -14,6 +14,8 @@ Development version
 
 * Amp is now part of the Debian archives! This means it should soon be available in package managers for linux releases such as Ubuntu.
 
+* The neural network now has a retries keyword, so that it can automatically refresh its parameters and re-try training if it does not converge.
+
 * Added Botu - Ramprasad fingerprint for training forces.
 
 * Added Kernel Ridge Regression to Amp.
