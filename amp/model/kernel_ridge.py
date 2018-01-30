@@ -948,12 +948,15 @@ class KRR(Model):
         Use per-atom energy partition from an Amp neural network calculator.
         You have to set the path to .amp file. Useful for energy training with
         Cholesky factorization. Default is set to None.
+    preprocessing : str
+        Preprocess training data.
     """
     def __init__(self, sigma=1., kernel='rbf', lamda=0., weights=None,
                  regressor=None, mode=None, trainingimages=None, version=None,
                  fortran=False, checkpoints=None, lossfunction=None,
                  cholesky=False, weights_independent=True,
-                 numeric_force=False, forcetraining=False, nnpartition=None):
+                 numeric_force=False, forcetraining=False, preprocessing=False,
+                 nnpartition=None):
 
         np.set_printoptions(precision=30, threshold=999999999)
 
@@ -981,6 +984,7 @@ class KRR(Model):
         p.nnpartition = self.nnpartition = nnpartition
         p.numeric_force = self.numeric_force = numeric_force
         p.trainingimages = self.trainingimages = trainingimages
+        p.preprocessing = self.preprocessing = preprocessing
 
         self.regressor = regressor
         self.parent = None  # Can hold a reference to main Amp instance.
@@ -1024,13 +1028,23 @@ class KRR(Model):
 
         if self.regressor is None and self.cholesky is False:
             from ..regression import Regressor
-            self.regressor = Regressor()
+            # lossprime is not yet implemented when optimizing the loss
+            # function.
+            self.regressor = Regressor(lossprime=False)
 
         p = self.parameters
         tp = self.trainingparameters = Parameters()
         tp.trainingimages = trainingimages
         tp.descriptor = descriptor
-        tp.fingerprints = tp.descriptor.fingerprints
+
+        if self.preprocessing is True:
+            log('Preprocessing data...', tic='preprocessing')
+            tp.fingerprints = self.preprocess_features(tp.trainingimages,
+                                                       tp.descriptor,
+                                                       forcetraining=self.forcetraining)
+            log('...preprocessing finished in', toc='preprocessing')
+        else:
+            tp.fingerprints = tp.descriptor.fingerprints
 
         if p.mode is None:
             p.mode = descriptor.parameters.mode
@@ -1164,6 +1178,54 @@ class KRR(Model):
                 return False
             except:
                 return False
+
+    def preprocess_features(self, trainingimages, descriptor, forcetraining=False):
+        """Preprocess fingerprints
+
+        Parameters
+        ----------
+        descriptor : object
+        trainingimages : object
+        forcetraining : bool
+        """
+        hashes = list(hash_images(trainingimages).keys())
+        fp = descriptor.fingerprints
+
+        energy_fingerprints = []
+        symbols = []
+        fingerprints = {}
+
+        for hash in hashes:
+            _symbols = []
+            for symbol, fingerprint in fp[hash]:
+                _symbols.append(symbol)
+                energy_fingerprints.append(fingerprint)
+            symbols.append(_symbols)
+
+        # Making a list of a list
+        energy_fingerprints = np.array(energy_fingerprints)
+
+        from sklearn.preprocessing import StandardScaler, MinMaxScaler
+        scaler = StandardScaler().fit(energy_fingerprints)
+        scaled_fp = scaler.transform(energy_fingerprints)
+
+        inc = 0
+        for index, hash in enumerate(hashes):
+            fingerprints[hash] = {}
+            append_this = []
+            for symbol in symbols[index]:
+                append_this.append((symbol, scaled_fp[inc]))
+                inc += 1
+            fingerprints[hash] = append_this
+
+        #validate = ['c6c9c0e078336468a562b8df77c5cba7', 'a0139f3f76469f50e7b3bd67530dc1ec', '5fd373197f907e8fc022d7fae62c816e']
+        #for e in validate:
+        #    print(fingerprints[e])
+        #    print(fp[e])
+        #print(fingerprints[hash])
+        #print(fp[hash])
+
+        return fingerprints
 
     def get_energy_kernel(self, trainingimages=None, fp_trainingimages=None,
                           only_features=False):
