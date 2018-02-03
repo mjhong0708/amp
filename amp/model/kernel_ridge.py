@@ -3,7 +3,6 @@
 #
 # Author: Muammar El Khatib <muammarelkhatib@brown.edu>
 
-import itertools
 import threading
 import time
 import sys
@@ -993,8 +992,8 @@ class KRR(Model):
         self.lossfunction = lossfunction
         self.properties = []
 
-        self.kernel_e = {}  # Kernel dictionary for energies
-        self.kernel_f = {}  # Kernel dictionary for forces
+        self.kernel_e = OrderedDict()  # Kernel dictionary for energies
+        self.kernel_f = OrderedDict()  # Kernel dictionary for forces
 
         if self.lossfunction is None:
             self.lossfunction = LossFunction()
@@ -1039,9 +1038,10 @@ class KRR(Model):
 
         if self.preprocessing is True:
             log('Preprocessing data...', tic='preprocessing')
-            tp.fingerprints = self.preprocess_features(tp.trainingimages,
-                                                       tp.descriptor,
-                                                       forcetraining=self.forcetraining)
+            tp.fingerprints = self.preprocess_features(
+                    tp.trainingimages,
+                    tp.descriptor,
+                    forcetraining=self.forcetraining)
             log('...preprocessing finished in', toc='preprocessing')
         else:
             tp.fingerprints = tp.descriptor.fingerprints
@@ -1086,27 +1086,33 @@ class KRR(Model):
             if p.mode == 'image-centered':
                 raise NotImplementedError('Needs to be coded.')
             elif p.mode == 'atom-centered':
-                self.size = len(self.reference_features)
                 weights = OrderedDict()
                 for prop in self.properties:
                     weights[prop] = OrderedDict()
-                    for hash in tp.trainingimages.keys():
-                        imagefingerprints = tp.fingerprints[hash]
-                        for element, fingerprint in imagefingerprints:
-                            if (element not in weights and prop is 'energy'):
-                                weights[prop][element] = np.random.uniform(
-                                        low=-1.0,
-                                        high=1.0,
-                                        size=(self.size))
-                            elif (element not in weights and prop is 'forces'):
-                                if p.weights_independent is True:
+
+                    if self.cholesky is False:
+                        self.size = len(self.reference_features)
+                        for hash in tp.trainingimages.keys():
+                            imagefingerprints = tp.fingerprints[hash]
+                            for element, fingerprint in imagefingerprints:
+                                if (element not in weights and
+                                        prop is 'energy'):
                                     weights[prop][element] = np.random.uniform(
                                             low=-1.0,
                                             high=1.0,
-                                            size=(3, self.size)
-                                            )
-                                else:
-                                    weights[prop][element] = np.ones(self.size)
+                                            size=(self.size))
+                                elif (element not in weights and
+                                        prop is 'forces'):
+                                    if p.weights_independent is True:
+                                        weights[prop][element] = \
+                                                np.random.uniform(
+                                                low=-1.0,
+                                                high=1.0,
+                                                size=(3, self.size)
+                                                )
+                                    else:
+                                        weights[prop][element] = \
+                                                np.ones(self.size)
                 p.weights = weights
         else:
             log('Initial weights already present.')
@@ -1135,8 +1141,9 @@ class KRR(Model):
             a very tight convergece criterion for energy training (1e-6 RSME).
             """
             try:
-                I_e = np.identity(self.size)
-                K_e = self.kij.reshape(self.size, self.size)
+                size = len(self.reference_features_e)
+                I_e = np.identity(size)
+                K_e = self.kij.reshape(size, size)
 
                 log('Starting Cholesky decomposition of kernel energy matrix '
                     'to get upper triangular matrix.',
@@ -1155,19 +1162,25 @@ class KRR(Model):
                     log('Starting Cholesky decomposition of kernel force '
                         'matrix to get upper triangular matrix.',
                         tic='cholesky_force_kernel')
-                    force_weights = []
-                    for i in range(3):
-                        size = self.kernel_f_cholesky[i][0].size
-                        I_f = np.identity(size)
-                        K_f = self.kernel_f_cholesky[i].reshape(size, size)
-                        cholesky_U = cholesky((K_f + self.lamda * I_f))
-                        betas = np.linalg.solve(
-                                   cholesky_U.T,
-                                   self.force_targets[i]
-                                   )
-                        weights = np.linalg.solve(cholesky_U, betas)
-                        force_weights.append(weights)
-                    p.weights['forces'] = force_weights
+                    for symbol in self.kernel_f_cholesky.keys():
+                        p.weights['forces'][symbol] = []
+
+                        for i in range(3):
+                            """
+                            size = self.kernel_f_cholesky[i][0].size
+                            I_f = np.identity(size)
+                            K_f = self.kernel_f_cholesky[i].reshape(size, size)
+                            """
+                            K_f = np.array(self.kernel_f_cholesky[symbol][i])
+                            size = K_f.shape[0]
+                            I_f = np.identity(size)
+                            cholesky_U = cholesky((K_f + self.lamda * I_f))
+                            betas = np.linalg.solve(
+                                       cholesky_U.T,
+                                       self.force_targets[symbol][i]
+                                       )
+                            weights = np.linalg.solve(cholesky_U, betas)
+                            p.weights['forces'][symbol].append(weights)
                     log('... Cholesky Decomposing finished in.',
                         toc='cholesky_force_kernel')
                 return True
@@ -1179,7 +1192,8 @@ class KRR(Model):
             except:
                 return False
 
-    def preprocess_features(self, trainingimages, descriptor, forcetraining=False):
+    def preprocess_features(self, trainingimages, descriptor,
+                            forcetraining=False):
         """Preprocess fingerprints
 
         Parameters
@@ -1193,7 +1207,7 @@ class KRR(Model):
 
         energy_fingerprints = []
         symbols = []
-        fingerprints = {}
+        fingerprints = OrderedDict()
 
         for hash in hashes:
             _symbols = []
@@ -1211,19 +1225,12 @@ class KRR(Model):
 
         inc = 0
         for index, hash in enumerate(hashes):
-            fingerprints[hash] = {}
+            fingerprints[hash] = OrderedDict()
             append_this = []
             for symbol in symbols[index]:
                 append_this.append((symbol, scaled_fp[inc]))
                 inc += 1
             fingerprints[hash] = append_this
-
-        #validate = ['c6c9c0e078336468a562b8df77c5cba7', 'a0139f3f76469f50e7b3bd67530dc1ec', '5fd373197f907e8fc022d7fae62c816e']
-        #for e in validate:
-        #    print(fingerprints[e])
-        #    print(fp[e])
-        #print(fingerprints[hash])
-        #print(fp[hash])
 
         return fingerprints
 
@@ -1240,7 +1247,7 @@ class KRR(Model):
         fp_trainingimages : object
             Fingerprints calculated using the trainingimages.
         only_features : bool
-            If set to True, only the self.reference_features are built.
+            If set to True, only the self.reference_features_e are built.
 
         Returns
         -------
@@ -1251,7 +1258,7 @@ class KRR(Model):
         """
         # This creates a list containing all features in all images on the
         # training set.
-        self.reference_features = []
+        self.reference_features_e = []
         self.energy_targets = []
 
         hashes = list(hash_images(trainingimages).keys())
@@ -1260,7 +1267,7 @@ class KRR(Model):
             if self.cholesky is False or self.nnpartition is not None:
                 for element, afp in fp_trainingimages[hash]:
                     afp = np.asarray(afp)
-                    self.reference_features.append(afp)
+                    self.reference_features_e.append(afp)
             else:
                 energy = trainingimages[hash].get_potential_energy()
                 self.energy_targets.append(energy)
@@ -1268,7 +1275,7 @@ class KRR(Model):
                 for element, _afp in fp_trainingimages[hash]:
                     afp.append(_afp)
 
-                self.reference_features.append(np.ravel(afp))
+                self.reference_features_e.append(np.ravel(afp))
 
         self.kij = []
 
@@ -1280,7 +1287,7 @@ class KRR(Model):
 
             for index, hash in enumerate(hashes):
                 total_energy = 0.
-                self.kernel_e[hash] = {}
+                self.kernel_e[hash] = OrderedDict()
                 kernel = []
 
                 if self.cholesky is False and self.nnpartition is None:
@@ -1290,7 +1297,7 @@ class KRR(Model):
                         selfindex = index
                         _kernel = self.kernel_matrix(
                                 np.asarray(afp),
-                                self.reference_features,
+                                self.reference_features_e,
                                 kernel=self.kernel
                                 )
                         self.kernel_e[hash][(selfindex, selfsymbol)] = _kernel
@@ -1308,7 +1315,7 @@ class KRR(Model):
                         selfsymbol = element
                         selfindex = index
                         _kernel = self.kernel_matrix(np.asarray(afp),
-                                                     self.reference_features,
+                                                     self.reference_features_e,
                                                      kernel=self.kernel)
                         self.kernel_e[hash][(selfindex, selfsymbol)] = _kernel
                         kernel.append(_kernel)
@@ -1329,7 +1336,7 @@ class KRR(Model):
                         afp.append(_afp)
                     _kernel = self.kernel_matrix(
                             np.ravel(afp),
-                            self.reference_features,
+                            self.reference_features_e,
                             kernel=self.kernel
                             )
                     self.kernel_e[hash] = _kernel
@@ -1353,7 +1360,7 @@ class KRR(Model):
             Descriptor object containing the fingerprintprimes from the
             training set.
         only_features : bool
-            If set to True, only the self.reference_features are built.
+            If set to True, only the self.force_features are built.
 
         Returns
         -------
@@ -1361,17 +1368,14 @@ class KRR(Model):
             Dictionary containing images hashes and kernels per atom.
         """
 
-        forces_features_x = []
-        forces_features_y = []
-        forces_features_z = []
-
         hashes = list(hash_images(trainingimages).keys())
         fingerprintprimes = t_descriptor.fingerprintprimes
 
-        self.force_features = {}
+        self.force_features = OrderedDict()
+        self.reference_features_f = OrderedDict()
 
         for hash in hashes:
-            self.force_features[hash] = {}
+            self.force_features[hash] = OrderedDict()
             image = trainingimages[hash]
             afps_prime_x = []
             afps_prime_y = []
@@ -1381,9 +1385,12 @@ class KRR(Model):
             for atom in image:
                 selfsymbol = atom.symbol
                 selfindex = atom.index
-                self.force_features[hash][(selfindex, selfsymbol)] = {}
+                self.force_features[hash][
+                        (selfindex, selfsymbol)] = OrderedDict()
+                fprime_sum_x, fprime_sum_y, fprime_sum_z = 0., 0., 0.
 
-                fprime_sum_x,  fprime_sum_y, fprime_sum_z = 0., 0., 0.
+                if selfsymbol not in self.reference_features_f.keys():
+                    self.reference_features_f[selfsymbol] = OrderedDict()
 
                 # Here we sum all different contributions of the derivatives of
                 # the fingerprints
@@ -1402,45 +1409,40 @@ class KRR(Model):
                                     fingerprintprimes[hash][key])
 
                 for component in range(3):
+                    keys = self.reference_features_f[selfsymbol].keys()
+                    if component not in keys:
+                        self.reference_features_f[selfsymbol][component] = []
+
                     if component == 0:
                         afps_prime_x.append(fprime_sum_x)
+                        self.reference_features_f[selfsymbol][component].append(
+                                fprime_sum_x)
                         self.force_features[hash][(
                             selfindex,
                             selfsymbol)][component] = fprime_sum_x
                     elif component == 1:
+                        self.reference_features_f[selfsymbol][component].append(
+                                fprime_sum_y)
                         afps_prime_y.append(fprime_sum_y)
                         self.force_features[hash][(
                             selfindex,
                             selfsymbol)][component] = fprime_sum_y
                     else:
                         afps_prime_z.append(fprime_sum_z)
+                        self.reference_features_f[selfsymbol][component].append(
+                                fprime_sum_z)
                         self.force_features[hash][(
                             selfindex,
                             selfsymbol)][component] = fprime_sum_z
 
-            forces_features_x.append(afps_prime_x)
-            forces_features_y.append(afps_prime_y)
-            forces_features_z.append(afps_prime_z)
-
-        # List containing all force features per component. Useful for
-        # computing the kernels.
-        self.reference_force_features = [
-            list(itertools.chain.from_iterable(forces_features_x)),
-            list(itertools.chain.from_iterable(forces_features_y)),
-            list(itertools.chain.from_iterable(forces_features_z))
-        ]
-
         if only_features is False:
             # if self.cholesky is True:
-            self.force_targets = []
-            self.kernel_f_cholesky = []
-            kernel_x, targets_x = [], []
-            kernel_y, targets_y = [], []
-            kernel_z, targets_z = [], []
+            self.force_targets = OrderedDict()
+            self.kernel_f_cholesky = OrderedDict()
 
             for hash in hashes:
                 image = trainingimages[hash]
-                self.kernel_f[hash] = {}
+                self.kernel_f[hash] = OrderedDict()
 
                 # if self.cholesky is True:
                 actual_forces = image.get_forces(apply_constraint=False)
@@ -1448,42 +1450,37 @@ class KRR(Model):
                 for atom in image:
                     selfsymbol = atom.symbol
                     selfindex = atom.index
-                    self.kernel_f[hash][(selfindex, selfsymbol)] = {}
+                    self.kernel_f[hash][
+                            (selfindex, selfsymbol)] = OrderedDict()
+
+                    if selfsymbol not in self.kernel_f_cholesky.keys():
+                        self.kernel_f_cholesky[selfsymbol] = OrderedDict()
+                        self.force_targets[selfsymbol] = OrderedDict()
+
                     for component in range(3):
+                        keys = self.kernel_f_cholesky[selfsymbol].keys()
+                        if component not in keys:
+                            self.kernel_f_cholesky[selfsymbol][component] = []
+                            self.force_targets[selfsymbol][component] = []
+
                         afp = self.force_features[hash][
                                 (selfindex, selfsymbol)][component]
                         _kernel = self.kernel_matrix(
                                 afp,
-                                self.reference_force_features[component],
+                                self.reference_features_f[selfsymbol][component],
                                 kernel=self.kernel
                                 )
                         self.kernel_f[hash][
                                 (selfindex, selfsymbol)][
                                         component] = _kernel
-
                         # if self.cholesky is True:
                         target = actual_forces[selfindex][component]
-                        if component == 0:
-                            kernel_x.append(_kernel)
-                            targets_x.append(target)
-                        elif component == 1:
-                            kernel_y.append(_kernel)
-                            targets_y.append(target)
-                        elif component == 2:
-                            kernel_z.append(_kernel)
-                            targets_z.append(target)
 
-            # if self.cholesky is True:
-            self.kernel_f_cholesky = [
-                    np.array(kernel_x),
-                    np.array(kernel_y),
-                    np.array(kernel_z)
-                    ]
-            self.force_targets = [
-                    np.array(targets_x),
-                    np.array(targets_y),
-                    np.array(targets_z)
-                    ]
+                        self.kernel_f_cholesky[selfsymbol][component].append(
+                                _kernel)
+                        self.force_targets[selfsymbol][component].append(
+                                target)
+
             return self.kernel_f
 
     @property
@@ -1653,7 +1650,7 @@ class KRR(Model):
             self.get_energy_kernel(**kij_args)
             kernel = self.kernel_matrix(
                             np.asarray(afp),
-                            self.reference_features,
+                            self.reference_features_e,
                             kernel=self.kernel,
                             sigma=sigma
                             )
@@ -1707,14 +1704,14 @@ class KRR(Model):
 
                 kernel = self.kernel_matrix(
                                 np.ravel(afp),
-                                self.reference_features,
+                                self.reference_features_e,
                                 kernel=kernel,
                                 sigma=sigma
                                 )
             else:
                 kernel = self.kernel_matrix(
                                 afp,
-                                self.reference_features,
+                                self.reference_features_e,
                                 kernel=kernel,
                                 sigma=sigma
                                 )
@@ -1840,7 +1837,7 @@ class KRR(Model):
                         component == afp[-1]):
                     fprime += np.array(fingerprintprimes[afp])
 
-            features = self.reference_force_features[component]
+            features = self.reference_features_f[symbol][component]
             kernel = self.kernel_matrix(
                             fprime,
                             features,
@@ -1848,7 +1845,7 @@ class KRR(Model):
                             sigma=sigma
                             )
             if (self.weights_independent is True and self.cholesky is True):
-                force = kernel.dot(weights['forces'][component])
+                force = kernel.dot(weights['forces'][symbol][component])
         else:
             if (self.weights_independent is True and self.cholesky is True):
                 force = self.kernel_f[hash][key][component].dot(
