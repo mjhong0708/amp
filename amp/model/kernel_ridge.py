@@ -765,6 +765,7 @@ class LossFunction:
 
         if model.lamda > 0.:
             overfitloss = 0.
+            print(energy_vector)
             for symbol in energy_vector.keys():
                 _vector = energy_vector[symbol]
                 # Based on https://stats.stackexchange.com/a/70127/160746
@@ -1091,28 +1092,30 @@ class KRR(Model):
                     weights[prop] = OrderedDict()
 
                     if self.cholesky is False:
-                        self.size = len(self.reference_features)
                         for hash in tp.trainingimages.keys():
                             imagefingerprints = tp.fingerprints[hash]
-                            for element, fingerprint in imagefingerprints:
-                                if (element not in weights and
+                            for symbol, fingerprint in imagefingerprints:
+                                if (symbol not in weights and
                                         prop is 'energy'):
-                                    weights[prop][element] = np.random.uniform(
+                                    size = len(self.reference_features_e[symbol])
+                                    weights[prop][symbol] = np.random.uniform(
                                             low=-1.0,
                                             high=1.0,
-                                            size=(self.size))
-                                elif (element not in weights and
+                                            size=(size))
+                                elif (symbol not in weights and
                                         prop is 'forces'):
                                     if p.weights_independent is True:
-                                        weights[prop][element] = \
+                                        size = \
+                                            len(self.reference_features_f[symbol][0])
+                                        weights[prop][symbol] = \
                                                 np.random.uniform(
                                                 low=-1.0,
                                                 high=1.0,
-                                                size=(3, self.size)
+                                                size=(3, size)
                                                 )
                                     else:
-                                        weights[prop][element] = \
-                                                np.ones(self.size)
+                                        weights[prop][symbol] = \
+                                                np.ones(size)
                 p.weights = weights
         else:
             log('Initial weights already present.')
@@ -1258,16 +1261,22 @@ class KRR(Model):
         """
         # This creates a list containing all features in all images on the
         # training set.
-        self.reference_features_e = []
+        if self.cholesky:
+            self.reference_features_e = []
+            self.kij = []
+        else:
+            self.reference_features_e = OrderedDict()
         self.energy_targets = []
 
         hashes = list(hash_images(trainingimages).keys())
 
         for hash in hashes:
             if self.cholesky is False or self.nnpartition is not None:
-                for element, afp in fp_trainingimages[hash]:
+                for symbol, afp in fp_trainingimages[hash]:
+                    if symbol not in self.reference_features_e.keys():
+                        self.reference_features_e[symbol] = []
                     afp = np.asarray(afp)
-                    self.reference_features_e.append(afp)
+                    self.reference_features_e[symbol].append(afp)
             else:
                 energy = trainingimages[hash].get_potential_energy()
                 self.energy_targets.append(energy)
@@ -1277,38 +1286,35 @@ class KRR(Model):
 
                 self.reference_features_e.append(np.ravel(afp))
 
-        self.kij = []
-
         if only_features is not True:
             if self.nnpartition is not None:
-                # Load the neural network calculator
+                # Load the neural network calculator just once
                 from .. import Amp
                 nn_calc = Amp.load(self.nnpartition)
 
             for index, hash in enumerate(hashes):
-                total_energy = 0.
                 self.kernel_e[hash] = OrderedDict()
                 kernel = []
 
                 if self.cholesky is False and self.nnpartition is None:
-                    for index, (element, afp) in enumerate(
+                    # This is the case when using L2 loss function or NN atomic
+                    # energies.
+                    for index, (symbol, afp) in enumerate(
                             fp_trainingimages[hash]):
-                        selfsymbol = element
-                        selfindex = index
                         _kernel = self.kernel_matrix(
                                 np.asarray(afp),
-                                self.reference_features_e,
+                                self.reference_features_e[symbol],
                                 kernel=self.kernel
                                 )
-                        self.kernel_e[hash][(selfindex, selfsymbol)] = _kernel
+                        self.kernel_e[hash][(index, symbol)] = _kernel
                         kernel.append(_kernel)
-                    self.kij.append(kernel)
                 elif self.cholesky is True and self.nnpartition is not None:
                     """
                     When using the per-atom energy partition from the neural
                     network, self.energy_targets has to be populated in here
                     using the atomic_energies.
                     """
+                    # FIXME
                     energy = trainingimages[hash].get_potential_energy()
                     for index, (element, afp) in enumerate(
                             fp_trainingimages[hash]):
@@ -1329,7 +1335,6 @@ class KRR(Model):
                     print('DFT energy:', energy)
                     print('ANN energy:', total_energy)
                     """
-                    self.kij.append(kernel)
                 else:
                     afp = []
                     for element, _afp in fp_trainingimages[hash]:
@@ -1343,7 +1348,8 @@ class KRR(Model):
                     kernel.append(_kernel)
                     self.kij.append(kernel)
 
-            self.kij = np.asarray(self.kij)
+            if self.cholesky:
+                self.kij = np.asarray(self.kij)
 
             return self.kernel_e
 
@@ -1512,8 +1518,7 @@ class KRR(Model):
         if not hasattr(self, 'ravel'):
             self.ravel = Raveler(
                     p.weights,
-                    weights_independent=self.weights_independent,
-                    size=self.size
+                    weights_independent=self.weights_independent
                     )
         return self.ravel.to_vector(weights=p.weights)
 
@@ -1558,8 +1563,8 @@ class KRR(Model):
                                              '-checkpoint.amp')
                 self.parent.save(filename, overwrite=True)
 
-        K_e = self.kij.reshape(self.size, self.size)
-        K_f = self.kernel_f_cholesky
+        K_e = self.kernel_e
+        K_f = self.kernel_f
         loss = self.lossfunction.get_loss(vector, p.weights['energy'], K_e,
                                           p.weights['forces'], K_f,
                                           lossprime=False)['loss']
@@ -1928,11 +1933,10 @@ class Raveler(object):
         Number of elements in the dictionary.
 
     """
-    def __init__(self, weights, weights_independent=None, size=None):
+    def __init__(self, weights, weights_independent=None):
         self.count = 0
         self.weights_keys = []
         self.properties_keys = []
-        self.size = size
         self.weights_independent = weights_independent
 
         for prop in weights.keys():
