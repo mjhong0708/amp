@@ -131,53 +131,27 @@ class Model(object):
         if self.parameters.mode == 'image-centered':
             raise NotImplementedError('This needs to be coded.')
         elif self.parameters.mode == 'atom-centered':
-            try:
-                selfindices = set([key[0] for key in fingerprintprimes.keys()])
-                forces = np.zeros((len(selfindices), 3))
+            selfindices = set([key[0] for key in fingerprintprimes.keys()])
+            forces = np.zeros((len(selfindices), 3))
 
-                for selfindex, (symbol, afp) in enumerate(fingerprints):
-                    for component in range(3):
-                        arguments = dict(
-                                index=selfindex,
-                                symbol=symbol,
-                                component=component,
-                                hash=hash,
-                                t_descriptor=t_descriptor,
-                                sigma=self.parameters.sigma,
-                                trainingimages=trainingimages,
-                                fingerprintprimes=fingerprintprimes
-                                )
-                        if self.cholesky is False:
-                            dforce = self.calculate_force(**arguments)
-                        else:
-                            dforce = self.forces_from_cholesky(**arguments)
+            for selfindex, (symbol, afp) in enumerate(fingerprints):
+                for component in range(3):
+                    arguments = dict(
+                            index=selfindex,
+                            symbol=symbol,
+                            component=component,
+                            hash=hash,
+                            t_descriptor=t_descriptor,
+                            sigma=self.parameters.sigma,
+                            trainingimages=trainingimages,
+                            fingerprintprimes=fingerprintprimes
+                            )
+                    if self.cholesky is False:
+                        dforce = self.calculate_force(**arguments)
+                    else:
+                        dforce = self.forces_from_cholesky(**arguments)
 
-                        forces[selfindex][component] += dforce
-
-            except AttributeError:  # Delete this for not using the local vector hack.
-                selfindices = range(len(fingerprintprimes))
-                forces = np.zeros((len(selfindices), 3))
-
-                for selfindex, (symbol, fprime) in enumerate(fingerprintprimes):
-                    for component in range(3):
-                        arguments = dict(
-                                index=selfindex,
-                                symbol=symbol,
-                                component=component,
-                                hash=hash,
-                                fprime=fprime,
-                                t_descriptor=t_descriptor,
-                                sigma=self.parameters.sigma,
-                                trainingimages=trainingimages,
-                                fingerprintprimes=fingerprintprimes
-                                )
-                        if self.cholesky is False:
-                            dforce = self.calculate_force(**arguments)
-                        else:
-                            dforce = self.forces_from_cholesky(**arguments)
-
-                        forces[selfindex][component] += dforce
-
+                    forces[selfindex][component] += dforce
         return forces
 
     def calculate_dEnergy_dParameters(self, fingerprints):
@@ -1030,7 +1004,7 @@ class KRR(Model):
         """Fit kernel ridge model
 
         This function is capable to fit KRR using either a L2 loss function or
-        matrix factorization in the case the cholesky keyword argument is
+        matrix factorization in the case when the cholesky keyword argument is
         set to True.
 
         Parameters
@@ -1403,6 +1377,9 @@ class KRR(Model):
         for hash in hashes:
             self.force_features[hash] = OrderedDict()
             image = trainingimages[hash]
+            afps_prime_x = []
+            afps_prime_y = []
+            afps_prime_z = []
 
             # This loop assures that we are iterating from atom with index 0.
             for atom in image:
@@ -1417,56 +1394,46 @@ class KRR(Model):
 
                 # Here we sum all different contributions of the derivatives of
                 # the fingerprints
-                _fingerprintprimes = fingerprintprimes[hash]
-
-                if isinstance(_fingerprintprimes, dict):
-                    for key in fingerprintprimes[hash].keys():
-                        if (selfindex == key[0] and selfsymbol == key[1] and
-                                key[-1] == 0):
-                            fprime_sum_x += np.array(
-                                        fingerprintprimes[hash][key])
-                        elif (selfindex == key[0] and selfsymbol == key[1] and
-                                key[-1] == 1):
-                            fprime_sum_y += np.array(
-                                        fingerprintprimes[hash][key])
-                        elif (selfindex == key[0] and selfsymbol == key[1] and
-                                key[-1] == 2):
-                            fprime_sum_z += np.array(
-                                        fingerprintprimes[hash][key])
-                else:
-                    localvector = True
+                for key in fingerprintprimes[hash].keys():
+                    if (selfindex == key[0] and selfsymbol == key[1] and
+                            key[-1] == 0):
+                        fprime_sum_x += np.array(
+                                    fingerprintprimes[hash][key])
+                    elif (selfindex == key[0] and selfsymbol == key[1] and
+                            key[-1] == 1):
+                        fprime_sum_y += np.array(
+                                    fingerprintprimes[hash][key])
+                    elif (selfindex == key[0] and selfsymbol == key[1] and
+                            key[-1] == 2):
+                        fprime_sum_z += np.array(
+                                    fingerprintprimes[hash][key])
 
                 for component in range(3):
                     keys = self.reference_features_f[selfsymbol].keys()
                     if component not in keys:
                         self.reference_features_f[selfsymbol][component] = []
 
-                    if isinstance(_fingerprintprimes, dict):
-                        if component == 0:
-                            self.reference_features_f[selfsymbol][component].append(
-                                    fprime_sum_x)
-                            self.force_features[hash][(
-                                selfindex,
-                                selfsymbol)][component] = fprime_sum_x
-                        elif component == 1:
-                            self.reference_features_f[selfsymbol][component].append(
-                                    fprime_sum_y)
-                            self.force_features[hash][(
-                                selfindex,
-                                selfsymbol)][component] = fprime_sum_y
-                        else:
-                            self.reference_features_f[selfsymbol][component].append(
-                                    fprime_sum_z)
-                            self.force_features[hash][(
-                                selfindex,
-                                selfsymbol)][component] = fprime_sum_z
+                    if component == 0:
+                        afps_prime_x.append(fprime_sum_x)
+                        self.reference_features_f[selfsymbol][component].append(
+                                fprime_sum_x)
+                        self.force_features[hash][(
+                            selfindex,
+                            selfsymbol)][component] = fprime_sum_x
+                    elif component == 1:
+                        self.reference_features_f[selfsymbol][component].append(
+                                fprime_sum_y)
+                        afps_prime_y.append(fprime_sum_y)
+                        self.force_features[hash][(
+                            selfindex,
+                            selfsymbol)][component] = fprime_sum_y
                     else:
-                        for index, (symbol, afp) in enumerate(_fingerprintprimes):
-                            if selfindex == index and selfsymbol == symbol:
-                                self.reference_features_f[symbol][component].append(afp)
-                                self.force_features[hash][(
-                                    index,
-                                    symbol)][component] = afp
+                        afps_prime_z.append(fprime_sum_z)
+                        self.reference_features_f[selfsymbol][component].append(
+                                fprime_sum_z)
+                        self.force_features[hash][(
+                            selfindex,
+                            selfsymbol)][component] = fprime_sum_z
 
         if only_features is False:
             # if self.cholesky is True:
@@ -1509,14 +1476,10 @@ class KRR(Model):
                         # if self.cholesky is True:
                         target = actual_forces[selfindex][component]
 
-                        if localvector:
-                            target = abs(target)
-
                         self.kernel_f_cholesky[selfsymbol][component].append(
                                 _kernel)
                         self.force_targets[selfsymbol][component].append(
                                 target)
-
 
             return self.kernel_f
 
@@ -1828,7 +1791,7 @@ class KRR(Model):
         force *= -1.
         return force
 
-    def forces_from_cholesky(self, index, symbol, component, fprime=None,
+    def forces_from_cholesky(self, index, symbol, component,
                              fingerprintprimes=None, trainingimages=None,
                              t_descriptor=None, sigma=None, hash=None):
         """Given derivative of input to the neural network, derivative of output
@@ -1868,12 +1831,11 @@ class KRR(Model):
                     only_features=True
                     )
 
-            if fprime is None:
-                fprime = 0
-                for afp in fingerprintprimes:
-                    if (index == afp[0] and symbol == afp[1] and
-                            component == afp[-1]):
-                        fprime += np.array(fingerprintprimes[afp])
+            fprime = 0
+            for afp in fingerprintprimes:
+                if (index == afp[0] and symbol == afp[1] and
+                        component == afp[-1]):
+                    fprime += np.array(fingerprintprimes[afp])
 
             features = self.reference_features_f[symbol][component]
             kernel = self.kernel_matrix(

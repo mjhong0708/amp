@@ -488,8 +488,6 @@ def importhelper(importname):
         from .descriptor.bispectrum import Bispectrum as Module
     elif importname == '.descriptor.botu.Botu':
         from .descriptor.botu import Botu as Module
-    elif importname == '.descriptor.localvector.LocalVector':
-        from .descriptor.localvector import LocalVector as Module
     elif importname == '.model.neuralnetwork.NeuralNetwork':
         from .model.neuralnetwork import NeuralNetwork as Module
     elif importname == '.model.neuralnetwork.tflow':
