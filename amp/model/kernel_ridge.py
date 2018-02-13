@@ -607,8 +607,8 @@ class LossFunction:
                 _.logout()
         del self._sessions['connections']
 
-    def get_loss(self, parametervector, energy_vector, energy_kernel,
-                 forces_vector, forces_kernel, lossprime):
+    def get_loss(self, parametervector, energy_weights, energy_kernel,
+                 forces_weights, forces_kernel, lossprime):
         """Returns the current value of the loss function for a given set of
         parameters, or, if the energy is less than the energy_tol raises a
         ConvergenceException.
@@ -620,6 +620,14 @@ class LossFunction:
         lossprime : bool
             If True, will calculate and return dloss_dparameters, else will
             only return zero for dloss_dparameters.
+        energy_weights : list
+            List of energy regression coefficients.
+        energy_kernel : dict
+            Dictionary of energy kernel matrix per atom type.
+        forces_weights : list
+            List of forces regression coefficients.
+        forces_kernel : dict
+            Dictionary of forces kernel matrix per atom type.
         """
 
         self._initialize(args={'lossprime': lossprime, 'd': self.d})
@@ -638,9 +646,9 @@ class LossFunction:
                 loss, dloss_dparameters, energy_loss, force_loss, \
                     energy_maxresid, force_maxresid = \
                     self.calculate_loss(parametervector,
-                                        energy_vector,
+                                        energy_weights,
                                         energy_kernel,
-                                        forces_vector,
+                                        forces_weights,
                                         forces_kernel,
                                         lossprime=lossprime)
         else:
@@ -688,8 +696,8 @@ class LossFunction:
                 'energy_maxresid': self.energy_maxresid,
                 'force_maxresid': self.force_maxresid, }
 
-    def calculate_loss(self, parametervector, energy_vector, energy_kernel,
-                       forces_vector, forces_kernel, lossprime):
+    def calculate_loss(self, parametervector, energy_weights, energy_kernel,
+                       forces_weights, forces_kernel, lossprime):
         """Method that calculates the loss, derivative of the loss with respect
         to parameters (if requested), and max_residual.
 
@@ -697,10 +705,17 @@ class LossFunction:
         ----------
         parametervector : list
             Parameters of the regression model in the form of a list.
-
         lossprime : bool
             If True, will calculate and return dloss_dparameters, else will
             only return zero for dloss_dparameters.
+        energy_weights : list
+            List of energy regression coefficients.
+        energy_kernel : dict
+            Dictionary of energy kernel matrix per atom type.
+        forces_weights : list
+            List of forces regression coefficients.
+        forces_kernel : dict
+            Dictionary of forces kernel matrix per atom type.
         """
         self._model.vector = parametervector
         p = self.parameters
@@ -764,17 +779,20 @@ class LossFunction:
         # contribution to loss and dloss_dparameters is also added.
 
         if model.lamda > 0.:
+            # Based on https://stats.stackexchange.com/a/70127/160746
             overfitloss = 0.
-            print(energy_vector)
-            for symbol in energy_vector.keys():
-                _vector = energy_vector[symbol]
-                # Based on https://stats.stackexchange.com/a/70127/160746
-                overfitloss += _vector.T.dot(energy_kernel.dot(_vector))
+            for key in energy_kernel.keys():
+                _weights = energy_weights[key]
+                kernel = energy_kernel[key]
+                overfitloss += _weights.T.dot(kernel.dot(_weights))
+
                 if p.force_coefficient is not None:
-                    for component in range(3):
-                        _vector = forces_vector[symbol][component]
-                        overfitloss += _vector.T.dot(
-                                forces_kernel[component].dot(_vector))
+                    for symbol in forces_kernel.keys():
+                        for component in range(3):
+                            _kernel = forces_kernel[symbol][component]
+                            _vector = forces_weights[symbol][component]
+                            overfitloss += _vector.T.dot(_kernel.dot(_vector))
+
             overfitloss *= model.lamda
             loss += overfitloss
 
@@ -1097,7 +1115,8 @@ class KRR(Model):
                             for symbol, fingerprint in imagefingerprints:
                                 if (symbol not in weights and
                                         prop is 'energy'):
-                                    size = len(self.reference_features_e[symbol])
+                                    size = \
+                                        len(self.reference_features_e[symbol])
                                     weights[prop][symbol] = np.random.uniform(
                                             low=-1.0,
                                             high=1.0,
@@ -1266,6 +1285,7 @@ class KRR(Model):
             self.kij = []
         else:
             self.reference_features_e = OrderedDict()
+            self.kernel_e_loss = OrderedDict()
         self.energy_targets = []
 
         hashes = list(hash_images(trainingimages).keys())
@@ -1301,13 +1321,17 @@ class KRR(Model):
                     # energies.
                     for index, (symbol, afp) in enumerate(
                             fp_trainingimages[hash]):
+                        if symbol not in self.kernel_e_loss.keys():
+                            self.kernel_e_loss[symbol] = []
                         _kernel = self.kernel_matrix(
                                 np.asarray(afp),
                                 self.reference_features_e[symbol],
                                 kernel=self.kernel
                                 )
                         self.kernel_e[hash][(index, symbol)] = _kernel
+                        self.kernel_e_loss[symbol].append(_kernel)
                         kernel.append(_kernel)
+
                 elif self.cholesky is True and self.nnpartition is not None:
                     """
                     When using the per-atom energy partition from the neural
@@ -1330,11 +1354,12 @@ class KRR(Model):
                                         selfindex,
                                         selfsymbol)
                         self.energy_targets.append(np.array(atomic_energy))
-                        total_energy += atomic_energy
                     """ For debugging purposes only
+                        total_energy += atomic_energy
                     print('DFT energy:', energy)
                     print('ANN energy:', total_energy)
                     """
+
                 else:
                     afp = []
                     for element, _afp in fp_trainingimages[hash]:
@@ -1350,6 +1375,11 @@ class KRR(Model):
 
             if self.cholesky:
                 self.kij = np.asarray(self.kij)
+            else:
+                for key in self.kernel_e_loss.keys():
+                    _s = len(self.kernel_e_loss[key][0])
+                    arr = self.kernel_e_loss[key]
+                    self.kernel_e_loss[key] = np.array(arr).reshape(_s, _s)
 
             return self.kernel_e
 
@@ -1487,6 +1517,13 @@ class KRR(Model):
                         self.force_targets[selfsymbol][component].append(
                                 target)
 
+            if self.cholesky is False:
+                for symbol in self.kernel_f_cholesky.keys():
+                    for component in self.kernel_f_cholesky[symbol].keys():
+                        _s = len(self.kernel_f_cholesky[symbol][component])
+                        arr = np.array(
+                                self.kernel_f_cholesky[symbol][component]).reshape(_s, _s)
+                        self.kernel_f_cholesky[symbol][component] = arr
             return self.kernel_f
 
     @property
@@ -1563,8 +1600,8 @@ class KRR(Model):
                                              '-checkpoint.amp')
                 self.parent.save(filename, overwrite=True)
 
-        K_e = self.kernel_e
-        K_f = self.kernel_f
+        K_e = self.kernel_e_loss
+        K_f = self.kernel_f_cholesky
         loss = self.lossfunction.get_loss(vector, p.weights['energy'], K_e,
                                           p.weights['forces'], K_f,
                                           lossprime=False)['loss']
@@ -1655,7 +1692,7 @@ class KRR(Model):
             self.get_energy_kernel(**kij_args)
             kernel = self.kernel_matrix(
                             np.asarray(afp),
-                            self.reference_features_e,
+                            self.reference_features_e[symbol],
                             kernel=self.kernel,
                             sigma=sigma
                             )
@@ -1771,13 +1808,9 @@ class KRR(Model):
                         component == afp[-1]):
                     fprime += np.array(fingerprintprimes[afp])
 
-            features = self.reference_force_features[component]
-            kernel = self.kernel_matrix(
-                            fprime,
-                            features,
-                            kernel=self.kernel,
-                            sigma=sigma
-                            )
+            features = self.reference_features_f[symbol][component]
+            kernel = self.kernel_matrix(fprime, features, kernel=self.kernel,
+                                        sigma=sigma)
             if (self.weights_independent is True and self.cholesky is False):
                 force = kernel.dot(weights['forces'][symbol][component])
             elif (self.weights_independent is False and
@@ -1938,13 +1971,17 @@ class Raveler(object):
         self.weights_keys = []
         self.properties_keys = []
         self.weights_independent = weights_independent
+        self.sizes = OrderedDict()
 
         for prop in weights.keys():
             self.properties_keys.append(prop)
             for key in weights[prop].keys():
                 if prop is 'energy':
                     self.weights_keys.append(key)
-                    self.count += len(weights[prop][key])
+                    add = len(weights[prop][key])
+                    if key not in self.sizes.keys():
+                        self.sizes[key] = add
+                    self.count += add
                 elif prop is 'forces':
                     if self.weights_independent is True:
                         for component in range(3):
@@ -1969,18 +2006,19 @@ class Raveler(object):
         for prop in weights.keys():
             if prop is 'energy':
                 for key in weights[prop].keys():
-                    vector.append(weights[prop][key])
+                    for element in weights[prop][key]:
+                        vector.append(element)
             elif prop is 'forces':
                 if self.weights_independent is True:
                     for component in range(3):
                         for key in weights[prop].keys():
-                            vector.append(weights[prop][key][component])
+                            for element in weights[prop][key][component]:
+                                vector.append(element)
                 else:
                     for key in weights[prop].keys():
                         vector.append(weights[prop][key])
 
         vector = np.ravel(vector)
-
         return vector
 
     def to_dicts(self, vector):
@@ -2001,13 +2039,13 @@ class Raveler(object):
         first = 0
         last = 0
         weights = OrderedDict()
-        step = self.size
 
         for prop in self.properties_keys:
             weights[prop] = OrderedDict()
             if prop is 'energy':
                 for k in self.weights_keys:
                     if k not in weights[prop].keys():
+                        step = self.sizes[k]
                         last += step
                         weights[prop][k] = vector[first:last]
                         first += step
@@ -2015,14 +2053,16 @@ class Raveler(object):
                 for k in self.weights_keys:
                     if (k not in weights[prop].keys() and
                             self.weights_independent is True):
-                        weights[prop][k] = np.zeros((3, self.size))
+                        weights[prop][k] = np.zeros((3, self.sizes[k]))
                         for component in range(3):
+                            step = self.sizes[k]
                             last += step
                             weights[prop][k][
                                     component] = vector[first:last]
                             first += step
                     elif (k not in weights[prop].keys() and
                             self.weights_independent is False):
+                        step = self.sizes[k]
                         last += step
                         weights[prop][k] = vector[first:last]
                         first += step
