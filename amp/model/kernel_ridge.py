@@ -1765,8 +1765,8 @@ class KRR(Model):
     def calculate_force(self, index, symbol, component, fingerprintprimes=None,
                         trainingimages=None, t_descriptor=None, sigma=None,
                         hash=None):
-        """Given derivative of input to the neural network, derivative of output
-        (which corresponds to forces) is calculated.
+        """Given derivative of input to KRR, derivative of output (which
+        corresponds to forces) is calculated.
 
         Parameters
         ----------
@@ -1832,8 +1832,8 @@ class KRR(Model):
     def forces_from_cholesky(self, index, symbol, component,
                              fingerprintprimes=None, trainingimages=None,
                              t_descriptor=None, sigma=None, hash=None):
-        """Given derivative of input to the neural network, derivative of output
-        (which corresponds to forces) is calculated.
+        """Given derivative of input to KRR, derivative of output (which
+        corresponds to forces) is calculated.
 
         Parameters
         ----------
@@ -2316,6 +2316,7 @@ def send_data_to_fortran(_fmodules,
         _fmodules.images_props.atomic_positions = atomic_positions
 
     # for neural neyworks only
+    """
     if model.parameters['importname'] == '.model.neuralnetwork.NeuralNetwork':
 
         hiddenlayers = model.parameters.hiddenlayers
@@ -2365,3 +2366,4 @@ def send_data_to_fortran(_fmodules,
         elif activation == 'linear':
             activation_signal = 3
         _fmodules.neuralnetwork.activation_signal = activation_signal
+    """
