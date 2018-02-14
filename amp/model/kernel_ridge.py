@@ -91,7 +91,7 @@ class Model(object):
                     energy += atom_energy
             elif self.cholesky is True and self.nnpartition is not None:
                 for index, (symbol, afp) in enumerate(fingerprints):
-                    arguments = dict(afp=afp, hash=hash,
+                    arguments = dict(symbol=symbol, afp=afp, hash=hash,
                                      fp_trainingimages=fp_trainingimages,
                                      kernel=self.parameters.kernel,
                                      trainingimages=trainingimages,
@@ -954,7 +954,7 @@ class KRR(Model):
         Loss function object.
     cholesky : bool
         Wether or not we are using Cholesky decomposition to determine the
-        weights.
+        weights. This method returns an unique set of regression coefficients.
     weights_independent : bool
         Whether or not the weights are going to be split for energy and forces.
     numeric_force : bool
@@ -1163,22 +1163,39 @@ class KRR(Model):
             a very tight convergece criterion for energy training (1e-6 RSME).
             """
             try:
-                size = len(self.reference_features_e)
-                I_e = np.identity(size)
-                K_e = self.kij.reshape(size, size)
+                if self.nnpartition is None:
+                    log('Starting Cholesky decomposition of kernel energy matrix '
+                        'to get upper triangular matrix.',
+                        tic='cholesky_energy_kernel')
 
-                log('Starting Cholesky decomposition of kernel energy matrix '
-                    'to get upper triangular matrix.',
-                    tic='cholesky_energy_kernel')
+                    size = len(self.reference_features_e)
+                    I_e = np.identity(size)
+                    K_e = self.kij.reshape(size, size)
 
-                cholesky_U = cholesky((K_e + self.lamda * I_e))
+                    cholesky_U = cholesky((K_e + self.lamda * I_e))
 
-                log('... Cholesky Decomposing finished in.',
-                    toc='cholesky_energy_kernel')
+                    log('... Cholesky Decomposing finished in.',
+                        toc='cholesky_energy_kernel')
 
-                betas = np.linalg.solve(cholesky_U.T, self.energy_targets)
-                weights = np.linalg.solve(cholesky_U, betas)
-                p.weights['energy'] = weights
+                    betas = np.linalg.solve(cholesky_U.T, self.energy_targets)
+                    weights = np.linalg.solve(cholesky_U, betas)
+                    p.weights['energy'] = weights
+                else:
+                    log('Starting Cholesky decomposition of kernel energy matrix '
+                        'to get upper triangular matrix.',
+                        tic='cholesky_energy_kernel')
+                    for symbol in self.kernel_e_loss.keys():
+                        size = self.kernel_e_loss[symbol].shape[0]
+                        I_e = np.identity(size)
+                        kernel = self.kernel_e_loss[symbol]
+
+                        cholesky_U = cholesky((kernel + self.lamda * I_e))
+
+                        log('... Cholesky Decomposing finished in.',
+                            toc='cholesky_energy_kernel')
+                        betas = np.linalg.solve(cholesky_U.T, self.energy_targets[symbol])
+                        weights = np.linalg.solve(cholesky_U, betas)
+                        p.weights['energy'][symbol] = weights
 
                 if self.forcetraining is True:
                     log('Starting Cholesky decomposition of kernel force '
@@ -1280,13 +1297,14 @@ class KRR(Model):
         """
         # This creates a list containing all features in all images on the
         # training set.
-        if self.cholesky:
+        if self.cholesky and self.nnpartition is None:
             self.reference_features_e = []
             self.kij = []
+            self.energy_targets = []
         else:
             self.reference_features_e = OrderedDict()
             self.kernel_e_loss = OrderedDict()
-        self.energy_targets = []
+            self.energy_targets = OrderedDict()
 
         hashes = list(hash_images(trainingimages).keys())
 
@@ -1317,8 +1335,7 @@ class KRR(Model):
                 kernel = []
 
                 if self.cholesky is False and self.nnpartition is None:
-                    # This is the case when using L2 loss function or NN atomic
-                    # energies.
+                    # This is the case when using L2 loss function.
                     for index, (symbol, afp) in enumerate(
                             fp_trainingimages[hash]):
                         if symbol not in self.kernel_e_loss.keys():
@@ -1335,31 +1352,34 @@ class KRR(Model):
                 elif self.cholesky is True and self.nnpartition is not None:
                     """
                     When using the per-atom energy partition from the neural
-                    network, self.energy_targets has to be populated in here
-                    using the atomic_energies.
+                    network, self.energy_targets is a dictionary and has to be
+                    populated in here using the atomic_energies from the NN.
                     """
-                    # FIXME
                     energy = trainingimages[hash].get_potential_energy()
-                    for index, (element, afp) in enumerate(
+                    for index, (symbol, afp) in enumerate(
                             fp_trainingimages[hash]):
-                        selfsymbol = element
-                        selfindex = index
-                        _kernel = self.kernel_matrix(np.asarray(afp),
-                                                     self.reference_features_e,
-                                                     kernel=self.kernel)
-                        self.kernel_e[hash][(selfindex, selfsymbol)] = _kernel
+                        if symbol not in self.kernel_e_loss.keys():
+                            # This should guarantee that order is respected.
+                            self.kernel_e_loss[symbol] = []
+                            self.energy_targets[symbol] = []
+                        _kernel = self.kernel_matrix(
+                                np.asarray(afp),
+                                self.reference_features_e[symbol],
+                                kernel=self.kernel
+                                )
+                        self.kernel_e[hash][(index, symbol)] = _kernel
+                        self.kernel_e_loss[symbol].append(_kernel)
                         kernel.append(_kernel)
                         atomic_energy = nn_calc.model.calculate_atomic_energy(
                                         afp,
-                                        selfindex,
-                                        selfsymbol)
-                        self.energy_targets.append(np.array(atomic_energy))
+                                        index,
+                                        symbol)
+                        self.energy_targets[symbol].append(np.array(atomic_energy))
                     """ For debugging purposes only
                         total_energy += atomic_energy
                     print('DFT energy:', energy)
                     print('ANN energy:', total_energy)
                     """
-
                 else:
                     afp = []
                     for element, _afp in fp_trainingimages[hash]:
@@ -1373,9 +1393,9 @@ class KRR(Model):
                     kernel.append(_kernel)
                     self.kij.append(kernel)
 
-            if self.cholesky:
+            if self.cholesky and self.nnpartition is None:
                 self.kij = np.asarray(self.kij)
-            else:
+            elif self.cholesky is False or self.nnpartition is not None:
                 for key in self.kernel_e_loss.keys():
                     _s = len(self.kernel_e_loss[key][0])
                     arr = self.kernel_e_loss[key]
@@ -1702,7 +1722,7 @@ class KRR(Model):
                         ((index, symbol))].dot(weights['energy'][symbol])
         return atomic_amp_energy
 
-    def energy_from_cholesky(self, afp=None, hash=None, fp_trainingimages=None,
+    def energy_from_cholesky(self, symbol=None, afp=None, hash=None, fp_trainingimages=None,
                              trainingimages=None, kernel=None, sigma=None,
                              fingerprints=None):
         """
@@ -1750,14 +1770,15 @@ class KRR(Model):
                                 kernel=kernel,
                                 sigma=sigma
                                 )
+                amp_energy = kernel.dot(weights['energy'])
             else:
                 kernel = self.kernel_matrix(
                                 afp,
-                                self.reference_features_e,
+                                self.reference_features_e[symbol],
                                 kernel=kernel,
                                 sigma=sigma
                                 )
-            amp_energy = kernel.dot(weights['energy'])
+                amp_energy = kernel.dot(weights['energy'][symbol])
         else:
             amp_energy = self.kernel_e[hash].dot(weights['energy'])
         return amp_energy
