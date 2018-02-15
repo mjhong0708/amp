@@ -957,6 +957,9 @@ class KRR(Model):
         weights. This method returns an unique set of regression coefficients.
     weights_independent : bool
         Whether or not the weights are going to be split for energy and forces.
+    randomize_weights : bool
+        If set to True, weights are randomly started when minimizing the L2
+        loss function.
     numeric_force : bool
         Use numeric_force of atom energy predicted by Amp to minimize the loss
         function. This is not yet implemented.
@@ -972,7 +975,7 @@ class KRR(Model):
     def __init__(self, sigma=1., kernel='rbf', lamda=0., weights=None,
                  regressor=None, mode=None, trainingimages=None, version=None,
                  fortran=False, checkpoints=None, lossfunction=None,
-                 cholesky=False, weights_independent=True,
+                 cholesky=False, weights_independent=True, randomize_weights=False,
                  numeric_force=False, forcetraining=False, preprocessing=False,
                  nnpartition=None):
 
@@ -1004,6 +1007,7 @@ class KRR(Model):
         p.trainingimages = self.trainingimages = trainingimages
         p.preprocessing = self.preprocessing = preprocessing
 
+        self.randomize_weights = randomize_weights
         self.regressor = regressor
         self.parent = None  # Can hold a reference to main Amp instance.
         self.fortran = fortran
@@ -1117,21 +1121,27 @@ class KRR(Model):
                                         prop is 'energy'):
                                     size = \
                                         len(self.reference_features_e[symbol])
-                                    weights[prop][symbol] = np.random.uniform(
-                                            low=-1.0,
-                                            high=1.0,
-                                            size=(size))
+                                    if self.randomize_weights:
+                                        weights[prop][symbol] = np.random.uniform(
+                                                low=-1.0,
+                                                high=1.0,
+                                                size=(size))
+                                    else:
+                                        weights[prop][symbol] = np.ones(size)
                                 elif (symbol not in weights and
                                         prop is 'forces'):
                                     if p.weights_independent is True:
                                         size = \
                                             len(self.reference_features_f[symbol][0])
-                                        weights[prop][symbol] = \
-                                                np.random.uniform(
-                                                low=-1.0,
-                                                high=1.0,
-                                                size=(3, size)
-                                                )
+                                        if self.randomize_weights:
+                                            weights[prop][symbol] = \
+                                                    np.random.uniform(
+                                                    low=-1.0,
+                                                    high=1.0,
+                                                    size=(3, size)
+                                                    )
+                                        else:
+                                            weights[prop][symbol] = np.ones((3, size))
                                     else:
                                         weights[prop][symbol] = \
                                                 np.ones(size)
