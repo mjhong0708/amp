@@ -148,6 +148,6 @@ You may need to preface these commands with `sudo`.
 
 Otherwise, if you have only nose installed (and not GNU Makefile), run the commands below::
 
-   $ mkdir /tmp/amptests
-   $ cd /tmp/amptests
-   $ nosetests -v ~/path/to/my/codes/amp/tests
+   $ mkdir <installation-directory>/tests/amptests
+   $ cd <installation-directory>/tests/amptests
+   $ nosetests -v ../../
