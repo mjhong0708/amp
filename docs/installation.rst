@@ -123,6 +123,15 @@ or on a Windows machine by::
 Note that if you update your code (e.g., with 'git pull origin master') and the fortran code changes but your version of fmodules.f90 is not updated, an exception will be raised telling you to re-compile your fortran modules.
 
 ----------------------------------
+Install AMP
+----------------------------------
+
+To install, run::
+
+    $ cd <installation-directory>/
+    $ python setup.py install
+
+----------------------------------
 Recommended step: Run the tests
 ----------------------------------
 
@@ -134,6 +143,8 @@ If you have nose and GNU Makefile installed, simply do::
 
    $ make py2tests      (for Python2)
    $ make py3tests      (for Python3)
+
+You may need to preface these commands with `sudo`.
 
 Otherwise, if you have only nose installed (and not GNU Makefile), run the commands below::
 
