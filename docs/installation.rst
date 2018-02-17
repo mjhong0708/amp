@@ -44,9 +44,9 @@ We recommend checking out the latest version of the code via `the project's bitb
 If you use git, check out the code with::
 
    $ cd ~/path/to/my/codes
-   $ git clone git@bitbucket.org:andrewpeterson/amp.git
+   $ git clone your_bitbucket_username@bitbucket.org:andrewpeterson/amp.git
 
-where you should replace '~/path/to/my/codes' with wherever you would like the code to be located on your computer.
+where you should replace '~/path/to/my/codes' with wherever you would like the code to be located on your computer, and 'your_bitbucket_username' with your bitbucket username.
 If you do not use git, just download the code as a zip file from the project's `download <https://bitbucket.org/andrewpeterson/amp/downloads>`_ page, and extract it into '~/path/to/my/codes'.
 Please make sure that the folder '~/path/to/my/codes/amp' includes subdirectories 'amp', 'docs', 'tests', and 'tools'.
 
