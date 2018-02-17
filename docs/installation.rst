@@ -150,4 +150,4 @@ Otherwise, if you have only nose installed (and not GNU Makefile), run the comma
 
    $ mkdir /tmp/amptests
    $ cd /tmp/amptests
-   $ nosetests ~/path/to/my/codes/amp/tests
+   $ nosetests -v ~/path/to/my/codes/amp/tests
