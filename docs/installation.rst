@@ -129,7 +129,7 @@ Install AMP
 To install, run::
 
     $ cd <installation-directory>/
-    $ python setup.py install
+    $ python setup.py install --user
 
 ----------------------------------
 Recommended step: Run the tests
@@ -143,8 +143,6 @@ If you have nose and GNU Makefile installed, simply do::
 
    $ make py2tests      (for Python2)
    $ make py3tests      (for Python3)
-
-You may need to preface these commands with `sudo`.
 
 Otherwise, if you have only nose installed (and not GNU Makefile), run the commands below::
 
