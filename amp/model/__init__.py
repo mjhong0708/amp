@@ -672,7 +672,7 @@ class LossFunction:
                     if self.d is None:
                         denergy_dparameters = \
                             model.calculate_dEnergy_dParameters(
-                                self.fingerprints[hash])
+                                fingerprints[hash])
                     else:
                         denergy_dparameters = \
                             model.calculate_numerical_dEnergy_dParameters(
