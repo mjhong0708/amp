@@ -52,6 +52,9 @@ def plot_sensitivity(load,
         Coefficient of energy loss in the total loss function.
     force_coefficient : float
         Coefficient of force loss in the total loss function.
+    cores : int
+        Can specify cores to use for parallel training; if None, will determine
+        from environment.
     """
 
     from amp.model import LossFunction
@@ -210,6 +213,9 @@ def plot_parity(load,
         If a plot or an script containing values found overwrite it.
     returndata : bool
         Whether to return a reference to the figures and their data or not.
+    cores : int
+        Can specify cores to use for parallel training; if None, will determine
+        from environment.
     """
 
     calc = Amp.load(file=load, label=label, dblabel=dblabel, cores=cores)
@@ -363,6 +369,9 @@ def plot_error(load,
         If a plot or an script containing values found overwrite it.
     returndata : bool
         Whether to return a reference to the figures and their data or not.
+    cores : int
+        Can specify cores to use for parallel training; if None, will determine
+        from environment.
     """
 
     calc = Amp.load(file=load, cores=cores)
