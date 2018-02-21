@@ -44,9 +44,9 @@ We recommend checking out the latest version of the code via `the project's bitb
 If you use git, check out the code with::
 
    $ cd ~/path/to/my/codes
-   $ git clone git@bitbucket.org:andrewpeterson/amp.git
+   $ git clone your_bitbucket_username@bitbucket.org:andrewpeterson/amp.git
 
-where you should replace '~/path/to/my/codes' with wherever you would like the code to be located on your computer.
+where you should replace '~/path/to/my/codes' with wherever you would like the code to be located on your computer, and 'your_bitbucket_username' with your bitbucket username.
 If you do not use git, just download the code as a zip file from the project's `download <https://bitbucket.org/andrewpeterson/amp/downloads>`_ page, and extract it into '~/path/to/my/codes'.
 Please make sure that the folder '~/path/to/my/codes/amp' includes subdirectories 'amp', 'docs', 'tests', and 'tools'.
 
@@ -123,6 +123,15 @@ or on a Windows machine by::
 Note that if you update your code (e.g., with 'git pull origin master') and the fortran code changes but your version of fmodules.f90 is not updated, an exception will be raised telling you to re-compile your fortran modules.
 
 ----------------------------------
+Install AMP
+----------------------------------
+
+To install, run::
+
+    $ cd <installation-directory>/
+    $ python setup.py install --user
+
+----------------------------------
 Recommended step: Run the tests
 ----------------------------------
 
@@ -137,6 +146,6 @@ If you have nose and GNU Makefile installed, simply do::
 
 Otherwise, if you have only nose installed (and not GNU Makefile), run the commands below::
 
-   $ mkdir /tmp/amptests
-   $ cd /tmp/amptests
-   $ nosetests ~/path/to/my/codes/amp/tests
+   $ mkdir <installation-directory>/tests/amptests
+   $ cd <installation-directory>/tests/amptests
+   $ nosetests -v ../../
