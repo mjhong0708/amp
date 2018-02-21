@@ -18,7 +18,9 @@ def plot_sensitivity(load,
                      plotfile=None,
                      overwrite=False,
                      energy_coefficient=1.0,
-                     force_coefficient=0.04):
+                     force_coefficient=0.04,
+                     cores=None,
+                     ):
     """Returns the plot of loss function in terms of perturbed parameters.
 
     Takes the load file and images. Any other keyword taken by the Amp
@@ -54,7 +56,7 @@ def plot_sensitivity(load,
 
     from amp.model import LossFunction
 
-    calc = Amp.load(file=load)
+    calc = Amp.load(file=load, cores=cores)
 
     if plotfile is None:
         plotfile = make_filename(label, '-plot.pdf')
@@ -177,6 +179,7 @@ def plot_parity(load,
                 color='b.',
                 overwrite=False,
                 returndata=False,
+                cores=None,
                 ):
     """Makes a parity plot of Amp energies and forces versus real energies and
     forces.
@@ -209,7 +212,7 @@ def plot_parity(load,
         Whether to return a reference to the figures and their data or not.
     """
 
-    calc = Amp.load(file=load, label=label, dblabel=dblabel)
+    calc = Amp.load(file=load, label=label, dblabel=dblabel, cores=cores)
 
     if plotfile is None:
         plotfile = make_filename(label, '-plot.pdf')
@@ -329,6 +332,7 @@ def plot_error(load,
                color='b.',
                overwrite=False,
                returndata=False,
+               cores=None,
                ):
     """Makes an error plot of Amp energies and forces versus real energies and
     forces.
@@ -361,7 +365,7 @@ def plot_error(load,
         Whether to return a reference to the figures and their data or not.
     """
 
-    calc = Amp.load(file=load)
+    calc = Amp.load(file=load, cores=cores)
 
     if plotfile is None:
         plotfile = make_filename(label, '-plot.pdf')
