@@ -1105,7 +1105,6 @@ class KRR(Model):
             log('...kernel computed in', toc='kernel')
 
         if p.weights is None:
-            log('Initializing weights.')
             if p.mode == 'image-centered':
                 raise NotImplementedError('Needs to be coded.')
             elif p.mode == 'atom-centered':
@@ -1114,6 +1113,7 @@ class KRR(Model):
                     weights[prop] = OrderedDict()
 
                     if self.cholesky is False:
+                        log('Initializing weights.')
                         for hash in tp.trainingimages.keys():
                             imagefingerprints = tp.fingerprints[hash]
                             for symbol, fingerprint in imagefingerprints:
@@ -1182,9 +1182,11 @@ class KRR(Model):
                     I_e = np.identity(size)
                     K_e = self.kij.reshape(size, size)
 
+                    log('Shape of kernel energy matrix is {}.' .format(K_e.shape))
+
                     cholesky_U = cholesky((K_e + self.lamda * I_e))
 
-                    log('... Cholesky Decomposing finished in.',
+                    log('... Cholesky decomposition finished in.',
                         toc='cholesky_energy_kernel')
 
                     betas = np.linalg.solve(cholesky_U.T, self.energy_targets)
@@ -1194,18 +1196,24 @@ class KRR(Model):
                     log('Starting Cholesky decomposition of kernel energy matrix '
                         'to get upper triangular matrix.',
                         tic='cholesky_energy_kernel')
+                    symbols = []
                     for symbol in self.kernel_e_loss.keys():
-                        size = self.kernel_e_loss[symbol].shape[0]
-                        I_e = np.identity(size)
+                        size = self.kernel_e_loss[symbol].shape
+                        I_e = np.identity(size[0])
                         kernel = self.kernel_e_loss[symbol]
+                        if symbol not in symbols:
+                            log('Shape of kernel energy matrix for atom {} '
+                                'is {}.' .format(symbol, size))
+                            symbols.append(symbol)
 
                         cholesky_U = cholesky((kernel + self.lamda * I_e))
 
-                        log('... Cholesky Decomposing finished in.',
-                            toc='cholesky_energy_kernel')
                         betas = np.linalg.solve(cholesky_U.T, self.energy_targets[symbol])
                         weights = np.linalg.solve(cholesky_U, betas)
                         p.weights['energy'][symbol] = weights
+
+                    log('... Cholesky decompositions finished in.',
+                        toc='cholesky_energy_kernel')
 
                 if self.forcetraining is True:
                     log('Starting Cholesky decomposition of kernel force '
@@ -1213,6 +1221,7 @@ class KRR(Model):
                         tic='cholesky_force_kernel')
                     for symbol in self.kernel_f_cholesky.keys():
                         p.weights['forces'][symbol] = []
+                        symbols = []
 
                         for i in range(3):
                             """
@@ -1221,8 +1230,12 @@ class KRR(Model):
                             K_f = self.kernel_f_cholesky[i].reshape(size, size)
                             """
                             K_f = np.array(self.kernel_f_cholesky[symbol][i])
-                            size = K_f.shape[0]
-                            I_f = np.identity(size)
+                            size = K_f.shape
+                            if symbol not in symbols:
+                                log('Shape of kernel force matrix for atom {} '
+                                    'is {}.' .format(symbol, size))
+                                symbols.append(symbol)
+                            I_f = np.identity(size[0])
                             cholesky_U = cholesky((K_f + self.lamda * I_f))
                             betas = np.linalg.solve(
                                        cholesky_U.T,
@@ -1230,7 +1243,7 @@ class KRR(Model):
                                        )
                             weights = np.linalg.solve(cholesky_U, betas)
                             p.weights['forces'][symbol].append(weights)
-                    log('... Cholesky Decomposing finished in.',
+                    log('... Cholesky decompositions finished in.',
                         toc='cholesky_force_kernel')
                 return True
             except np.linalg.linalg.LinAlgError:
@@ -1300,8 +1313,6 @@ class KRR(Model):
 
         Returns
         -------
-        kij : list
-            The kernel in form of a list.
         kernel_e : dictionary
             The kernel in a dictionary where keys are images' hashes.
         """
@@ -1430,7 +1441,7 @@ class KRR(Model):
 
         Returns
         -------
-        self.kernel_f : dictionary
+        kernel_f : dictionary
             Dictionary containing images hashes and kernels per atom.
         """
 
