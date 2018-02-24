@@ -48,7 +48,7 @@ class Model(object):
         self._log = log
 
     def tostring(self):
-        """Returns an evaluatable representation of the calculator that can
+        """Returns an evaluable representation of the calculator that can
         be used to re-establish the calculator."""
         # Make sure numpy prints out enough data.
         np.set_printoptions(precision=30, threshold=999999999)
@@ -62,7 +62,7 @@ class Model(object):
         Parameters
         ----------
         fingerprints : dict or list
-            Dictionary with images hashs as keys and the corresponding
+            Dictionary with images hashes as keys and the corresponding
             fingerprints as values.
         """
 
@@ -113,19 +113,29 @@ class Model(object):
         return energy
 
     def calculate_forces(self, fingerprints, fingerprintprimes, hash=None,
-                         trainingimages=None, fp_trainingimages=None,
-                         t_descriptor=None):
+                         trainingimages=None, t_descriptor=None):
         """Calculates the model-predicted forces for an image, based on
         derivatives of fingerprints.
 
         Parameters
         ----------
         fingerprints : dict
-            Dictionary with images hashs as keys and the corresponding
+            Dictionary with images' hashes as keys and the corresponding
             fingerprints as values.
         fingerprintprimes : dict
             Dictionary with images hashs as keys and the corresponding
             fingerprint derivatives as values.
+        hash : str
+            Image unique hash.
+        trainingimages : dict
+            Dictionary with training images.
+        t_descriptor : object
+            Object with training fingerprints and fingerprintprimes.
+
+        Returns
+        -------
+        forces : dict
+            Atomic forces.
         """
 
         if self.parameters.mode == 'image-centered':
@@ -161,7 +171,7 @@ class Model(object):
         Parameters
         ----------
         fingerprints : dict
-            Dictionary with images hashs as keys and the corresponding
+            Dictionary with images hashes as keys and the corresponding
             fingerprints as values.
         """
 
@@ -188,7 +198,7 @@ class Model(object):
         Parameters
         ----------
         fingerprints : dict
-            Dictionary with images hashs as keys and the corresponding
+            Dictionary with images hashes as keys and the corresponding
             fingerprints as values.
         d : float
             The amount of perturbation in each parameter.
@@ -220,7 +230,7 @@ class Model(object):
         Parameters
         ----------
         fingerprints : dict
-            Dictionary with images hashs as keys and the corresponding
+            Dictionary with images hashes as keys and the corresponding
             fingerprints as values.
         fingerprintprimes : dict
             Dictionary with images hashs as keys and the corresponding
@@ -617,9 +627,6 @@ class LossFunction:
         ----------
         parametervector : list
             Parameters of the regression model in the form of a list.
-        lossprime : bool
-            If True, will calculate and return dloss_dparameters, else will
-            only return zero for dloss_dparameters.
         energy_weights : list
             List of energy regression coefficients.
         energy_kernel : dict
@@ -628,6 +635,9 @@ class LossFunction:
             List of forces regression coefficients.
         forces_kernel : dict
             Dictionary of forces kernel matrix per atom type.
+        lossprime : bool
+            If True, will calculate and return dloss_dparameters, else will
+            only return zero for dloss_dparameters.
         """
 
         self._initialize(args={'lossprime': lossprime, 'd': self.d})
@@ -705,9 +715,6 @@ class LossFunction:
         ----------
         parametervector : list
             Parameters of the regression model in the form of a list.
-        lossprime : bool
-            If True, will calculate and return dloss_dparameters, else will
-            only return zero for dloss_dparameters.
         energy_weights : list
             List of energy regression coefficients.
         energy_kernel : dict
@@ -716,6 +723,9 @@ class LossFunction:
             List of forces regression coefficients.
         forces_kernel : dict
             Dictionary of forces kernel matrix per atom type.
+        lossprime : bool
+            If True, will calculate and return dloss_dparameters, else will
+            only return zero for dloss_dparameters.
         """
         self._model.vector = parametervector
         p = self.parameters
@@ -746,14 +756,13 @@ class LossFunction:
 
             if p.force_coefficient is not None:
                 descriptor = self._model.trainingparameters.descriptor
-                if model.numeric_force is False:
-                    amp_forces = \
-                        model.calculate_forces(
-                                self.fingerprints[hash],
-                                self.fingerprintprimes[hash],
-                                hash=hash,
-                                t_descriptor=descriptor
-                                )
+                amp_forces = \
+                    model.calculate_forces(
+                            self.fingerprints[hash],
+                            self.fingerprintprimes[hash],
+                            hash=hash,
+                            t_descriptor=descriptor
+                            )
 
                 actual_forces = image.get_forces(apply_constraint=False)
                 for index in range(no_of_atoms):
@@ -960,9 +969,6 @@ class KRR(Model):
     randomize_weights : bool
         If set to True, weights are randomly started when minimizing the L2
         loss function.
-    numeric_force : bool
-        Use numeric_force of atom energy predicted by Amp to minimize the loss
-        function. This is not yet implemented.
     forcetraining : bool
         Turn force training true.
     nnpartition : str
@@ -976,7 +982,7 @@ class KRR(Model):
                  regressor=None, mode=None, trainingimages=None, version=None,
                  fortran=False, checkpoints=None, lossfunction=None,
                  cholesky=False, weights_independent=True, randomize_weights=False,
-                 numeric_force=False, forcetraining=False, preprocessing=False,
+                 forcetraining=False, preprocessing=False,
                  nnpartition=None):
 
         np.set_printoptions(precision=30, threshold=999999999)
@@ -1003,7 +1009,6 @@ class KRR(Model):
         p.lamda = self.lamda = lamda
         p.cholesky = self.cholesky = cholesky
         p.nnpartition = self.nnpartition = nnpartition
-        p.numeric_force = self.numeric_force = numeric_force
         p.trainingimages = self.trainingimages = trainingimages
         p.preprocessing = self.preprocessing = preprocessing
 
@@ -1079,8 +1084,8 @@ class KRR(Model):
 
             log('Calculating %s kernel...' % self.kernel, tic='kernel')
             log('Parameters:')
-            log(' lamda = %s' % self.lamda)
-            log(' sigma = %s' % self.sigma)
+            log('    lamda: %s' % self.lamda)
+            log('    sigma: %s' % self.sigma)
             kij_args = dict(
                     trainingimages=tp.trainingimages,
                     fp_trainingimages=tp.fingerprints,
@@ -1197,13 +1202,13 @@ class KRR(Model):
                         'to get upper triangular matrix.',
                         tic='cholesky_energy_kernel')
                     symbols = []
+                    log('Shape of kernel energy matrix for each element:')
                     for symbol in self.kernel_e_loss.keys():
                         size = self.kernel_e_loss[symbol].shape
                         I_e = np.identity(size[0])
                         kernel = self.kernel_e_loss[symbol]
                         if symbol not in symbols:
-                            log('Shape of kernel energy matrix for atom {} '
-                                'is {}.' .format(symbol, size))
+                            log('    {}: {}' .format(symbol, size))
                             symbols.append(symbol)
 
                         cholesky_U = cholesky((kernel + self.lamda * I_e))
@@ -1219,6 +1224,7 @@ class KRR(Model):
                     log('Starting Cholesky decomposition of kernel force '
                         'matrix to get upper triangular matrix.',
                         tic='cholesky_force_kernel')
+                    log('Shape of kernel force matrix for each element:')
                     for symbol in self.kernel_f_cholesky.keys():
                         p.weights['forces'][symbol] = []
                         symbols = []
@@ -1232,8 +1238,7 @@ class KRR(Model):
                             K_f = np.array(self.kernel_f_cholesky[symbol][i])
                             size = K_f.shape
                             if symbol not in symbols:
-                                log('Shape of kernel force matrix for atom {} '
-                                    'is {}.' .format(symbol, size))
+                                log('    {}: {}' .format(symbol, size))
                                 symbols.append(symbol)
                             I_f = np.identity(size[0])
                             cholesky_U = cholesky((K_f + self.lamda * I_f))
@@ -1261,8 +1266,11 @@ class KRR(Model):
         Parameters
         ----------
         descriptor : object
+            Object containting fingerprints.
         trainingimages : object
+            Training images in ASE format.
         forcetraining : bool
+            Whether or not the forces are going to be preprocessed.
         """
         hashes = list(hash_images(trainingimages).keys())
         fp = descriptor.fingerprints
@@ -1697,7 +1705,7 @@ class KRR(Model):
         atoms is the total energy (in atom-centered mode).
 
         Parameters
-        ---------
+        ----------
         index: int
             Index of the atom for which atomic energy is calculated (only used
             in the atom-centered mode).
@@ -1967,11 +1975,8 @@ class KRR(Model):
         feature = np.asarray(feature)
         K = []
 
-        call = {
-                'exponential': exponential,
-                'laplacian': laplacian,
-                'rbf': rbf
-                }
+        call = {'exponential': exponential, 'laplacian': laplacian,
+                'rbf': rbf}
 
         if self.sigma is None:
             self.sigma = sigma
@@ -2006,9 +2011,10 @@ class Raveler(object):
         Dictionary containing weights per atom.
     size : int
         Number of elements in the dictionary.
-
+    weights_independent : bool
+        Different weights for each atom when training forces.
     """
-    def __init__(self, weights, weights_independent=None):
+    def __init__(self, weights, weights_independent=False):
         self.count = 0
         self.weights_keys = []
         self.properties_keys = []
@@ -2142,11 +2148,7 @@ def laplacian(feature_i, feature_j, sigma=1.):
     return laplacian
 
 
-def ravel_data(train_forces,
-               mode,
-               images,
-               fingerprints,
-               fingerprintprimes):
+def ravel_data(train_forces, mode, images, fingerprints, fingerprintprimes):
     """
     Reshapes data of images into lists.
 
@@ -2162,10 +2164,10 @@ def ravel_data(train_forces,
         path to an ASE trajectory (.traj) or database (.db) file. Energies can
         be obtained from any reference, e.g. DFT calculations.
     fingerprints : dict
-        Dictionary with images hashs as keys and the corresponding fingerprints
+        Dictionary with images hashes as keys and the corresponding fingerprints
         as values.
     fingerprintprimes : dict
-        Dictionary with images hashs as keys and the corresponding fingerprint
+        Dictionary with images hashes as keys and the corresponding fingerprint
         derivatives as values.
     """
     from ase.data import atomic_numbers
