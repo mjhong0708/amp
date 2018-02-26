@@ -173,19 +173,21 @@ def plot_sensitivity(load,
     calc._log(' ...loss functions plotted.', toc='plot')
 
 
-def plot_parity(load,
-                images,
-                label='parity',
-                dblabel=None,
-                plot_forces=True,
-                plotfile=None,
-                color='b.',
-                overwrite=False,
-                returndata=False,
-                cores=None,
-                ):
-    """Makes a parity plot of Amp energies and forces versus real energies and
-    forces.
+def plot_parity_and_error(load,
+                          images,
+                          label_parity='parity',
+                          label_error='error',
+                          dblabel=None,
+                          plot_forces=True,
+                          plotfile_parity=None,
+                          plotfile_error=None,
+                          color='b.',
+                          overwrite=False,
+                          returndata=False,
+                          cores=None,
+                          ):
+    """Makes a parity plot and an error plot of Amp energies and forces versus
+    real energies and forces.
 
     Parameters
     ----------
@@ -197,16 +199,20 @@ def plot_parity(load,
         in ASE format. This can also be the path to an ASE trajectory (.traj)
         or database (.db) file.  Energies can be obtained from any reference,
         e.g. DFT calculations.
-    label : str
-        Default prefix/location used for all files.
+    label_parity : str
+        Default prefix/location used for all files related to the parity plot.
+    label_error : str
+        Default prefix/location used for all files related to the error plot.
     dblabel : str
         Optional separate prefix/location of database files, including
         fingerprints, fingerprint primes, and neighborlists, to avoid
         calculating them. If not supplied, just uses the value from label.
     plot_forces : bool
         Determines whether or not forces should be plotted as well.
-    plotfile : Object
-        File for the plot.
+    plotfile_parity : Object
+        File for the parity plot.
+    plotfile_error : Object
+        File for the error plot.
     color : str
         Plot color.
     overwrite : bool
@@ -218,22 +224,28 @@ def plot_parity(load,
         from environment.
     """
 
-    calc = Amp.load(file=load, label=label, dblabel=dblabel, cores=cores)
+    calc = Amp.load(file=load, dblabel=dblabel, cores=cores)
 
-    if plotfile is None:
-        plotfile = make_filename(label, '-plot.pdf')
+    if plotfile_parity is None:
+        plotfile_parity = make_filename(label_parity, '-plot.pdf')
+    if plotfile_error is None:
+        plotfile_error = make_filename(label_error, '-plot.pdf')
 
-    if (not overwrite) and os.path.exists(plotfile):
+    if (not overwrite) and os.path.exists(plotfile_parity):
         raise IOError('File exists: %s.\nIf you want to overwrite,'
                       ' set overwrite=True or manually delete.'
-                      % plotfile)
+                      % plotfile_parity)
+    if (not overwrite) and os.path.exists(plotfile_error):
+        raise IOError('File exists: %s.\nIf you want to overwrite,'
+                      ' set overwrite=True or manually delete.'
+                      % plotfile_error)
 
     if plot_forces is True:
         calculate_derivatives = True
     else:
         calculate_derivatives = False
 
-    calc._log('\nAmp parity plot started. ' + now() + '\n')
+    calc._log('\nAmp parity and error plots started. ' + now() + '\n')
     calc._log('Descriptor: %s' % calc.descriptor.__class__.__name__)
     calc._log('Model: %s' % calc.model.__class__.__name__)
 
@@ -249,17 +261,68 @@ def plot_parity(load,
     calc._log('Calculating potential energies...', tic='pot-energy')
     energy_data = {}
     for hash, image in images.iteritems():
+        no_of_atoms = len(image)
         amp_energy = calc.model.calculate_energy(
             calc.descriptor.fingerprints[hash])
         actual_energy = image.get_potential_energy(apply_constraint=False)
-        energy_data[hash] = [actual_energy, amp_energy]
+        act_energy_per_atom = actual_energy / no_of_atoms
+        energy_error = abs(amp_energy - actual_energy) / no_of_atoms
+        energy_data[hash] = [actual_energy, amp_energy, act_energy_per_atom,
+                             energy_error]
     calc._log('...potential energies calculated.', toc='pot-energy')
 
+    # calculating minimum and maximum energies
     min_act_energy = min([energy_data[hash][0]
                           for hash, image in images.iteritems()])
     max_act_energy = max([energy_data[hash][0]
                           for hash, image in images.iteritems()])
+    min_act_energy_per_atom = min([energy_data[hash][2]
+                                   for hash, image in images.iteritems()])
+    max_act_energy_per_atom = max([energy_data[hash][2]
+                                   for hash, image in images.iteritems()])
 
+    # calculating energy per atom rmse
+    energy_square_error = 0.
+    for hash, image in images.iteritems():
+        energy_square_error += energy_data[hash][3] ** 2.
+    energy_per_atom_rmse = np.sqrt(energy_square_error / len(images))
+
+    if plot_forces is True:
+        calc._log('Calculating forces...', tic='forces')
+        force_data = {}
+        for hash, image in images.iteritems():
+            amp_forces = \
+                calc.model.calculate_forces(
+                    calc.descriptor.fingerprints[hash],
+                    calc.descriptor.fingerprintprimes[hash])
+            actual_forces = image.get_forces(apply_constraint=False)
+            force_data[hash] = [actual_forces, amp_forces,
+                                abs(np.array(amp_forces) - \
+                                    np.array(actual_forces))]
+        calc._log('...forces calculated.', toc='forces')
+
+        min_act_force = min([force_data[hash][0][index][k]
+                             for hash, image in images.iteritems()
+                             for index in range(len(image))
+                             for k in range(3)])
+
+        max_act_force = max([force_data[hash][0][index][k]
+                             for hash, image in images.iteritems()
+                             for index in range(len(image))
+                             for k in range(3)])
+
+        # calculating force rmse
+        force_square_error = 0.
+        for hash, image in images.iteritems():
+            no_of_atoms = len(image)
+            for index in range(no_of_atoms):
+                for k in range(3):
+                    force_square_error += \
+                        ((1.0 / 3.0) * force_data[hash][2][index][k] ** 2.) / \
+                        no_of_atoms
+        force_rmse = np.sqrt(force_square_error / len(images))
+
+    # make parity plot
     if plot_forces is False:
         fig = pyplot.figure(figsize=(5., 5.))
         ax = fig.add_subplot(111)
@@ -283,27 +346,6 @@ def plot_parity(load,
     if plot_forces is True:
         ax = fig.add_subplot(212)
 
-        calc._log('Calculating forces...', tic='forces')
-        force_data = {}
-        for hash, image in images.iteritems():
-            amp_forces = \
-                calc.model.calculate_forces(
-                    calc.descriptor.fingerprints[hash],
-                    calc.descriptor.fingerprintprimes[hash])
-            actual_forces = image.get_forces(apply_constraint=False)
-            force_data[hash] = [actual_forces, amp_forces]
-        calc._log('...forces calculated.', toc='forces')
-
-        min_act_force = min([force_data[hash][0][index][k]
-                             for hash, image in images.iteritems()
-                             for index in range(len(image))
-                             for k in range(3)])
-
-        max_act_force = max([force_data[hash][0][index][k]
-                             for hash, image in images.iteritems()
-                             for index in range(len(image))
-                             for k in range(3)])
-
         calc._log('Plotting forces...', tic='force-plot')
         for hash, image in images.iteritems():
             for index in range(len(image)):
@@ -321,112 +363,9 @@ def plot_parity(load,
         calc._log('...forces plotted.', toc='force-plot')
 
     fig.savefig(plotfile)
+    pyplot.close(fig)
 
-    if returndata:
-        if plot_forces is False:
-            return fig, energy_data
-        else:
-            return fig, energy_data, force_data
-
-
-def plot_error(load,
-               images,
-               label='error',
-               dblabel=None,
-               plot_forces=True,
-               plotfile=None,
-               color='b.',
-               overwrite=False,
-               returndata=False,
-               cores=None,
-               ):
-    """Makes an error plot of Amp energies and forces versus real energies and
-    forces.
-
-    Parameters
-    ----------
-    load : str
-        Path for loading an existing ".amp" file. Should be fed like
-        'load="filename.amp"'.
-    images : list or str
-        List of ASE atoms objects with positions, symbols, energies, and forces
-        in ASE format. This can also be the path to an ASE trajectory (.traj)
-        or database (.db) file.  Energies can be obtained from any reference,
-        e.g. DFT calculations.
-    label : str
-        Default prefix/location used for all files.
-    dblabel : str
-        Optional separate prefix/location of database files, including
-        fingerprints, fingerprint primes, and neighborlists, to avoid
-        calculating them. If not supplied, just uses the value from label.
-    plot_forces : bool
-        Determines whether or not forces should be plotted as well.
-    plotfile : Object
-        File for the plot.
-    color : str
-        Plot color.
-    overwrite : bool
-        If a plot or an script containing values found overwrite it.
-    returndata : bool
-        Whether to return a reference to the figures and their data or not.
-    cores : int
-        Can specify cores to use for parallel training; if None, will determine
-        from environment.
-    """
-
-    calc = Amp.load(file=load, cores=cores)
-
-    if plotfile is None:
-        plotfile = make_filename(label, '-plot.pdf')
-
-    if (not overwrite) and os.path.exists(plotfile):
-        raise IOError('File exists: %s.\nIf you want to overwrite,'
-                      ' set overwrite=True or manually delete.'
-                      % plotfile)
-
-    calc.dblabel = label if dblabel is None else dblabel
-
-    if plot_forces is True:
-        calculate_derivatives = True
-    else:
-        calculate_derivatives = False
-
-    calc._log('\nAmp error plot started. ' + now() + '\n')
-    calc._log('Descriptor: %s' % calc.descriptor.__class__.__name__)
-    calc._log('Model: %s' % calc.model.__class__.__name__)
-
-    images = hash_images(images, log=calc._log)
-
-    calc._log('\nDescriptor\n==========')
-    calc.descriptor.calculate_fingerprints(
-        images=images,
-        parallel=calc._parallel,
-        log=calc._log,
-        calculate_derivatives=calculate_derivatives)
-
-    calc._log('Calculating potential energy errors...', tic='pot-energy')
-    energy_data = {}
-    for hash, image in images.iteritems():
-        no_of_atoms = len(image)
-        amp_energy = calc.model.calculate_energy(
-            calc.descriptor.fingerprints[hash])
-        actual_energy = image.get_potential_energy(apply_constraint=False)
-        act_energy_per_atom = actual_energy / no_of_atoms
-        energy_error = abs(amp_energy - actual_energy) / no_of_atoms
-        energy_data[hash] = [act_energy_per_atom, energy_error]
-    calc._log('...potential energy errors calculated.', toc='pot-energy')
-
-    # calculating energy per atom rmse
-    energy_square_error = 0.
-    for hash, image in images.iteritems():
-        energy_square_error += energy_data[hash][1] ** 2.
-    energy_per_atom_rmse = np.sqrt(energy_square_error / len(images))
-
-    min_act_energy_per_atom = min([energy_data[hash][0]
-                                   for hash, image in images.iteritems()])
-    max_act_energy_per_atom = max([energy_data[hash][0]
-                                   for hash, image in images.iteritems()])
-
+    # make error plot
     if plot_forces is False:
         fig = pyplot.figure(figsize=(5., 5.))
         ax = fig.add_subplot(111)
@@ -436,7 +375,7 @@ def plot_error(load,
 
     calc._log('Plotting energy errors...', tic='energy-plot')
     for hash, image in images.iteritems():
-        ax.plot(energy_data[hash][0], energy_data[hash][1], color)
+        ax.plot(energy_data[hash][0], energy_data[hash][3], color)
     # draw horizontal line for rmse
     ax.plot([min_act_energy_per_atom, max_act_energy_per_atom],
             [energy_per_atom_rmse, energy_per_atom_rmse],
@@ -455,46 +394,12 @@ def plot_error(load,
     if plot_forces is True:
         ax = fig.add_subplot(212)
 
-        calc._log('Calculating force errors...', tic='forces')
-        force_data = {}
-        for hash, image in images.iteritems():
-            amp_forces = \
-                calc.model.calculate_forces(
-                    calc.descriptor.fingerprints[hash],
-                    calc.descriptor.fingerprintprimes[hash])
-            actual_forces = image.get_forces(apply_constraint=False)
-            force_data[hash] = [
-                actual_forces,
-                abs(np.array(amp_forces) - np.array(actual_forces))]
-        calc._log('...force errors calculated.', toc='forces')
-
-        # calculating force rmse
-        force_square_error = 0.
-        for hash, image in images.iteritems():
-            no_of_atoms = len(image)
-            for index in range(no_of_atoms):
-                for k in range(3):
-                    force_square_error += \
-                        ((1.0 / 3.0) * force_data[hash][1][index][k] ** 2.) / \
-                        no_of_atoms
-        force_rmse = np.sqrt(force_square_error / len(images))
-
-        min_act_force = min([force_data[hash][0][index][k]
-                             for hash, image in images.iteritems()
-                             for index in range(len(image))
-                             for k in range(3)])
-
-        max_act_force = max([force_data[hash][0][index][k]
-                             for hash, image in images.iteritems()
-                             for index in range(len(image))
-                             for k in range(3)])
-
         calc._log('Plotting force errors...', tic='force-plot')
         for hash, image in images.iteritems():
             for index in range(len(image)):
                 for k in range(3):
                     ax.plot(force_data[hash][0][index][k],
-                            force_data[hash][1][index][k], color)
+                            force_data[hash][3][index][k], color)
         # draw horizontal line for rmse
         ax.plot([min_act_force, max_act_force],
                 [force_rmse, force_rmse],
@@ -513,12 +418,13 @@ def plot_error(load,
         calc._log('...force errors plotted.', toc='force-plot')
 
     fig.savefig(plotfile)
+    pyplot.close(fig)
 
     if returndata:
         if plot_forces is False:
-            return fig, energy_data
+            return energy_data
         else:
-            return fig, energy_data, force_data
+            return energy_data, force_data
 
 
 def read_trainlog(logfile, verbose=True):
