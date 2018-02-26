@@ -330,7 +330,7 @@ def plot_parity_and_error(load,
         fig = pyplot.figure(figsize=(5., 10.))
         ax = fig.add_subplot(211)
 
-    calc._log('Plotting energies...', tic='energy-plot')
+    calc._log('Plotting energy parities...', tic='energy-plot')
     for hash, image in images.iteritems():
         ax.plot(energy_data[hash][0], energy_data[hash][1], color)
     # draw line
@@ -362,7 +362,7 @@ def plot_parity_and_error(load,
         ax.set_title("Forces")
         calc._log('...forces plotted.', toc='force-plot')
 
-    fig.savefig(plotfile)
+    fig.savefig(plotfile_parity)
     pyplot.close(fig)
 
     # make error plot
@@ -375,7 +375,7 @@ def plot_parity_and_error(load,
 
     calc._log('Plotting energy errors...', tic='energy-plot')
     for hash, image in images.iteritems():
-        ax.plot(energy_data[hash][0], energy_data[hash][3], color)
+        ax.plot(energy_data[hash][2], energy_data[hash][3], color)
     # draw horizontal line for rmse
     ax.plot([min_act_energy_per_atom, max_act_energy_per_atom],
             [energy_per_atom_rmse, energy_per_atom_rmse],
@@ -399,7 +399,7 @@ def plot_parity_and_error(load,
             for index in range(len(image)):
                 for k in range(3):
                     ax.plot(force_data[hash][0][index][k],
-                            force_data[hash][3][index][k], color)
+                            force_data[hash][2][index][k], color)
         # draw horizontal line for rmse
         ax.plot([min_act_force, max_act_force],
                 [force_rmse, force_rmse],
@@ -417,7 +417,7 @@ def plot_parity_and_error(load,
         ax.set_title("Forces")
         calc._log('...force errors plotted.', toc='force-plot')
 
-    fig.savefig(plotfile)
+    fig.savefig(plotfile_error)
     pyplot.close(fig)
 
     if returndata:
