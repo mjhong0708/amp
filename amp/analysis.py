@@ -264,8 +264,24 @@ def plot_parity_and_error(load,
     energy_data = {}
     for hash, image in images.iteritems():
         no_of_atoms = len(image)
-        amp_energy = calc.model.calculate_energy(
-            calc.descriptor.fingerprints[hash])
+        energy_args = dict(
+                fingerprints=calc.descriptor.fingerprints[hash],
+                )
+
+        if calc.model.trainingimages is not None:
+            trainingimages = hash_images(Trajectory(calc.model.trainingimages))
+            energy_args['trainingimages'] = trainingimages
+            calc.descriptor.calculate_fingerprints(
+                    images=trainingimages,
+                    parallel=calc._parallel,
+                    log=calc._log,
+                    calculate_derivatives=calculate_derivatives
+                    )
+            fp_trainingimages = calc.descriptor.fingerprints
+            energy_args['fp_trainingimages'] = fp_trainingimages
+            energy_args['hash'] = hash
+
+        amp_energy = calc.model.calculate_energy(**energy_args)
         actual_energy = image.get_potential_energy(apply_constraint=False)
         act_energy_per_atom = actual_energy / no_of_atoms
         energy_error = abs(amp_energy - actual_energy) / no_of_atoms
@@ -298,21 +314,17 @@ def plot_parity_and_error(load,
                     fingerprintprimes=calc.descriptor.fingerprintprimes[hash]
                     )
 
-            try:
-                if calc.model.trainingimages is not None:
-                    trainingimages = hash_images(Trajectory(calc.model.trainingimages))
-                    calc.descriptor.calculate_fingerprints(
-                            images=trainingimages,
-                            calculate_derivatives=True
-                            )
-                    t_descriptor = calc.descriptor
-                    forces_args['trainingimages'] = trainingimages
-                    forces_args['t_descriptor'] = t_descriptor
-            except:
-                pass
+            if calc.model.trainingimages is not None:
+                trainingimages = hash_images(Trajectory(calc.model.trainingimages))
+                calc.descriptor.calculate_fingerprints(
+                        images=trainingimages,
+                        calculate_derivatives=True
+                        )
+                t_descriptor = calc.descriptor
+                forces_args['trainingimages'] = trainingimages
+                forces_args['t_descriptor'] = t_descriptor
 
-            amp_forces = \
-                calc.model.calculate_forces(**forces_args)
+            amp_forces =  calc.model.calculate_forces(**forces_args)
             actual_forces = image.get_forces(apply_constraint=False)
             force_data[hash] = [actual_forces, amp_forces,
                                 abs(np.array(amp_forces) - \
