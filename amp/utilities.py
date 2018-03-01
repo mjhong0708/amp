@@ -20,6 +20,7 @@ try:
 except ImportError:
     import pickle               # Python3
 
+
 class PropertyNotImplementedError(NotImplementedError):
     pass
 
@@ -173,8 +174,8 @@ def setup_parallel(parallel, workercommand, log, setup_publisher=False):
     assigned to each process and <serversocket> is the address of the
     server, like 'node321:34292'.
 
-    If setup_publisher is True, also sets up a publisher instead of just a reply
-    socket.
+    If setup_publisher is True, also sets up a publisher instead of just
+    a reply socket.
 
     Returns
     -------
@@ -852,7 +853,6 @@ def importer(name):
 
 
 class Annealer(object):
-
     """
     Inspired by the simulated annealing implementation of
     Richard J. Wagner <wagnerr@umich.edu> and
@@ -881,6 +881,23 @@ class Annealer(object):
     >>> calc.train(images=images)
 
     for gradient descent optimization.
+
+    Parameters
+    ----------
+    calc : object
+        Amp calculator.
+    images : dict
+        Dictionary of images.
+    Tmax : float
+        Maximum temperature.
+    Tmin : float
+        Minimum temperature.
+    steps : int
+        Number of iterations.
+    updates : int
+        Number of updates.
+    train_forces : bool
+        Turn off forces.
     """
 
     Tmax = 20.0             # Max (starting) temperature
@@ -891,8 +908,8 @@ class Annealer(object):
     user_exit = False
     save_state_on_exit = False
 
-    def __init__(self, calc, images,
-                 Tmax=None, Tmin=None, steps=None, updates=None):
+    def __init__(self, calc, images, Tmax=None, Tmin=None, steps=None,
+                 updates=None, train_forces=True):
         if Tmax is not None:
             self.Tmax = Tmax
         if Tmin is not None:
@@ -913,7 +930,8 @@ class Annealer(object):
         self.calc._log('\nDescriptor\n==========')
         # Derivatives of fingerprints need to be calculated if train_forces is
         # True.
-        calculate_derivatives = True
+        calculate_derivatives = train_forces
+
         self.calc.descriptor.calculate_fingerprints(
             images=images,
             parallel=self.calc._parallel,

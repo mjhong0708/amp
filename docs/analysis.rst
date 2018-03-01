@@ -21,7 +21,7 @@ You can also access this tool as :func:`~amp.analysis.plot_convergence` from the
 Other plots
 ----------------------------------
 
-There are several other plotting tools within the :mod:`amp.analysis` module, including :func:`~amp.analysis.plot_parity` for making parity plots, :func:`~amp.analysis.plot_error` for making error plots, and :func:`~amp.analysis.plot_sensitivity` for examining the sensitivity of the model output to the model parameters.
+There are several other plotting tools within the :mod:`amp.analysis` module, including :func:`~amp.analysis.plot_parity_and_error` for making parity and error plots, and :func:`~amp.analysis.plot_sensitivity` for examining the sensitivity of the model output to the model parameters.
 These modules should produce plots like below; in the order parity, error, and sensitivity from left to right.
 See the module autodocumentation for details.
 
