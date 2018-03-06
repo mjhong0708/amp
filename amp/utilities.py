@@ -1130,8 +1130,8 @@ class Annealer(object):
                     bestLoss = L
             if self.updates > 1:
                 if step // updateWavelength > (step - 1) // updateWavelength:
-                    self.update(
-                        step, T, L, accepts / trials, improves / trials)
+                    self.update(step, T, L, float(accepts) / trials,
+                                float(improves) / trials)
                     trials, accepts, improves = 0, 0, 0
 
         # line break after progress output
