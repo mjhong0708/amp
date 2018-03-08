@@ -16,6 +16,8 @@ Development version
 
 * The neural network now has a retries keyword, so that it can automatically refresh its parameters and re-try training if it does not converge.
 
+* The convergence plots (via :mod:`amp.analysis` and `amp-plotconvergence`) now handle multiple training attempts from a single log file.
+
 0.6
 ---
 Release date: July 31, 2017
