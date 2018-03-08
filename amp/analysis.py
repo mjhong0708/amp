@@ -297,7 +297,7 @@ def plot_parity_and_error(load,
                     calc.descriptor.fingerprintprimes[hash])
             actual_forces = image.get_forces(apply_constraint=False)
             force_data[hash] = [actual_forces, amp_forces,
-                                abs(np.array(amp_forces) - \
+                                abs(np.array(amp_forces) -
                                     np.array(actual_forces))]
         calc._log('...forces calculated.', toc='forces')
 
@@ -427,7 +427,7 @@ def plot_parity_and_error(load,
             return energy_data, force_data
 
 
-def read_trainlog(logfile, verbose=True):
+def read_trainlog(logfile, verbose=True, multiple=0):
     """Reads the log file from the training process, returning the relevant
     parameters.
 
@@ -438,11 +438,30 @@ def read_trainlog(logfile, verbose=True):
 
     verbose : bool
         Write out logfile during analysis.
+
+    multiple : int
+        If multiple training sessions are recorded in the same log file,
+        return session number <multiple> (counting from 0). If set to -1,
+        returns all sessions as list.
     """
     data = {}
 
     with open(logfile, 'r') as f:
         lines = f.read().splitlines()
+
+    # Get number of training sets.
+    multiple_starts = []
+    for index, line in enumerate(lines):
+        if line.startswith('Amp training started.'):
+            multiple_starts.append(index)
+    if multiple == -1:
+        datalist = []
+        for index in range(len(multiple_starts)):
+            datalist.append(read_trainlog(logfile, verbose,
+                                          multiple=index))
+        return datalist
+    else:
+        lines = lines[multiple_starts[multiple]:]
 
     def print_(text):
         if verbose:
@@ -574,19 +593,18 @@ def read_trainlog(logfile, verbose=True):
     return data
 
 
-def plot_convergence(logfile, plotfile='convergence.pdf'):
+def plot_convergence(data, plotfile='convergence.pdf'):
     """Makes a plot of the convergence of the cost function and its energy
     and force components.
 
     Parameters
     ----------
-    logfile : str
-        Name or path to the log file.
-    plotfile : str
-        Name or path to the plot file.
+    data : dict
+        Convergence data dictionary as returned by read_trainlog.
+    plotfile : str or None
+        Name or path to the plot file. If None, instead returns reference to
+        the created figure.
     """
-
-    data = read_trainlog(logfile)
 
     # Find if multiple runs contained in data set.
     d = data['convergence']
@@ -646,5 +664,7 @@ def plot_convergence(logfile, plotfile='convergence.pdf'):
     else:
         ax.set_xlabel('loss function call')
 
+    if plotfile is None:
+        return fig
     fig.savefig(plotfile)
     pyplot.close(fig)
