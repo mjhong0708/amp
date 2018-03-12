@@ -1779,15 +1779,18 @@ class KRR(Model):
         weights = self.parameters.weights
 
         if len(list(self.kernel_e.keys())) == 0 or hash not in self.kernel_e:
-            kij_args = dict(
-                    trainingimages=trainingimages,
-                    fp_trainingimages=fp_trainingimages,
-                    only_features=True
-                    )
+            try:
+                self.reference_features_e
+            except AttributeError:
+                kij_args = dict(
+                        trainingimages=trainingimages,
+                        fp_trainingimages=fp_trainingimages,
+                        only_features=True
+                        )
 
-            # This is needed for both setting the size of parameters to
-            # optimize and also to return the kernel for energies
-            self.get_energy_kernel(**kij_args)
+                # This is needed for both setting the size of parameters to
+                # optimize and also to return the kernel for energies
+                self.get_energy_kernel(**kij_args)
             if self.nnpartition is None:
                 afp = []
                 for element, _afp in fingerprints:
@@ -1913,11 +1916,14 @@ class KRR(Model):
         key = index, symbol
 
         if len(list(self.kernel_f.keys())) == 0 or hash not in self.kernel_f:
-            self.get_forces_kernel(
-                    trainingimages=trainingimages,
-                    t_descriptor=t_descriptor,
-                    only_features=True
-                    )
+            try:
+                self.reference_features_f
+            except AttributeError:
+                self.get_forces_kernel(
+                        trainingimages=trainingimages,
+                        t_descriptor=t_descriptor,
+                        only_features=True
+                        )
 
             fprime = 0
             for afp in fingerprintprimes:
