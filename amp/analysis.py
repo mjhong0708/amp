@@ -4,6 +4,8 @@ from . import Amp
 from .utilities import now, hash_images, make_filename
 import os
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 from matplotlib import pyplot
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib import rcParams
