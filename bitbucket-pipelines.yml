@@ -1,0 +1,27 @@
+# This is a sample build configuration for Python.
+# Check our guides at https://confluence.atlassian.com/x/VYk8Lw for more examples.
+# Only use spaces to indent your .yml configuration.
+# -----
+# You can specify a custom docker image from Docker Hub as your build environment.
+image: python:2.7.13
+
+pipelines:
+  default:
+    - step:
+        script: # Modify the commands below to build your repository.
+          - pip install -U nose
+          - pip install -U nose-timer
+          - pip install -U numpy
+          - pip install -U scipy
+          - pip install -U matplotlib
+          - pip install -U pyzmq
+          - pip install -U pexpect
+          - pip install -U --upgrade tensorflow
+          - pip install ase
+          - apt-get update
+          - apt-get -y install gfortran
+          - AMP=`pwd`
+          - export PYTHONPATH=$AMP:$PYTHONPATH
+          - cd amp/
+          - make python2
+          - make py2tests
