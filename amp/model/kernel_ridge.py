@@ -102,12 +102,17 @@ class Model(object):
                     self.atomic_energies.append(atom_energy)
                     energy += atom_energy
             else:
-                arguments = dict(hash=hash,
-                                 fp_trainingimages=fp_trainingimages,
-                                 kernel=self.parameters.kernel,
-                                 trainingimages=trainingimages,
-                                 sigma=self.parameters.sigma,
-                                 fingerprints=fingerprints)
+                for index, (symbol, afp) in enumerate(fingerprints):
+                    arguments = dict(symbol=symbol, afp=afp, hash=hash,
+                                     fp_trainingimages=fp_trainingimages,
+                                     kernel=self.parameters.kernel,
+                                     trainingimages=trainingimages,
+                                     sigma=self.parameters.sigma,
+                                     fingerprints=fingerprints)
+
+                    atom_energy = self.energy_from_cholesky(**arguments)
+                    self.atomic_energies.append(atom_energy)
+                    energy += atom_energy
 
                 energy = self.energy_from_cholesky(**arguments)
         return energy
@@ -630,11 +635,11 @@ class LossFunction:
         energy_weights : list
             List of energy regression coefficients.
         energy_kernel : dict
-            Dictionary of energy kernel matrix per atom type.
+            Dictionary of energy kernel matrix per-atom type.
         forces_weights : list
             List of forces regression coefficients.
         forces_kernel : dict
-            Dictionary of forces kernel matrix per atom type.
+            Dictionary of forces kernel matrix per-atom type.
         lossprime : bool
             If True, will calculate and return dloss_dparameters, else will
             only return zero for dloss_dparameters.
@@ -718,11 +723,11 @@ class LossFunction:
         energy_weights : list
             List of energy regression coefficients.
         energy_kernel : dict
-            Dictionary of energy kernel matrix per atom type.
+            Dictionary of energy kernel matrix per-atom type.
         forces_weights : list
             List of forces regression coefficients.
         forces_kernel : dict
-            Dictionary of forces kernel matrix per atom type.
+            Dictionary of forces kernel matrix per-atom type.
         lossprime : bool
             If True, will calculate and return dloss_dparameters, else will
             only return zero for dloss_dparameters.
@@ -977,6 +982,35 @@ class KRR(Model):
         Cholesky factorization. Default is set to None.
     preprocessing : str
         Preprocess training data.
+
+    Notes
+    -----
+        In the case of training total energies, we need to apply either an
+        atomic decomposition Ansatz (ADA) during training or an energy
+        partition scheme to the training set. ADA can be achieved based on
+        "A brief tutorial introduction, Int.  J.  Quantum Chem., vol. 115, no.
+        16, pp.  1051-1057, Aug. 2015".  For an explanation of what they do,
+        see the Master thesis by Sonja Mathias.
+
+        http://wissrech.ins.uni-bonn.de/teaching/master/masterthesis_mathias_revised.pdf
+
+        ADA is the default is the default way of training total energies in
+        this class.
+
+        An energy partition scheme for  total energies can be obtained from an
+        artificial neural network or methods such as the interacting quantum
+        atoms theory (IQA). I implemented the nnpartition mode for which users
+        can provide the path to a NN calculator and we take the energies
+        per-atom from the function .calculate_atomic_energy(). The strategy
+        would be to use train the NN with a very tight convergece criterion
+        (1e-6 RSME).  Then, calling .calculate_atomic_energy() would give you
+        the atomic energies for such set.
+
+        For forces is a different history because we do know the derivative of
+        the energy with respect to atom positions (a per-atom quantity).  So we
+        rely on the method in the algorithm shown in Rupp, M. (2015).  Machine
+        learning for quantum mechanics in a nutshell. International Journal of
+        Quantum Chemistry, 115(16), 1058-1073.
     """
     def __init__(self, sigma=1., kernel='rbf', lamda=0., weights=None,
                  regressor=None, mode=None, trainingimages=None, version=None,
@@ -1162,40 +1196,27 @@ class KRR(Model):
             result = self.regressor.regress(model=self, log=log)
             return result  # True / False
         else:
-            """
-            This method would require solving to systems of linear equations.
-            In the case of energies, we cannot operate in an atom-centered mode
-            because we don't know a priori the energy per-atom but per image.
-
-            For forces is a different history because we do know the derivative
-            of the energy with respect to atom positions (a per atom quantity).
-            Therefore, obtaining weights with Cholesky decomposition would be
-            the best for explicit-force training.
-
-            I implemented the nnpartition for which users can provide the path
-            to a NN calculator and we take the energies per-atom from
-            .calculate_atomic_energy(). The strategy would be train the NN with
-            a very tight convergece criterion for energy training (1e-6 RSME).
-            """
             try:
                 if self.nnpartition is None:
-                    log('Starting Cholesky decomposition of kernel energy matrix '
-                        'to get upper triangular matrix.',
-                        tic='cholesky_energy_kernel')
+                    log('Starting atomic energy decomposition Ansatz to obtain '
+                        'regression coefficients', tic='energy')
 
                     size = len(self.reference_features_e)
                     I_e = np.identity(size)
                     K_e = self.kij.reshape(size, size)
+                    K = self.LT.dot(K_e + self.lamda * I_e).dot(self.LT.T)
+                    det = np.linalg.det(K)
 
                     log('Shape of kernel energy matrix is {}.' .format(K_e.shape))
 
-                    cholesky_U = cholesky((K_e + self.lamda * I_e))
+                    _weights = [(1 / det) * np.dot(k, self.energy_targets) for k in K]
 
-                    log('... Cholesky decomposition finished in.',
-                        toc='cholesky_energy_kernel')
+                    weights = [w * g for index, w in enumerate(_weights) for
+                               g in self.fingerprint_map[index]]
 
-                    betas = np.linalg.solve(cholesky_U.T, self.energy_targets)
-                    weights = np.linalg.solve(cholesky_U, betas)
+                    log('... energy decomposition Ansatz finished in.',
+                        toc='energy')
+
                     p.weights['energy'] = weights
                 else:
                     log('Starting Cholesky decomposition of kernel energy matrix '
@@ -1327,13 +1348,16 @@ class KRR(Model):
         # This creates a list containing all features in all images on the
         # training set.
         if self.cholesky and self.nnpartition is None:
-            self.reference_features_e = []
             self.kij = []
             self.energy_targets = []
+            # Matrix needed to use the atomic decomposition Ansatz
+            self.LT = []
+            self.fingerprint_map = []
+            self.reference_features_e = []
         else:
+            self.energy_targets = OrderedDict()
             self.reference_features_e = OrderedDict()
             self.kernel_e_loss = OrderedDict()
-            self.energy_targets = OrderedDict()
 
         hashes = list(hash_images(trainingimages).keys())
 
@@ -1345,15 +1369,15 @@ class KRR(Model):
                     afp = np.asarray(afp)
                     self.reference_features_e[symbol].append(afp)
             else:
-                energy = trainingimages[hash].get_potential_energy()
-                self.energy_targets.append(energy)
-                afp = []
-                for element, _afp in fp_trainingimages[hash]:
-                    afp.append(_afp)
+                afp_in_hash = fp_trainingimages[hash]
+                f_map = []
 
-                self.reference_features_e.append(np.ravel(afp))
+                for symbol, afp in afp_in_hash:
+                    f_map.append(1)
+                    self.reference_features_e.append(np.asarray(afp))
+                self.fingerprint_map.append(f_map)
 
-        if only_features is not True:
+        if only_features is False:
             if self.nnpartition is not None:
                 # Load the neural network calculator just once
                 from .. import Amp
@@ -1384,7 +1408,7 @@ class KRR(Model):
                     network, self.energy_targets is a dictionary and has to be
                     populated in here using the atomic_energies from the NN.
                     """
-                    energy = trainingimages[hash].get_potential_energy()
+                    #FIXME energy = trainingimages[hash].get_potential_energy()
                     for index, (symbol, afp) in enumerate(
                             fp_trainingimages[hash]):
                         if symbol not in self.kernel_e_loss.keys():
@@ -1410,27 +1434,41 @@ class KRR(Model):
                     print('ANN energy:', total_energy)
                     """
                 else:
-                    afp = []
-                    for element, _afp in fp_trainingimages[hash]:
-                        afp.append(_afp)
-                    _kernel = self.kernel_matrix(
-                            np.ravel(afp),
-                            self.reference_features_e,
-                            kernel=self.kernel
-                            )
-                    self.kernel_e[hash] = _kernel
-                    kernel.append(_kernel)
-                    self.kij.append(kernel)
+                    # We append targets
+                    energy = trainingimages[hash].get_potential_energy()
+                    self.energy_targets.append(energy)
+
+                    # We build L.T matrix
+                    _LT = []
+
+                    for i, group in enumerate(self.fingerprint_map):
+                        if i == index:
+                            for _ in group:
+                                _LT.append(1.)
+                        else:
+                            for _ in group:
+                                _LT.append(0.)
+                    self.LT.append(_LT)
+
+                    # Building the kernel matrix
+                    for index, (symbol, afp) in enumerate(
+                            fp_trainingimages[hash]):
+                        _kernel = self.kernel_matrix(
+                                np.asarray(afp),
+                                self.reference_features_e,
+                                kernel=self.kernel
+                                )
+                        self.kij.append(_kernel)
 
             if self.cholesky and self.nnpartition is None:
                 self.kij = np.asarray(self.kij)
+                self.LT = np.asarray(self.LT)
+
             elif self.cholesky is False or self.nnpartition is not None:
                 for key in self.kernel_e_loss.keys():
                     _s = len(self.kernel_e_loss[key][0])
                     arr = self.kernel_e_loss[key]
                     self.kernel_e_loss[key] = np.array(arr).reshape(_s, _s)
-
-            return self.kernel_e
 
     def get_forces_kernel(self, trainingimages=None, t_descriptor=None,
                           only_features=False):
@@ -1450,7 +1488,7 @@ class KRR(Model):
         Returns
         -------
         kernel_f : dictionary
-            Dictionary containing images hashes and kernels per atom.
+            Dictionary containing images hashes and kernels per-atom.
         """
 
         hashes = list(hash_images(trainingimages).keys())
@@ -1791,13 +1829,10 @@ class KRR(Model):
                 # This is needed for both setting the size of parameters to
                 # optimize and also to return the kernel for energies
                 self.get_energy_kernel(**kij_args)
-            if self.nnpartition is None:
-                afp = []
-                for element, _afp in fingerprints:
-                    afp.append(_afp)
 
+            if self.nnpartition is None:
                 kernel = self.kernel_matrix(
-                                np.ravel(afp),
+                                afp,
                                 self.reference_features_e,
                                 kernel=kernel,
                                 sigma=sigma
@@ -2014,7 +2049,7 @@ class Raveler(object):
     Parameters
     ----------
     weights : dict
-        Dictionary containing weights per atom.
+        Dictionary containing weights per-atom.
     size : int
         Number of elements in the dictionary.
     weights_independent : bool
