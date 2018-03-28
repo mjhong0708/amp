@@ -14,7 +14,7 @@ from ase.io import Trajectory
 rcParams.update({'figure.autolayout': True})
 
 
-def plot_sensitivity(load,
+def plot_sensitivity(calc,
                      images,
                      d=0.0001,
                      label='sensitivity',
@@ -23,7 +23,6 @@ def plot_sensitivity(load,
                      overwrite=False,
                      energy_coefficient=1.0,
                      force_coefficient=0.04,
-                     cores=None,
                      ):
     """Returns the plot of loss function in terms of perturbed parameters.
 
@@ -32,8 +31,9 @@ def plot_sensitivity(load,
 
     Parameters
     ----------
-    load : str
-        Path for loading an existing ".amp" file. Should be fed like
+    calc : Amp object or str
+        Either an existing instantiated Amp calculator or a path for loading an
+        existing ".amp" file. In the latter case, should be fed like
         'load="filename.amp"'.
     images : list or str
         List of ASE atoms objects with positions, symbols, energies, and forces
@@ -56,14 +56,12 @@ def plot_sensitivity(load,
         Coefficient of energy loss in the total loss function.
     force_coefficient : float
         Coefficient of force loss in the total loss function.
-    cores : int
-        Can specify cores to use for parallel training; if None, will determine
-        from environment.
     """
 
     from amp.model import LossFunction
 
-    calc = Amp.load(file=load, cores=cores)
+    if isinstance(calc, str):
+        calc = Amp.load(file=calc)
 
     if plotfile is None:
         plotfile = make_filename(label, '-plot.pdf')
@@ -177,7 +175,7 @@ def plot_sensitivity(load,
     calc._log(' ...loss functions plotted.', toc='plot')
 
 
-def plot_parity_and_error(load,
+def plot_parity_and_error(calc,
                           images,
                           label_parity='parity',
                           label_error='error',
@@ -188,15 +186,15 @@ def plot_parity_and_error(load,
                           color='b.',
                           overwrite=False,
                           returndata=False,
-                          cores=None,
                           ):
     """Makes a parity plot and an error plot of Amp energies and forces versus
     real energies and forces.
 
     Parameters
     ----------
-    load : str
-        Path for loading an existing ".amp" file. Should be fed like
+    calc : Amp object or str
+        Either an existing instantiated Amp calculator or a path for loading an
+        existing ".amp" file. In the latter case, should be fed like
         'load="filename.amp"'.
     images : list or str
         List of ASE atoms objects with positions, symbols, energies, and forces
@@ -204,9 +202,9 @@ def plot_parity_and_error(load,
         or database (.db) file.  Energies can be obtained from any reference,
         e.g. DFT calculations.
     label_parity : str
-        Default prefix/location used for all files related to the parity plot.
+        Default prefix/location used for the parity plot.
     label_error : str
-        Default prefix/location used for all files related to the error plot.
+        Default prefix/location used for the error plot.
     dblabel : str
         Optional separate prefix/location of database files, including
         fingerprints, fingerprint primes, and neighborlists, to avoid
@@ -223,12 +221,10 @@ def plot_parity_and_error(load,
         If a plot or an script containing values found overwrite it.
     returndata : bool
         Whether to return a reference to the figures and their data or not.
-    cores : int
-        Can specify cores to use for parallel training; if None, will determine
-        from environment.
     """
 
-    calc = Amp.load(file=load, dblabel=dblabel, cores=cores)
+    if isinstance(calc, str):
+        calc = Amp.load(file=calc, dblabel=dblabel)
 
     if plotfile_parity is None:
         plotfile_parity = make_filename(label_parity, '-plot.pdf')
