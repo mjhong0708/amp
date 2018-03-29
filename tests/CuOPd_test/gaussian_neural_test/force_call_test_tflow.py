@@ -172,7 +172,7 @@ def non_periodic_test():
 
     # Testing pure-python and fortran versions of Gaussian-neural force call
     for fortran in [False, True]:
-        for cores in range(1, 6):
+        for cores in range(1, 7):
             label = 'call-nonperiodic/%s-%i' % (fortran, cores)
             calc = Amp(descriptor=Gaussian(cutoff=6.5,
                                            Gs=Gs,
@@ -322,7 +322,7 @@ def periodic_test():
 
     # Testing pure-python and fortran versions of Gaussian-neural force call
     for fortran in [False, True]:
-        for cores in range(1, 4):
+        for cores in range(1, 5):
             label = 'call-periodic/%s-%i' % (fortran, cores)
             calc = Amp(descriptor=Gaussian(cutoff=4.,
                                            Gs=Gs,
