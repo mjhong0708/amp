@@ -44,7 +44,7 @@ class NeuralNetwork:
         layers, or dictionary format of the network structure for each
         element type. E.g. {'Cu': (5, 5), 'O': (10, 5)}
 
-    activationskl
+    activation
         Activation type. (XXX Provide list of possibilities.)
 
     keep_prob : float
@@ -175,6 +175,7 @@ class NeuralNetwork:
                  sess=None,
                  energy_coefficient=1.0,
                  force_coefficient=0.04,
+                 scikit_model=None,
                  convergenceCriteria=None,
                  optimizationMethod='l-BFGS-b',
                  input_keep_prob=0.8,
