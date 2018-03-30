@@ -175,7 +175,6 @@ class NeuralNetwork:
                  sess=None,
                  energy_coefficient=1.0,
                  force_coefficient=0.04,
-                 scikit_model=None,
                  convergenceCriteria=None,
                  optimizationMethod='l-BFGS-b',
                  input_keep_prob=0.8,
