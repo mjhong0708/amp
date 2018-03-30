@@ -472,14 +472,14 @@ class NeuralNetwork(Model):
         """
         p = self.parameters
         scaling = p.scalings[symbol]
-        # self.W dictionary initiated.
-        self.W = {}
+        # W dictionary initiated.
+        W = {}
         for elm in p.weights.keys():
-            self.W[elm] = {}
+            W[elm] = {}
             weight = p.weights[elm]
             for _ in range(len(weight)):
-                self.W[elm][_ + 1] = np.delete(weight[_ + 1], -1, 0)
-        W = self.W[symbol]
+                W[elm][_ + 1] = np.delete(weight[_ + 1], -1, 0)
+        W = W[symbol]
 
         dAtomicEnergy_dParameters = np.zeros(self.ravel.count)
         dAtomicEnergy_dWeights, dAtomicEnergy_dScalings = \
@@ -533,14 +533,14 @@ class NeuralNetwork(Model):
         p = self.parameters
         scaling = p.scalings[nsymbol]
         activation = p.activation
-        # self.W dictionary initiated.
-        self.W = {}
+        # W dictionary initiated.
+        W = {}
         for elm in p.weights.keys():
-            self.W[elm] = {}
+            W[elm] = {}
             weight = p.weights[elm]
             for _ in range(len(weight)):
-                self.W[elm][_ + 1] = np.delete(weight[_ + 1], -1, 0)
-        W = self.W[nsymbol]
+                W[elm][_ + 1] = np.delete(weight[_ + 1], -1, 0)
+        W = W[nsymbol]
 
         dForce_dParameters = np.zeros(self.ravel.count)
 
