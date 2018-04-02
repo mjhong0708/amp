@@ -114,7 +114,6 @@ class Model(object):
                     self.atomic_energies.append(atom_energy)
                     energy += atom_energy
 
-                energy = self.energy_from_cholesky(**arguments)
         return energy
 
     def calculate_forces(self, fingerprints, fingerprintprimes, hash=None,
@@ -1202,14 +1201,14 @@ class KRR(Model):
                         'regression coefficients', tic='energy')
 
                     size = len(self.reference_features_e)
-                    I_e = np.identity(size)
-                    K_e = self.kij.reshape(size, size)
-                    K = self.LT.dot(K_e + self.lamda * I_e).dot(self.LT.T)
-                    det = np.linalg.det(K)
+                    K = self.kij.reshape(size, size)
+                    K = self.LT.dot(K).dot(self.LT.T)
+                    I_e = np.identity(K.shape[0])
+                    cholesky_U = cholesky((K + self.lamda * I_e))
+                    betas = np.linalg.solve(cholesky_U.T, self.energy_targets)
+                    _weights = np.linalg.solve(cholesky_U, betas)
 
-                    log('Shape of kernel energy matrix is {}.' .format(K_e.shape))
-
-                    _weights = [(1 / det) * np.dot(k, self.energy_targets) for k in K]
+                    log('Shape of kernel energy matrix is {}.' .format(K.shape))
 
                     weights = [w * g for index, w in enumerate(_weights) for
                                g in self.fingerprint_map[index]]
