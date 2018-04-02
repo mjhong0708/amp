@@ -1014,9 +1014,9 @@ class KRR(Model):
     def __init__(self, sigma=1., kernel='rbf', lamda=0., weights=None,
                  regressor=None, mode=None, trainingimages=None, version=None,
                  fortran=False, checkpoints=None, lossfunction=None,
-                 cholesky=False, weights_independent=True, randomize_weights=False,
-                 forcetraining=False, preprocessing=False,
-                 nnpartition=None):
+                 cholesky=False, weights_independent=True,
+                 randomize_weights=False, forcetraining=False,
+                 preprocessing=False, nnpartition=None):
 
         np.set_printoptions(precision=30, threshold=999999999)
 
@@ -1160,7 +1160,8 @@ class KRR(Model):
                                     size = \
                                         len(self.reference_features_e[symbol])
                                     if self.randomize_weights:
-                                        weights[prop][symbol] = np.random.uniform(
+                                        weights[prop][symbol] = \
+                                                np.random.uniform(
                                                 low=-1.0,
                                                 high=1.0,
                                                 size=(size))
@@ -1373,7 +1374,7 @@ class KRR(Model):
 
                 for symbol, afp in afp_in_hash:
                     f_map.append(1)
-                    self.reference_features_e.append(np.asarray(afp))
+                    self.reference_features_e.append((symbol, np.asarray(afp)))
                 self.fingerprint_map.append(f_map)
 
         if only_features is False:
@@ -1455,6 +1456,7 @@ class KRR(Model):
                         _kernel = self.kernel_matrix(
                                 np.asarray(afp),
                                 self.reference_features_e,
+                                feature_symbol=symbol,
                                 kernel=self.kernel
                                 )
                         self.kij.append(_kernel)
@@ -1833,6 +1835,7 @@ class KRR(Model):
                 kernel = self.kernel_matrix(
                                 afp,
                                 self.reference_features_e,
+                                feature_symbol=symbol,
                                 kernel=kernel,
                                 sigma=sigma
                                 )
@@ -1981,7 +1984,7 @@ class KRR(Model):
                         )
         return force
 
-    def kernel_matrix(self, feature, features, kernel='rbf', sigma=1.):
+    def kernel_matrix(self, feature, features, feature_symbol=None, kernel='rbf', sigma=1.):
         """This method takes as arguments a feature vector and a string that refers
         to the kernel type used.
 
@@ -1992,6 +1995,8 @@ class KRR(Model):
         features : list or numpy array
             Column vector containing the fingerprints of all atoms in the
             training set.
+        feature_symbol : str
+            Symbol of chemical element for central atom.
         kernel : str
             Select the kernel to be used. Supported kernels are: 'linear',
             rbf', 'exponential, and 'laplacian'.
@@ -2011,26 +2016,39 @@ class KRR(Model):
         of the kernel is done by auxiliary functions that are located at the
         end of the KRR class.
         """
-        features = np.asarray(features)
         feature = np.asarray(feature)
         K = []
 
         call = {'exponential': exponential, 'laplacian': laplacian,
                 'rbf': rbf}
+        nonlinear_kernels = ['rbf', 'laplacian', 'exponential']
 
         if self.sigma is None:
             self.sigma = sigma
 
         if kernel == 'linear':
-            for afp in features:
-                K.append(linear(feature, afp))
+            try:
+                features = np.asarray(features)
+                for afp in features:
+                    K.append(linear(feature, afp))
+            except ValueError:
+                for symbol, afp in features:
+                    afp = np.asarray(afp)
+                    K.append(linear(feature, afp,
+                             i_symbol=feature_symbol, j_symbol=symbol))
 
         # All kernels in this control flow share the same structure
-        elif (kernel == 'rbf' or kernel == 'laplacian' or
-                kernel == 'exponential'):
-
-            for afp in features:
-                K.append(call[kernel](feature, afp, sigma=self.sigma))
+        elif kernel in nonlinear_kernels:
+            try:
+                features = np.asarray(features)
+                for afp in features:
+                    K.append(call[kernel](feature, afp, sigma=self.sigma))
+            except ValueError:
+                for symbol, afp in features:
+                    afp = np.asarray(afp)
+                    K.append(call[kernel](feature, afp,
+                             i_symbol=feature_symbol, j_symbol=symbol,
+                             sigma=self.sigma))
 
         else:
             raise NotImplementedError('This kernel needs to be coded.')
@@ -2162,30 +2180,120 @@ Auxiliary functions to compute different kernels
 """
 
 
-def linear(feature_i, feature_j):
-    """ Compute a linear kernel """
-    linear = np.dot(feature_i, feature_j)
-    return linear
+def linear(feature_i, feature_j, i_symbol=None, j_symbol=None):
+    """ Compute a linear kernel
+
+    Parameters
+    ----------
+    feature_i : np.array
+        Atomic fingerprint for central atom.
+    feature_j : np.array
+        Atomic fingerprint for j atom.
+    i_symbol : str
+        Chemical symbol for central atom.
+    j_symbol : str
+        Chemical symbol for j atom.
+
+    Returns
+    -------
+    linear :float
+        Linear kernel.
+    """
+
+    if i_symbol != j_symbol:
+        return 0.
+    else:
+        linear = np.dot(feature_i, feature_j)
+        return linear
 
 
-def rbf(feature_i, feature_j, sigma=1.):
-    """ Compute the rbf (AKA Gaussian) kernel.  """
-    rbf = np.exp(-(np.linalg.norm(feature_i - feature_j) ** 2.) /
-                 (2. * sigma ** 2.))
-    return rbf
+def rbf(feature_i, feature_j, i_symbol=None, j_symbol=None, sigma=1.):
+    """ Compute the rbf (AKA Gaussian) kernel.
+
+    Parameters
+    ----------
+    feature_i : np.array
+        Atomic fingerprint for central atom.
+    feature_j : np.array
+        Atomic fingerprint for j atom.
+    i_symbol : str
+        Chemical symbol for central atom.
+    j_symbol : str
+        Chemical symbol for j atom.
+    sigma : float
+        Gaussian width.
+
+    Returns
+    -------
+    rbf :float
+        RBF kernel.
+    """
+
+    if i_symbol != j_symbol:
+        return 0.
+    else:
+        rbf = np.exp(-(np.linalg.norm(feature_i - feature_j) ** 2.) /
+                     (2. * sigma ** 2.))
+        return rbf
 
 
-def exponential(feature_i, feature_j, sigma=1.):
-    """ Compute the exponential kernel"""
-    exponential = np.exp(-(np.linalg.norm(feature_i - feature_j)) /
-                         (2. * sigma ** 2))
-    return exponential
+def exponential(feature_i, feature_j, i_symbol=None, j_symbol=None, sigma=1.):
+    """ Compute the exponential kernel
+
+    Parameters
+    ----------
+    feature_i : np.array
+        Atomic fingerprint for central atom.
+    feature_j : np.array
+        Atomic fingerprint for j atom.
+    i_symbol : str
+        Chemical symbol for central atom.
+    j_symbol : str
+        Chemical symbol for j atom.
+    sigma : float
+        Gaussian width.
+
+    Returns
+    -------
+    exponential : float
+        Exponential kernel.
+    """
+
+    if i_symbol != j_symbol:
+        return 0.
+    else:
+        exponential = np.exp(-(np.linalg.norm(feature_i - feature_j)) /
+                             (2. * sigma ** 2))
+        return exponential
 
 
-def laplacian(feature_i, feature_j, sigma=1.):
-    """ Compute the laplacian kernel"""
-    laplacian = np.exp(-(np.linalg.norm(feature_i - feature_j)) / sigma)
-    return laplacian
+def laplacian(feature_i, feature_j, i_symbol=None, j_symbol=None, sigma=1.):
+    """ Compute the laplacian kernel
+
+    Parameters
+    ----------
+    feature_i : np.array
+        Atomic fingerprint for central atom.
+    feature_j : np.array
+        Atomic fingerprint for j atom.
+    i_symbol : str
+        Chemical symbol for central atom.
+    j_symbol : str
+        Chemical symbol for j atom.
+    sigma : float
+        Gaussian width.
+
+    Returns
+    -------
+    laplacian : float
+        Laplacian kernel.
+    """
+
+    if i_symbol != j_symbol:
+        return 0.
+    else:
+        laplacian = np.exp(-(np.linalg.norm(feature_i - feature_j)) / sigma)
+        return laplacian
 
 
 def ravel_data(train_forces, mode, images, fingerprints, fingerprintprimes):
