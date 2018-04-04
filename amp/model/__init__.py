@@ -666,7 +666,6 @@ class LossFunction:
             # Calculates derivative of the loss function with respect to
             # parameters if lossprime is true
             if lossprime:
-                fingerprintprimes = descriptor.fingerprintprimes
                 if model.parameters.mode == 'image-centered':
                     raise NotImplementedError('This needs to be coded.')
                 elif model.parameters.mode == 'atom-centered':
@@ -685,6 +684,7 @@ class LossFunction:
                     dloss_dparameters += temp
 
             if p.force_coefficient is not None:
+                fingerprintprimes = descriptor.fingerprintprimes
                 amp_forces = \
                     model.calculate_forces(fingerprints[hash],
                                            fingerprintprimes[hash])
