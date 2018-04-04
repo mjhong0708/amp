@@ -652,7 +652,6 @@ class LossFunction:
         images = self._model.trainingparameters.images
         descriptor = self._model.trainingparameters.descriptor
         fingerprints = descriptor.fingerprints
-        fingerprintprimes = descriptor.fingerprintprimes
         for hash in images.keys():
             image = images[hash]
             no_of_atoms = len(image)
@@ -667,6 +666,7 @@ class LossFunction:
             # Calculates derivative of the loss function with respect to
             # parameters if lossprime is true
             if lossprime:
+                fingerprintprimes = descriptor.fingerprintprimes
                 if model.parameters.mode == 'image-centered':
                     raise NotImplementedError('This needs to be coded.')
                 elif model.parameters.mode == 'atom-centered':
