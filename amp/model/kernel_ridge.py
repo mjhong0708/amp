@@ -937,9 +937,10 @@ class KRR(Model):
 
     Parameters
     ----------
-    sigma : float
+    sigma : float, list
         Length scale of the Gaussian in the case of RBF, exponential, and
-        laplacian kernels. Default is 1.
+        laplacian kernels. Default is 1 for computing isotropic kernels. Pass
+        a list if you would like to compute anisotropic kernels.
     kernel : str
         Choose the kernel. Available kernels are: 'linear', 'rbf', 'laplacian',
         and 'exponential'. Default is 'rbf'.
@@ -1115,7 +1116,12 @@ class KRR(Model):
 
         if len(list(self.kernel_e.keys())) == 0:
 
-            log('Calculating %s kernel...' % self.kernel, tic='kernel')
+            if isinstance(p.sigma, list):
+                log('Calculating anisotropic %s kernel...' % self.kernel,
+                    tic='kernel')
+            else:
+                log('Calculating isotropic %s kernel...' % self.kernel,
+                    tic='kernel')
             log('Parameters:')
             log('    lamda: %s' % self.lamda)
             log('    sigma: %s' % self.sigma)
@@ -1171,7 +1177,7 @@ class KRR(Model):
                                         prop is 'forces'):
                                     if p.weights_independent is True:
                                         size = \
-                                            len(self.reference_features_f[symbol][0])
+                                            len(self.ref_features_f[symbol][0])
                                         if self.randomize_weights:
                                             weights[prop][symbol] = \
                                                     np.random.uniform(
@@ -1180,7 +1186,8 @@ class KRR(Model):
                                                     size=(3, size)
                                                     )
                                         else:
-                                            weights[prop][symbol] = np.ones((3, size))
+                                            weights[prop][symbol] = np.ones(
+                                                                    (3, size))
                                     else:
                                         weights[prop][symbol] = \
                                                 np.ones(size)
@@ -1198,8 +1205,8 @@ class KRR(Model):
         else:
             try:
                 if self.nnpartition is None:
-                    log('Starting atomic energy decomposition Ansatz to obtain '
-                        'regression coefficients', tic='energy')
+                    log('Starting atomic energy decomposition Ansatz to obtain'
+                        ' regression coefficients', tic='energy')
 
                     size = len(self.reference_features_e)
                     K = self.kij.reshape(size, size)
@@ -1209,7 +1216,8 @@ class KRR(Model):
                     betas = np.linalg.solve(cholesky_U.T, self.energy_targets)
                     _weights = np.linalg.solve(cholesky_U, betas)
 
-                    log('Shape of kernel energy matrix is {}.' .format(K.shape))
+                    log('Shape of kernel energy matrix is {}.'
+                        .format(K.shape))
 
                     weights = [w * g for index, w in enumerate(_weights) for
                                g in self.fingerprint_map[index]]
@@ -1219,7 +1227,7 @@ class KRR(Model):
 
                     p.weights['energy'] = weights
                 else:
-                    log('Starting Cholesky decomposition of kernel energy matrix '
+                    log('Starting Cholesky decomposition of kernel energy '
                         'to get upper triangular matrix.',
                         tic='cholesky_energy_kernel')
                     symbols = []
@@ -1234,7 +1242,8 @@ class KRR(Model):
 
                         cholesky_U = cholesky((kernel + self.lamda * I_e))
 
-                        betas = np.linalg.solve(cholesky_U.T, self.energy_targets[symbol])
+                        betas = np.linalg.solve(cholesky_U.T,
+                                                self.energy_targets[symbol])
                         weights = np.linalg.solve(cholesky_U, betas)
                         p.weights['energy'][symbol] = weights
 
@@ -1408,7 +1417,6 @@ class KRR(Model):
                     network, self.energy_targets is a dictionary and has to be
                     populated in here using the atomic_energies from the NN.
                     """
-                    #FIXME energy = trainingimages[hash].get_potential_energy()
                     for index, (symbol, afp) in enumerate(
                             fp_trainingimages[hash]):
                         if symbol not in self.kernel_e_loss.keys():
@@ -1427,7 +1435,8 @@ class KRR(Model):
                                         afp,
                                         index,
                                         symbol)
-                        self.energy_targets[symbol].append(np.array(atomic_energy))
+                        self.energy_targets[symbol].append(np.array(
+                                                           atomic_energy))
                     """ For debugging purposes only
                         total_energy += atomic_energy
                     print('DFT energy:', energy)
@@ -1496,7 +1505,7 @@ class KRR(Model):
         fingerprintprimes = t_descriptor.fingerprintprimes
 
         self.force_features = OrderedDict()
-        self.reference_features_f = OrderedDict()
+        self.ref_features_f = OrderedDict()
 
         for hash in hashes:
             self.force_features[hash] = OrderedDict()
@@ -1513,8 +1522,8 @@ class KRR(Model):
                         (selfindex, selfsymbol)] = OrderedDict()
                 fprime_sum_x, fprime_sum_y, fprime_sum_z = 0., 0., 0.
 
-                if selfsymbol not in self.reference_features_f.keys():
-                    self.reference_features_f[selfsymbol] = OrderedDict()
+                if selfsymbol not in self.ref_features_f.keys():
+                    self.ref_features_f[selfsymbol] = OrderedDict()
 
                 # Here we sum all different contributions of the derivatives of
                 # the fingerprints
@@ -1533,19 +1542,19 @@ class KRR(Model):
                                     fingerprintprimes[hash][key])
 
                 for component in range(3):
-                    keys = self.reference_features_f[selfsymbol].keys()
+                    keys = self.ref_features_f[selfsymbol].keys()
                     if component not in keys:
-                        self.reference_features_f[selfsymbol][component] = []
+                        self.ref_features_f[selfsymbol][component] = []
 
                     if component == 0:
                         afps_prime_x.append(fprime_sum_x)
-                        self.reference_features_f[selfsymbol][component].append(
+                        self.ref_features_f[selfsymbol][component].append(
                                 fprime_sum_x)
                         self.force_features[hash][(
                             selfindex,
                             selfsymbol)][component] = fprime_sum_x
                     elif component == 1:
-                        self.reference_features_f[selfsymbol][component].append(
+                        self.ref_features_f[selfsymbol][component].append(
                                 fprime_sum_y)
                         afps_prime_y.append(fprime_sum_y)
                         self.force_features[hash][(
@@ -1553,7 +1562,7 @@ class KRR(Model):
                             selfsymbol)][component] = fprime_sum_y
                     else:
                         afps_prime_z.append(fprime_sum_z)
-                        self.reference_features_f[selfsymbol][component].append(
+                        self.ref_features_f[selfsymbol][component].append(
                                 fprime_sum_z)
                         self.force_features[hash][(
                             selfindex,
@@ -1591,7 +1600,7 @@ class KRR(Model):
                                 (selfindex, selfsymbol)][component]
                         _kernel = self.kernel_matrix(
                                 afp,
-                                self.reference_features_f[selfsymbol][component],
+                                self.ref_features_f[selfsymbol][component],
                                 kernel=self.kernel
                                 )
                         self.kernel_f[hash][
@@ -1610,7 +1619,8 @@ class KRR(Model):
                     for component in self.kernel_f_cholesky[symbol].keys():
                         _s = len(self.kernel_f_cholesky[symbol][component])
                         arr = np.array(
-                                self.kernel_f_cholesky[symbol][component]).reshape(_s, _s)
+                                self.kernel_f_cholesky[symbol][component]
+                                ).reshape(_s, _s)
                         self.kernel_f_cholesky[symbol][component] = arr
             return self.kernel_f
 
@@ -1790,9 +1800,9 @@ class KRR(Model):
                         ((index, symbol))].dot(weights['energy'][symbol])
         return atomic_amp_energy
 
-    def energy_from_cholesky(self, symbol=None, afp=None, hash=None, fp_trainingimages=None,
-                             trainingimages=None, kernel=None, sigma=None,
-                             fingerprints=None):
+    def energy_from_cholesky(self, symbol=None, afp=None, hash=None,
+                             fp_trainingimages=None, trainingimages=None,
+                             kernel=None, sigma=None, fingerprints=None):
         """
         Given input to the KRR model, output (which corresponds to energy)
         is calculated about the specified atom. The sum of these for all
@@ -1898,7 +1908,7 @@ class KRR(Model):
                         component == afp[-1]):
                     fprime += np.array(fingerprintprimes[afp])
 
-            features = self.reference_features_f[symbol][component]
+            features = self.ref_features_f[symbol][component]
             kernel = self.kernel_matrix(fprime, features, kernel=self.kernel,
                                         sigma=sigma)
             if (self.weights_independent is True and self.cholesky is False):
@@ -1954,7 +1964,7 @@ class KRR(Model):
 
         if len(list(self.kernel_f.keys())) == 0 or hash not in self.kernel_f:
             try:
-                self.reference_features_f
+                self.ref_features_f
             except AttributeError:
                 self.get_forces_kernel(
                         trainingimages=trainingimages,
@@ -1968,7 +1978,7 @@ class KRR(Model):
                         component == afp[-1]):
                     fprime += np.array(fingerprintprimes[afp])
 
-            features = self.reference_features_f[symbol][component]
+            features = self.ref_features_f[symbol][component]
             kernel = self.kernel_matrix(
                             fprime,
                             features,
@@ -1984,7 +1994,8 @@ class KRR(Model):
                         )
         return force
 
-    def kernel_matrix(self, feature, features, feature_symbol=None, kernel='rbf', sigma=1.):
+    def kernel_matrix(self, feature, features, feature_symbol=None,
+                      kernel='rbf', sigma=1.):
         """This method takes as arguments a feature vector and a string that refers
         to the kernel type used.
 
@@ -2220,8 +2231,9 @@ def rbf(feature_i, feature_j, i_symbol=None, j_symbol=None, sigma=1.):
         Chemical symbol for central atom.
     j_symbol : str
         Chemical symbol for j atom.
-    sigma : float
-        Gaussian width.
+    sigma : float, or list.
+        Gaussian width. If passed as a list or np.darray, kernel can become
+        anisotropic.
 
     Returns
     -------
@@ -2232,9 +2244,16 @@ def rbf(feature_i, feature_j, i_symbol=None, j_symbol=None, sigma=1.):
     if i_symbol != j_symbol:
         return 0.
     else:
-        rbf = np.exp(-(np.linalg.norm(feature_i - feature_j) ** 2.) /
-                     (2. * sigma ** 2.))
-        return rbf
+        if isinstance(sigma, list) or isinstance(sigma, np.ndarray):
+            sigma = np.array(sigma)
+            anisotropic_rbf = np.exp(-(np.sum(np.divide(np.square(
+                              np.subtract(feature_i, feature_j)),
+                                          (2. * np.square(sigma))))))
+            return anisotropic_rbf
+        else:
+            rbf = np.exp(-(np.linalg.norm(feature_i - feature_j) ** 2.) /
+                         (2. * sigma ** 2.))
+            return rbf
 
 
 def exponential(feature_i, feature_j, i_symbol=None, j_symbol=None, sigma=1.):
@@ -2250,7 +2269,7 @@ def exponential(feature_i, feature_j, i_symbol=None, j_symbol=None, sigma=1.):
         Chemical symbol for central atom.
     j_symbol : str
         Chemical symbol for j atom.
-    sigma : float
+    sigma : float, or list.
         Gaussian width.
 
     Returns
@@ -2312,8 +2331,8 @@ def ravel_data(train_forces, mode, images, fingerprints, fingerprintprimes):
         path to an ASE trajectory (.traj) or database (.db) file. Energies can
         be obtained from any reference, e.g. DFT calculations.
     fingerprints : dict
-        Dictionary with images hashes as keys and the corresponding fingerprints
-        as values.
+        Dictionary with images hashes as keys and the corresponding
+        fingerprints as values.
     fingerprintprimes : dict
         Dictionary with images hashes as keys and the corresponding fingerprint
         derivatives as values.
