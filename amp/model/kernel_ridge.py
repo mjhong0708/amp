@@ -2245,6 +2245,10 @@ def rbf(feature_i, feature_j, i_symbol=None, j_symbol=None, sigma=1.):
         return 0.
     else:
         if isinstance(sigma, list) or isinstance(sigma, np.ndarray):
+            assert(len(sigma) == len(feature_i) and
+                   len(sigma) == len(feature_j)), "Lenght of sigma does not " \
+                                                  "match atomic fingerprint " \
+                                                  "lenght."
             sigma = np.array(sigma)
             anisotropic_rbf = np.exp(-(np.sum(np.divide(np.square(
                               np.subtract(feature_i, feature_j)),
@@ -2281,9 +2285,20 @@ def exponential(feature_i, feature_j, i_symbol=None, j_symbol=None, sigma=1.):
     if i_symbol != j_symbol:
         return 0.
     else:
-        exponential = np.exp(-(np.linalg.norm(feature_i - feature_j)) /
-                             (2. * sigma ** 2))
-        return exponential
+        if isinstance(sigma, list) or isinstance(sigma, np.ndarray):
+            assert(len(sigma) == len(feature_i) and
+                   len(sigma) == len(feature_j)), "Lenght of sigma does not " \
+                                                  "match atomic fingerprint " \
+                                                  "lenght."
+            sigma = np.array(sigma)
+            anisotropic_exp = np.exp(-(np.sqrt(np.sum(np.square(
+                          np.divide(np.subtract(feature_i, feature_j),
+                                               (2. * np.square(sigma))))))))
+            return anisotropic_exp
+        else:
+            exponential = np.exp(-(np.linalg.norm(feature_i - feature_j)) /
+                                 (2. * sigma ** 2))
+            return exponential
 
 
 def laplacian(feature_i, feature_j, i_symbol=None, j_symbol=None, sigma=1.):
@@ -2311,7 +2326,18 @@ def laplacian(feature_i, feature_j, i_symbol=None, j_symbol=None, sigma=1.):
     if i_symbol != j_symbol:
         return 0.
     else:
-        laplacian = np.exp(-(np.linalg.norm(feature_i - feature_j)) / sigma)
+        if isinstance(sigma, list) or isinstance(sigma, np.ndarray):
+            assert(len(sigma) == len(feature_i) and
+                   len(sigma) == len(feature_j)), "Lenght of sigma does not " \
+                                                  "match atomic fingerprint " \
+                                                  "lenght."
+            sigma = np.array(sigma)
+            anisotropic_lap = np.exp(-(np.sqrt(np.sum(np.square(
+                          np.divide(np.subtract(feature_i, feature_j),
+                                                sigma))))))
+            return anisotropic_lap
+        else:
+            laplacian = np.exp(-(np.linalg.norm(feature_i - feature_j)) / sigma)
         return laplacian
 
 
