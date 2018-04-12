@@ -415,6 +415,9 @@ class Amp(Calculator, object):
             #write G2s
             for symmetry_function in range(0, num_G2, length_G2):
                 eta = descriptor_parameters['Gs'][element][symmetry_function]['eta']
+                if (eta > 10):
+                    import warnings
+                    warnings.warn('Conversion from Amp to PROPhet leads to energies and forces being calculated correctly to within machine precision. With the chosen eta of '+str(eta)+' being greater than 10, it is possible that Amp and PROPhet results will not be equal, so the neural net should not be used in both codes. Please lower the eta value.')
                 for i in range(length_G2):
                     eta2 = descriptor_parameters['Gs'][element][symmetry_function+i]['eta']
                     if eta!=eta2:
@@ -423,6 +426,9 @@ class Amp(Calculator, object):
             #write G4s (G3s in PROPhet)
             for symmetry_function in range(num_G2, num_G2+num_G4, length_G4):
                 eta = descriptor_parameters['Gs'][element][symmetry_function]['eta']
+                if (eta > 10):
+                    import warnings
+                    warnings.warn('Conversion from Amp to PROPhet leads to energies and forces being calculated correctly to within machine precision. With the chosen eta of '+str(eta)+' being greater than 10, it is possible that Amp and PROPhet results will not be equal, so the neural net should not be used in both codes. Please lower the eta value.')
                 gamma = descriptor_parameters['Gs'][element][symmetry_function]['gamma']
                 zeta = descriptor_parameters['Gs'][element][symmetry_function]['zeta']
                 for i in range(length_G4):
