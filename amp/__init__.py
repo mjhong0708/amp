@@ -371,10 +371,6 @@ class Amp(Calculator, object):
             If an output file with the same name exists, overwrite it.
         """
 
-        def tri_num(n):
-            """Calculates the n-th triangular number"""
-            return int(n*(n+1)/2)
-
         if os.path.exists(filename):
             if overwrite is False:
                 oldfilename = filename
@@ -446,8 +442,8 @@ class Amp(Calculator, object):
             for element_index_1 in range(num_elements):
                 for element_index_2 in range(num_elements-element_index_1):
                     for symmetry_function in range(num_G2, num_G2 + num_G4, length_G4):
-                        #if element==descriptor_parameters['elements'][0]: print(descriptor_parameters['Gs'][element][symmetry_function+element_index_2+tri_num(num_elements)-tri_num(num_elements-element_index_1)]) # for debugging, to see the order of the PROPhet input file
-                        mean = (model_parameters['fprange'][element][symmetry_function+element_index_2+tri_num(num_elements)-tri_num(num_elements-element_index_1)][1]+model_parameters['fprange'][element][symmetry_function+element_index_2+tri_num(num_elements)-tri_num(num_elements-element_index_1)][0])
+                        #if element==descriptor_parameters['elements'][0]: print(descriptor_parameters['Gs'][element][symmetry_function+element_index_2+num_elements*element_index_1+int((element_index_1-element_index_1**2)/2)]) # for debugging, to see the order of the PROPhet input file
+                        mean = (model_parameters['fprange'][element][symmetry_function+element_index_2+num_elements*element_index_1+int((element_index_1-element_index_1**2)/2)][1]+model_parameters['fprange'][element][symmetry_function+element_index_2+num_elements*element_index_1+int((element_index_1-element_index_1**2)/2)][0])
                         # we double this mean to correct for PROPhet counting each neighbor pair twice as much as Amp
                         f.write(str(mean )+ ' ')
             f.write('\n')
@@ -460,7 +456,7 @@ class Amp(Calculator, object):
             for element_index_1 in range(num_elements):
                 for element_index_2 in range(num_elements-element_index_1):
                     for symmetry_function in range(num_G2, num_G2 + num_G4, length_G4):
-                        variance = (model_parameters['fprange'][element][symmetry_function+element_index_2+tri_num(num_elements)-tri_num(num_elements-element_index_1)][1]-model_parameters['fprange'][element][symmetry_function+element_index_2+tri_num(num_elements)-tri_num(num_elements-element_index_1)][0])
+                        variance = (model_parameters['fprange'][element][symmetry_function+element_index_2+num_elements*element_index_1+int((element_index_1-element_index_1**2)/2)][1]-model_parameters['fprange'][element][symmetry_function+element_index_2+num_elements*element_index_1+int((element_index_1-element_index_1**2)/2)][0])
                         # we double this variance to correct for PROPhet counting each neighbor pair twice as much as Amp
                         f.write(str(variance )+ ' ')
             f.write('\n')
@@ -489,7 +485,7 @@ class Amp(Calculator, object):
                     for element_index_1 in range(num_elements):
                         for element_index_2 in range(num_elements-element_index_1):
                             for symmetry_function in range(num_G2, num_G2 + num_G4, length_G4):
-                                f.write(str(model_parameters['weights'][element][layer+1][symmetry_function+element_index_2+tri_num(num_elements)-tri_num(num_elements-element_index_1)][node]) + '     ')
+                                f.write(str(model_parameters['weights'][element][layer+1][symmetry_function+element_index_2+num_elements*element_index_1+int((element_index_1-element_index_1**2)/2)][node]) + '     ')
                     f.write('\n')
                     f.write('   ' + str(model_parameters['weights'][element][layer+1][-1][node]) + '\n')
                     curr_node += 1
