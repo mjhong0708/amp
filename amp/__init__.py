@@ -359,6 +359,160 @@ class Amp(Calculator, object):
         p.write(filename)
         return filename
 
+    def save_to_prophet(self, filename='potential_', overwrite=False):
+        #TODO check on units. At the moment, eta is in angstroms, and the energy output is probably in eV (good for LAMMPS style metal), but I should really ask the user to provide the LAMMPS units type for the conversion.
+        """Saves the calculator in a way that it can be used with PROPhet.
+
+        Parameters
+        ----------
+        filename : str
+            File object or path to the file to write to.
+        overwrite : bool
+            If an output file with the same name exists, overwrite it.
+        """
+
+        def tri_num(n):
+            """Calculates the n-th triangular number"""
+            return int(n*(n+1)/2)
+
+        if os.path.exists(filename):
+            if overwrite is False:
+                oldfilename = filename
+                filename = tempfile.NamedTemporaryFile(mode='w', delete=False,
+                                                       suffix='.amp').name
+                self._log('File "%s" exists. Instead saving to "%s".' %
+                          (oldfilename, filename))
+            else:
+                oldfilename = tempfile.NamedTemporaryFile(mode='w',
+                                                          delete=False,
+                                                          suffix='.amp').name
+
+                self._log('Overwriting file: "%s". Moving original to "%s".'
+                          % (filename, oldfilename))
+                shutil.move(filename, oldfilename)
+
+        descriptor_parameters = self.descriptor.parameters
+        model_parameters = self.model.parameters
+        if ((descriptor_parameters['mode']!='atom-centered') or
+           (descriptor_parameters['cutoff']['name']!='Cosine') or
+           (model_parameters['mode']!='atom-centered') or
+           (model_parameters['activation']!='tanh')):
+            raise NotImplementedError('PROPhet is not setup for this.')
+        elements = descriptor_parameters['elements']
+        num_elements = len(elements)
+        length_G2 = int(num_elements)
+        length_G4 = int(num_elements*(num_elements+1)/2)
+        cutoff = descriptor_parameters['cutoff']['kwargs']['Rc']
+        for element in descriptor_parameters['elements']:
+            f = open(filename+element, 'w')
+            #write header
+            f.write('nn\n')
+            f.write('structure\n')
+            #write elements
+            f.write(element + ':  ')
+            for element_i in elements:
+                f.write(element_i+' ')
+            f.write('\n')
+            num_G2 = sum(1 for k in descriptor_parameters['Gs'][element] if k['type']=='G2')
+            num_G4 = sum(1 for k in descriptor_parameters['Gs'][element] if k['type']=='G4')
+            f.write(str(int(num_G2/length_G2+num_G4/length_G4))+'\n')
+            #write G2s
+            for symmetry_function in range(0, num_G2, length_G2):
+                eta = descriptor_parameters['Gs'][element][symmetry_function]['eta']
+                for i in range(length_G2):
+                    eta2 = descriptor_parameters['Gs'][element][symmetry_function+i]['eta']
+                    if eta!=eta2:
+                        raise NotImplementedError('PROPhet is not setup for this.')
+                f.write('G2 ' + str(cutoff) + ' 0 ' + str(eta/cutoff**2) + ' 0\n')
+            #write G4s (G3s in PROPhet)
+            for symmetry_function in range(num_G2, num_G2+num_G4, length_G4):
+                eta = descriptor_parameters['Gs'][element][symmetry_function]['eta']
+                gamma = descriptor_parameters['Gs'][element][symmetry_function]['gamma']
+                zeta = descriptor_parameters['Gs'][element][symmetry_function]['zeta']
+                for i in range(length_G4):
+                    eta2 = descriptor_parameters['Gs'][element][symmetry_function+i]['eta']
+                    gamma2 = descriptor_parameters['Gs'][element][symmetry_function+i]['gamma']
+                    zeta2 = descriptor_parameters['Gs'][element][symmetry_function+i]['zeta']
+                    if (eta!=eta2) or (gamma!=gamma2) or (zeta!=zeta2):
+                        raise NotImplementedError('PROPhet is not setup for this.')
+                f.write('G3 ' + str(cutoff) + ' 0 ' + str(eta/cutoff**2) + ' ' + str(int(zeta)) + ' ' + str(int(gamma)) + '\n')
+            # write input means for G2
+            for element_index_1 in range(num_elements):
+                for symmetry_function in range(0, num_G2, length_G2):
+                    #if element==descriptor_parameters['elements'][0]: print(descriptor_parameters['Gs'][element][symmetry_function+element_index_1]) # for debugging, to see the order of the PROPhet input file
+                    mean = (model_parameters['fprange'][element][symmetry_function+element_index_1][1]+model_parameters['fprange'][element][symmetry_function+element_index_1][0])/2.
+                    f.write(str(mean )+ ' ')
+            # write input means for G4
+            for element_index_1 in range(num_elements):
+                for element_index_2 in range(num_elements-element_index_1):
+                    for symmetry_function in range(num_G2, num_G2 + num_G4, length_G4):
+                        #if element==descriptor_parameters['elements'][0]: print(descriptor_parameters['Gs'][element][symmetry_function+element_index_2+tri_num(num_elements)-tri_num(num_elements-element_index_1)]) # for debugging, to see the order of the PROPhet input file
+                        mean = (model_parameters['fprange'][element][symmetry_function+element_index_2+tri_num(num_elements)-tri_num(num_elements-element_index_1)][1]+model_parameters['fprange'][element][symmetry_function+element_index_2+tri_num(num_elements)-tri_num(num_elements-element_index_1)][0])
+                        # we double this mean to correct for PROPhet counting each neighbor pair twice as much as Amp
+                        f.write(str(mean )+ ' ')
+            f.write('\n')
+            # write input variances for G2
+            for element_index_1 in range(num_elements):
+                for symmetry_function in range(0, num_G2, length_G2):
+                    variance = (model_parameters['fprange'][element][symmetry_function+element_index_1][1]-model_parameters['fprange'][element][symmetry_function+element_index_1][0])/2.
+                    f.write(str(variance )+ ' ')
+            # write input variances for G4
+            for element_index_1 in range(num_elements):
+                for element_index_2 in range(num_elements-element_index_1):
+                    for symmetry_function in range(num_G2, num_G2 + num_G4, length_G4):
+                        variance = (model_parameters['fprange'][element][symmetry_function+element_index_2+tri_num(num_elements)-tri_num(num_elements-element_index_1)][1]-model_parameters['fprange'][element][symmetry_function+element_index_2+tri_num(num_elements)-tri_num(num_elements-element_index_1)][0])
+                        # we double this variance to correct for PROPhet counting each neighbor pair twice as much as Amp
+                        f.write(str(variance )+ ' ')
+            f.write('\n')
+            f.write('energy\n')
+            # write output mean
+            f.write('0\n')
+            # write output variance
+            f.write('1\n')
+            curr_node = 0
+            # write NN layer architecture
+            for nodes in model_parameters['hiddenlayers'][element]:
+                f.write(str(nodes)+' ')
+            f.write('1\n')
+            # write hidden layers of the NN
+            for layer in range(len(model_parameters['hiddenlayers'][element])):
+                f.write('[[ layer ' + str(layer) + ' ]]\n')
+                # write each node of the layer
+                for node in range(model_parameters['hiddenlayers'][element][layer]):
+                    f.write('  [ node ' + str(curr_node) + ' ]  tanh\n')
+                    f.write('   ')
+                    # G2
+                    for element_index_1 in range(num_elements):
+                        for symmetry_function in range(0, num_G2, length_G2):
+                            f.write(str(model_parameters['weights'][element][layer+1][symmetry_function+element_index_1][node]) + '     ')
+                    # G4
+                    for element_index_1 in range(num_elements):
+                        for element_index_2 in range(num_elements-element_index_1):
+                            for symmetry_function in range(num_G2, num_G2 + num_G4, length_G4):
+                                f.write(str(model_parameters['weights'][element][layer+1][symmetry_function+element_index_2+tri_num(num_elements)-tri_num(num_elements-element_index_1)][node]) + '     ')
+                    f.write('\n')
+                    f.write('   ' + str(model_parameters['weights'][element][layer+1][-1][node]) + '\n')
+                    curr_node += 1
+            # write output layer of the NN, consisting of one final activated node
+            f.write('[[ layer ' + str(layer+1) + ' ]]\n')
+            f.write('  [ node ' + str(curr_node) + ' ]  tanh\n')
+            f.write('   ')
+            for i in range(len(model_parameters['weights'][element][layer+2])-1):
+                f.write(str(model_parameters['weights'][element][layer+2][i][0]) + '     ')
+            f.write('\n')
+            f.write('   ' + str(model_parameters['weights'][element][layer+2][-1][0]) + '\n')
+            curr_node += 1
+            # write output layer of the NN, consisting of one linear node, representing Amp's scaling
+            f.write('[[ layer ' + str(layer+2) + ' ]]\n')
+            f.write('  [ node ' + str(curr_node) + ' ]  linear\n')
+            f.write('   ')
+            f.write(str(model_parameters['scalings'][element]['slope']))
+            f.write('\n')
+            f.write('   ' + str(model_parameters['scalings'][element]['intercept']) + '\n')
+                    
+
+            f.close()
+
     def _printheader(self, log):
         """Prints header to log file; inspired by that in GPAW.
         """
