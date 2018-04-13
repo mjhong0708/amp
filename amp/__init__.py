@@ -359,8 +359,8 @@ class Amp(Calculator, object):
         p.write(filename)
         return filename
 
-    def save_to_prophet(self, filename='potential_', overwrite=False):
-        #TODO check on units. At the moment, eta is in angstroms, and the energy output is probably in eV (good for LAMMPS style metal), but I should really ask the user to provide the LAMMPS units type for the conversion.
+    def save_to_prophet(self, filename='potential_', overwrite=False,
+                        units="metal"):
         """Saves the calculator in a way that it can be used with PROPhet.
 
         Parameters
@@ -369,7 +369,11 @@ class Amp(Calculator, object):
             File object or path to the file to write to.
         overwrite : bool
             If an output file with the same name exists, overwrite it.
+        units : str
+            LAMMPS units style to be used with the outfile file.
         """
+
+        from ase.calculators.lammpslib import unit_convert
 
         if os.path.exists(filename):
             if overwrite is False:
@@ -399,7 +403,8 @@ class Amp(Calculator, object):
         n_els = len(els)
         length_G2 = int(n_els)
         length_G4 = int(n_els*(n_els+1)/2)
-        cutoff = desc_pars['cutoff']['kwargs']['Rc']
+        cutoff = (desc_pars['cutoff']['kwargs']['Rc'] /
+                  unit_convert('distance', units))
         for el in desc_pars['elements']:
             f = open(filename+el, 'w')
             #write header
@@ -546,10 +551,12 @@ class Amp(Calculator, object):
             f.write('[[ layer ' + str(layer+2) + ' ]]\n')
             f.write('  [ node ' + str(curr_node) + ' ]  linear\n')
             f.write('   ')
-            f.write(str(model_pars['scalings'][el]['slope']))
+            f.write(str(model_pars['scalings'][el]['slope'] /
+                        unit_convert('energy', units)))
             f.write('\n')
             f.write('   ')
-            f.write(str(model_pars['scalings'][el]['intercept']))
+            f.write(str(model_pars['scalings'][el]['intercept'] /
+                        unit_convert('energy', units)))
             f.write('\n')
             f.close()
 
