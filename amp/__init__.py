@@ -387,83 +387,113 @@ class Amp(Calculator, object):
                           % (filename, oldfilename))
                 shutil.move(filename, oldfilename)
 
-        descriptor_parameters = self.descriptor.parameters
-        model_parameters = self.model.parameters
-        if ((descriptor_parameters['mode']!='atom-centered') or
-           (descriptor_parameters['cutoff']['name']!='Cosine') or
-           (model_parameters['mode']!='atom-centered') or
-           (model_parameters['activation']!='tanh')):
-            raise NotImplementedError('PROPhet is not setup for this.')
-        elements = descriptor_parameters['elements']
-        num_elements = len(elements)
-        length_G2 = int(num_elements)
-        length_G4 = int(num_elements*(num_elements+1)/2)
-        cutoff = descriptor_parameters['cutoff']['kwargs']['Rc']
-        for element in descriptor_parameters['elements']:
-            f = open(filename+element, 'w')
+        desc_pars = self.descriptor.parameters
+        model_pars = self.model.parameters
+        if ((desc_pars['mode']!='atom-centered') or
+           (desc_pars['cutoff']['name']!='Cosine') or
+           (model_pars['mode']!='atom-centered') or
+           (model_pars['activation']!='tanh')):
+            raise NotImplementedError(
+                'PROPhet requires tanh activation functions.')
+        els = desc_pars['elements']
+        n_els = len(els)
+        length_G2 = int(n_els)
+        length_G4 = int(n_els*(n_els+1)/2)
+        cutoff = desc_pars['cutoff']['kwargs']['Rc']
+        for el in desc_pars['elements']:
+            f = open(filename+el, 'w')
             #write header
             f.write('nn\n')
             f.write('structure\n')
             #write elements
-            f.write(element + ':  ')
-            for element_i in elements:
-                f.write(element_i+' ')
+            f.write(el + ':  ')
+            for el_i in els:
+                f.write(el_i+' ')
             f.write('\n')
-            num_G2 = sum(1 for k in descriptor_parameters['Gs'][element] if k['type']=='G2')
-            num_G4 = sum(1 for k in descriptor_parameters['Gs'][element] if k['type']=='G4')
-            f.write(str(int(num_G2/length_G2+num_G4/length_G4))+'\n')
+            n_G2 = sum(1 for k in desc_pars['Gs'][el] if k['type']=='G2')
+            n_G4 = sum(1 for k in desc_pars['Gs'][el] if k['type']=='G4')
+            f.write(str(int(n_G2/length_G2+n_G4/length_G4))+'\n')
             #write G2s
-            for symmetry_function in range(0, num_G2, length_G2):
-                eta = descriptor_parameters['Gs'][element][symmetry_function]['eta']
+            for Gs in range(0, n_G2, length_G2):
+                eta = desc_pars['Gs'][el][Gs]['eta']
                 if (eta > 10):
-                    import warnings
-                    warnings.warn('Conversion from Amp to PROPhet leads to energies and forces being calculated correctly to within machine precision. With the chosen eta of '+str(eta)+' being greater than 10, it is possible that Amp and PROPhet results will not be equal, so the neural net should not be used in both codes. Please lower the eta value.')
+                    warnings.warn(
+                        'Conversion from Amp to PROPhet leads to energies and '
+                        'forces being calculated correctly to within machine '
+                        'precision. With the chosen eta of ' +str(eta) + ' '
+                        'being greater than 10, it is possible that the '
+                        'results of the two codes will not be equal, so the '
+                        'neural net should not be used with both codes.'
+                        'Please lower the eta values.')
                 for i in range(length_G2):
-                    eta2 = descriptor_parameters['Gs'][element][symmetry_function+i]['eta']
-                    if eta!=eta2:
-                        raise NotImplementedError('PROPhet is not setup for this.')
-                f.write('G2 ' + str(cutoff) + ' 0 ' + str(eta/cutoff**2) + ' 0\n')
+                    eta_2 = desc_pars['Gs'][el][Gs+i]['eta']
+                    if eta!=eta_2:
+                        raise NotImplementedError(
+                            'PROPhet requires each G2 function to have the '
+                            'same eta value for all element pairs.')
+                f.write('G2 ' + str(cutoff) + ' 0 ' + str(eta/cutoff**2) +
+                        ' 0\n')
             #write G4s (G3s in PROPhet)
-            for symmetry_function in range(num_G2, num_G2+num_G4, length_G4):
-                eta = descriptor_parameters['Gs'][element][symmetry_function]['eta']
+            for Gs in range(n_G2, n_G2+n_G4, length_G4):
+                eta = desc_pars['Gs'][el][Gs]['eta']
                 if (eta > 10):
-                    import warnings
-                    warnings.warn('Conversion from Amp to PROPhet leads to energies and forces being calculated correctly to within machine precision. With the chosen eta of '+str(eta)+' being greater than 10, it is possible that Amp and PROPhet results will not be equal, so the neural net should not be used in both codes. Please lower the eta value.')
-                gamma = descriptor_parameters['Gs'][element][symmetry_function]['gamma']
-                zeta = descriptor_parameters['Gs'][element][symmetry_function]['zeta']
+                    warnings.warn(
+                        'Conversion from Amp to PROPhet leads to energies and '
+                        'forces being calculated correctly to within machine '
+                        'precision. With the chosen eta of ' +str(eta) + ' '
+                        'being greater than 10, it is possible that the '
+                        'results of the two codes will not be equal, so the '
+                        'neural net should not be used with both codes.'
+                        'Please lower the eta values.')
+                gamma = desc_pars['Gs'][el][Gs]['gamma']
+                zeta = desc_pars['Gs'][el][Gs]['zeta']
                 for i in range(length_G4):
-                    eta2 = descriptor_parameters['Gs'][element][symmetry_function+i]['eta']
-                    gamma2 = descriptor_parameters['Gs'][element][symmetry_function+i]['gamma']
-                    zeta2 = descriptor_parameters['Gs'][element][symmetry_function+i]['zeta']
-                    if (eta!=eta2) or (gamma!=gamma2) or (zeta!=zeta2):
-                        raise NotImplementedError('PROPhet is not setup for this.')
-                f.write('G3 ' + str(cutoff) + ' 0 ' + str(eta/cutoff**2) + ' ' + str(int(zeta)) + ' ' + str(int(gamma)) + '\n')
+                    eta_2 = desc_pars['Gs'][el][Gs+i]['eta']
+                    gamma_2 = desc_pars['Gs'][el][Gs+i]['gamma']
+                    zeta_2 = desc_pars['Gs'][el][Gs+i]['zeta']
+                    if (eta!=eta_2) or (gamma!=gamma_2) or (zeta!=zeta_2):
+                        raise NotImplementedError(
+                            'PROPhet requires each G4 function to have the '
+                            'same eta, gamma, and zeta values for all '
+                            'element pairs.')
+                f.write('G3 ' + str(cutoff) + ' 0 ' + str(eta/cutoff**2) +
+                        ' ' + str(int(zeta)) + ' ' + str(int(gamma)) + '\n')
             # write input means for G2
-            for element_index_1 in range(num_elements):
-                for symmetry_function in range(0, num_G2, length_G2):
-                    #if element==descriptor_parameters['elements'][0]: print(descriptor_parameters['Gs'][element][symmetry_function+element_index_1]) # for debugging, to see the order of the PROPhet input file
-                    mean = (model_parameters['fprange'][element][symmetry_function+element_index_1][1]+model_parameters['fprange'][element][symmetry_function+element_index_1][0])/2.
+            for i in range(n_els):
+                for Gs in range(0, n_G2, length_G2):
+                    # for debugging, to see the order of the PROPhet file
+                    #if el==desc_pars['elements'][0]:
+                    #    print(desc_pars['Gs'][el][Gs+i])
+                    mean = (model_pars['fprange'][el][Gs+i][1] +
+                            model_pars['fprange'][el][Gs+i][0]) / 2.
                     f.write(str(mean )+ ' ')
             # write input means for G4
-            for element_index_1 in range(num_elements):
-                for element_index_2 in range(num_elements-element_index_1):
-                    for symmetry_function in range(num_G2, num_G2 + num_G4, length_G4):
-                        #if element==descriptor_parameters['elements'][0]: print(descriptor_parameters['Gs'][element][symmetry_function+element_index_2+num_elements*element_index_1+int((element_index_1-element_index_1**2)/2)]) # for debugging, to see the order of the PROPhet input file
-                        mean = (model_parameters['fprange'][element][symmetry_function+element_index_2+num_elements*element_index_1+int((element_index_1-element_index_1**2)/2)][1]+model_parameters['fprange'][element][symmetry_function+element_index_2+num_elements*element_index_1+int((element_index_1-element_index_1**2)/2)][0])
-                        # we double this mean to correct for PROPhet counting each neighbor pair twice as much as Amp
+            for i in range(n_els):
+                for j in range(n_els-i):
+                    for Gs in range(n_G2, n_G2 + n_G4, length_G4):
+                        # for debugging, to see the order of the PROPhet file
+                        #if el==desc_pars['elements'][0]:
+                        #    print(desc_pars['Gs'][el][Gs+j+n_els*i+int((i-i**2)/2)])
+                        mean = (model_pars['fprange'][el][Gs+j+n_els*i+int((i-i**2)/2)][1] +
+                                model_pars['fprange'][el][Gs+j+n_els*i+int((i-i**2)/2)][0])
+                        # NB the G4 mean is doubled to correct for PROPhet
+                        # counting each neighbor pair twice as much as Amp
                         f.write(str(mean )+ ' ')
             f.write('\n')
             # write input variances for G2
-            for element_index_1 in range(num_elements):
-                for symmetry_function in range(0, num_G2, length_G2):
-                    variance = (model_parameters['fprange'][element][symmetry_function+element_index_1][1]-model_parameters['fprange'][element][symmetry_function+element_index_1][0])/2.
+            for i in range(n_els):
+                for Gs in range(0, n_G2, length_G2):
+                    variance = (model_pars['fprange'][el][Gs+i][1] -
+                                model_pars['fprange'][el][Gs+i][0]) / 2.
                     f.write(str(variance )+ ' ')
             # write input variances for G4
-            for element_index_1 in range(num_elements):
-                for element_index_2 in range(num_elements-element_index_1):
-                    for symmetry_function in range(num_G2, num_G2 + num_G4, length_G4):
-                        variance = (model_parameters['fprange'][element][symmetry_function+element_index_2+num_elements*element_index_1+int((element_index_1-element_index_1**2)/2)][1]-model_parameters['fprange'][element][symmetry_function+element_index_2+num_elements*element_index_1+int((element_index_1-element_index_1**2)/2)][0])
-                        # we double this variance to correct for PROPhet counting each neighbor pair twice as much as Amp
+            for i in range(n_els):
+                for j in range(n_els-i):
+                    for Gs in range(n_G2, n_G2 + n_G4, length_G4):
+                        variance = (model_pars['fprange'][el][Gs+j+n_els*i+int((i-i**2)/2)][1] -
+                                    model_pars['fprange'][el][Gs+j+n_els*i+int((i-i**2)/2)][0])
+                        # NB the G4 variance is doubled to correct for PROPhet
+                        # counting each neighbor pair twice as much as Amp
                         f.write(str(variance )+ ' ')
             f.write('\n')
             f.write('energy\n')
@@ -473,46 +503,54 @@ class Amp(Calculator, object):
             f.write('1\n')
             curr_node = 0
             # write NN layer architecture
-            for nodes in model_parameters['hiddenlayers'][element]:
+            for nodes in model_pars['hiddenlayers'][el]:
                 f.write(str(nodes)+' ')
             f.write('1\n')
             # write hidden layers of the NN
-            for layer in range(len(model_parameters['hiddenlayers'][element])):
+            for layer in range(len(model_pars['hiddenlayers'][el])):
                 f.write('[[ layer ' + str(layer) + ' ]]\n')
                 # write each node of the layer
-                for node in range(model_parameters['hiddenlayers'][element][layer]):
+                for node in range(model_pars['hiddenlayers'][el][layer]):
                     f.write('  [ node ' + str(curr_node) + ' ]  tanh\n')
                     f.write('   ')
                     # G2
-                    for element_index_1 in range(num_elements):
-                        for symmetry_function in range(0, num_G2, length_G2):
-                            f.write(str(model_parameters['weights'][element][layer+1][symmetry_function+element_index_1][node]) + '     ')
+                    for i in range(n_els):
+                        for Gs in range(0, n_G2, length_G2):
+                            f.write(str(model_pars['weights'][el][layer+1][Gs+i][node]))
+                            f.write('     ')
                     # G4
-                    for element_index_1 in range(num_elements):
-                        for element_index_2 in range(num_elements-element_index_1):
-                            for symmetry_function in range(num_G2, num_G2 + num_G4, length_G4):
-                                f.write(str(model_parameters['weights'][element][layer+1][symmetry_function+element_index_2+num_elements*element_index_1+int((element_index_1-element_index_1**2)/2)][node]) + '     ')
+                    for i in range(n_els):
+                        for j in range(n_els-i):
+                            for Gs in range(n_G2, n_G2 + n_G4, length_G4):
+                                f.write(str(model_pars['weights'][el][layer+1][Gs+j+n_els*i+int((i-i**2)/2)][node]))
+                                f.write('     ')
                     f.write('\n')
-                    f.write('   ' + str(model_parameters['weights'][element][layer+1][-1][node]) + '\n')
+                    f.write('   ')
+                    f.write(str(model_pars['weights'][el][layer+1][-1][node]))
+                    f.write('\n')
                     curr_node += 1
-            # write output layer of the NN, consisting of one final activated node
+            # write output layer of the NN, consisting of an activated node
             f.write('[[ layer ' + str(layer+1) + ' ]]\n')
             f.write('  [ node ' + str(curr_node) + ' ]  tanh\n')
             f.write('   ')
-            for i in range(len(model_parameters['weights'][element][layer+2])-1):
-                f.write(str(model_parameters['weights'][element][layer+2][i][0]) + '     ')
+            for i in range(len(model_pars['weights'][el][layer+2])-1):
+                f.write(str(model_pars['weights'][el][layer+2][i][0]))
+                f.write('     ')
             f.write('\n')
-            f.write('   ' + str(model_parameters['weights'][element][layer+2][-1][0]) + '\n')
+            f.write('   ')
+            f.write(str(model_pars['weights'][el][layer+2][-1][0]))
+            f.write('\n')
             curr_node += 1
-            # write output layer of the NN, consisting of one linear node, representing Amp's scaling
+            # write output layer of the NN, consisting of a linear node,
+            # representing Amp's scaling
             f.write('[[ layer ' + str(layer+2) + ' ]]\n')
             f.write('  [ node ' + str(curr_node) + ' ]  linear\n')
             f.write('   ')
-            f.write(str(model_parameters['scalings'][element]['slope']))
+            f.write(str(model_pars['scalings'][el]['slope']))
             f.write('\n')
-            f.write('   ' + str(model_parameters['scalings'][element]['intercept']) + '\n')
-                    
-
+            f.write('   ')
+            f.write(str(model_pars['scalings'][el]['intercept']))
+            f.write('\n')
             f.close()
 
     def _printheader(self, log):
