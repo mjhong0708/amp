@@ -511,24 +511,38 @@ class Amp(Calculator, object):
             for nodes in model_pars['hiddenlayers'][el]:
                 f.write(str(nodes)+' ')
             f.write('1\n')
-            # write hidden layers of the NN
-            for layer in range(len(model_pars['hiddenlayers'][el])):
-                f.write('[[ layer ' + str(layer) + ' ]]\n')
+            # write first hidden layer of the NN for the symmetry functions
+            layer = 0
+            f.write('[[ layer ' + str(layer) + ' ]]\n')
+            for node in range(model_pars['hiddenlayers'][el][layer]):
                 # write each node of the layer
+                f.write('  [ node ' + str(curr_node) + ' ]  tanh\n')
+                f.write('   ')
+                # G2
+                for i in range(n_els):
+                    for Gs in range(0, n_G2, length_G2):
+                        f.write(str(model_pars['weights'][el][layer+1][Gs+i][node]))
+                        f.write('     ')
+                # G4
+                for i in range(n_els):
+                    for j in range(n_els-i):
+                        for Gs in range(n_G2, n_G2 + n_G4, length_G4):
+                            f.write(str(model_pars['weights'][el][layer+1][Gs+j+n_els*i+int((i-i**2)/2)][node]))
+                            f.write('     ')
+                f.write('\n')
+                f.write('   ')
+                f.write(str(model_pars['weights'][el][layer+1][-1][node]))
+                f.write('\n')
+                curr_node += 1
+            # write remaining hidden layers of the NN
+            for layer in range(1, len(model_pars['hiddenlayers'][el])):
+                f.write('[[ layer ' + str(layer) + ' ]]\n')
                 for node in range(model_pars['hiddenlayers'][el][layer]):
                     f.write('  [ node ' + str(curr_node) + ' ]  tanh\n')
                     f.write('   ')
-                    # G2
-                    for i in range(n_els):
-                        for Gs in range(0, n_G2, length_G2):
-                            f.write(str(model_pars['weights'][el][layer+1][Gs+i][node]))
-                            f.write('     ')
-                    # G4
-                    for i in range(n_els):
-                        for j in range(n_els-i):
-                            for Gs in range(n_G2, n_G2 + n_G4, length_G4):
-                                f.write(str(model_pars['weights'][el][layer+1][Gs+j+n_els*i+int((i-i**2)/2)][node]))
-                                f.write('     ')
+                    for i in range(len(model_pars['weights'][el][layer+1])-1):
+                        f.write(str(model_pars['weights'][el][layer+1][i][node]))
+                        f.write('     ')
                     f.write('\n')
                     f.write('   ')
                     f.write(str(model_pars['weights'][el][layer+1][-1][node]))
