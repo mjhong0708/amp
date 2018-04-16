@@ -409,6 +409,21 @@ class Amp(Calculator, object):
         length_G4 = int(n_els*(n_els+1)/2)
         cutoff = (desc_pars['cutoff']['kwargs']['Rc'] /
                   unit_convert('distance', units))
+        # Get correct order of elements listed in the Amp object
+        el = desc_pars['elements'][0]
+        n_G2 = sum(1 for k in desc_pars['Gs'][el] if k['type']=='G2')
+        n_G4 = sum(1 for k in desc_pars['Gs'][el] if k['type']=='G4')
+        els_ordered = []
+        if n_G2>0:
+            for Gs in range(n_els):
+                els_ordered.append(desc_pars['Gs'][el][Gs]['element'])
+        elif n_G4>0:
+            for Gs in range(n_els):
+                els_ordered.append(desc_pars['Gs'][el][Gs]['elements'][0])
+        else:
+            raise RuntimeError('There must be at least one G2 or G4 symmetry '
+                               'function.')
+        # Write each element's PROPhet input file
         for el in desc_pars['elements']:
             f = open(filename+el, 'w')
             #write header
@@ -416,11 +431,15 @@ class Amp(Calculator, object):
             f.write('structure\n')
             #write elements
             f.write(el + ':  ')
-            for el_i in els:
+            for el_i in els_ordered:
                 f.write(el_i+' ')
             f.write('\n')
-            n_G2 = sum(1 for k in desc_pars['Gs'][el] if k['type']=='G2')
-            n_G4 = sum(1 for k in desc_pars['Gs'][el] if k['type']=='G4')
+            n_G2_el = sum(1 for k in desc_pars['Gs'][el] if k['type']=='G2')
+            n_G4_el = sum(1 for k in desc_pars['Gs'][el] if k['type']=='G4')
+            if ((n_G2_el!=n_G2) or (n_G4_el!=n_G4)):
+                raise NotImplementedError(
+                    'PROPhet requires each element to have the same number of '
+                    'symmetry functions.')
             f.write(str(int(n_G2/length_G2+n_G4/length_G4))+'\n')
             #write G2s
             for Gs in range(0, n_G2, length_G2):
