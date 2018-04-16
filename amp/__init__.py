@@ -394,9 +394,13 @@ class Amp(Calculator, object):
         desc_pars = self.descriptor.parameters
         model_pars = self.model.parameters
         if ((desc_pars['mode']!='atom-centered') or
-           (desc_pars['cutoff']['name']!='Cosine') or
-           (model_pars['mode']!='atom-centered') or
-           (model_pars['activation']!='tanh')):
+            (model_pars['mode']!='atom-centered')):
+            raise NotImplementedError(
+                'PROPhet requires atom-centered symmetry functions.')
+        if desc_pars['cutoff']['name']!='Cosine':
+            raise NotImplementedError(
+                'PROPhet requires cosine cutoff functions.')
+        if model_pars['activation']!='tanh':
             raise NotImplementedError(
                 'PROPhet requires tanh activation functions.')
         els = desc_pars['elements']
