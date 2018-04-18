@@ -651,7 +651,6 @@ class LossFunction:
         images = self._model.trainingparameters.images
         descriptor = self._model.trainingparameters.descriptor
         fingerprints = descriptor.fingerprints
-        fingerprintprimes = descriptor.fingerprintprimes
         for hash in images.keys():
             image = images[hash]
             no_of_atoms = len(image)
@@ -684,6 +683,7 @@ class LossFunction:
                     dloss_dparameters += temp
 
             if p.force_coefficient is not None:
+                fingerprintprimes = descriptor.fingerprintprimes
                 amp_forces = \
                     model.calculate_forces(fingerprints[hash],
                                            fingerprintprimes[hash])
