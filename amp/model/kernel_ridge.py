@@ -982,6 +982,9 @@ class KRR(Model):
         Cholesky factorization. Default is set to None.
     preprocessing : str
         Preprocess training data.
+    sum_rule : bool
+        Whether or not we sum of fingerprintprime elements over a given axis. This
+        applies np.sum(fingerprint_list, axis=0).
 
     Notes
     -----
@@ -1017,7 +1020,7 @@ class KRR(Model):
                  fortran=False, checkpoints=None, lossfunction=None,
                  cholesky=False, weights_independent=True,
                  randomize_weights=False, forcetraining=False,
-                 preprocessing=False, nnpartition=None):
+                 preprocessing=False, nnpartition=None, sum_rule=True):
 
         np.set_printoptions(precision=30, threshold=999999999)
 
@@ -1041,6 +1044,7 @@ class KRR(Model):
         p.kernel = self.kernel = kernel
         p.sigma = self.sigma = sigma
         p.lamda = self.lamda = lamda
+        p.sum_rule = self.sum_rule = sum_rule
         p.cholesky = self.cholesky = cholesky
         p.nnpartition = self.nnpartition = nnpartition
         p.trainingimages = self.trainingimages = trainingimages
@@ -1510,63 +1514,43 @@ class KRR(Model):
         for hash in hashes:
             self.force_features[hash] = OrderedDict()
             image = trainingimages[hash]
-            afps_prime_x = []
-            afps_prime_y = []
-            afps_prime_z = []
 
-            # This loop assures that we are iterating from atom with index 0.
-            for atom in image:
-                selfsymbol = atom.symbol
-                selfindex = atom.index
-                self.force_features[hash][
-                        (selfindex, selfsymbol)] = OrderedDict()
-                fprime_sum_x, fprime_sum_y, fprime_sum_z = 0., 0., 0.
+            # We iterate once over the whole fingerprint object per hash
+            # in order to build the right dictionaries for applying the
+            # kernel functions.
+            for key in fingerprintprimes[hash].keys():
+                _key = (key[0], key[1])
+                selfsymbol = key[1]
+                component = key[-1]
+
+                if _key not in self.force_features[hash].keys():
+                    self.force_features[hash][_key] = OrderedDict()
+
+                if component not in self.force_features[hash][_key].keys():
+                    self.force_features[hash][_key][component] = []
+
+                dfp = fingerprintprimes[hash][key]
+                self.force_features[hash][_key][component].append(dfp)
+
+            # We iterate over the self.force_features dictionary to build
+            # the references per atom.
+            for k in self.force_features[hash].keys():
+                selfsymbol = k[1]
 
                 if selfsymbol not in self.ref_features_f.keys():
                     self.ref_features_f[selfsymbol] = OrderedDict()
 
-                # Here we sum all different contributions of the derivatives of
-                # the fingerprints
-                for key in fingerprintprimes[hash].keys():
-                    if (selfindex == key[0] and selfsymbol == key[1] and
-                            key[-1] == 0):
-                        fprime_sum_x += np.array(
-                                    fingerprintprimes[hash][key])
-                    elif (selfindex == key[0] and selfsymbol == key[1] and
-                            key[-1] == 1):
-                        fprime_sum_y += np.array(
-                                    fingerprintprimes[hash][key])
-                    elif (selfindex == key[0] and selfsymbol == key[1] and
-                            key[-1] == 2):
-                        fprime_sum_z += np.array(
-                                    fingerprintprimes[hash][key])
+                for component in self.force_features[hash][k].keys():
+                    dfp = self.force_features[hash][k][component]
 
-                for component in range(3):
-                    keys = self.ref_features_f[selfsymbol].keys()
-                    if component not in keys:
+                    if self.sum_rule:
+                        dfp = np.sum(np.array(dfp), axis=0)
+                        self.force_features[hash][k][component] = dfp
+
+                    if component not in self.ref_features_f[selfsymbol].keys():
                         self.ref_features_f[selfsymbol][component] = []
 
-                    if component == 0:
-                        afps_prime_x.append(fprime_sum_x)
-                        self.ref_features_f[selfsymbol][component].append(
-                                fprime_sum_x)
-                        self.force_features[hash][(
-                            selfindex,
-                            selfsymbol)][component] = fprime_sum_x
-                    elif component == 1:
-                        self.ref_features_f[selfsymbol][component].append(
-                                fprime_sum_y)
-                        afps_prime_y.append(fprime_sum_y)
-                        self.force_features[hash][(
-                            selfindex,
-                            selfsymbol)][component] = fprime_sum_y
-                    else:
-                        afps_prime_z.append(fprime_sum_z)
-                        self.ref_features_f[selfsymbol][component].append(
-                                fprime_sum_z)
-                        self.force_features[hash][(
-                            selfindex,
-                            selfsymbol)][component] = fprime_sum_z
+                    self.ref_features_f[selfsymbol][component].append(dfp)
 
         if only_features is False:
             # if self.cholesky is True:
@@ -1972,11 +1956,11 @@ class KRR(Model):
                         only_features=True
                         )
 
-            fprime = 0
+            fprime = []
             for afp in fingerprintprimes:
                 if (index == afp[0] and symbol == afp[1] and
                         component == afp[-1]):
-                    fprime += np.array(fingerprintprimes[afp])
+                    fprime.append(np.array(fingerprintprimes[afp]))
 
             features = self.ref_features_f[symbol][component]
             kernel = self.kernel_matrix(
@@ -2332,12 +2316,16 @@ def laplacian(feature_i, feature_j, i_symbol=None, j_symbol=None, sigma=1.):
                                                   "match atomic fingerprint " \
                                                   "lenght."
             sigma = np.array(sigma)
-            anisotropic_lap = np.exp(-(np.sqrt(np.sum(np.square(
-                          np.divide(np.subtract(feature_i, feature_j),
-                                                sigma))))))
+
+            sum_ij = np.sum(np.square(np.divide(np.subtract(feature_i,
+                                                            feature_j),
+                                                sigma)))
+
+            anisotropic_lap = np.exp(-(np.sqrt(sum_ij)))
             return anisotropic_lap
         else:
-            laplacian = np.exp(-(np.linalg.norm(feature_i - feature_j)) / sigma)
+            laplacian = np.exp(-(np.linalg.norm(feature_i - feature_j)) /
+                               sigma)
         return laplacian
 
 
