@@ -1962,6 +1962,9 @@ class KRR(Model):
                         component == afp[-1]):
                     fprime.append(np.array(fingerprintprimes[afp]))
 
+            if self.sum_rule:
+                fprime = np.sum(np.array(fprime), axis=0)
+
             features = self.ref_features_f[symbol][component]
             kernel = self.kernel_matrix(
                             fprime,
