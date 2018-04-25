@@ -1287,7 +1287,7 @@ class KRR(Model):
                 return True
             except np.linalg.linalg.LinAlgError:
                 log('The kernel matrix seems to be singular. Add more\n'
-                    'noise to its diagonal elements by increasing the'
+                    'noise to its diagonal elements by increasing the '
                     'penalization term.')
                 return False
             except:
