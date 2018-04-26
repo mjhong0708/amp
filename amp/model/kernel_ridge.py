@@ -983,8 +983,8 @@ class KRR(Model):
     preprocessing : str
         Preprocess training data.
     sum_rule : bool
-        Whether or not we sum of fingerprintprime elements over a given axis. This
-        applies np.sum(fingerprint_list, axis=0).
+        Whether or not we sum of fingerprintprime elements over a given axis.
+        This applies np.sum(fingerprint_list, axis=0).
 
     Notes
     -----
@@ -1108,7 +1108,7 @@ class KRR(Model):
                     tp.trainingimages,
                     tp.descriptor,
                     forcetraining=self.forcetraining)
-            log('...preprocessing finished in', toc='preprocessing')
+            log('...preprocessing finished in ', toc='preprocessing')
         else:
             tp.fingerprints = tp.descriptor.fingerprints
 
@@ -1126,7 +1126,7 @@ class KRR(Model):
             else:
                 log('Calculating isotropic %s kernel...' % self.kernel,
                     tic='kernel')
-            log('Parameters:')
+            log('Kernel parameters:')
             log('    lamda: %s' % self.lamda)
             log('    sigma: %s' % self.sigma)
             kij_args = dict(
@@ -1226,7 +1226,7 @@ class KRR(Model):
                     weights = [w * g for index, w in enumerate(_weights) for
                                g in self.fingerprint_map[index]]
 
-                    log('... energy decomposition Ansatz finished in.',
+                    log('... energy decomposition Ansatz finished in ',
                         toc='energy')
 
                     p.weights['energy'] = weights
@@ -1251,7 +1251,7 @@ class KRR(Model):
                         weights = np.linalg.solve(cholesky_U, betas)
                         p.weights['energy'][symbol] = weights
 
-                    log('... Cholesky decompositions finished in.',
+                    log('... Cholesky decompositions finished in ',
                         toc='cholesky_energy_kernel')
 
                 if self.forcetraining is True:
@@ -1264,11 +1264,6 @@ class KRR(Model):
                         symbols = []
 
                         for i in range(3):
-                            """
-                            size = self.kernel_f_cholesky[i][0].size
-                            I_f = np.identity(size)
-                            K_f = self.kernel_f_cholesky[i].reshape(size, size)
-                            """
                             K_f = np.array(self.kernel_f_cholesky[symbol][i])
                             size = K_f.shape
                             if symbol not in symbols:
@@ -1282,7 +1277,7 @@ class KRR(Model):
                                        )
                             weights = np.linalg.solve(cholesky_U, betas)
                             p.weights['forces'][symbol].append(weights)
-                    log('... Cholesky decompositions finished in.',
+                    log('... Cholesky decompositions finished in ',
                         toc='cholesky_force_kernel')
                 return True
             except np.linalg.linalg.LinAlgError:
