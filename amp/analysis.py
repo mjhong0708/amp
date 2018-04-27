@@ -266,18 +266,21 @@ def plot_parity_and_error(calc,
                 fingerprints=calc.descriptor.fingerprints[hash],
                 )
 
-        if calc.model.trainingimages is not None:
-            trainingimages = hash_images(Trajectory(calc.model.trainingimages))
-            energy_args['trainingimages'] = trainingimages
-            calc.descriptor.calculate_fingerprints(
-                    images=trainingimages,
-                    parallel=calc._parallel,
-                    log=calc._log,
-                    calculate_derivatives=calculate_derivatives
-                    )
-            fp_trainingimages = calc.descriptor.fingerprints
-            energy_args['fp_trainingimages'] = fp_trainingimages
-            energy_args['hash'] = hash
+        model_name = calc.model.__class__.__name__
+
+        if model_name == 'KRR':
+            if calc.model.trainingimages is not None:
+                trainingimages = hash_images(Trajectory(calc.model.trainingimages))
+                energy_args['trainingimages'] = trainingimages
+                calc.descriptor.calculate_fingerprints(
+                        images=trainingimages,
+                        parallel=calc._parallel,
+                        log=calc._log,
+                        calculate_derivatives=calculate_derivatives
+                        )
+                fp_trainingimages = calc.descriptor.fingerprints
+                energy_args['fp_trainingimages'] = fp_trainingimages
+                energy_args['hash'] = hash
 
         amp_energy = calc.model.calculate_energy(**energy_args)
         actual_energy = image.get_potential_energy(apply_constraint=False)
@@ -312,15 +315,17 @@ def plot_parity_and_error(calc,
                     fingerprintprimes=calc.descriptor.fingerprintprimes[hash]
                     )
 
-            if calc.model.trainingimages is not None:
-                trainingimages = hash_images(Trajectory(calc.model.trainingimages))
-                calc.descriptor.calculate_fingerprints(
-                        images=trainingimages,
-                        calculate_derivatives=True
-                        )
-                t_descriptor = calc.descriptor
-                forces_args['trainingimages'] = trainingimages
-                forces_args['t_descriptor'] = t_descriptor
+            if model_name == 'KRR':
+                if calc.model.trainingimages is not None:
+                    trainingimages = \
+                            hash_images(Trajectory(calc.model.trainingimages))
+                    calc.descriptor.calculate_fingerprints(
+                            images=trainingimages,
+                            calculate_derivatives=True
+                            )
+                    t_descriptor = calc.descriptor
+                    forces_args['trainingimages'] = trainingimages
+                    forces_args['t_descriptor'] = t_descriptor
 
             amp_forces =  calc.model.calculate_forces(**forces_args)
             actual_forces = image.get_forces(apply_constraint=False)
