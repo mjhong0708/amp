@@ -937,10 +937,11 @@ class KRR(Model):
 
     Parameters
     ----------
-    sigma : float, list
+    sigma : float, list, or dict
         Length scale of the Gaussian in the case of RBF, exponential, and
-        laplacian kernels. Default is 1 for computing isotropic kernels. Pass
-        a list if you would like to compute anisotropic kernels.
+        laplacian kernels. Default is 1. (float) and it computes isotropic
+        kernels. Pass a list if you would like to compute anisotropic kernels,
+        or a dictionary if you want sigmas for each model.
     kernel : str
         Choose the kernel. Available kernels are: 'linear', 'rbf', 'laplacian',
         and 'exponential'. Default is 'rbf'.
@@ -1120,12 +1121,16 @@ class KRR(Model):
 
         if len(list(self.kernel_e.keys())) == 0:
 
-            if isinstance(p.sigma, list):
-                log('Calculating anisotropic %s kernel...' % self.kernel,
-                    tic='kernel')
-            else:
-                log('Calculating isotropic %s kernel...' % self.kernel,
-                    tic='kernel')
+            if isinstance(p.sigma, float):
+                log('Calculating isotropic %s kernel with same sigma for all '
+                    'atoms and properties...' % self.kernel, tic='kernel')
+            elif isinstance(p.sigma, list):
+                log('Calculating anisotropic %s kernel with same sigma for '
+                    'all atoms and properties...' % self.kernel, tic='kernel')
+            elif isinstance(p.sigma, dict):
+                log('Calculating %s kernels with specified sigmas for '
+                    'each property...' % self.kernel, tic='kernel')
+
             log('Kernel parameters:')
             log('    lamda: %s' % self.lamda)
             log('    sigma: %s' % self.sigma)
@@ -1399,12 +1404,20 @@ class KRR(Model):
                     # This is the case when using L2 loss function.
                     for index, (symbol, afp) in enumerate(
                             fp_trainingimages[hash]):
+
                         if symbol not in self.kernel_e_loss.keys():
                             self.kernel_e_loss[symbol] = []
+
+                        if isinstance(self.sigma, dict):
+                            sigma = self.sigma['energy']
+                        else:
+                            sigma = self.sigma
+
                         _kernel = self.kernel_matrix(
                                 np.asarray(afp),
                                 self.reference_features_e[symbol],
-                                kernel=self.kernel
+                                kernel=self.kernel,
+                                sigma=sigma
                                 )
                         self.kernel_e[hash][(index, symbol)] = _kernel
                         self.kernel_e_loss[symbol].append(_kernel)
@@ -1418,14 +1431,22 @@ class KRR(Model):
                     """
                     for index, (symbol, afp) in enumerate(
                             fp_trainingimages[hash]):
+
                         if symbol not in self.kernel_e_loss.keys():
                             # This should guarantee that order is respected.
                             self.kernel_e_loss[symbol] = []
                             self.energy_targets[symbol] = []
+
+                        if isinstance(self.sigma, dict):
+                            sigma = self.sigma['energy']
+                        else:
+                            sigma = self.sigma
+
                         _kernel = self.kernel_matrix(
                                 np.asarray(afp),
                                 self.reference_features_e[symbol],
-                                kernel=self.kernel
+                                kernel=self.kernel,
+                                sigma=sigma
                                 )
                         self.kernel_e[hash][(index, symbol)] = _kernel
                         self.kernel_e_loss[symbol].append(_kernel)
@@ -1442,6 +1463,9 @@ class KRR(Model):
                     print('ANN energy:', total_energy)
                     """
                 else:
+                    """
+                    This is the case when using the atomic decomposition Ansatz.
+                    """
                     # We append targets
                     energy = trainingimages[hash].get_potential_energy()
                     self.energy_targets.append(energy)
@@ -1461,11 +1485,18 @@ class KRR(Model):
                     # Building the kernel matrix
                     for index, (symbol, afp) in enumerate(
                             fp_trainingimages[hash]):
+
+                        if isinstance(self.sigma, dict):
+                            sigma = self.sigma['energy']
+                        else:
+                            sigma = self.sigma
+
                         _kernel = self.kernel_matrix(
                                 np.asarray(afp),
                                 self.reference_features_e,
                                 feature_symbol=symbol,
-                                kernel=self.kernel
+                                kernel=self.kernel,
+                                sigma=sigma
                                 )
                         self.kij.append(_kernel)
 
@@ -1577,6 +1608,12 @@ class KRR(Model):
 
                         afp = self.force_features[hash][
                                 (selfindex, selfsymbol)][component]
+
+                        if isinstance(self.sigma, dict):
+                            sigma = self.sigma['forces'][component]
+                        else:
+                            sigma = self.sigma
+
                         _kernel = self.kernel_matrix(
                                 afp,
                                 self.ref_features_f[selfsymbol][component],
@@ -1744,7 +1781,11 @@ class KRR(Model):
             hash of desired image to compute
         kernel : str
             The kernel to be computed in the case that Amp.load is used.
-        sigma : float
+        sigma : float, list, or dict
+            Length scale of the Gaussian in the case of RBF, exponential, and
+            laplacian kernels. Default is 1. (float) and it computes isotropic
+            kernels. Pass a list if you would like to compute anisotropic kernels,
+            or a dictionary if you want sigmas for each model.
 
         Returns
         -------
@@ -1767,6 +1808,12 @@ class KRR(Model):
             # This is needed for both setting the size of parameters to
             # optimize and also to return the kernel for energies
             self.get_energy_kernel(**kij_args)
+
+            if isinstance(self.sigma, dict):
+                sigma = self.sigma['energy']
+            else:
+                sigma = self.sigma
+
             kernel = self.kernel_matrix(
                             np.asarray(afp),
                             self.reference_features_e[symbol],
@@ -1793,7 +1840,11 @@ class KRR(Model):
             hash of desired image to compute
         kernel : str
             The kernel to be computed in the case that Amp.load is used.
-        sigma : float
+        sigma : float, list, or dict
+            Length scale of the Gaussian in the case of RBF, exponential, and
+            laplacian kernels. Default is 1. (float) and it computes isotropic
+            kernels. Pass a list if you would like to compute anisotropic kernels,
+            or a dictionary if you want sigmas for each model.
 
         Returns
         -------
@@ -1821,6 +1872,12 @@ class KRR(Model):
                 self.get_energy_kernel(**kij_args)
 
             if self.nnpartition is None:
+
+                if isinstance(self.sigma, dict):
+                    sigma = self.sigma['energy']
+                else:
+                    sigma = self.sigma
+
                 kernel = self.kernel_matrix(
                                 afp,
                                 self.reference_features_e,
@@ -1830,6 +1887,12 @@ class KRR(Model):
                                 )
                 amp_energy = kernel.dot(weights['energy'])
             else:
+
+                if isinstance(self.sigma, dict):
+                    sigma = self.sigma['energy']
+                else:
+                    sigma = self.sigma
+
                 kernel = self.kernel_matrix(
                                 afp,
                                 self.reference_features_e[symbol],
@@ -1864,7 +1927,11 @@ class KRR(Model):
             Object containing the information about fingerprints.
         hash : str
             Unique key for the image of interest.
-        sigma : float
+        sigma : float, list, or dict
+            Length scale of the Gaussian in the case of RBF, exponential, and
+            laplacian kernels. Default is 1. (float) and it computes isotropic
+            kernels. Pass a list if you would like to compute anisotropic kernels,
+            or a dictionary if you want sigmas for each model.
 
         Returns
         -------
@@ -1888,10 +1955,17 @@ class KRR(Model):
                     fprime += np.array(fingerprintprimes[afp])
 
             features = self.ref_features_f[symbol][component]
+
+            if isinstance(self.sigma, dict):
+                sigma = self.sigma['forces'][component]
+            else:
+                sigma = self.sigma
+
             kernel = self.kernel_matrix(fprime, features, kernel=self.kernel,
                                         sigma=sigma)
             if (self.weights_independent is True and self.cholesky is False):
                 force = kernel.dot(weights['forces'][symbol][component])
+
             elif (self.weights_independent is False and
                     self.cholesky is False):
                 force = kernel.dot(weights['forces'][symbol])
@@ -1931,7 +2005,11 @@ class KRR(Model):
             Object containing the information about fingerprints.
         hash : str
             Unique key for the image of interest.
-        sigma : float
+        sigma : float, list, or dict
+            Length scale of the Gaussian in the case of RBF, exponential, and
+            laplacian kernels. Default is 1. (float) and it computes isotropic
+            kernels. Pass a list if you would like to compute anisotropic kernels,
+            or a dictionary if you want sigmas for each model.
 
         Returns
         -------
@@ -1961,12 +2039,19 @@ class KRR(Model):
                 fprime = np.sum(np.array(fprime), axis=0)
 
             features = self.ref_features_f[symbol][component]
+
+            if isinstance(self.sigma, dict):
+                sigma = self.sigma['forces'][component]
+            else:
+                sigma = self.sigma
+
             kernel = self.kernel_matrix(
                             fprime,
                             features,
                             kernel=self.kernel,
                             sigma=sigma
                             )
+
             if (self.weights_independent is True and self.cholesky is True):
                 force = kernel.dot(weights['forces'][symbol][component])
         else:
@@ -1993,9 +2078,9 @@ class KRR(Model):
         kernel : str
             Select the kernel to be used. Supported kernels are: 'linear',
             rbf', 'exponential, and 'laplacian'.
-        sigma : float
-            Length scale of the Gaussian in the case of RBF, exponential and
-            laplacian kernels.
+        sigma : float, or list.
+            Gaussian width. If passed as a list or np.darray, kernel can become
+            anisotropic.
 
         Returns
         -------
@@ -2016,9 +2101,6 @@ class KRR(Model):
                 'rbf': rbf}
         nonlinear_kernels = ['rbf', 'laplacian', 'exponential']
 
-        if self.sigma is None:
-            self.sigma = sigma
-
         if kernel == 'linear':
             try:
                 features = np.asarray(features)
@@ -2035,13 +2117,13 @@ class KRR(Model):
             try:
                 features = np.asarray(features)
                 for afp in features:
-                    K.append(call[kernel](feature, afp, sigma=self.sigma))
+                    K.append(call[kernel](feature, afp, sigma=sigma))
             except ValueError:
                 for symbol, afp in features:
                     afp = np.asarray(afp)
                     K.append(call[kernel](feature, afp,
                              i_symbol=feature_symbol, j_symbol=symbol,
-                             sigma=self.sigma))
+                             sigma=sigma))
 
         else:
             raise NotImplementedError('This kernel needs to be coded.')
