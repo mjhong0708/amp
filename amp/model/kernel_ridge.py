@@ -945,9 +945,13 @@ class KRR(Model):
     kernel : str
         Choose the kernel. Available kernels are: 'linear', 'rbf', 'laplacian',
         and 'exponential'. Default is 'rbf'.
-    lamda : float
-        Strength of the regularization in the loss function when minimizing
-        error.
+    lamda : float, or dictionary
+        Strength of the regularization. If you pass a dictionary then force and
+        energy will have different regularization:
+
+            >>> lamda = {'energy': value, 'forces': value}
+
+        Dictionaries are only used when performing Cholesky factorization.
     weights : dict
         Dictionary of weights.
     regressor : object
@@ -1221,7 +1225,13 @@ class KRR(Model):
                     K = self.kij.reshape(size, size)
                     K = self.LT.dot(K).dot(self.LT.T)
                     I_e = np.identity(K.shape[0])
-                    cholesky_U = cholesky((K + self.lamda * I_e))
+
+                    if isinstance(self.lamda, dict):
+                        lamda = self.lamda['energy']
+                    else:
+                        lamda = self.lamda
+
+                    cholesky_U = cholesky((K + lamda * I_e))
                     betas = np.linalg.solve(cholesky_U.T, self.energy_targets)
                     _weights = np.linalg.solve(cholesky_U, betas)
 
@@ -1249,7 +1259,12 @@ class KRR(Model):
                             log('    {}: {}' .format(symbol, size))
                             symbols.append(symbol)
 
-                        cholesky_U = cholesky((kernel + self.lamda * I_e))
+                        if isinstance(self.lamda, dict):
+                            lamda = self.lamda['energy']
+                        else:
+                            lamda = self.lamda
+
+                        cholesky_U = cholesky((kernel + lamda * I_e))
 
                         betas = np.linalg.solve(cholesky_U.T,
                                                 self.energy_targets[symbol])
@@ -1275,7 +1290,13 @@ class KRR(Model):
                                 log('    {}: {}' .format(symbol, size))
                                 symbols.append(symbol)
                             I_f = np.identity(size[0])
-                            cholesky_U = cholesky((K_f + self.lamda * I_f))
+
+                            if isinstance(self.lamda, dict):
+                                lamda = self.lamda['forces']
+                            else:
+                                lamda = self.lamda
+
+                            cholesky_U = cholesky((K_f + lamda * I_f))
                             betas = np.linalg.solve(
                                        cholesky_U.T,
                                        self.force_targets[symbol][i]
@@ -1617,7 +1638,8 @@ class KRR(Model):
                         _kernel = self.kernel_matrix(
                                 afp,
                                 self.ref_features_f[selfsymbol][component],
-                                kernel=self.kernel
+                                kernel=self.kernel,
+                                sigma=sigma
                                 )
                         self.kernel_f[hash][
                                 (selfindex, selfsymbol)][
