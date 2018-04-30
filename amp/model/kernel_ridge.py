@@ -942,6 +942,14 @@ class KRR(Model):
         laplacian kernels. Default is 1. (float) and it computes isotropic
         kernels. Pass a list if you would like to compute anisotropic kernels,
         or a dictionary if you want sigmas for each model.
+
+        Example:
+
+            >>> sigma={'energy': {'H': value, 'O': value},
+                       'forces': {'H': {0: value, 1: value, 2: value},
+                              'O': {0: value, 1: value, 2: value}}}
+
+        `value` can be a float or a list.
     kernel : str
         Choose the kernel. Available kernels are: 'linear', 'rbf', 'laplacian',
         and 'exponential'. Default is 'rbf'.
@@ -996,14 +1004,13 @@ class KRR(Model):
         In the case of training total energies, we need to apply either an
         atomic decomposition Ansatz (ADA) during training or an energy
         partition scheme to the training set. ADA can be achieved based on
-        "A brief tutorial introduction, Int.  J.  Quantum Chem., vol. 115, no.
-        16, pp.  1051-1057, Aug. 2015".  For an explanation of what they do,
-        see the Master thesis by Sonja Mathias.
+        Int. J.  Quantum Chem., vol. 115, no.  16, pp.  1051-1057, Aug. 2015".
+        For an explanation of what they do, see the Master thesis by Sonja
+        Mathias.
 
         http://wissrech.ins.uni-bonn.de/teaching/master/masterthesis_mathias_revised.pdf
 
-        ADA is the default is the default way of training total energies in
-        this class.
+        ADA is the default way of training total energies in this KRR class.
 
         An energy partition scheme for  total energies can be obtained from an
         artificial neural network or methods such as the interacting quantum
