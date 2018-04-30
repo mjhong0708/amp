@@ -1061,7 +1061,9 @@ class KRR(Model):
         self.fortran = fortran
         self.checkpoints = checkpoints
         self.lossfunction = lossfunction
-        self.properties = []
+        self.properties = ['energy']
+        if forcetraining:
+            self.properties.append('forces')
 
         self.kernel_e = OrderedDict()  # Kernel dictionary for energies
         self.kernel_f = OrderedDict()  # Kernel dictionary for forces
@@ -1125,42 +1127,48 @@ class KRR(Model):
 
         if len(list(self.kernel_e.keys())) == 0:
 
-            if isinstance(p.sigma, float):
+            if isinstance(p.sigma, float) or isinstance(p.sigma, int):
                 log('Calculating isotropic %s kernel with same sigma for all '
                     'atoms and properties...' % self.kernel, tic='kernel')
+                sigma =self.get_sigma(p.sigma, user_input='float',
+                               forcetraining=self.forcetraining)
+
             elif isinstance(p.sigma, list):
                 log('Calculating anisotropic %s kernel with same sigma for '
                     'all atoms and properties...' % self.kernel, tic='kernel')
+                sigma = self.get_sigma(p.sigma, user_input='list',
+                               forcetraining=self.forcetraining)
+
             elif isinstance(p.sigma, dict):
                 log('Calculating %s kernels with specified sigmas for '
                     'each property...' % self.kernel, tic='kernel')
+                sigma = self.get_sigma(p.sigma, user_input='dict',
+                               forcetraining=self.forcetraining)
 
+            p.sigma = self.sigma = sigma
             log('Kernel parameters:')
             log('    lamda: %s' % self.lamda)
             log('    sigma: %s' % self.sigma)
-            kij_args = dict(
-                    trainingimages=tp.trainingimages,
-                    fp_trainingimages=tp.fingerprints,
-                    )
+            kij_args = dict(trainingimages=tp.trainingimages,
+                            fp_trainingimages=tp.fingerprints,)
 
             if self.fortran is True:
                 kij_args['only_features'] = True
 
             self.get_energy_kernel(**kij_args)
-            self.properties.append('energy')
 
             if self.forcetraining is True:
-                self.properties.append('forces')
-                kijf_args = dict(
-                    trainingimages=tp.trainingimages,
-                    t_descriptor=tp.descriptor
-                    )
+                kijf_args = dict(trainingimages=tp.trainingimages,
+                                 t_descriptor=tp.descriptor)
+
                 if self.fortran is True:
                     kijf_args['only_features'] = True
                 self.get_forces_kernel(**kijf_args)
 
             log('...kernel computed in', toc='kernel')
 
+        # These weights are used for the case of the l2 loss function
+        # minimization
         if p.weights is None:
             if p.mode == 'image-centered':
                 raise NotImplementedError('Needs to be coded.')
@@ -1313,6 +1321,86 @@ class KRR(Model):
                 return False
             except:
                 return False
+
+    def get_sigma(self, sigma, user_input, forcetraining=False):
+        """Function to build sigma
+
+        Parameters
+        ----------
+        sigma : float, list or dict.
+            This is the raw user input for sigma.
+        user_input : type
+            Checks the type of user input for sigma.
+        forcetraining : bool
+            Whether or not force training is set to true.
+
+        Returns
+        -------
+        _sigma : dict
+            Universal sigma dictionary for KRR in Amp.
+        """
+
+        tp = self.trainingparameters
+        trainingimages = tp['trainingimages']
+        fingerprints = tp['fingerprints']
+        _sigma = OrderedDict()
+
+        if user_input == 'float' or user_input == 'list':
+            for hash in trainingimages.keys():
+                # We create 'energy' key
+                _sigma['energy'] = OrderedDict()
+
+                for symbol, afp in fingerprints[hash]:
+                    if symbol not in _sigma['energy'].keys():
+                         _sigma['energy'][symbol] = sigma
+
+                    if forcetraining:
+                        if 'forces' not in _sigma.keys():
+                            _sigma['forces'] = OrderedDict()
+
+                        if symbol not in _sigma['forces'].keys():
+                            _sigma['forces'][symbol] = OrderedDict()
+
+                        for component in range(3):
+                            _sigma['forces'][symbol][component] = sigma
+
+        elif user_input == 'dict':
+            # When user_input is a dict, we check that the structure is ok
+
+            symbols = []
+            for hash in trainingimages.keys():
+                for symbol, afp in fingerprints[hash]:
+                    if symbol not in symbols:
+                        symbols.append(symbol)
+
+            for prop in self.properties:
+                check_property = sigma[prop]
+                if len(check_property.keys()) != len(symbols):
+                    self._log('Property {} has not the correct '
+                             'number of atom symbols...' .format(prop))
+                    self._log("Structure of the sigma dictionary must be "
+                              "sigma = {'energy': {symbol: (value or list)},"
+                              "'forces': {symbol: {0: (value or list), "
+                              "1: (value or list), 2: (value or list)}}}")
+                    raise('Incorrect number of atoms in sigma dictionary... '
+                          'Check the output file for more information.')
+
+                if prop is 'forces':
+                    for symbol in check_property.keys():
+                        try:
+                            components = check_property[symbol].keys()
+                        except AttributeError:
+                            self._log('Forces in sigma dictionary need at least one '
+                                      'key component...')
+                            self._log("Structure of the sigma dictionary must be "
+                                      "sigma = {'energy': {symbol: (value or list)},"
+                                      "'forces': {symbol: {0: (value or list), "
+                                      "1: (value or list), 2: (value or list)}}}")
+                            raise('Forces in sigma dictionary need at least one '
+                                  'component key... Check the output file for more '
+                                  'information.')
+            _sigma = sigma
+        return _sigma
 
     def preprocess_features(self, trainingimages, descriptor,
                             forcetraining=False):
@@ -1507,10 +1595,7 @@ class KRR(Model):
                     for index, (symbol, afp) in enumerate(
                             fp_trainingimages[hash]):
 
-                        if isinstance(self.sigma, dict):
-                            sigma = self.sigma['energy']
-                        else:
-                            sigma = self.sigma
+                        sigma = self.sigma['energy'][symbol]
 
                         _kernel = self.kernel_matrix(
                                 np.asarray(afp),
@@ -1630,10 +1715,7 @@ class KRR(Model):
                         afp = self.force_features[hash][
                                 (selfindex, selfsymbol)][component]
 
-                        if isinstance(self.sigma, dict):
-                            sigma = self.sigma['forces'][component]
-                        else:
-                            sigma = self.sigma
+                        sigma = self.sigma['forces'][selfsymbol][component]
 
                         _kernel = self.kernel_matrix(
                                 afp,
@@ -1895,10 +1977,8 @@ class KRR(Model):
 
             if self.nnpartition is None:
 
-                if isinstance(self.sigma, dict):
-                    sigma = self.sigma['energy']
-                else:
-                    sigma = self.sigma
+
+                sigma = self.sigma['energy'][symbol]
 
                 kernel = self.kernel_matrix(
                                 afp,
@@ -1910,10 +1990,7 @@ class KRR(Model):
                 amp_energy = kernel.dot(weights['energy'])
             else:
 
-                if isinstance(self.sigma, dict):
-                    sigma = self.sigma['energy']
-                else:
-                    sigma = self.sigma
+                sigma = self.sigma['energy'][symbol]
 
                 kernel = self.kernel_matrix(
                                 afp,
@@ -2062,10 +2139,7 @@ class KRR(Model):
 
             features = self.ref_features_f[symbol][component]
 
-            if isinstance(self.sigma, dict):
-                sigma = self.sigma['forces'][component]
-            else:
-                sigma = self.sigma
+            sigma = self.sigma['forces'][symbol][component]
 
             kernel = self.kernel_matrix(
                             fprime,
