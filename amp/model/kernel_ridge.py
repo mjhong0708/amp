@@ -1137,20 +1137,20 @@ class KRR(Model):
             if isinstance(p.sigma, float) or isinstance(p.sigma, int):
                 log('Calculating isotropic %s kernel with same sigma for all '
                     'atoms and properties...' % self.kernel, tic='kernel')
-                sigma =self.get_sigma(p.sigma, user_input='float',
-                               forcetraining=self.forcetraining)
+                sigma = self.get_sigma(p.sigma, user_input='float',
+                                       forcetraining=self.forcetraining)
 
             elif isinstance(p.sigma, list):
                 log('Calculating anisotropic %s kernel with same sigma for '
                     'all atoms and properties...' % self.kernel, tic='kernel')
                 sigma = self.get_sigma(p.sigma, user_input='list',
-                               forcetraining=self.forcetraining)
+                                       forcetraining=self.forcetraining)
 
             elif isinstance(p.sigma, dict):
                 log('Calculating %s kernels with specified sigmas for '
                     'each property...' % self.kernel, tic='kernel')
                 sigma = self.get_sigma(p.sigma, user_input='dict',
-                               forcetraining=self.forcetraining)
+                                       forcetraining=self.forcetraining)
 
             p.sigma = self.sigma = sigma
             log('Kernel parameters:')
@@ -1359,7 +1359,7 @@ class KRR(Model):
 
                 for symbol, afp in fingerprints[hash]:
                     if symbol not in _sigma['energy'].keys():
-                         _sigma['energy'][symbol] = sigma
+                        _sigma['energy'][symbol] = sigma
 
                     if forcetraining:
                         if 'forces' not in _sigma.keys():
@@ -1370,6 +1370,7 @@ class KRR(Model):
 
                         for component in range(3):
                             _sigma['forces'][symbol][component] = sigma
+            return _sigma
 
         elif user_input == 'dict':
             # When user_input is a dict, we check that the structure is ok
@@ -1382,31 +1383,58 @@ class KRR(Model):
 
             for prop in self.properties:
                 check_property = sigma[prop]
-                if len(check_property.keys()) != len(symbols):
-                    self._log('Property {} has not the correct '
-                             'number of atom symbols...' .format(prop))
-                    self._log("Structure of the sigma dictionary must be "
-                              "sigma = {'energy': {symbol: (value or list)},"
-                              "'forces': {symbol: {0: (value or list), "
-                              "1: (value or list), 2: (value or list)}}}")
-                    raise('Incorrect number of atoms in sigma dictionary... '
-                          'Check the output file for more information.')
+                try:
+                    if len(check_property.keys()) != len(symbols):
+                        self._log('Property {} has not the correct '
+                                  'number of atom symbols...' .format(prop))
+                        self._log("Structure of the sigma dictionary must be "
+                                  "sigma = {'energy': {symbol: (value or "
+                                  "list)},"
+                                  "'forces': {symbol: {0: (value or list), "
+                                  "1: (value or list), 2: (value or list)}}}")
+                        raise('Incorrect number of atoms in sigma '
+                              'dictionary... \n '
+                              'Check the output file for more information.')
 
-                if prop is 'forces':
-                    for symbol in check_property.keys():
-                        try:
-                            components = check_property[symbol].keys()
-                        except AttributeError:
-                            self._log('Forces in sigma dictionary need at least one '
-                                      'key component...')
-                            self._log("Structure of the sigma dictionary must be "
-                                      "sigma = {'energy': {symbol: (value or list)},"
-                                      "'forces': {symbol: {0: (value or list), "
-                                      "1: (value or list), 2: (value or list)}}}")
-                            raise('Forces in sigma dictionary need at least one '
-                                  'component key... Check the output file for more '
-                                  'information.')
-            _sigma = sigma
+                    if prop is 'forces':
+                        for symbol in check_property.keys():
+                            try:
+                                check_property[symbol].keys()
+                            except AttributeError:
+                                self._log('Forces in sigma dictionary need at '
+                                          'least one '
+                                          'key component...')
+                                self._log("Structure of the sigma dictionary "
+                                          "must be sigma = {'energy': {symbol:"
+                                          " (value or list)}, 'forces': "
+                                          "{symbol: {0: (value or list), "
+                                          "1: (value or list), 2: (value or "
+                                          "list)}}}")
+                                raise('Forces in sigma dictionary need at '
+                                      'least one component key... Check the '
+                                      'output file for more information.')
+                except AttributeError:
+                    self._log('Adjusting sigma dictionary...')
+
+                    for hash in trainingimages.keys():
+                        # We create 'energy' key
+                        _sigma[prop] = OrderedDict()
+
+                        for symbol, afp in fingerprints[hash]:
+                            if symbol not in _sigma[prop].keys():
+                                _sigma[prop][symbol] = sigma['energy']
+
+                            if forcetraining:
+                                if 'forces' not in _sigma.keys():
+                                    _sigma['forces'] = OrderedDict()
+
+                                if symbol not in _sigma['forces'].keys():
+                                    _sigma['forces'][symbol] = OrderedDict()
+
+                                for component in range(3):
+                                    _sigma['forces'][symbol][component] = \
+                                                            sigma['forces']
+                    return _sigma
         return _sigma
 
     def preprocess_features(self, trainingimages, descriptor,
@@ -1580,7 +1608,8 @@ class KRR(Model):
                     """
                 else:
                     """
-                    This is the case when using the atomic decomposition Ansatz.
+                    This is the case when using the atomic decomposition
+                    Ansatz.
                     """
                     # We append targets
                     energy = trainingimages[hash].get_potential_energy()
@@ -1895,8 +1924,8 @@ class KRR(Model):
         sigma : float, list, or dict
             Length scale of the Gaussian in the case of RBF, exponential, and
             laplacian kernels. Default is 1. (float) and it computes isotropic
-            kernels. Pass a list if you would like to compute anisotropic kernels,
-            or a dictionary if you want sigmas for each model.
+            kernels. Pass a list if you would like to compute anisotropic
+            kernels, or a dictionary if you want sigmas for each model.
 
         Returns
         -------
@@ -1954,8 +1983,8 @@ class KRR(Model):
         sigma : float, list, or dict
             Length scale of the Gaussian in the case of RBF, exponential, and
             laplacian kernels. Default is 1. (float) and it computes isotropic
-            kernels. Pass a list if you would like to compute anisotropic kernels,
-            or a dictionary if you want sigmas for each model.
+            kernels. Pass a list if you would like to compute anisotropic
+            kernels, or a dictionary if you want sigmas for each model.
 
         Returns
         -------
@@ -1983,7 +2012,6 @@ class KRR(Model):
                 self.get_energy_kernel(**kij_args)
 
             if self.nnpartition is None:
-
 
                 sigma = self.sigma['energy'][symbol]
 
@@ -2036,8 +2064,8 @@ class KRR(Model):
         sigma : float, list, or dict
             Length scale of the Gaussian in the case of RBF, exponential, and
             laplacian kernels. Default is 1. (float) and it computes isotropic
-            kernels. Pass a list if you would like to compute anisotropic kernels,
-            or a dictionary if you want sigmas for each model.
+            kernels. Pass a list if you would like to compute anisotropic
+            kernels, or a dictionary if you want sigmas for each model.
 
         Returns
         -------
@@ -2114,8 +2142,8 @@ class KRR(Model):
         sigma : float, list, or dict
             Length scale of the Gaussian in the case of RBF, exponential, and
             laplacian kernels. Default is 1. (float) and it computes isotropic
-            kernels. Pass a list if you would like to compute anisotropic kernels,
-            or a dictionary if you want sigmas for each model.
+            kernels. Pass a list if you would like to compute anisotropic
+            kernels, or a dictionary if you want sigmas for each model.
 
         Returns
         -------
