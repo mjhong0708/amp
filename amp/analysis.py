@@ -364,8 +364,8 @@ def plot_parity_and_error(calc,
         ax = fig.add_subplot(211)
 
     calc._log('Plotting energy parities...', tic='energy-plot')
-    for hash, image in images.iteritems():
-        ax.plot(energy_data[hash][0], energy_data[hash][1], color)
+    ax.plot(zip(*np.vstack(energy_data.values()))[0],
+            zip(*np.vstack(energy_data.values()))[1], color)
     # draw line
     ax.plot([min_act_energy, max_act_energy],
             [min_act_energy, max_act_energy],
@@ -380,11 +380,8 @@ def plot_parity_and_error(calc,
         ax = fig.add_subplot(212)
 
         calc._log('Plotting forces...', tic='force-plot')
-        for hash, image in images.iteritems():
-            for index in range(len(image)):
-                for k in range(3):
-                    ax.plot(force_data[hash][0][index][k],
-                            force_data[hash][1][index][k], color)
+        ax.plot(np.hstack(force_data.values())[0].flatten(),
+                np.hstack(force_data.values())[1].flatten(), color)
         # draw line
         ax.plot([min_act_force, max_act_force],
                 [min_act_force, max_act_force],
@@ -407,8 +404,8 @@ def plot_parity_and_error(calc,
         ax = fig.add_subplot(211)
 
     calc._log('Plotting energy errors...', tic='energy-plot')
-    for hash, image in images.iteritems():
-        ax.plot(energy_data[hash][2], energy_data[hash][3], color)
+    ax.plot(zip(*np.vstack(energy_data.values()))[2],
+            zip(*np.vstack(energy_data.values()))[3], color)
     # draw horizontal line for rmse
     ax.plot([min_act_energy_per_atom, max_act_energy_per_atom],
             [energy_per_atom_rmse, energy_per_atom_rmse],
@@ -428,11 +425,8 @@ def plot_parity_and_error(calc,
         ax = fig.add_subplot(212)
 
         calc._log('Plotting force errors...', tic='force-plot')
-        for hash, image in images.iteritems():
-            for index in range(len(image)):
-                for k in range(3):
-                    ax.plot(force_data[hash][0][index][k],
-                            force_data[hash][2][index][k], color)
+        ax.plot(np.hstack(force_data.values())[0].flatten(),
+                np.hstack(force_data.values())[2].flatten(), color)
         # draw horizontal line for rmse
         ax.plot([min_act_force, max_act_force],
                 [force_rmse, force_rmse],
