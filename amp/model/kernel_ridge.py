@@ -1350,12 +1350,12 @@ class KRR(Model):
         tp = self.trainingparameters
         trainingimages = tp['trainingimages']
         fingerprints = tp['fingerprints']
-        _sigma = OrderedDict()
+        _sigma = {}
 
         if user_input == 'float' or user_input == 'list':
             for hash in trainingimages.keys():
                 # We create 'energy' key
-                _sigma['energy'] = OrderedDict()
+                _sigma['energy'] = {}
 
                 for symbol, afp in fingerprints[hash]:
                     if symbol not in _sigma['energy'].keys():
@@ -1363,10 +1363,10 @@ class KRR(Model):
 
                     if forcetraining:
                         if 'forces' not in _sigma.keys():
-                            _sigma['forces'] = OrderedDict()
+                            _sigma['forces'] = {}
 
                         if symbol not in _sigma['forces'].keys():
-                            _sigma['forces'][symbol] = OrderedDict()
+                            _sigma['forces'][symbol] = {}
 
                         for component in range(3):
                             _sigma['forces'][symbol][component] = sigma
@@ -1418,7 +1418,7 @@ class KRR(Model):
 
                     for hash in trainingimages.keys():
                         # We create 'energy' key
-                        _sigma[prop] = OrderedDict()
+                        _sigma[prop] = {}
 
                         for symbol, afp in fingerprints[hash]:
                             if symbol not in _sigma[prop].keys():
@@ -1426,10 +1426,10 @@ class KRR(Model):
 
                             if forcetraining:
                                 if 'forces' not in _sigma.keys():
-                                    _sigma['forces'] = OrderedDict()
+                                    _sigma['forces'] = {}
 
                                 if symbol not in _sigma['forces'].keys():
-                                    _sigma['forces'][symbol] = OrderedDict()
+                                    _sigma['forces'][symbol] = {}
 
                                 for component in range(3):
                                     _sigma['forces'][symbol][component] = \
