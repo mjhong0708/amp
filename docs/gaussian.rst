@@ -7,7 +7,7 @@ Gaussian descriptor
 Custom parameters
 -----------------
 
-The Gaussian descriptor creates feature vectors based on the Behler scheme, and defaults to values used in Nano Letters 14:2670, 2014. You can specify custom parameters for the elements of the feature vectors as listed in the documentation of the :class:`~amp.descriptor.gaussian.Gaussian` class.
+The Gaussian descriptor creates feature vectors based on the Behler scheme, and defaults to a small set of reasonable values. The values employed are always written to the log file and within saved instances of Amp calculators. You can specify custom parameters for the elements of the feature vectors as listed in the documentation of the :class:`~amp.descriptor.gaussian.Gaussian` class.
 
 There is also a helper function :func:`~amp.descriptor.gaussian.make_symmetry_functions` within the :mod:`amp.descriptor.gaussian` module to assist with this. An example of making a custom fingerprint is given below for a two-element system.
 
@@ -20,7 +20,7 @@ There is also a helper function :func:`~amp.descriptor.gaussian.make_symmetry_fu
 
  elements = ['Cu', 'Pt']
  G = make_symmetry_functions(elements=elements, type='G2',
-                             etas=np.logspace(np.log10(0.05), np.log10(80.),
+                             etas=np.logspace(np.log10(0.05), np.log10(5.),
                                               num=4))
  G += make_symmetry_functions(elements=elements, type='G4',
                               etas=[0.005],

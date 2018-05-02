@@ -761,7 +761,7 @@ def make_symmetry_functions(elements, type, etas, zetas=None, gammas=None):
 
 
 def make_default_symmetry_functions(elements):
-    """Makes symmetry functions as in Nano Letters 14:2670, 2014.
+    """Makes default set of G2 and G4 symmetry functions.
 
 
     Parameters
@@ -778,10 +778,8 @@ def make_default_symmetry_functions(elements):
     for element0 in elements:
 
         # Radial symmetry functions.
-        etas = [0.05, 4., 20., 80.]
-        _G = [{'type': 'G2', 'element': element, 'eta': eta}
-              for eta in etas
-              for element in elements]
+        etas = np.logspace(np.log10(0.05), np.log10(5.), num=4)
+        _G = make_symmetry_functions(type='G2', etas=etas, elements=elements)
 
         # Angular symmetry functions.
         etas = [0.005]
