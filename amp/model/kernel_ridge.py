@@ -110,6 +110,10 @@ class Model(object):
                                      sigma=self.parameters.sigma,
                                      fingerprints=fingerprints)
 
+                    preprocessing = self.parameters.preprocessing
+                    if preprocessing:
+                        arguments['preprocessing'] = preprocessing
+
                     atom_energy = self.energy_from_cholesky(**arguments)
                     self.atomic_energies.append(atom_energy)
                     energy += atom_energy
@@ -993,7 +997,7 @@ class KRR(Model):
         Use per-atom energy partition from an Amp neural network calculator.
         You have to set the path to .amp file. Useful for energy training with
         Cholesky factorization. Default is set to None.
-    preprocessing : str
+    preprocessing : bool
         Preprocess training data.
     sum_rule : bool
         Whether or not we sum of fingerprintprime elements over a given axis.
@@ -1435,10 +1439,12 @@ class KRR(Model):
                                     _sigma['forces'][symbol][component] = \
                                                             sigma['forces']
                     return _sigma
+                else:
+                    return sigma
         return _sigma
 
     def preprocess_features(self, trainingimages, descriptor,
-                            forcetraining=False):
+                            afp=None, forcetraining=False):
         """Preprocess fingerprints
 
         Parameters
@@ -1447,11 +1453,17 @@ class KRR(Model):
             Object containting fingerprints.
         trainingimages : object
             Training images in ASE format.
+        afp : list
+            Atomic fingerprint as a list.
         forcetraining : bool
             Whether or not the forces are going to be preprocessed.
         """
         hashes = list(hash_images(trainingimages).keys())
-        fp = descriptor.fingerprints
+
+        try:
+            fp = descriptor.fingerprints
+        except AttributeError:
+            fp = descriptor
 
         energy_fingerprints = []
         symbols = []
@@ -1464,12 +1476,18 @@ class KRR(Model):
                 energy_fingerprints.append(fingerprint)
             symbols.append(_symbols)
 
+        if isinstance(afp, list):
+            energy_fingerprints.append(afp)
+
         # Making a list of a list
         energy_fingerprints = np.array(energy_fingerprints)
 
         from sklearn.preprocessing import StandardScaler, MinMaxScaler
         scaler = StandardScaler().fit(energy_fingerprints)
         scaled_fp = scaler.transform(energy_fingerprints)
+
+        if isinstance(afp, list):
+            return scaled_fp[-1]
 
         inc = 0
         for index, hash in enumerate(hashes):
@@ -1968,7 +1986,8 @@ class KRR(Model):
 
     def energy_from_cholesky(self, symbol=None, afp=None, hash=None,
                              fp_trainingimages=None, trainingimages=None,
-                             kernel=None, sigma=None, fingerprints=None):
+                             kernel=None, sigma=None, fingerprints=None,
+                             preprocessing=None):
         """
         Given input to the KRR model, output (which corresponds to energy)
         is calculated about the specified atom. The sum of these for all
@@ -1976,6 +1995,8 @@ class KRR(Model):
 
         Parameters
         ---------
+        symbol : str
+            Atom symbol.
         hash : str
             hash of desired image to compute
         kernel : str
@@ -2001,38 +2022,44 @@ class KRR(Model):
             try:
                 self.reference_features_e
             except AttributeError:
-                kij_args = dict(
-                        trainingimages=trainingimages,
-                        fp_trainingimages=fp_trainingimages,
-                        only_features=True
-                        )
+
+                if preprocessing:
+                    _fp_trainingimages = self.preprocess_features(trainingimages,
+                                                                 fp_trainingimages)
+
+                else:
+                    _fp_trainingimages = fp_trainingimages
+
+                kij_args = dict(trainingimages=trainingimages,
+                                fp_trainingimages=_fp_trainingimages,
+                                only_features=True)
 
                 # This is needed for both setting the size of parameters to
                 # optimize and also to return the kernel for energies
                 self.get_energy_kernel(**kij_args)
 
             if self.nnpartition is None:
-
                 sigma = self.sigma['energy'][symbol]
 
-                kernel = self.kernel_matrix(
-                                afp,
-                                self.reference_features_e,
-                                feature_symbol=symbol,
-                                kernel=kernel,
-                                sigma=sigma
-                                )
+                if preprocessing:
+                    afp =  self.preprocess_features(trainingimages,
+                                                    fp_trainingimages, afp=afp)
+
+                kernel = self.kernel_matrix(afp,
+                                            self.reference_features_e,
+                                            feature_symbol=symbol,
+                                            kernel=kernel,
+                                            sigma=sigma)
+
                 amp_energy = kernel.dot(weights['energy'])
+
             else:
-
                 sigma = self.sigma['energy'][symbol]
+                kernel = self.kernel_matrix(afp,
+                                            self.reference_features_e[symbol],
+                                            kernel=kernel,
+                                            sigma=sigma)
 
-                kernel = self.kernel_matrix(
-                                afp,
-                                self.reference_features_e[symbol],
-                                kernel=kernel,
-                                sigma=sigma
-                                )
                 amp_energy = kernel.dot(weights['energy'][symbol])
         else:
             amp_energy = self.kernel_e[hash].dot(weights['energy'])
