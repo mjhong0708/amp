@@ -48,9 +48,8 @@ class Model(object):
 
         Parameters
         ----------
-        fingerprints : dict
-            Dictionary with images hashs as keys and the corresponding
-            fingerprints as values.
+        fingerprints : list
+            List of fingerprints of an image, one per atom.
         """
 
         if self.parameters.mode == 'image-centered':
@@ -72,12 +71,12 @@ class Model(object):
 
         Parameters
         ----------
-        fingerprints : dict
-            Dictionary with images hashs as keys and the corresponding
-            fingerprints as values.
+        fingerprints : list
+            List of fingerprints of an image, one per atom.
         fingerprintprimes : dict
-            Dictionary with images hashs as keys and the corresponding
-            fingerprint derivatives as values.
+            Dictionary of fingerprint derivatives, where the key is
+            a tuple with (index, symbol, neighbor_index, neighbor_symbol,
+            direction).
         """
 
         if self.parameters.mode == 'image-centered':
@@ -85,16 +84,15 @@ class Model(object):
         elif self.parameters.mode == 'atom-centered':
             selfindices = set([key[0] for key in fingerprintprimes.keys()])
             forces = np.zeros((len(selfindices), 3))
-            for key in fingerprintprimes.keys():
-                selfindex, selfsymbol, nindex, nsymbol, i = key
-                derafp = fingerprintprimes[key]
+            for key, derafp in fingerprintprimes.items():
+                selfindex, selfsymbol, nindex, nsymbol, direction = key
                 afp = fingerprints[nindex][1]
                 dforce = self.calculate_force(afp=afp,
                                               derafp=derafp,
                                               nindex=nindex,
                                               nsymbol=nsymbol,
-                                              direction=i,)
-                forces[selfindex][i] += dforce
+                                              direction=direction)
+                forces[selfindex][direction] += dforce
         return forces
 
     def calculate_dEnergy_dParameters(self, fingerprints):
@@ -103,9 +101,8 @@ class Model(object):
 
         Parameters
         ----------
-        fingerprints : dict
-            Dictionary with images hashs as keys and the corresponding
-            fingerprints as values.
+        fingerprints : list
+            List of fingerprints of an image, one per atom.
         """
 
         if self.parameters.mode == 'image-centered':
@@ -130,9 +127,8 @@ class Model(object):
 
         Parameters
         ----------
-        fingerprints : dict
-            Dictionary with images hashs as keys and the corresponding
-            fingerprints as values.
+        fingerprints : list
+            List of fingerprints of an image, one per atom.
         d : float
             The amount of perturbation in each parameter.
         """
@@ -162,12 +158,12 @@ class Model(object):
 
         Parameters
         ----------
-        fingerprints : dict
-            Dictionary with images hashs as keys and the corresponding
-            fingerprints as values.
+        fingerprints : list
+            List of fingerprints of an image, one per atom.
         fingerprintprimes : dict
-            Dictionary with images hashs as keys and the corresponding
-            fingerprint derivatives as values.
+            Dictionary of fingerprint derivatives, where the key is
+            a tuple with (index, symbol, neighbor_index, neighbor_symbol,
+            direction).
         """
 
         if self.parameters.mode == 'image-centered':
@@ -200,12 +196,12 @@ class Model(object):
 
         Parameters
         ---------
-        fingerprints : dict
-            Dictionary with images hashs as keys and the corresponding
-            fingerprints as values.
+        fingerprints : list
+            List of fingerprints of an image, one per atom.
         fingerprintprimes : dict
-            Dictionary with images hashs as keys and the corresponding
-            fingerprint derivatives as values.
+            Dictionary of fingerprint derivatives, where the key is
+            a tuple with (index, symbol, neighbor_index, neighbor_symbol,
+            direction).
         d : float
             The amount of perturbation in each parameter.
         """
@@ -652,7 +648,6 @@ class LossFunction:
         images = self._model.trainingparameters.images
         descriptor = self._model.trainingparameters.descriptor
         fingerprints = descriptor.fingerprints
-        fingerprintprimes = descriptor.fingerprintprimes
         for hash in images.keys():
             image = images[hash]
             no_of_atoms = len(image)
@@ -685,6 +680,7 @@ class LossFunction:
                     dloss_dparameters += temp
 
             if p.force_coefficient is not None:
+                fingerprintprimes = descriptor.fingerprintprimes
                 amp_forces = \
                     model.calculate_forces(fingerprints[hash],
                                            fingerprintprimes[hash])
