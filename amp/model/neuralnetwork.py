@@ -423,10 +423,10 @@ class NeuralNetwork(Model):
         direction : int
             Direction of force.
         nindex : int
-            Index of the neighbor atom which force is acting at.  (only used in
+            Index of the atom at which force is acting.  (only used in
             the atom-centered mode)
         nsymbol : str
-            Symbol of the neighbor atom which force is acting at.  (only used
+            Symbol of the atom at which force is acting.  (only used
             in the atom-centered mode)
 
         Returns
@@ -442,10 +442,8 @@ class NeuralNetwork(Model):
 
         force = float((scaling['slope'] *
                        dOutputs_dInputs[len(dOutputs_dInputs) - 1][0]))
-        # force is multiplied by -1, because it is -dE/dx and not dE/dx.
-        force *= -1.
-
-        return force
+        # Force is multiplied by -1, because it is -dE/dx and not dE/dx.
+        return -force
 
     def calculate_dAtomicEnergy_dParameters(self, afp, index=None,
                                             symbol=None):
@@ -518,10 +516,10 @@ class NeuralNetwork(Model):
         direction : int
             Direction of force.
         nindex : int
-            Index of the neighbor atom which force is acting at.  (only used in
+            Index of the atom at which force is acting.  (only used in
             the atom-centered mode)
         nsymbol : str
-            Symbol of the neighbor atom which force is acting at.  (only used
+            Symbol of the atom at which force is acting.  (only used
             in the atom-centered mode)
 
         Returns
@@ -709,6 +707,9 @@ def calculate_nodal_outputs(parameters, afp, symbol,):
 
 def calculate_dOutputs_dInputs(parameters, derafp, outputs, nsymbol,):
     """
+    Calculates the derivative of the neural network nodes with respect
+    to the inputs.
+
     Parameters
     ----------
     parameters : dict
