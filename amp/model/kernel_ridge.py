@@ -164,6 +164,12 @@ class Model(object):
                             trainingimages=trainingimages,
                             fingerprintprimes=fingerprintprimes
                             )
+
+                    preprocessing = self.parameters.preprocessing
+
+                    if preprocessing:
+                        arguments['preprocessing'] = preprocessing
+
                     if self.cholesky is False:
                         dforce = self.calculate_force(**arguments)
                     else:
@@ -1122,11 +1128,12 @@ class KRR(Model):
 
         if self.preprocessing is True:
             log('Preprocessing data...', tic='preprocessing')
-            tp.fingerprints = self.preprocess_features(
+            preprocessed_afp = self.preprocess_features(
                     tp.trainingimages,
                     tp.descriptor,
                     forcetraining=self.forcetraining)
             log('...preprocessing finished in ', toc='preprocessing')
+            tp.fingerprints = preprocessed_afp[0]
         else:
             tp.fingerprints = tp.descriptor.fingerprints
 
@@ -1169,6 +1176,9 @@ class KRR(Model):
             self.get_energy_kernel(**kij_args)
 
             if self.forcetraining is True:
+                if self.preprocessing:
+                    tp.descriptor = preprocessed_afp[1]
+
                 kijf_args = dict(trainingimages=tp.trainingimages,
                                  t_descriptor=tp.descriptor)
 
@@ -1444,7 +1454,7 @@ class KRR(Model):
         return _sigma
 
     def preprocess_features(self, trainingimages, descriptor,
-                            afp=None, forcetraining=False):
+                            afp=None, fprime=None, forcetraining=False):
         """Preprocess fingerprints
 
         Parameters
@@ -1454,10 +1464,14 @@ class KRR(Model):
         trainingimages : object
             Training images in ASE format.
         afp : list
-            Atomic fingerprint as a list.
+            Atomic fingerprint as a list. Useful for energy_from_cholesky().
+        fprime : list
+            Derivative of atomic fingerprint as a list. Useful for
+            forces_from_cholesky().
         forcetraining : bool
             Whether or not the forces are going to be preprocessed.
         """
+        from sklearn.preprocessing import StandardScaler, MinMaxScaler
         hashes = list(hash_images(trainingimages).keys())
 
         try:
@@ -1468,37 +1482,72 @@ class KRR(Model):
         energy_fingerprints = []
         symbols = []
         fingerprints = OrderedDict()
+        fingerprintprimes = OrderedDict()
 
-        for hash in hashes:
-            _symbols = []
-            for symbol, fingerprint in fp[hash]:
-                _symbols.append(symbol)
-                energy_fingerprints.append(fingerprint)
-            symbols.append(_symbols)
+        if fprime is None:
+            for hash in hashes:
+                _symbols = []
+                for symbol, fingerprint in fp[hash]:
+                    _symbols.append(symbol)
+                    energy_fingerprints.append(fingerprint)
+                symbols.append(_symbols)
 
-        if isinstance(afp, list):
-            energy_fingerprints.append(afp)
+            if isinstance(afp, list):
+                energy_fingerprints.append(afp)
 
-        # Making a list of a list
-        energy_fingerprints = np.array(energy_fingerprints)
+            # Making a numpy array
+            energy_fingerprints = np.array(energy_fingerprints)
 
-        from sklearn.preprocessing import StandardScaler, MinMaxScaler
-        scaler = StandardScaler().fit(energy_fingerprints)
-        scaled_fp = scaler.transform(energy_fingerprints)
+            scaler = StandardScaler().fit(energy_fingerprints)
+            scaled_fp = scaler.transform(energy_fingerprints)
 
-        if isinstance(afp, list):
-            return scaled_fp[-1]
+            if isinstance(afp, list):
+                return scaled_fp[-1]
 
-        inc = 0
-        for index, hash in enumerate(hashes):
-            fingerprints[hash] = OrderedDict()
-            append_this = []
-            for symbol in symbols[index]:
-                append_this.append((symbol, scaled_fp[inc]))
-                inc += 1
-            fingerprints[hash] = append_this
+            inc = 0
+            for index, hash in enumerate(hashes):
+                fingerprints[hash] = OrderedDict()
+                append_this = []
+                for symbol in symbols[index]:
+                    append_this.append((symbol, scaled_fp[inc]))
+                    inc += 1
+                fingerprints[hash] = append_this
 
-        return fingerprints
+        if afp is None:
+            if forcetraining:
+                try:
+                    fprimes = descriptor.fingerprintprimes
+                # Needed for predictions
+                except AttributeError:
+                    fprimes = descriptor
+
+                forces_fingerprints = []
+
+                for hash in hashes:
+                    fingerprintprimes[hash] = OrderedDict()
+                    for key in sorted(fprimes[hash].keys()):
+                        forces_fingerprints.append(fprimes[hash][key])
+
+
+                if isinstance(fprime, list):
+                    fpp_count = 0
+                    for _ in fprime:
+                        forces_fingerprints.append(_)
+                        fpp_count -= 1
+
+                forces_fingerprints = np.array(forces_fingerprints)
+
+                scaler = StandardScaler().fit(forces_fingerprints)
+                scaled_fp = scaler.transform(forces_fingerprints)
+
+                if isinstance(fprime, list):
+                    return scaled_fp[fpp_count]
+
+                for hash in hashes:
+                    for i, key in enumerate(sorted(fprimes[hash].keys())):
+                        fingerprintprimes[hash][key] = scaled_fp[i]
+
+        return fingerprints, fingerprintprimes
 
     def get_energy_kernel(self, trainingimages=None, fp_trainingimages=None,
                           only_features=False):
@@ -1692,7 +1741,13 @@ class KRR(Model):
         """
 
         hashes = list(hash_images(trainingimages).keys())
-        fingerprintprimes = t_descriptor.fingerprintprimes
+
+        # For non processed features
+        try:
+            fingerprintprimes = t_descriptor.fingerprintprimes
+        # For processed features
+        except AttributeError:
+            fingerprintprimes = t_descriptor
 
         self.force_features = OrderedDict()
         self.ref_features_f = OrderedDict()
@@ -2026,6 +2081,7 @@ class KRR(Model):
                 if preprocessing:
                     _fp_trainingimages = self.preprocess_features(trainingimages,
                                                                  fp_trainingimages)
+                    _fp_trainingimages = _fp_trainingimages[0]
 
                 else:
                     _fp_trainingimages = fp_trainingimages
@@ -2145,7 +2201,8 @@ class KRR(Model):
 
     def forces_from_cholesky(self, index, symbol, component,
                              fingerprintprimes=None, trainingimages=None,
-                             t_descriptor=None, sigma=None, hash=None):
+                             t_descriptor=None, sigma=None, hash=None,
+                             preprocessing=False):
         """Given derivative of input to KRR, derivative of output (which
         corresponds to forces) is calculated.
 
@@ -2171,6 +2228,8 @@ class KRR(Model):
             laplacian kernels. Default is 1. (float) and it computes isotropic
             kernels. Pass a list if you would like to compute anisotropic
             kernels, or a dictionary if you want sigmas for each model.
+        preprocessing : bool
+            Whether or not the features were preprocessed.
 
         Returns
         -------
@@ -2184,17 +2243,29 @@ class KRR(Model):
             try:
                 self.ref_features_f
             except AttributeError:
+                if preprocessing:
+                    _fp_trainingimages = self.preprocess_features(trainingimages,
+                                                                  t_descriptor,
+                                                                  forcetraining=True)
+                    t_descriptor = _fp_trainingimages[1]
+
                 self.get_forces_kernel(
                         trainingimages=trainingimages,
                         t_descriptor=t_descriptor,
-                        only_features=True
-                        )
+                        only_features=True)
 
             fprime = []
+
             for afp in fingerprintprimes:
                 if (index == afp[0] and symbol == afp[1] and
                         component == afp[-1]):
                     fprime.append(np.array(fingerprintprimes[afp]))
+
+            if preprocessing:
+                fprime = self.preprocess_features(trainingimages,
+                                                  t_descriptor,
+                                                  forcetraining=True,
+                                                  fprime=fprime)
 
             if self.sum_rule:
                 fprime = np.sum(np.array(fprime), axis=0)
