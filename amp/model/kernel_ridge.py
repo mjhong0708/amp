@@ -1470,6 +1470,17 @@ class KRR(Model):
             forces_from_cholesky().
         forcetraining : bool
             Whether or not the forces are going to be preprocessed.
+
+        Notes
+        -----
+            Training set features have to be scaled for using dual metrics as
+            kernels. Scikit-learn offers good preprocessing tools. Once a scaler
+            is fit with training set features and used for scaling them, we
+            used that fitted scaler to transform unseen feature vectors, too.
+            For some more information read:
+
+                https://stackoverflow.com/q/49509575/1995261
+                https://stackoverflow.com/q/41506134/1995261
         """
         from sklearn.preprocessing import StandardScaler, MinMaxScaler
         hashes = list(hash_images(trainingimages).keys())
@@ -1492,24 +1503,32 @@ class KRR(Model):
                     energy_fingerprints.append(fingerprint)
                 symbols.append(_symbols)
 
-            if isinstance(afp, list):
-                energy_fingerprints.append(afp)
-
             # Making a numpy array
             energy_fingerprints = np.array(energy_fingerprints)
 
-            scaler = StandardScaler().fit(energy_fingerprints)
-            scaled_fp = scaler.transform(energy_fingerprints)
+            try:
+                # We verify that KRR has the self.energy_scaler attribute. This
+                # would avoid to computed when needed only.
+                self.energy_scaler
+                self.energy_scaled_fp
+            except AttributeError:
+                self.energy_scaler = StandardScaler().fit(energy_fingerprints)
+
+                self.energy_scaled_fp = self.energy_scaler.transform(
+                        energy_fingerprints)
 
             if isinstance(afp, list):
-                return scaled_fp[-1]
+
+                afp = self.energy_scaler.transform(
+                      np.array(afp).reshape(1, -1))
+                return afp
 
             inc = 0
             for index, hash in enumerate(hashes):
                 fingerprints[hash] = OrderedDict()
                 append_this = []
                 for symbol in symbols[index]:
-                    append_this.append((symbol, scaled_fp[inc]))
+                    append_this.append((symbol, self.energy_scaled_fp[inc]))
                     inc += 1
                 fingerprints[hash] = append_this
 
@@ -1528,24 +1547,24 @@ class KRR(Model):
                     for key in sorted(fprimes[hash].keys()):
                         forces_fingerprints.append(fprimes[hash][key])
 
-
-                if isinstance(fprime, list):
-                    fpp_count = 0
-                    for _ in fprime:
-                        forces_fingerprints.append(_)
-                        fpp_count -= 1
-
                 forces_fingerprints = np.array(forces_fingerprints)
 
-                scaler = StandardScaler().fit(forces_fingerprints)
-                scaled_fp = scaler.transform(forces_fingerprints)
+                try:
+                    self.force_scaler
+                    self.forces_scaled_fp
+                except AttributeError:
+                    self.force_scaler = StandardScaler().fit(
+                            forces_fingerprints)
+                    self.forces_scaled_fp = self.force_scaler.transform(
+                            forces_fingerprints)
 
                 if isinstance(fprime, list):
-                    return scaled_fp[fpp_count]
+                    fprime = self.force_scaler.transform(fprime)
+                    return fprime
 
                 for hash in hashes:
                     for i, key in enumerate(sorted(fprimes[hash].keys())):
-                        fingerprintprimes[hash][key] = scaled_fp[i]
+                        fingerprintprimes[hash][key] = self.forces_scaled_fp[i]
 
         return fingerprints, fingerprintprimes
 
@@ -2079,8 +2098,9 @@ class KRR(Model):
             except AttributeError:
 
                 if preprocessing:
-                    _fp_trainingimages = self.preprocess_features(trainingimages,
-                                                                 fp_trainingimages)
+                    _fp_trainingimages = self.preprocess_features(
+                            trainingimages,
+                            fp_trainingimages)
                     _fp_trainingimages = _fp_trainingimages[0]
 
                 else:
@@ -2098,8 +2118,9 @@ class KRR(Model):
                 sigma = self.sigma['energy'][symbol]
 
                 if preprocessing:
-                    afp =  self.preprocess_features(trainingimages,
-                                                    fp_trainingimages, afp=afp)
+                    afp = self.preprocess_features(trainingimages,
+                                                   fp_trainingimages,
+                                                   afp=afp)
 
                 kernel = self.kernel_matrix(afp,
                                             self.reference_features_e,
@@ -2244,9 +2265,10 @@ class KRR(Model):
                 self.ref_features_f
             except AttributeError:
                 if preprocessing:
-                    _fp_trainingimages = self.preprocess_features(trainingimages,
-                                                                  t_descriptor,
-                                                                  forcetraining=True)
+                    _fp_trainingimages = self.preprocess_features(
+                            trainingimages,
+                            t_descriptor,
+                            forcetraining=True)
                     t_descriptor = _fp_trainingimages[1]
 
                 self.get_forces_kernel(
