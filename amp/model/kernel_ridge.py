@@ -1453,8 +1453,9 @@ class KRR(Model):
                     return sigma
         return _sigma
 
-    def preprocess_features(self, trainingimages, descriptor,
-                            afp=None, fprime=None, forcetraining=False):
+    def preprocess_features(self, trainingimages, descriptor, afp=None,
+                            fprime=None, forcetraining=False,
+                            component=None):
         """Preprocess fingerprints
 
         Parameters
@@ -1470,14 +1471,16 @@ class KRR(Model):
             forces_from_cholesky().
         forcetraining : bool
             Whether or not the forces are going to be preprocessed.
+        component : int
+            X, Y or Z component of the atomic forces.
 
         Notes
         -----
             Training set features have to be scaled for using dual metrics as
-            kernels. Scikit-learn offers good preprocessing tools. Once a scaler
-            is fit with training set features and used for scaling them, we
-            used that fitted scaler to transform unseen feature vectors, too.
-            For some more information read:
+            kernels. Scikit-learn offers good preprocessing tools. Once
+            a scaler is fit with training set features and used for scaling
+            them, we used that fitted scaler to transform unseen feature
+            vectors, too.  For some more information read:
 
                 https://stackoverflow.com/q/49509575/1995261
                 https://stackoverflow.com/q/41506134/1995261
@@ -1508,7 +1511,7 @@ class KRR(Model):
 
             try:
                 # We verify that KRR has the self.energy_scaler attribute. This
-                # would avoid to computed when needed only.
+                # would ensure that it is computed when needed only.
                 self.energy_scaler
                 self.energy_scaled_fp
             except AttributeError:
@@ -1518,7 +1521,6 @@ class KRR(Model):
                         energy_fingerprints)
 
             if isinstance(afp, list):
-
                 afp = self.energy_scaler.transform(
                       np.array(afp).reshape(1, -1))
                 return afp
@@ -1540,31 +1542,73 @@ class KRR(Model):
                 except AttributeError:
                     fprimes = descriptor
 
-                forces_fingerprints = []
-
-                for hash in hashes:
-                    fingerprintprimes[hash] = OrderedDict()
-                    for key in sorted(fprimes[hash].keys()):
-                        forces_fingerprints.append(fprimes[hash][key])
-
-                forces_fingerprints = np.array(forces_fingerprints)
+                forces_fingerprints_x = []
+                forces_fingerprints_y = []
+                forces_fingerprints_z = []
 
                 try:
-                    self.force_scaler
-                    self.forces_scaled_fp
+                    self.force_scaler_x
+                    self.force_scaler_y
+                    self.force_scaler_z
+                    self.forces_scaled_fp_x
+                    self.forces_scaled_fp_y
+                    self.forces_scaled_fp_z
                 except AttributeError:
-                    self.force_scaler = StandardScaler().fit(
-                            forces_fingerprints)
-                    self.forces_scaled_fp = self.force_scaler.transform(
-                            forces_fingerprints)
+                    for hash in hashes:
+                        fingerprintprimes[hash] = OrderedDict()
+                        for key in sorted(fprimes[hash].keys()):
+                            if key[-1] == 0:
+                                forces_fingerprints_x.append(
+                                        fprimes[hash][key])
+                            elif key[-1] == 1:
+                                forces_fingerprints_y.append(
+                                        fprimes[hash][key])
+                            elif key[-1] == 2:
+                                forces_fingerprints_z.append(
+                                        fprimes[hash][key])
+
+                    forces_fingerprints_x = np.array(forces_fingerprints_x)
+                    forces_fingerprints_y = np.array(forces_fingerprints_y)
+                    forces_fingerprints_z = np.array(forces_fingerprints_z)
+
+                    self.force_scaler_x = StandardScaler().fit(
+                            forces_fingerprints_x)
+                    self.force_scaler_y = StandardScaler().fit(
+                            forces_fingerprints_y)
+                    self.force_scaler_z = StandardScaler().fit(
+                            forces_fingerprints_z)
+                    self.forces_scaled_fp_x = self.force_scaler_x.transform(
+                            forces_fingerprints_x)
+                    self.forces_scaled_fp_y = self.force_scaler_y.transform(
+                            forces_fingerprints_y)
+                    self.forces_scaled_fp_z = self.force_scaler_z.transform(
+                            forces_fingerprints_z)
 
                 if isinstance(fprime, list):
-                    fprime = self.force_scaler.transform(fprime)
+                    if component == 0:
+                        fprime = self.force_scaler_x.transform(fprime)
+                    elif component == 1:
+                        fprime = self.force_scaler_y.transform(fprime)
+                    elif component == 2:
+                        fprime = self.force_scaler_z.transform(fprime)
+
                     return fprime
 
                 for hash in hashes:
-                    for i, key in enumerate(sorted(fprimes[hash].keys())):
-                        fingerprintprimes[hash][key] = self.forces_scaled_fp[i]
+                    ix, iy, iz = 0, 0, 0
+                    for key in sorted(fprimes[hash].keys()):
+                        if key[-1] == 0:
+                            fingerprintprimes[hash][key] = \
+                                    self.forces_scaled_fp_x[ix]
+                            ix += 1
+                        elif key[-1] == 1:
+                            fingerprintprimes[hash][key] = \
+                                    self.forces_scaled_fp_y[iy]
+                            iy += 1
+                        elif key[-1] == 2:
+                            fingerprintprimes[hash][key] = \
+                                    self.forces_scaled_fp_z[iz]
+                            iz += 1
 
         return fingerprints, fingerprintprimes
 
@@ -2287,7 +2331,8 @@ class KRR(Model):
                 fprime = self.preprocess_features(trainingimages,
                                                   t_descriptor,
                                                   forcetraining=True,
-                                                  fprime=fprime)
+                                                  fprime=fprime,
+                                                  component=component)
 
             if self.sum_rule:
                 fprime = np.sum(np.array(fprime), axis=0)
