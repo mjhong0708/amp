@@ -140,7 +140,12 @@ class BootStrap:
             for index in range(n):
                 os.chdir('%i' % index)
                 if not os.path.exists('converged'):
-                    log('%i: Still running? No converged file.' % index)
+                    if not os.path.exists('amp-log.txt'):
+                        log('%i: Not started; no amp-log.txt file.' % index)
+                    else:
+                        age = time.time() - os.path.getmtime('amp-log.txt')
+                        log('{:d}: Still running? No converged file. Age: '
+                            '{:.1f} hr'.format(index, age / 3600.))
                     os.chdir(fulltrainingpath)
                     n_unfinished += 1
                     continue
@@ -162,7 +167,7 @@ class BootStrap:
                                 os.remove(_)
                     os.system(start_command)
                     time.sleep(sleep)
-                    log('%i: Restarted.')
+                    log('  ---> %i: restarted.' % index)
 
                 os.chdir(fulltrainingpath)
             log('')
