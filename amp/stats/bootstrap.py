@@ -214,8 +214,9 @@ class BootStrap:
                             'restarting.')
                         n_expired += 1
                         clean_and_restart()
+                    else:
+                        n_unfinished += 1
                 os.chdir(fulltrainingpath)
-                n_unfinished += 1
                 continue
             with open('converged') as f:
                 converged = f.read()
