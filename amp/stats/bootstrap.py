@@ -11,7 +11,7 @@ import tempfile
 
 import ase.io
 
-from ..utilities import hash_images, Logger
+from ..utilities import hash_images, Logger, now
 from .. import Amp
 
 try:
@@ -75,6 +75,9 @@ class BootStrap:
         if log is None:
             log = Logger(sys.stdout)
         self.log = log
+        log('=' * 70)
+        log('Amp bootstrap initiated.')
+        log('Date: %s' % now(with_utc=True))
         if load is None:
             return
 
@@ -132,6 +135,7 @@ class BootStrap:
         """
 
         log = self.log
+        log('Train called.')
         trainingpath = '-'.join((label, 'training'))
         if os.path.exists(trainingpath):
             log('Path exists. Checking for which jobs are finished.')
@@ -197,6 +201,7 @@ class BootStrap:
         n_converged = 0
         n_unconverged = 0
         n_expired = 0
+        n_notstarted = 0
         pwd = os.getcwd()
         os.chdir(trainingpath)
         fulltrainingpath = os.getcwd()
@@ -205,6 +210,7 @@ class BootStrap:
             if not os.path.exists('converged'):
                 if not os.path.exists('amp-log.txt'):
                     log('%i: Not started; no amp-log.txt file.' % index)
+                    n_notstarted += 1
                 else:
                     age = time.time() - os.path.getmtime('amp-log.txt')
                     log('{:d}: Still running? No converged file. Age: '
@@ -233,9 +239,10 @@ class BootStrap:
         log('')
         log('Stats:')
         log('%10i converged' % n_converged)
+        log('%10i not yet started' % n_notstarted)
+        log('%10i apparently still running' % n_unfinished)
         log('%10i did not converge, restarted' % n_unconverged)
         log('%10i expired, restarted' % n_expired)
-        log('%10i apparently still running' % n_unfinished)
         log('=' * 10)
         log('%10i total' % n)
         log('\n')
