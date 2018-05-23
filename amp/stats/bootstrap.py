@@ -132,6 +132,14 @@ class BootStrap:
            When checking jobs, age (s) of log file at which to consider
            that the job is no longer running (timed out) and should be
            restarted.
+
+        Returns
+        -------
+        results: dict
+            A dictionary indicating the state of training. This dictionary
+            always contains a key 'complete' key with value of True or
+            False indicating if training is complete. If False, also
+            provides statistics on number converged.
         """
 
         log = self.log
@@ -139,9 +147,9 @@ class BootStrap:
         trainingpath = '-'.join((label, 'training'))
         if os.path.exists(trainingpath):
             log('Path exists. Checking for which jobs are finished.')
-            self._manage_jobs(n, trainingpath, expired, start_command,
-                              sleep, label)
-            return
+            results = self._manage_jobs(n, trainingpath, expired,
+                                        start_command, sleep, label)
+            return results
 
         log('Training set: ' + str(images))
         images = hash_images(images)
@@ -179,6 +187,8 @@ class BootStrap:
             time.sleep(sleep)
             os.chdir(pwd)
         os.chdir(originalpath)
+        return {'complete': False,
+                'n_converged': 0}
 
     def _manage_jobs(self, n, trainingpath, expired, start_command, sleep,
                      label):
@@ -250,7 +260,9 @@ class BootStrap:
         if n_converged < n:
             log('Not all runs converged; not creating bundled amp '
                 'calculator.')
-            return
+            os.chdir(pwd)
+            return {'complete': False,
+                    'n_converged': n_converged}
 
         log('Creating bundled amp calculator.')
         ensemble = []
@@ -267,6 +279,7 @@ class BootStrap:
         log('Converting training directory into tar archive...')
         archive_directory(trainingpath)
         log('...converted.')
+        return {'complete': True}
 
     def get_potential_energy(self, atoms, output=(.5,)):
         """Returns the potential energy from the ensemble for the atoms
