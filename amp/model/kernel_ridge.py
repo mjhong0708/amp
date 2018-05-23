@@ -1822,7 +1822,7 @@ class KRR(Model):
             # We iterate once over the whole fingerprint object per hash
             # in order to build the right dictionaries for applying the
             # kernel functions.
-            for key in sorted(fingerprintprimes[hash].keys()):
+            for key, dfp in sorted(fingerprintprimes[hash].items()):
                 _key = (key[0], key[1])
                 selfsymbol = key[1]
                 component = key[-1]
@@ -1833,20 +1833,17 @@ class KRR(Model):
                 if component not in self.force_features[hash][_key].keys():
                     self.force_features[hash][_key][component] = []
 
-                dfp = fingerprintprimes[hash][key]
                 self.force_features[hash][_key][component].append(dfp)
 
             # We iterate over the self.force_features dictionary to build
             # the references per atom.
-            for k in sorted(self.force_features[hash].keys()):
+            for k, dfp in sorted(self.force_features[hash].items()):
                 selfsymbol = k[1]
 
                 if selfsymbol not in self.ref_features_f.keys():
                     self.ref_features_f[selfsymbol] = OrderedDict()
 
-                for component in self.force_features[hash][k].keys():
-                    dfp = self.force_features[hash][k][component]
-
+                for component, dfp in self.force_features[hash][k].items():
                     if self.sum_rule:
                         dfp = np.sum(np.array(dfp), axis=0)
                         self.force_features[hash][k][component] = dfp
