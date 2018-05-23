@@ -140,3 +140,61 @@ The below script shows an example of loading the calculator, and using it to pre
 
 Note that the call to `calc.get_potential_energy` returns *three* energy predictions, at the 5th, 50th (median), and 95th percentile, as specified with the tuple (0.05, 0.5, 0.95).
 When you run this, you should see that the median prediction matches the true energy (from `image.get_potential_energy`) quite well, while the spread in the data is due to the sparsity of data;  as described in our paper above, this ensemble technique punishes regions of the potential energy surface with infrequent data.
+
+Hands-free training
+-------------------
+In typical use, calling the :meth:`~amp.stats.bootstrap.BootStrap.train` method of the :class:`~amp.stats.bootstrap.BootStrap` class  will spawn many independent training jobs.
+Subsequent calls to `train` will help you manage those jobs: checking which have converged, checking which failed to converge (and re-submitting them), checking which timed out (and re-submitting them), and, if all converged, creating a bundled calculator.
+It can be most efficient to submit a (single-core) job that repeatedly calls this command for you and acts as a job manager until all the training jobs are complete.
+This can be achieved by taking advantage of the `results` dictionary returned by train, as in the below example script which uses SLURM environment commands. 
+
+.. code-block:: python
+
+    #!/usr/bin/env python
+    #SBATCH --time=50:00:00
+    #SBATCH --nodes=1
+    #SBATCH --ntasks-per-node=1
+    #SBATCH --partition=batch
+
+    import time
+    from amp.stats.bootstrap import BootStrap
+    from amp.utilities import Logger
+
+    calc_text = """
+    from amp import Amp
+    from amp.model.neuralnetwork import NeuralNetwork
+    from amp.descriptor.gaussian import Gaussian
+    from amp.model import LossFunction
+
+
+    calc = Amp(model=NeuralNetwork(),
+               descriptor=Gaussian(),
+               dblabel='../amp-db')
+    calc.model.lossfunction = LossFunction(convergence={'force_rmse': 0.02,
+                                                        'force_maxresid': 0.03})
+    """
+
+    headerlines = """#SBATCH --time=05:30:00
+    #SBATCH --nodes=1
+    #SBATCH --ntasks-per-node=8
+    #SBATCH --partition=batch
+    """
+
+    start_command = 'sbatch run.py'
+
+    calc = BootStrap(log=Logger('bootstrap.log'))
+
+    complete = False
+    count = 0
+    while not complete:
+        results =  calc.train(images='training.traj',
+                              n=50,
+                              calc_text=calc_text,
+                              start_command=start_command,
+                              label='bootstrap',
+                              headerlines=headerlines,
+                              expired=360.)
+        calc.log('train loop: ' + str(count))
+        count += 1
+        complete = results['complete']
+        time.sleep(120.)
