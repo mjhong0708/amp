@@ -11,7 +11,7 @@ import tempfile
 
 import ase.io
 
-from ..utilities import hash_images, Logger
+from ..utilities import hash_images, Logger, now
 from .. import Amp
 
 try:
@@ -75,6 +75,9 @@ class BootStrap:
         if log is None:
             log = Logger(sys.stdout)
         self.log = log
+        log('=' * 70)
+        log('Amp bootstrap initiated.')
+        log('Date: %s' % now(with_utc=True))
         if load is None:
             return
 
@@ -90,7 +93,7 @@ class BootStrap:
 
     def train(self, images, n=50, calc_text=calc_text, headerlines='',
               start_command='python run.py', sleep=0.1,
-              train_line=train_line, label='bootstrap'):
+              train_line=train_line, label='bootstrap', expired=3600.):
         """Trains a bootstrap ensemble of calculators.
 
 
@@ -125,76 +128,28 @@ class BootStrap:
            such as train_forces=False
         label: string
            label to give final trained calculator
+        expired: float
+           When checking jobs, age (s) of log file at which to consider
+           that the job is no longer running (timed out) and should be
+           restarted.
+
+        Returns
+        -------
+        results: dict
+            A dictionary indicating the state of training. This dictionary
+            always contains a key 'complete' key with value of True or
+            False indicating if training is complete. If False, also
+            provides statistics on number converged.
         """
 
         log = self.log
+        log('Train called.')
         trainingpath = '-'.join((label, 'training'))
         if os.path.exists(trainingpath):
             log('Path exists. Checking for which jobs are finished.')
-            n_unfinished = 0
-            n_converged = 0
-            n_unconverged = 0
-            pwd = os.getcwd()
-            os.chdir(trainingpath)
-            fulltrainingpath = os.getcwd()
-            for index in range(n):
-                os.chdir('%i' % index)
-                if not os.path.exists('converged'):
-                    log('%i: Still running? No converged file.' % index)
-                    os.chdir(fulltrainingpath)
-                    n_unfinished += 1
-                    continue
-                with open('converged') as f:
-                    converged = f.read()
-
-                if converged == 'True':
-                    log('%i: Converged.' % index)
-                    n_converged += 1
-                else:
-                    log('%i: Not converged. Cleaning up directory to '
-                        ' restart job.' % index)
-                    n_unconverged += 1
-                    for _ in os.listdir(os.getcwd()):
-                        if _ != 'run.py':
-                            if os.path.isdir(_):
-                                shutil.rmtree(_)
-                            else:
-                                os.remove(_)
-                    os.system(start_command)
-                    time.sleep(sleep)
-                    log('%i: Restarted.')
-
-                os.chdir(fulltrainingpath)
-            log('')
-            log('Stats:')
-            log('%10i converged' % n_converged)
-            log('%10i did not converge, restarted' % n_unconverged)
-            log('%10i apparently still running' % n_unfinished)
-            log('=' * 10)
-            log('%10i total' % n)
-            log('\n')
-
-            if n_converged < n:
-                log('Not all runs converged; not creating bundled amp '
-                    'calculator.')
-                return
-
-            log('Creating bundled amp calculator.')
-            ensemble = []
-            for index in range(n):
-                os.chdir('%i' % index)
-                with open('amp.amp') as f:
-                    text = f.read()
-                ensemble.append(text)
-                os.chdir(fulltrainingpath)
-            os.chdir(pwd)
-            with open('%s.ensemble' % label, 'w') as f:
-                json.dump(ensemble, f)
-                log('Saved in json format as "%s.ensemble".' % label)
-            log('Converting training directory into tar archive...')
-            archive_directory(trainingpath)
-            log('...converted.')
-            return
+            results = self._manage_jobs(n, trainingpath, expired,
+                                        start_command, sleep, label)
+            return results
 
         log('Training set: ' + str(images))
         images = hash_images(images)
@@ -232,6 +187,99 @@ class BootStrap:
             time.sleep(sleep)
             os.chdir(pwd)
         os.chdir(originalpath)
+        return {'complete': False,
+                'n_converged': 0}
+
+    def _manage_jobs(self, n, trainingpath, expired, start_command, sleep,
+                     label):
+        """Checks the running jobs to see which have finished, tries
+        to restart any that are stuck, and creates a bundled trajectory
+        when everything is finished."""
+        def clean_and_restart():
+            for _ in os.listdir(os.getcwd()):
+                if _ != 'run.py':
+                    if os.path.isdir(_):
+                        shutil.rmtree(_)
+                    else:
+                        os.remove(_)
+            os.system(start_command)
+            time.sleep(sleep)
+            log('  ---> restarted.')
+
+        log = self.log
+        n_unfinished = 0
+        n_converged = 0
+        n_unconverged = 0
+        n_expired = 0
+        n_notstarted = 0
+        pwd = os.getcwd()
+        os.chdir(trainingpath)
+        fulltrainingpath = os.getcwd()
+        for index in range(n):
+            os.chdir('%i' % index)
+            if not os.path.exists('converged'):
+                if not os.path.exists('amp-log.txt'):
+                    log('%i: Not started; no amp-log.txt file.' % index)
+                    n_notstarted += 1
+                else:
+                    age = time.time() - os.path.getmtime('amp-log.txt')
+                    log('{:d}: Still running? No converged file. Age: '
+                        '{:.1f} hr'.format(index, age / 3600.))
+                    if age > expired:
+                        log(' Assumed expired. Cleaning up directory and '
+                            'restarting.')
+                        n_expired += 1
+                        clean_and_restart()
+                    else:
+                        n_unfinished += 1
+                os.chdir(fulltrainingpath)
+                continue
+            with open('converged') as f:
+                converged = f.read()
+
+            if converged == 'True':
+                log('%i: Converged.' % index)
+                n_converged += 1
+            else:
+                log('%i: Not converged. Cleaning up directory to '
+                    'restart job.' % index)
+                n_unconverged += 1
+                clean_and_restart()
+            os.chdir(fulltrainingpath)
+        log('')
+        log('Stats:')
+        log('%10i converged' % n_converged)
+        log('%10i not yet started' % n_notstarted)
+        log('%10i apparently still running' % n_unfinished)
+        log('%10i did not converge, restarted' % n_unconverged)
+        log('%10i expired, restarted' % n_expired)
+        log('=' * 10)
+        log('%10i total' % n)
+        log('\n')
+
+        if n_converged < n:
+            log('Not all runs converged; not creating bundled amp '
+                'calculator.')
+            os.chdir(pwd)
+            return {'complete': False,
+                    'n_converged': n_converged}
+
+        log('Creating bundled amp calculator.')
+        ensemble = []
+        for index in range(n):
+            os.chdir('%i' % index)
+            with open('amp.amp') as f:
+                text = f.read()
+            ensemble.append(text)
+            os.chdir(fulltrainingpath)
+        os.chdir(pwd)
+        with open('%s.ensemble' % label, 'w') as f:
+            json.dump(ensemble, f)
+            log('Saved in json format as "%s.ensemble".' % label)
+        log('Converting training directory into tar archive...')
+        archive_directory(trainingpath)
+        log('...converted.')
+        return {'complete': True}
 
     def get_potential_energy(self, atoms, output=(.5,)):
         """Returns the potential energy from the ensemble for the atoms
