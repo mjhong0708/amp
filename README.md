@@ -11,6 +11,8 @@ http://amp.readthedocs.org
 
 Users' mailing list lives at:
 https://listserv.brown.edu/?A0=AMP-USERS
+(Subscribe page:)
+https://listserv.brown.edu/?SUBED1=AMP-USERS&A=1
 
 If you would like to compile a local version of the documentation, see the README file in the docs directory.
 
