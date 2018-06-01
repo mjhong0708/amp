@@ -21,11 +21,9 @@ You can read about Amp in the below paper; if you find this project useful, we w
 
    <a href="http://dx.doi.org/10.1016/j.cpc.2016.05.010" target="_blank">DOI:10.1016/j.cpc.2016.05.010</a>
 
-**News**:
+An amp-users mailing list exists for general discussions about the use and development of Amp. You can subscribe via listserv at:
 
-An amp-users mailing list has been started, for general discussions about the use and development of Amp. You can subscribe via listserv at:
-
-https://listserv.brown.edu/?A0=AMP-USERS
+https://listserv.brown.edu/?SUBED1=AMP-USERS&A=1
 
 Amp is now part of the Debian archives! This means it will soon be available via your package manager in linux releases like Ubuntu.
 
