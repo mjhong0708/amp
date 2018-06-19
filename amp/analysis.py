@@ -604,7 +604,7 @@ def read_trainlog(logfile, verbose=True, multiple=0):
         steps.append(int(step))
         es.append(float(e))
         emrs.append(float(emr))
-        costfxns.append(costfxn)
+        costfxns.append(float(costfxn))
         E = float(e)**2 * no_images
         costfxnEs.append(d['energy_coefficient'] * E / float(costfxn))
         index += 1
