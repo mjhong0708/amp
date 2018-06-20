@@ -18,10 +18,11 @@ Development version
 
 * The convergence plots (via :mod:`amp.analysis` and `amp-plotconvergence`) now handle multiple training attempts from a single log file.
 
+* The image hashing routine, used to uniquely identify images, has been updated to correctly handle permutations in very large atomic systems. (Note this means that images hashed with a prior version of Amp will have a different unique identifier, so you should not mix databases of fingerprints.)
+
 * Added Botu - Ramprasad fingerprint for training forces.
 
 * Added Kernel Ridge Regression to Amp.
-
 
 0.6
 ---

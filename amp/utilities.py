@@ -633,7 +633,8 @@ def get_hash(atoms):
     string = str(atoms.pbc)
     for number in atoms.cell.flatten():
         string += '%.15f' % number
-    string += str(atoms.get_atomic_numbers())
+    for number in atoms.get_atomic_numbers():
+        string += '%3d' % number
     for number in atoms.get_positions().flatten():
         string += '%.15f' % number
 
