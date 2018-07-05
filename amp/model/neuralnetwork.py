@@ -300,7 +300,7 @@ class NeuralNetwork(Model):
         p['weights'] = weights
         p['scalings'] = scalings
 
-    def get_loss(self, vector):
+    def get_loss(self, vector, lossprime):
         """Method to be called by the regression master.
 
         Takes one and only one input, a vector of parameters.
@@ -329,14 +329,22 @@ class NeuralNetwork(Model):
                     filename = make_filename(self.parent.label,
                                              '-checkpoint.amp')
                 self.parent.save(filename, overwrite=True)
-        loss = self.lossfunction.get_loss(vector, lossprime=False)['loss']
+        result = self.lossfunction.get_loss(vector, lossprime=lossprime)
         if hasattr(self, 'observer'):
             self.observer(self, vector, loss)
         self.step += 1
-        return loss
+
+        if lossprime:
+            return result['loss'], result['dloss_dparameters']
+        else:
+            return result['loss']
+
 
     def get_lossprime(self, vector):
-        """Method to be called by the regression master.
+        """
+        DEPRECATED
+
+        Method to be called by the regression master.
 
         Takes one and only one input, a vector of parameters.  Returns one
         output, the value of the derivative of the loss function with respect
@@ -424,10 +432,10 @@ class NeuralNetwork(Model):
         direction : int
             Direction of force.
         nindex : int
-            Index of the atom at which force is acting.  (only used in
+            Index of the neighbor atom which force is acting at.  (only used in
             the atom-centered mode)
         nsymbol : str
-            Symbol of the atom at which force is acting.  (only used
+            Symbol of the neighbor atom which force is acting at.  (only used
             in the atom-centered mode)
 
         Returns
@@ -443,8 +451,10 @@ class NeuralNetwork(Model):
 
         force = float((scaling['slope'] *
                        dOutputs_dInputs[len(dOutputs_dInputs) - 1][0]))
-        # Force is multiplied by -1, because it is -dE/dx and not dE/dx.
-        return -force
+        # force is multiplied by -1, because it is -dE/dx and not dE/dx.
+        force *= -1.
+
+        return force
 
     def calculate_dAtomicEnergy_dParameters(self, afp, index=None,
                                             symbol=None):
@@ -517,10 +527,10 @@ class NeuralNetwork(Model):
         direction : int
             Direction of force.
         nindex : int
-            Index of the atom at which force is acting.  (only used in
+            Index of the neighbor atom which force is acting at.  (only used in
             the atom-centered mode)
         nsymbol : str
-            Symbol of the atom at which force is acting.  (only used
+            Symbol of the neighbor atom which force is acting at.  (only used
             in the atom-centered mode)
 
         Returns
@@ -708,9 +718,6 @@ def calculate_nodal_outputs(parameters, afp, symbol,):
 
 def calculate_dOutputs_dInputs(parameters, derafp, outputs, nsymbol,):
     """
-    Calculates the derivative of the neural network nodes with respect
-    to the inputs.
-
     Parameters
     ----------
     parameters : dict
