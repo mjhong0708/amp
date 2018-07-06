@@ -252,7 +252,7 @@ class Amp(Calculator, object):
                         self.descriptor.fingerprints[key]
                         )
 
-            elif self.model.__class__.__name__ == 'KRR':
+            elif self.model.__class__.__name__ == 'KernelRidge':
                 fingerprints = self.descriptor.fingerprints
 
                 log('Loading the training set')
@@ -291,7 +291,7 @@ class Amp(Calculator, object):
                 self.results['forces'] = forces
                 log('...forces calculated.', toc='forces')
 
-            elif self.model.__class__.__name__ == 'KRR':
+            elif self.model.__class__.__name__ == 'KernelRidge':
                 log('Calculating forces...', tic='forces')
                 self.descriptor.calculate_fingerprints(
                         images=images,
@@ -492,8 +492,8 @@ def importhelper(importname):
         from .model.neuralnetwork import NeuralNetwork as Module
     elif importname == '.model.neuralnetwork.tflow':
         from .model.tflow import NeuralNetwork as Module
-    elif importname == '.model.kernel_ridge.KRR':
-        from .model.kernel_ridge import KRR as Module
+    elif importname == '.model.kernelridge.KernelRidge':
+        from .model.kernelridge import KernelRidge as Module
     elif importname == '.model.LossFunction':
         from .model import LossFunction as Module
     else:

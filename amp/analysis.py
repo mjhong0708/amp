@@ -268,7 +268,7 @@ def plot_parity_and_error(calc,
 
         model_name = calc.model.__class__.__name__
 
-        if model_name == 'KRR':
+        if model_name == 'KernelRidge':
             if calc.model.trainingimages is not None:
                 trainingimages = hash_images(Trajectory(calc.model.trainingimages))
                 energy_args['trainingimages'] = trainingimages
@@ -315,7 +315,7 @@ def plot_parity_and_error(calc,
                     fingerprintprimes=calc.descriptor.fingerprintprimes[hash]
                     )
 
-            if model_name == 'KRR':
+            if model_name == 'KernelRidge':
                 if calc.model.trainingimages is not None:
                     trainingimages = \
                             hash_images(Trajectory(calc.model.trainingimages))

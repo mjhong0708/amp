@@ -942,7 +942,7 @@ class LossFunction:
             return energy_rmse_converged and energy_maxresid_converged
 
 
-class KRR(Model):
+class KernelRidge(Model):
     """Class implementing Kernelized Ridge Regression in Amp
 
     Parameters
@@ -1020,7 +1020,8 @@ class KRR(Model):
 
         http://wissrech.ins.uni-bonn.de/teaching/master/masterthesis_mathias_revised.pdf
 
-        ADA is the default way of training total energies in this KRR class.
+        ADA is the default way of training total energies in this KernelRidge
+        class.
 
         An energy partition scheme for  total energies can be obtained from an
         artificial neural network or methods such as the interacting quantum
@@ -1049,7 +1050,7 @@ class KRR(Model):
         # Version check, particularly if restarting.
         compatibleversions = ['2015.12', ]
         if (version is not None) and version not in compatibleversions:
-            raise RuntimeError('Error: Trying to use KRR'
+            raise RuntimeError('Error: Trying to use KernelRidge'
                                ' version %s, but this module only supports'
                                ' versions %s. You may need an older or '
                                'newer version of Amp.' %
@@ -1058,7 +1059,7 @@ class KRR(Model):
             version = compatibleversions[-1]
 
         p = self.parameters = Parameters()
-        p.importname = '.model.kernel_ridge.KRR'
+        p.importname = '.model.kernelridge.KernelRidge'
         p.version = version
         p.weights = weights
         p.weights_independent = self.weights_independent = weights_independent
@@ -1093,9 +1094,9 @@ class KRR(Model):
     def fit(self, trainingimages, descriptor, log, parallel, only_setup=False):
         """Fit kernel ridge model
 
-        This function is capable to fit KRR using either a L2 loss function or
-        matrix factorization in the case when the cholesky keyword argument is
-        set to True.
+        This function is capable to fit KernelRidge using either a L2 loss
+        function or matrix factorization in the case when the cholesky keyword
+        argument is set to True.
 
         Parameters
         ----------
@@ -1247,8 +1248,9 @@ class KRR(Model):
         else:
             try:
                 if self.nnpartition is None:
-                    log('Starting atomic energy decomposition Ansatz to obtain'
-                        ' regression coefficients', tic='energy')
+                    log('Starting Cholesky decomposition of energy kernel '
+                        'matrix obtained from the atomic energy decomposition '
+                        'Ansatz...', tic='energy')
 
                     size = len(self.reference_features_e)
                     K = self.kij.reshape(size, size)
@@ -1264,22 +1266,23 @@ class KRR(Model):
                     betas = np.linalg.solve(cholesky_U.T, self.energy_targets)
                     _weights = np.linalg.solve(cholesky_U, betas)
 
-                    log('Shape of kernel energy matrix is {}.'
+                    log('Shape of energy kernel matrix is {}.'
                         .format(K.shape))
 
                     weights = [w * g for index, w in enumerate(_weights) for
                                g in self.fingerprint_map[index]]
 
-                    log('... energy decomposition Ansatz finished in ',
+                    log('... Cholesky decomposition finished in ',
                         toc='energy')
 
                     p.weights['energy'] = weights
                 else:
-                    log('Starting Cholesky decomposition of kernel energy '
-                        'to get upper triangular matrix.',
+                    log('Starting Cholesky decomposition of energy kernel'
+                        ' matrix... ',
                         tic='cholesky_energy_kernel')
+
                     symbols = []
-                    log('Shape of kernel energy matrix for each element:')
+                    log('Shape of energy kernel matrix for each element:')
                     for symbol in self.kernel_e_loss.keys():
                         size = self.kernel_e_loss[symbol].shape
                         I_e = np.identity(size[0])
@@ -1304,10 +1307,11 @@ class KRR(Model):
                         toc='cholesky_energy_kernel')
 
                 if self.forcetraining is True:
-                    log('Starting Cholesky decomposition of kernel force '
-                        'matrix to get upper triangular matrix.',
-                        tic='cholesky_force_kernel')
-                    log('Shape of kernel force matrix for each element:')
+                    log('Starting Cholesky decomposition of force kernel '
+                        'matrix...', tic='cholesky_force_kernel')
+
+                    log('Shape of force kernel matrix for each element:')
+
                     for symbol in self.kernel_f_cholesky.keys():
                         p.weights['forces'][symbol] = []
                         symbols = []
@@ -1358,7 +1362,7 @@ class KRR(Model):
         Returns
         -------
         _sigma : dict
-            Universal sigma dictionary for KRR in Amp.
+            Universal sigma dictionary for KernelRidge in Amp.
         """
 
         tp = self.trainingparameters
@@ -1510,8 +1514,9 @@ class KRR(Model):
             energy_fingerprints = np.array(energy_fingerprints)
 
             try:
-                # We verify that KRR has the self.energy_scaler attribute. This
-                # would ensure that it is computed when needed only.
+                # We verify that KernelRidge has the self.energy_scaler
+                # attribute. This would ensure that it is computed when needed
+                # only.
                 self.energy_scaler
                 self.energy_scaled_fp
             except AttributeError:
@@ -2038,9 +2043,9 @@ class KRR(Model):
                                 fp_trainingimages=None, trainingimages=None,
                                 kernel=None, sigma=None):
         """
-        Given input to the KRR model, output (which corresponds to energy)
-        is calculated about the specified atom. The sum of these for all
-        atoms is the total energy (in atom-centered mode).
+        Given input to the KernelRidge model, output (which corresponds to
+        energy) is calculated about the specified atom. The sum of these for
+        all atoms is the total energy (in atom-centered mode).
 
         Parameters
         ----------
@@ -2104,9 +2109,9 @@ class KRR(Model):
                              kernel=None, sigma=None, fingerprints=None,
                              preprocessing=None):
         """
-        Given input to the KRR model, output (which corresponds to energy)
-        is calculated about the specified atom. The sum of these for all
-        atoms is the total energy (in atom-centered mode).
+        Given input to the KernelRidge model, output (which corresponds to
+        energy) is calculated about the specified atom. The sum of these for
+        all atoms is the total energy (in atom-centered mode).
 
         Parameters
         ---------
@@ -2186,8 +2191,8 @@ class KRR(Model):
     def calculate_force(self, index, symbol, component, fingerprintprimes=None,
                         trainingimages=None, t_descriptor=None, sigma=None,
                         hash=None):
-        """Given derivative of input to KRR, derivative of output (which
-        corresponds to forces) is calculated.
+        """Given derivative of input to KernelRidge, derivative of output
+        (which corresponds to forces) is calculated.
 
         Parameters
         ----------
@@ -2265,8 +2270,8 @@ class KRR(Model):
                              fingerprintprimes=None, trainingimages=None,
                              t_descriptor=None, sigma=None, hash=None,
                              preprocessing=False):
-        """Given derivative of input to KRR, derivative of output (which
-        corresponds to forces) is calculated.
+        """Given derivative of input to KernelRidge, derivative of output
+        (which corresponds to forces) is calculated.
 
         Parameters
         ----------
@@ -2385,7 +2390,7 @@ class KRR(Model):
         Kernels may differ a lot between them. The kernel_matrix method in this
         class contains algorithms to build the desired matrix. The computation
         of the kernel is done by auxiliary functions that are located at the
-        end of the KRR class.
+        end of the KernelRidge class.
         """
         feature = np.asarray(feature)
         K = []
@@ -2427,9 +2432,9 @@ class KRR(Model):
 class Raveler(object):
     """Raveler class inspired by neuralnetwork.py
 
-    Takes a weights dictionary created by KRR class and convert it into vector
-    and back to dictionaries. This is needed for doing the optimization of the
-    loss function.
+    Takes a weights dictionary created by KernelRidge class and convert it into
+    vector and back to dictionaries. This is needed for doing the optimization
+    of the loss function.
 
     Parameters
     ----------
