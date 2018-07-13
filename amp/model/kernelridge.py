@@ -131,7 +131,7 @@ class Model(object):
             Dictionary with images' hashes as keys and the corresponding
             fingerprints as values.
         fingerprintprimes : dict
-            Dictionary with images hashs as keys and the corresponding
+            Dictionary with images hashes as keys and the corresponding
             fingerprint derivatives as values.
         hash : str
             Image unique hash.
@@ -247,7 +247,7 @@ class Model(object):
             Dictionary with images hashes as keys and the corresponding
             fingerprints as values.
         fingerprintprimes : dict
-            Dictionary with images hashs as keys and the corresponding
+            Dictionary with images hashes as keys and the corresponding
             fingerprint derivatives as values.
         """
 
@@ -282,10 +282,10 @@ class Model(object):
         Parameters
         ---------
         fingerprints : dict
-            Dictionary with images hashs as keys and the corresponding
+            Dictionary with images hashes as keys and the corresponding
             fingerprints as values.
         fingerprintprimes : dict
-            Dictionary with images hashs as keys and the corresponding
+            Dictionary with images hashes as keys and the corresponding
             fingerprint derivatives as values.
         d : float
             The amount of perturbation in each parameter.
@@ -406,10 +406,10 @@ class LossFunction:
         model : object
             Class representing the regression model.
         fingerprints : dict
-            Dictionary with images hashs as keys and the corresponding
+            Dictionary with images hashes as keys and the corresponding
             fingerprints as values.
         fingerprintprimes : dict
-            Dictionary with images hashs as keys and the corresponding
+            Dictionary with images hashes as keys and the corresponding
             fingerprint derivatives as values.
         images : list or str
             List of ASE atoms objects with positions, symbols, energies, and
@@ -985,12 +985,12 @@ class KernelRidge(Model):
         Use fortran code.
     checkpoints : int
         Frequency with which to save parameter checkpoints upon training. E.g.,
-        100 saves a checkpoint on each 100th training setp.  Specify None for
+        100 saves a checkpoint on each 100th training set.  Specify None for
         no checkpoints. Default is None.
     lossfunction : object
         Loss function object.
     cholesky : bool
-        Wether or not we are using Cholesky decomposition to determine the
+        Whether or not we are using Cholesky decomposition to determine the
         weights. This method returns an unique set of regression coefficients.
     weights_independent : bool
         Whether or not the weights are going to be split for energy and forces.
@@ -1028,7 +1028,7 @@ class KernelRidge(Model):
         atoms theory (IQA). I implemented the nnpartition mode for which users
         can provide the path to a NN calculator and we take the energies
         per-atom from the function .calculate_atomic_energy(). The strategy
-        would be to use train the NN with a very tight convergece criterion
+        would be to use train the NN with a very tight convergence criterion
         (1e-6 RSME).  Then, calling .calculate_atomic_energy() would give you
         the atomic energies for such set.
 
@@ -1465,7 +1465,7 @@ class KernelRidge(Model):
         Parameters
         ----------
         descriptor : object
-            Object containting fingerprints.
+            Object containing fingerprints.
         trainingimages : object
             Training images in ASE format.
         afp : list
@@ -2608,9 +2608,9 @@ def rbf(feature_i, feature_j, i_symbol=None, j_symbol=None, sigma=1.):
     else:
         if isinstance(sigma, list) or isinstance(sigma, np.ndarray):
             assert(len(sigma) == len(feature_i) and
-                   len(sigma) == len(feature_j)), "Lenght of sigma does not " \
+                   len(sigma) == len(feature_j)), "Length of sigma does not " \
                                                   "match atomic fingerprint " \
-                                                  "lenght."
+                                                  "length."
             sigma = np.array(sigma)
             anisotropic_rbf = np.exp(-(np.sum(np.divide(np.square(
                               np.subtract(feature_i, feature_j)),
@@ -2649,9 +2649,9 @@ def exponential(feature_i, feature_j, i_symbol=None, j_symbol=None, sigma=1.):
     else:
         if isinstance(sigma, list) or isinstance(sigma, np.ndarray):
             assert(len(sigma) == len(feature_i) and
-                   len(sigma) == len(feature_j)), "Lenght of sigma does not " \
+                   len(sigma) == len(feature_j)), "Length of sigma does not " \
                                                   "match atomic fingerprint " \
-                                                  "lenght."
+                                                  "length."
             sigma = np.array(sigma)
             anisotropic_exp = np.exp(-(np.sqrt(np.sum(np.square(
                           np.divide(np.subtract(feature_i, feature_j),
@@ -2690,9 +2690,9 @@ def laplacian(feature_i, feature_j, i_symbol=None, j_symbol=None, sigma=1.):
     else:
         if isinstance(sigma, list) or isinstance(sigma, np.ndarray):
             assert(len(sigma) == len(feature_i) and
-                   len(sigma) == len(feature_j)), "Lenght of sigma does not " \
+                   len(sigma) == len(feature_j)), "Length of sigma does not " \
                                                   "match atomic fingerprint " \
-                                                  "lenght."
+                                                  "length."
             sigma = np.array(sigma)
 
             sum_ij = np.sum(np.square(np.divide(np.subtract(feature_i,
@@ -2918,7 +2918,7 @@ def send_data_to_fortran(_fmodules,
         _fmodules.images_props.num_atoms = num_atoms
         _fmodules.images_props.atomic_positions = atomic_positions
 
-    # for neural neyworks only
+    # for neural networks only
     """
     if model.parameters['importname'] == '.model.neuralnetwork.NeuralNetwork':
 
