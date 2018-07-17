@@ -539,9 +539,10 @@ class LossFunction:
         self._initialized = False
         if not hasattr(self, '_sessions'):
             return
-        server = self._sessions['master']
-        # Need to properly close socket connection (python3).
-        server.close()
+        # Need to properly close socket connections, due to bug in ZMQ with
+        # python3. See: https://github.com/zeromq/pyzmq/issues/831
+        self._sessions['master'].close()
+        self._sessions['publisher'].close()
 
         for _ in self._sessions['connections']:
             if hasattr(_, 'logout'):
