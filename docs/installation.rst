@@ -79,15 +79,13 @@ gfortran will also be used by f2py to generate extension module fmodules.so on L
 We have included a `Make` file that automatizes the building of Fortran modules.
 To use it, install `GNU Makefile <https://www.gnu.org/software/make/>`_
 on your Linux distribution or macOS.
-For Python2, then simply do::
+Simply do::
 
     $ cd <installation-directory>/amp/
-    $ make python2
+    $ make python
 
-For Python3::
-
-    $ cd <installation-directory>/amp/
-    $ make python3
+Note that you have to make sure your `f2py` is pointing to the right Python
+version.
 
 If you do not have the GNU Makefile installed, you can prepare the Fortran extension modules manually in the following steps:
 
