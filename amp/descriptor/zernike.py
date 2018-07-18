@@ -37,7 +37,8 @@ class Zernike(object):
         Maximum degree of Zernike polynomials that will be included in the
         fingerprint vector. Can be different values for different species fed
         as a dictionary with chemical elements as keys.
-        The length of the fingerprint vector is quadratically proportional to nmax:
+        The length of the fingerprint vector is quadratically proportional to
+        nmax:
         If nmax is even, then the length of fingerprint vector is
         nmax + (nmax / 2)^2 + 1.
         If nmax is odd, then the length of fingerprint vector is
@@ -1008,4 +1009,6 @@ if __name__ == "__main__":
         socket.recv_string()  # Needed to complete REQ/REP.
 
     else:
+        socket.close()  # May be needed in python3 / ZMQ.
         raise NotImplementedError('purpose %s unknown.' % purpose)
+    socket.close()  # May be needed in python3 / ZMQ.

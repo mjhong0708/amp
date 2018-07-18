@@ -131,5 +131,8 @@ if purpose == 'calculate_loss_function':
         socket.send_pyobj(msg('result', output))
         socket.recv_pyobj()
 
+    socket.close()  # May be needed in python3 / ZMQ.
+    subscriber.close()
+
 else:
     raise NotImplementedError('Purpose "%s" unknown.' % purpose)
