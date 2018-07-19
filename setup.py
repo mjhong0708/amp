@@ -27,6 +27,6 @@ setup(name='amp',
       install_requires=['numpy>=1.7.0', 'matplotlib', 'ase'],
       ext_modules=[fmodules],
       author='Andrew Peterson',
-      author_email='andrew_peterson@brown.edu'
+      author_email='andrew_peterson@brown.edu',
       url='https://bitbucket.org/andrewpeterson/amp',
-     )
+      )
