@@ -22,7 +22,7 @@ fmodules = Extension(name='amp.fmodules',
                               'amp/descriptor/zernike.f90',
                               'amp/model.f90'])
 
-setup(name='amp',
+setup(name='amp-atomistics',
       version=version,
       description='Atomistic Machine-learning Package',
       long_description=open('README').read(),
