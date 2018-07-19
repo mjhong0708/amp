@@ -4,7 +4,7 @@ Release notes
 =============
 
 0.6.1
----
+-----
 Release date: July 19, 2018
 
 * Updated to allow installation via pip.
