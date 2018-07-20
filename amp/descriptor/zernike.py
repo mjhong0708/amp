@@ -30,6 +30,7 @@ class Zernike(object):
         Either auto-genetrated, or given in the following form, for example:
 
                >>> Gs = {"Au": {"Au": 3., "O": 2.}, "O": {"Au": 5., "O": 10.}}
+
         This is basically the same as \eta in Eq. (16) of
         https://doi.org/10.1016/j.cpc.2016.05.010.
 
