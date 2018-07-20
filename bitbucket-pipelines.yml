@@ -23,5 +23,5 @@ pipelines:
           - AMP=`pwd`
           - export PYTHONPATH=$AMP:$PYTHONPATH
           - cd amp/
-          - make python
+          - make
           - make py2tests
