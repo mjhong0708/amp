@@ -386,8 +386,8 @@ class Amp(Calculator, object):
         ampdirectory = os.path.dirname(os.path.abspath(__file__))
         log('Amp directory: %s' % ampdirectory)
         commithash, commitdate = get_git_commit(ampdirectory)
-        log(' Last commit: %s' % commithash)
-        log(' Last commit date: %s' % commitdate)
+        log(' Last commit: {:s}'.format(commithash))
+        log(' Last commit date: {:s}'.format(commitdate))
         log('Python: v{0}.{1}.{2}: %s'.format(*sys.version_info[:3]) %
             sys.executable)
         log('ASE v%s: %s' % (aseversion, os.path.dirname(ase.__file__)))
@@ -400,7 +400,7 @@ class Amp(Calculator, object):
                 (scipy.version.version, os.path.dirname(scipy.__file__)))
         except ImportError:
             log('SciPy: not available')
-        # ZMQ an pxssh are only necessary for parallel calculations.
+        # ZMQ and pxssh are only necessary for parallel calculations.
         try:
             import zmq
             log('ZMQ/PyZMQ v%s/v%s: %s' %
@@ -433,17 +433,17 @@ def importhelper(importname):
     is silly.
     """
     if importname == '.descriptor.gaussian.Gaussian':
-        from .descriptor.gaussian import Gaussian as Module
+        from .descriptor.gaussian import Gaussian as Imported
     elif importname == '.descriptor.zernike.Zernike':
-        from .descriptor.zernike import Zernike as Module
+        from .descriptor.zernike import Zernike as Imported
     elif importname == '.descriptor.bispectrum.Bispectrum':
-        from .descriptor.bispectrum import Bispectrum as Module
+        from .descriptor.bispectrum import Bispectrum as Imported
     elif importname == '.model.neuralnetwork.NeuralNetwork':
-        from .model.neuralnetwork import NeuralNetwork as Module
+        from .model.neuralnetwork import NeuralNetwork as Imported
     elif importname == '.model.neuralnetwork.tflow':
-        from .model.tflow import NeuralNetwork as Module
+        from .model.tflow import NeuralNetwork as Imported
     elif importname == '.model.LossFunction':
-        from .model import LossFunction as Module
+        from .model import LossFunction as Imported
     else:
         raise NotImplementedError(
             'Attempt to import the module %s. Was this intended? '
@@ -452,7 +452,7 @@ def importhelper(importname):
             'module can be added to amp.importhelper.' %
             importname)
 
-    return Module
+    return Imported
 
 
 def get_git_commit(ampdirectory):
@@ -467,7 +467,8 @@ def get_git_commit(ampdirectory):
                                              stderr=devnull)
     except:
         output = b'unknown hash\tunknown date'
+    output = output.decode('utf-8')
     output = output.strip()
-    commithash, commitdate = output.split(b'\t')
+    commithash, commitdate = output.split('\t')
     os.chdir(pwd)
     return commithash, commitdate
