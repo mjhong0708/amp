@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import os
+
 try:
     from numpy.distutils.core import Extension, setup
 except ImportError:
@@ -12,7 +14,7 @@ except ImportError:
 
 
 # Get current version of Amp into variable 'version'.
-version = open('amp/VERSION').read().strip()
+version = open(os.path.join('amp', 'VERSION')).read().strip()
 
 # Fortran modules to be compiled by numpy's f2py.
 fmodules = Extension(name='amp.fmodules',
