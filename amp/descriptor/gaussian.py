@@ -781,7 +781,8 @@ def make_default_symmetry_functions(elements):
         _G = make_symmetry_functions(type='G2', etas=etas, elements=elements)
         # Angular symmetry functions.
         _G += make_symmetry_functions(type='G4', etas=[0.005],
-                                      zetas=[1., 4.], gammas=[+1., -1.])
+                                      zetas=[1., 4.], gammas=[+1., -1.],
+                                      elements=elements)
         G[element0] = _G
     return G
 
