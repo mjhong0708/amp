@@ -138,7 +138,7 @@ on your Linux distribution or macOS.
 Then you can simply do::
 
     $ cd <installation-directory>/amp/
-    $ make python
+    $ make
 
 Note that you have to make sure your `f2py` is pointing to the right Python version.
 
