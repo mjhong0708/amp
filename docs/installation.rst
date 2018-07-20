@@ -124,7 +124,7 @@ the second command is where you expect::
    >>> import amp
    >>> print(amp.__file__)
 
-See also the section on parallel processing for any issues that arise in making the environment work with *Amp* in parallel.
+See also the section on parallel processing (in :ref:`UseAmp`) for any issues that arise in making the environment work with *Amp* in parallel.
 
 **Recommended: Build fortran modules.**
 *Amp* works in pure python, however, it will be annoyingly slow unless the associated Fortran modules are compiled to speed up several parts of the code.
