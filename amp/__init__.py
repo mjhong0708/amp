@@ -20,7 +20,6 @@ except ImportError:
 from .utilities import (make_filename, hash_images, Logger, string2dict,
                         logo, now, assign_cores, TrainingConvergenceError,
                         check_images)
-from .__version__ import version as _ampversion
 
 try:
     from amp import fmodules
@@ -33,6 +32,10 @@ else:
         raise RuntimeError('fortran modules are not updated. Recompile '
                            'with f2py as described in the README. '
                            'Correct version is %i.' % fmodules_version)
+
+version_file = os.path.join(os.path.split(os.path.abspath(__file__))[0],
+                            'VERSION')
+_ampversion = open(version_file).read().strip()
 
 
 class Amp(Calculator, object):
