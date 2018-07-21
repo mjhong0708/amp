@@ -26,8 +26,10 @@ class Zernike(object):
         interactions are ignored; in this case a cosine cutoff function will be
         employed.  Default is a 6.5-Angstrom cosine cutoff.
     Gs : dict
-        Dictionary of symbols and dictionaries for making symmetry functions.
-        Either auto-genetrated, or given in the following form, for example:
+        Dictionary containing coefficients of atomic density function.
+        These are typically taken as the atomic numbers; this is what
+        is used when auto-generated. Otherwise, they can be supplied in
+        the following form, for example:
 
                >>> Gs = {"Au": {"Au": 3., "O": 2.}, "O": {"Au": 5., "O": 10.}}
 
