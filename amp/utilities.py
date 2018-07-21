@@ -295,10 +295,13 @@ class FileDatabase:
         if not os.path.exists(self.path):
             try:
                 os.mkdir(self.path)
-                os.mkdir(self.loosepath)
             except OSError:
                 # Many simultaneous processes might be trying to make the
                 # directory at the same time.
+                pass
+            try:
+                os.mkdir(self.loosepath)
+            except OSError:
                 pass
         self._memdict = {}  # Items already accessed; stored in memory.
 
