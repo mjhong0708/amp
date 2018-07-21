@@ -293,8 +293,13 @@ class FileDatabase:
         self.loosepath = os.path.join(self.path, 'loose')
         self.tarpath = os.path.join(self.path, 'archive.tar.gz')
         if not os.path.exists(self.path):
-            os.makedirs(self.path, exist_ok=True)
-            os.makedirs(self.loosepath, exist_ok=True)
+            try:
+                os.mkdir(self.path)
+                os.mkdir(self.loosepath)
+            except OSError:
+                # Many simultaneous processes might be trying to make the
+                # directory at the same time.
+                pass
         self._memdict = {}  # Items already accessed; stored in memory.
 
     @classmethod
