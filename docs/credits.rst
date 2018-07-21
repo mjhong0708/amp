@@ -39,3 +39,12 @@ If you use Amp for saddle-point searches or nudged elastic bands, please also ci
 .. |mlneb_paper| raw:: html
 
    <a href="http://dx.doi.org/10.1063/1.4960708" target="_blank">[DOI:10.1063/1.4960708] </a>
+
+If you use Amp for uncertainty or with the bootstrap module, please also cite:
+
+    Peterson, Christensen, Khorshidi, "Addressing uncertainty in atomistic machine learning", *Physical Chemistry Chemical Physics*, 19:10978, 2017. |bootstrap_paper|
+
+
+.. |bootstrap_paper| raw:: html
+
+   <a href="http://dx.doi.org/10.1039/C7CP00375G" target="_blank">[DOI:10.1039/C7CP00375G] </a>

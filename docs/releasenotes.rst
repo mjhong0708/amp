@@ -22,6 +22,12 @@ Development version
 
 * Added Kernel Ridge Regression to Amp.
 
+0.6.1
+-----
+Release date: July 19, 2018
+
+* Installation via pip is now possible.
+
 0.6
 ---
 Release date: July 31, 2017

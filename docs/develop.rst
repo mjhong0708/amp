@@ -79,9 +79,7 @@ To create a release, we go through the following steps.
 * Check out the new branch to your local machine (e.g., `git fetch && git checkout v0.5`).
   All subsequent work is in the new branch.
 
-* Change `docs/conf.py`'s version information to match the new version number.
-
-* Change the version that prints out in the Amp headers by changing the `_ampversion` variable in `amp/__init__.py`.
+* Change `amp/VERSION` to reflect the release number (without 'beta'). Note this will automatically change it in docs/conf.py, the Amp log files, and setup.py.
 
 * On the Release Notes page, delete the "Development version" heading.
 
@@ -93,9 +91,14 @@ To create a release, we go through the following steps.
 * Add the version to readthedocs' available versions; also set it as the default stable version.
   (This may already be done automatically.)
 
-* Change the nightly tests to test this branch as the "stable" build.
-
 * Upload an archive and finalize the DOI via zenodo.org.
   Note that all the ".git" files and folders should be removed from the .tar.gz archive before uploading to Zenodo.
 
+* Prepare and upload to PyPI (for pip)::
+
+    $ python3 setup.py sdist
+    $ twine upload dist/*
+
 * Send a note to the amp-users list summarizing the release.
+
+* In the master branch, update the VERSION file to reflect the new beta version.
