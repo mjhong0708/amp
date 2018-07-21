@@ -293,8 +293,8 @@ class FileDatabase:
         self.loosepath = os.path.join(self.path, 'loose')
         self.tarpath = os.path.join(self.path, 'archive.tar.gz')
         if not os.path.exists(self.path):
-            os.mkdir(self.path)
-            os.mkdir(self.loosepath)
+            os.makedirs(self.path, exist_ok=True)
+            os.makedirs(self.loosepath, exist_ok=True)
         self._memdict = {}  # Items already accessed; stored in memory.
 
     @classmethod
