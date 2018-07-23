@@ -250,12 +250,12 @@ class Amp(Calculator, object):
             self.descriptor.calculate_fingerprints(images=images,
                                                    log=log,
                                                    calculate_derivatives=False)
-            if self.model.__class__.__name__ == 'NeuralNetwork':
+            if self.model.__class__.__name__ != 'KernelRidge':
                 energy = self.model.calculate_energy(
                         self.descriptor.fingerprints[key]
                         )
 
-            elif self.model.__class__.__name__ == 'KernelRidge':
+            else:  # KRR needs training images.
                 fingerprints = self.descriptor.fingerprints
 
                 log('Loading the training set')
@@ -280,7 +280,7 @@ class Amp(Calculator, object):
             log('...potential energy calculated.', toc='pot-energy')
 
         if properties == ['forces']:
-            if self.model.__class__.__name__ == 'NeuralNetwork':
+            if self.model.__class__.__name__ != 'KernelRidge':
                 log('Calculating forces...', tic='forces')
                 self.descriptor.calculate_fingerprints(
                         images=images,
@@ -294,7 +294,7 @@ class Amp(Calculator, object):
                 self.results['forces'] = forces
                 log('...forces calculated.', toc='forces')
 
-            elif self.model.__class__.__name__ == 'KernelRidge':
+            else:
                 log('Calculating forces...', tic='forces')
                 self.descriptor.calculate_fingerprints(
                         images=images,
