@@ -236,7 +236,6 @@ class Model(object):
 
 
 class LossFunction:
-
     """Basic loss function, which can be used by the model.get_loss
     method which is required in standard model classes.
 

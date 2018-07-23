@@ -112,8 +112,7 @@ class Amp(Calculator, object):
 
     @property
     def descriptor(self):
-        """
-        Get or set the atomic descriptor.
+        """Get or set the atomic descriptor.
 
         Parameters
         ----------
@@ -132,8 +131,7 @@ class Amp(Calculator, object):
 
     @property
     def model(self):
-        """
-        Get or set the machine-learning model.
+        """Get or set the machine-learning model.
 
         Parameters
         ----------
@@ -236,9 +234,7 @@ class Amp(Calculator, object):
         self._printheader(self._log)
 
     def calculate(self, atoms, properties, system_changes):
-        """Calculation of the energy of system and forces of all atoms.
-
-        """
+        """Calculation of the energy of system and forces of all atoms."""
         # The inherited method below just sets the atoms object,
         # if specified, to self.atoms.
         Calculator.calculate(self, atoms, properties, system_changes)
@@ -254,22 +250,77 @@ class Amp(Calculator, object):
             self.descriptor.calculate_fingerprints(images=images,
                                                    log=log,
                                                    calculate_derivatives=False)
-            energy = self.model.calculate_energy(
-                self.descriptor.fingerprints[key])
+            if self.model.__class__.__name__ == 'NeuralNetwork':
+                energy = self.model.calculate_energy(
+                        self.descriptor.fingerprints[key]
+                        )
+
+            elif self.model.__class__.__name__ == 'KernelRidge':
+                fingerprints = self.descriptor.fingerprints
+
+                log('Loading the training set')
+                trainingimages = hash_images(
+                        ase.io.Trajectory(self.model.trainingimages)
+                        )
+
+                self.descriptor.calculate_fingerprints(
+                        images=trainingimages,
+                        log=log,
+                        calculate_derivatives=False
+                        )
+                fp_trainingimages = self.descriptor.fingerprints
+
+                energy = self.model.calculate_energy(
+                        fingerprints,
+                        hash=key,
+                        trainingimages=trainingimages,
+                        fp_trainingimages=fp_trainingimages
+                        )
             self.results['energy'] = energy
             log('...potential energy calculated.', toc='pot-energy')
 
         if properties == ['forces']:
-            log('Calculating forces...', tic='forces')
-            self.descriptor.calculate_fingerprints(images=images,
-                                                   log=log,
-                                                   calculate_derivatives=True)
-            forces = \
-                self.model.calculate_forces(
-                    self.descriptor.fingerprints[key],
-                    self.descriptor.fingerprintprimes[key])
-            self.results['forces'] = forces
-            log('...forces calculated.', toc='forces')
+            if self.model.__class__.__name__ == 'NeuralNetwork':
+                log('Calculating forces...', tic='forces')
+                self.descriptor.calculate_fingerprints(
+                        images=images,
+                        log=log,
+                        calculate_derivatives=True
+                        )
+                forces = \
+                    self.model.calculate_forces(
+                        self.descriptor.fingerprints[key],
+                        self.descriptor.fingerprintprimes[key])
+                self.results['forces'] = forces
+                log('...forces calculated.', toc='forces')
+
+            elif self.model.__class__.__name__ == 'KernelRidge':
+                log('Calculating forces...', tic='forces')
+                self.descriptor.calculate_fingerprints(
+                        images=images,
+                        log=log,
+                        calculate_derivatives=True
+                        )
+                log('Loading the training set')
+                trainingimages = hash_images(
+                        ase.io.Trajectory(self.model.trainingimages)
+                        )
+                self.descriptor.calculate_fingerprints(
+                        images=trainingimages,
+                        log=log,
+                        calculate_derivatives=True
+                        )
+                t_descriptor = self.descriptor
+                forces = \
+                    self.model.calculate_forces(
+                        self.descriptor.fingerprints[key],
+                        self.descriptor.fingerprintprimes[key],
+                        hash=key,
+                        trainingimages=trainingimages,
+                        t_descriptor=t_descriptor,
+                        )
+                self.results['forces'] = forces
+                log('...forces calculated.', toc='forces')
 
     def train(self,
               images,
@@ -442,6 +493,8 @@ def importhelper(importname):
         from .model.neuralnetwork import NeuralNetwork as Imported
     elif importname == '.model.neuralnetwork.tflow':
         from .model.tflow import NeuralNetwork as Imported
+    elif importname == '.model.kernelridge.KernelRidge':
+        from .model.kernelridge import KernelRidge as Imported
     elif importname == '.model.LossFunction':
         from .model import LossFunction as Imported
     else:

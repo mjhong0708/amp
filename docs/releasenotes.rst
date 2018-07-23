@@ -20,6 +20,8 @@ Development version
 
 * The image hashing routine, used to uniquely identify images, has been updated to correctly handle permutations in very large atomic systems. (Note this means that images hashed with a prior version of Amp will have a different unique identifier, so you should not mix databases of fingerprints.)
 
+* Added Kernel Ridge Regression to Amp.
+
 0.6.1
 -----
 Release date: July 19, 2018

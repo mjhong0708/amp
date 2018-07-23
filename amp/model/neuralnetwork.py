@@ -9,7 +9,6 @@ from ..utilities import Logger, hash_images, make_filename
 
 
 class NeuralNetwork(Model):
-
     """Class that implements a basic feed-forward neural network.
 
     Parameters
@@ -1054,7 +1053,6 @@ def get_random_scalings(images, activation, elements=None):
 
 
 class Raveler:
-
     """Class to ravel and unravel variable values into a single vector.
 
     This is used for feeding into the optimizer. Feed in a list of dictionaries
