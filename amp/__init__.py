@@ -259,9 +259,13 @@ class Amp(Calculator, object):
                 fingerprints = self.descriptor.fingerprints
 
                 log('Loading the training set')
-                trainingimages = hash_images(
-                        ase.io.Trajectory(self.model.trainingimages)
-                        )
+
+                if isinstance(self.model.trainingimages, str):
+                    trainingimages = hash_images(
+                            ase.io.Trajectory(self.model.trainingimages)
+                            )
+                else:
+                    trainingimages = hash_images(self.model.trainingimages)
 
                 self.descriptor.calculate_fingerprints(
                         images=trainingimages,
@@ -302,9 +306,12 @@ class Amp(Calculator, object):
                         calculate_derivatives=True
                         )
                 log('Loading the training set')
-                trainingimages = hash_images(
-                        ase.io.Trajectory(self.model.trainingimages)
-                        )
+                if isinstance(self.model.trainingimages, str):
+                    trainingimages = hash_images(
+                            ase.io.Trajectory(self.model.trainingimages)
+                            )
+                else:
+                    trainingimages = hash_images(self.model.trainingimages)
                 self.descriptor.calculate_fingerprints(
                         images=trainingimages,
                         log=log,
