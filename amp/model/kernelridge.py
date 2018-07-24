@@ -2138,8 +2138,9 @@ class KernelRidge(Model):
 
         weights = self.parameters.weights
 
-        if (len(list(self.kernel_e.keys())) == 0 or hash not in self.kernel_e
-                or len(self.kernel_e.values()[0]) == 0):
+        if (len(list(self.kernel_e.keys())) == 0 or
+           hash not in self.kernel_e or
+           len(list(self.kernel_e.values())[0]) == 0):
             try:
                 self.reference_features_e
             except AttributeError:
