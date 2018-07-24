@@ -1038,10 +1038,10 @@ class KernelRidge(Model):
         learning for quantum mechanics in a nutshell. International Journal of
         Quantum Chemistry, 115(16), 1058-1073.
     """
-    def __init__(self, sigma=1., kernel='rbf', lamda=0., weights=None,
+    def __init__(self, sigma=1., kernel='rbf', lamda=1e-5, weights=None,
                  regressor=None, mode=None, trainingimages=None, version=None,
                  fortran=False, checkpoints=None, lossfunction=None,
-                 cholesky=False, weights_independent=True,
+                 cholesky=True, weights_independent=True,
                  randomize_weights=False, forcetraining=False,
                  preprocessing=False, nnpartition=None, sum_rule=True):
 
@@ -2138,7 +2138,8 @@ class KernelRidge(Model):
 
         weights = self.parameters.weights
 
-        if len(list(self.kernel_e.keys())) == 0 or hash not in self.kernel_e:
+        if (len(list(self.kernel_e.keys())) == 0 or hash not in self.kernel_e
+                or len(self.kernel_e.values()[0]) == 0):
             try:
                 self.reference_features_e
             except AttributeError:
@@ -2353,10 +2354,12 @@ class KernelRidge(Model):
             if (self.weights_independent is True and self.cholesky is True):
                 force = kernel.dot(weights['forces'][symbol][component])
         else:
-            if (self.weights_independent is True and self.cholesky is True):
+            try:
                 force = self.kernel_f[hash][key][component].dot(
-                        weights['forces'][component]
-                        )
+                        weights['forces'][component])
+            except KeyError:
+                force = self.kernel_f[hash][key][component].dot(
+                        weights['forces'][symbol][component])
         return force
 
     def kernel_matrix(self, feature, features, feature_symbol=None,
