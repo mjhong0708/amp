@@ -882,6 +882,7 @@ def make_symmetry_functions(elements, type, etas, zetas=None, gammas=None):
                                       'eta': eta,
                                       'gamma': gamma,
                                       'zeta': zeta})
+        return G
     elif type == 'G5':
         G = []
         for eta in etas:
