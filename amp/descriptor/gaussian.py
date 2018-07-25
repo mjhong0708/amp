@@ -42,9 +42,6 @@ class Gaussian(object):
     elements : list
         List of allowed elements present in the system. If not provided, will
         be found automatically.
-    angular : str
-        Select the type of angular symmetry function to be used. Possible
-        values are 'angular=G4', or 'angular=G5'.
     version : str
         Version of fingerprints.
     fortran : bool
@@ -58,7 +55,7 @@ class Gaussian(object):
     """
 
     def __init__(self, cutoff=Cosine(6.5), Gs=None, dblabel=None,
-                 elements=None, version=None, fortran=True, angular='G4',
+                 elements=None, version=None, fortran=True,
                  mode='atom-centered'):
 
         # Check of the version of descriptor, particularly if restarting.
@@ -97,11 +94,9 @@ class Gaussian(object):
         p.cutoff = cutoff.todict()
         p.Gs = Gs
         p.elements = elements
-        p.angular = angular
 
         self.dblabel = dblabel
         self.fortran = fortran
-        self.angular = p.angular
         self.parent = None  # Can hold a reference to main Amp instance.
 
     def tostring(self):
@@ -152,19 +147,9 @@ class Gaussian(object):
 
         if p.Gs is None:
             log('No symmetry functions supplied; creating defaults.')
-            p.Gs = make_default_symmetry_functions(p.elements, self.angular)
+            p.Gs = make_default_symmetry_functions(p.elements)
         log('Number of symmetry functions for each element:')
         for _ in p.Gs.keys():
-            """
-            We check if there is consistency between the user defined Gs
-            dictionary and the angular part of the symmetry function.
-            """
-            for element in range(len(p.Gs[_])):
-                Gstype = p.Gs[_][element]['type']
-                if (Gstype != 'G2' and Gstype != self.angular):
-                    raise RuntimeError("Error: The 'type': %s  in the "
-                    "Gs dictionary is not consistent with the requested angular='%s' symmetry "
-                    "function in the Gaussian descriptor." % (Gstype, self.angular))
             log(' %2s: %i' % (_, len(p.Gs[_])))
         for element, fingerprints in p.Gs.items():
             log('{} feature vector functions:'.format(element))
@@ -896,7 +881,7 @@ def make_symmetry_functions(elements, type, etas, zetas=None, gammas=None):
     raise NotImplementedError('Unknown type: {}.'.format(type))
 
 
-def make_default_symmetry_functions(elements, angular):
+def make_default_symmetry_functions(elements):
     """Makes symmetry functions as in Nano Letters 14:2670, 2014.
 
 
@@ -904,9 +889,6 @@ def make_default_symmetry_functions(elements, angular):
     ----------
     elements : list of str
         List of the elements, as in: ["C", "O", "H", "Cu"].
-    angular : str
-        Select the type of angular symmetry function to be used. Possible
-        values are 'angular=G4', or 'angular=G5'.
 
     Returns
     -------
@@ -932,19 +914,12 @@ def make_default_symmetry_functions(elements, angular):
                     for i1, el1 in enumerate(elements):
                         for el2 in elements[i1:]:
                             els = sorted([el1, el2])
-                            if angular.lower() == 'g4':
-                                # This would be the default
-                                _G.append({'type': 'G4',
-                                           'elements': els,
-                                           'eta': eta,
-                                           'gamma': gamma,
-                                           'zeta': zeta})
-                            elif angular.lower() == 'g5':
-                                _G.append({'type': 'G5',
-                                           'elements': els,
-                                           'eta': eta,
-                                           'gamma': gamma,
-                                           'zeta': zeta})
+                            # This would be the default
+                            _G.append({'type': 'G4',
+                                       'elements': els,
+                                       'eta': eta,
+                                       'gamma': gamma,
+                                       'zeta': zeta})
 
         G[element0] = _G
     return G
