@@ -50,7 +50,7 @@ def train_test():
                label=label,
                cores=1)
     loss = LossFunction(convergence={'energy_rmse': 0.02,
-                                     'force_rmse': 0.02})
+                                     'force_rmse': 0.03})
     calc.model.lossfunction = loss
 
     calc.train(images=train_images,)
