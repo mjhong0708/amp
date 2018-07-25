@@ -22,7 +22,7 @@ The below script uses Gaussian descriptors with a neural network backend --- the
  from ase import Atoms, Atom, units
  import ase.io
  from ase.calculators.emt import EMT
- from ase.lattice.surface import fcc110
+ from ase.build import fcc110
  from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
  from ase.md import VelocityVerlet
  from ase.constraints import FixAtoms

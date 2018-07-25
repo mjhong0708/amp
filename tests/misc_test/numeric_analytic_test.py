@@ -5,49 +5,44 @@ as well as dloss_dparameters."""
 
 from ase.calculators.emt import EMT
 from ase.build import fcc110
-from ase import Atoms, Atom
-from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
-from ase import units
-from ase.md import VelocityVerlet
-from ase.constraints import FixAtoms
 
 from amp import Amp
-from amp.descriptor.gaussian import Gaussian
+from amp.descriptor.gaussian import Gaussian, make_symmetry_functions
 from amp.model.neuralnetwork import NeuralNetwork
 from amp.model import LossFunction
 from amp.regression import Regressor
 
 
-def generate_data(count):
+def generate_data():
     """Generates test or training data with a simple MD simulation."""
     atoms = fcc110('Pt', (2, 2, 1), vacuum=7.)
-    adsorbate = Atoms([Atom('Cu', atoms[3].position + (0., 0., 2.5)),
-                       Atom('Cu', atoms[3].position + (0., 0., 5.))])
-    atoms.extend(adsorbate)
-    atoms.set_constraint(FixAtoms(indices=[0, 2]))
+    atoms[0].symbol = 'Cu'
+    del atoms[3]
     atoms.set_calculator(EMT())
-    MaxwellBoltzmannDistribution(atoms, 300. * units.kB)
-    dyn = VelocityVerlet(atoms, dt=1. * units.fs)
+    atoms.get_potential_energy()
+    atoms.get_forces()
     newatoms = atoms.copy()
     newatoms.set_calculator(EMT())
+    newatoms[0].position += (0.27, -0.11, 0.3)
+    newatoms[1].position += (0.12, 0.03, -0.22)
     newatoms.get_potential_energy()
-    images = [newatoms]
-    for step in range(count - 1):
-        dyn.run(50)
-        newatoms = atoms.copy()
-        newatoms.set_calculator(EMT())
-        newatoms.get_potential_energy()
-        del newatoms.constraints  # See ASE issue #64.
-        images.append(newatoms)
-    return images
+    newatoms.get_forces()
+    return [atoms, newatoms]
 
 
 def test():
-    images = generate_data(2)
+    """Gaussian/Neural numeric-analytic consistency."""
+    images = generate_data()
     regressor = Regressor(optimizer='BFGS')
 
-    calc = Amp(descriptor=Gaussian(),
-               model=NeuralNetwork(hiddenlayers=(3, 3),
+    _G = make_symmetry_functions(type='G2', etas=[0.05, 5.],
+                                 elements=['Cu', 'Pt'])
+    _G += make_symmetry_functions(type='G4', etas=[0.005],
+                                  zetas=[1., 4.], gammas=[1.],
+                                  elements=['Cu', 'Pt'])
+    Gs = {'Cu': _G, 'Pt': _G}
+    calc = Amp(descriptor=Gaussian(Gs=Gs),
+               model=NeuralNetwork(hiddenlayers=(2, 1),
                                    regressor=regressor,),
                cores=1)
 
@@ -99,7 +94,7 @@ def test():
                             'The calculated value of energy of image %i is ' \
                             'wrong!' % (image_no + 1)
 
-                        for atom_no in range(6):
+                        for atom_no in range(len(images[0])):
                             for i in range(3):
                                 diff = abs(forces[image_no][atom_no][i] -
                                            ref_forces[image_no][atom_no][i])
@@ -119,14 +114,14 @@ def test():
     for image in images:
         image.set_calculator(calc)
         forces += [calc.calculate_numerical_forces(image, d=d)]
-    for atom_no in range(6):
+    for atom_no in range(len(images[0])):
         for i in range(3):
             diff = abs(forces[image_no][atom_no][i] -
                        ref_forces[image_no][atom_no][i])
-            print("diff =", diff)
-            assert (diff < 10.**(-9.)), \
+            assert (diff < 10.**(-6.)), \
                 'The calculated %i force of atom %i of ' \
-                'image %i is wrong!' % (i, atom_no, image_no + 1)
+                'image %i is wrong! (Diff = %f)' \
+                % (i, atom_no, image_no + 1, diff)
 
 if __name__ == '__main__':
     test()

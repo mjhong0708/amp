@@ -9,7 +9,7 @@ Amp: Atomistic Machine-learning Package
 Amp is an open-source package designed to easily bring machine-learning to atomistic calculations.
 This project is being developed at Brown University in the School of Engineering, primarily by **Andrew Peterson** and **Alireza Khorshidi**, and is released under the GNU General Public License.
 
-The latest stable release of Amp is version 0.5, released on February 24, 2017; see the :ref:`ReleaseNotes` page for a download link.
+The latest stable release of Amp is version 0.6, released on July 31, 2017; see the :ref:`ReleaseNotes` page for a download link.
 Please see the project's `git repository <https://bitbucket.org/andrewpeterson/amp>`_ for the latest development version or a place to report an issue.
 
 You can read about Amp in the below paper; if you find this project useful, we would appreciate if you cite this work:
@@ -21,11 +21,15 @@ You can read about Amp in the below paper; if you find this project useful, we w
 
    <a href="http://dx.doi.org/10.1016/j.cpc.2016.05.010" target="_blank">DOI:10.1016/j.cpc.2016.05.010</a>
 
-**News**:
+An amp-users mailing list exists for general discussions about the use and development of Amp. You can subscribe via listserv at:
 
-An amp-users mailing list has been started, for general discussions about the use and development of Amp. You can subscribe via listserv at:
+https://listserv.brown.edu/?SUBED1=AMP-USERS&A=1
 
-https://listserv.brown.edu/?A0=AMP-USERS
+Amp is now part of the Debian archives! This means it will soon be available via your package manager in linux releases like Ubuntu.
+
+Amp is now installable via pip! This means you should be able to install with just::
+
+   $ pip3 install amp-atomistics
 
 **Manual**:
 
@@ -46,6 +50,7 @@ https://listserv.brown.edu/?A0=AMP-USERS
    moremodel.rst
    gaussian.rst
    tensorflow.rst
+   bootstrap.rst
    databases.rst
    develop.rst
 
@@ -60,6 +65,7 @@ https://listserv.brown.edu/?A0=AMP-USERS
    modules/regression.rst
    modules/utilities.rst
    modules/analysis.rst
+   modules/stats.rst
 
 
 **Indices and tables**

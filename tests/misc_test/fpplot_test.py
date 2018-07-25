@@ -43,6 +43,7 @@ def generate_data(count, filename='training.traj'):
 
 
 def test():
+    "FingerprintPlot test."""
     generate_data(2, filename='fpplot-training.traj')
 
     calc = Amp(descriptor=Gaussian(),

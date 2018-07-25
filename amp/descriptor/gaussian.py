@@ -900,7 +900,7 @@ def make_symmetry_functions(elements, type, etas, zetas=None, gammas=None):
 
 
 def make_default_symmetry_functions(elements):
-    """Makes symmetry functions as in Nano Letters 14:2670, 2014.
+    """Makes default set of G2 and G4 symmetry functions.
 
 
     Parameters
@@ -915,30 +915,13 @@ def make_default_symmetry_functions(elements):
     """
     G = {}
     for element0 in elements:
-
         # Radial symmetry functions.
-        etas = [0.05, 4., 20., 80.]
-        _G = [{'type': 'G2', 'element': element, 'eta': eta}
-              for eta in etas
-              for element in elements]
-
+        etas = np.logspace(np.log10(0.05), np.log10(5.), num=4)
+        _G = make_symmetry_functions(type='G2', etas=etas, elements=elements)
         # Angular symmetry functions.
-        etas = [0.005]
-        zetas = [1., 4.]
-        gammas = [+1., -1.]
-        for eta in etas:
-            for zeta in zetas:
-                for gamma in gammas:
-                    for i1, el1 in enumerate(elements):
-                        for el2 in elements[i1:]:
-                            els = sorted([el1, el2])
-                            # This would be the default
-                            _G.append({'type': 'G4',
-                                       'elements': els,
-                                       'eta': eta,
-                                       'gamma': gamma,
-                                       'zeta': zeta})
-
+        _G += make_symmetry_functions(type='G4', etas=[0.005],
+                                      zetas=[1., 4.], gammas=[+1., -1.],
+                                      elements=elements)
         G[element0] = _G
     return G
 
@@ -1593,4 +1576,6 @@ if __name__ == "__main__":
         socket.recv_string()  # Needed to complete REQ/REP.
 
     else:
+        socket.close()  # May be needed in python3 / ZMQ.
         raise NotImplementedError('purpose %s unknown.' % purpose)
+    socket.close()  # May be needed in python3 / ZMQ.

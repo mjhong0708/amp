@@ -1,5 +1,7 @@
 import sys
 import numpy as np
+import threading
+import time
 from ase.calculators.calculator import Parameters
 from ..utilities import (Logger, ConvergenceOccurred, make_sublists, now,
                          setup_parallel)
@@ -46,9 +48,8 @@ class Model(object):
 
         Parameters
         ----------
-        fingerprints : dict
-            Dictionary with images hashs as keys and the corresponding
-            fingerprints as values.
+        fingerprints : list
+            List of fingerprints of an image, one per atom.
         """
 
         if self.parameters.mode == 'image-centered':
@@ -70,12 +71,12 @@ class Model(object):
 
         Parameters
         ----------
-        fingerprints : dict
-            Dictionary with images hashs as keys and the corresponding
-            fingerprints as values.
+        fingerprints : list
+            List of fingerprints of an image, one per atom.
         fingerprintprimes : dict
-            Dictionary with images hashs as keys and the corresponding
-            fingerprint derivatives as values.
+            Dictionary of fingerprint derivatives, where the key is
+            a tuple with (index, symbol, neighbor_index, neighbor_symbol,
+            direction).
         """
 
         if self.parameters.mode == 'image-centered':
@@ -83,16 +84,15 @@ class Model(object):
         elif self.parameters.mode == 'atom-centered':
             selfindices = set([key[0] for key in fingerprintprimes.keys()])
             forces = np.zeros((len(selfindices), 3))
-            for key in fingerprintprimes.keys():
-                selfindex, selfsymbol, nindex, nsymbol, i = key
-                derafp = fingerprintprimes[key]
+            for key, derafp in fingerprintprimes.items():
+                selfindex, selfsymbol, nindex, nsymbol, direction = key
                 afp = fingerprints[nindex][1]
                 dforce = self.calculate_force(afp=afp,
                                               derafp=derafp,
                                               nindex=nindex,
                                               nsymbol=nsymbol,
-                                              direction=i,)
-                forces[selfindex][i] += dforce
+                                              direction=direction)
+                forces[selfindex][direction] += dforce
         return forces
 
     def calculate_dEnergy_dParameters(self, fingerprints):
@@ -101,9 +101,8 @@ class Model(object):
 
         Parameters
         ----------
-        fingerprints : dict
-            Dictionary with images hashs as keys and the corresponding
-            fingerprints as values.
+        fingerprints : list
+            List of fingerprints of an image, one per atom.
         """
 
         if self.parameters.mode == 'image-centered':
@@ -128,9 +127,8 @@ class Model(object):
 
         Parameters
         ----------
-        fingerprints : dict
-            Dictionary with images hashs as keys and the corresponding
-            fingerprints as values.
+        fingerprints : list
+            List of fingerprints of an image, one per atom.
         d : float
             The amount of perturbation in each parameter.
         """
@@ -160,12 +158,12 @@ class Model(object):
 
         Parameters
         ----------
-        fingerprints : dict
-            Dictionary with images hashs as keys and the corresponding
-            fingerprints as values.
+        fingerprints : list
+            List of fingerprints of an image, one per atom.
         fingerprintprimes : dict
-            Dictionary with images hashs as keys and the corresponding
-            fingerprint derivatives as values.
+            Dictionary of fingerprint derivatives, where the key is
+            a tuple with (index, symbol, neighbor_index, neighbor_symbol,
+            direction).
         """
 
         if self.parameters.mode == 'image-centered':
@@ -198,12 +196,12 @@ class Model(object):
 
         Parameters
         ---------
-        fingerprints : dict
-            Dictionary with images hashs as keys and the corresponding
-            fingerprints as values.
+        fingerprints : list
+            List of fingerprints of an image, one per atom.
         fingerprintprimes : dict
-            Dictionary with images hashs as keys and the corresponding
-            fingerprint derivatives as values.
+            Dictionary of fingerprint derivatives, where the key is
+            a tuple with (index, symbol, neighbor_index, neighbor_symbol,
+            direction).
         d : float
             The amount of perturbation in each parameter.
         """
@@ -238,7 +236,6 @@ class Model(object):
 
 
 class LossFunction:
-
     """Basic loss function, which can be used by the model.get_loss
     method which is required in standard model classes.
 
@@ -312,36 +309,37 @@ class LossFunction:
             c['force_rmse'] = None
             c['force_maxresid'] = None
 
-    def attach_model(self, model, fingerprints=None,
-                     fingerprintprimes=None, images=None):
+    def attach_model(self, model, images=None, fingerprints=None,
+                     fingerprintprimes=None):
         """Attach the model to be used to the loss function.
-
-        fingerprints and training images need not be supplied if they are
-        already attached to the model via model.trainingparameters.
+        hashed images, fingerprints and fingerprintprimes can optionally be
+        specified; this is typically for use in parallelization.
 
         Parameters
         ----------
         model : object
             Class representing the regression model.
+        images : dict
+            Dictionary of hashed images to train on.
         fingerprints : dict
-            Dictionary with images hashs as keys and the corresponding
-            fingerprints as values.
+            Fingerprints of images to train on.
         fingerprintprimes : dict
-            Dictionary with images hashs as keys and the corresponding
-            fingerprint derivatives as values.
-        images : list or str
-            List of ASE atoms objects with positions, symbols, energies, and
-            forces in ASE format. This is the training set of data. This can
-            also be the path to an ASE trajectory (.traj) or database (.db)
-            file. Energies can be obtained from any reference, e.g. DFT
-            calculations.
+            Fingerprint derivatives of images to train on.
+
         """
         self._model = model
-        self.fingerprints = fingerprints
-        self.fingerprintprimes = fingerprintprimes
-        self.images = images
+        if not hasattr(self._model, 'trainingparameters'):
+            self._model.trainingparameters = Parameters()
+            self._model.trainingparameters.descriptor = Parameters()
+        if images is not None:
+            self._model.trainingparameters.images = images
+        descriptor = self._model.trainingparameters.descriptor
+        if fingerprints is not None:
+            descriptor.fingerprints = fingerprints
+        if fingerprintprimes is not None:
+            descriptor.fingerprintprimes = fingerprintprimes
 
-    def _initialize(self):
+    def _initialize(self, args=None):
         """Procedures to be run on the first call only, such as establishing
         SSH sessions, etc."""
         if self._initialized is True:
@@ -351,27 +349,79 @@ class LossFunction:
             self._parallel = self._model._parallel
         log = self._model.log
 
-        if self.fingerprints is None:
-            self.fingerprints = \
-                self._model.trainingparameters.descriptor.fingerprints
+        if self._parallel['cores'] != 1:
+            # Initialize workers and send them parameters.
 
-        # May also make sense to decide whether or not to calculate
-        # fingerprintprimes based on the value of train_forces.
-        if ((self.parameters.force_coefficient is not None) and
-                (self.fingerprintprimes is None)):
-            self.fingerprintprimes = \
-                self._model.trainingparameters.descriptor.fingerprintprimes
-        if self.images is None:
-            self.images = self._model.trainingparameters.trainingimages
-
-        if self._parallel['cores'] != 1:  # Initialize workers.
             python = sys.executable
             workercommand = '%s -m %s' % (python, self.__module__)
-            server, connections, n_pids = setup_parallel(self._parallel,
-                                                         workercommand, log)
-            self._sessions = {'master': server,
-                              'connections': connections,  # SSH's/nodes
-                              'n_pids': n_pids}  # total no. of workers
+            self._sessions = setup_parallel(self._parallel, workercommand, log,
+                                            setup_publisher=True)
+            n_pids = self._sessions['n_pids']
+            images = self._model.trainingparameters.images
+            workerkeys = make_sublists(images.keys(), n_pids)
+            server = self._sessions['master']
+            setup_complete = np.array([False] * n_pids)
+            descriptor = self._model.trainingparameters.descriptor
+            while not setup_complete.all():
+                message = server.recv_pyobj()
+                if message['subject'] == 'purpose':
+                    server.send_string('calculate_loss_function')
+                elif message['subject'] == 'setup complete':
+                    server.send_pyobj('thank you')
+                    setup_complete[int(message['id'])] = True
+                elif message['subject'] == 'request':
+                    request = message['data']  # Variable name.
+                    if request == 'images':
+                        subimages = {k: images[k] for k in
+                                     workerkeys[int(message['id'])]}
+                        server.send_pyobj(subimages)
+                    elif request == 'fortran':
+                        server.send_pyobj(self._model.fortran)
+                    elif request == 'modelstring':
+                        server.send_pyobj(self._model.tostring())
+                    elif request == 'lossfunctionstring':
+                        server.send_pyobj(self.parameters.tostring())
+                    elif request == 'fingerprints':
+                        fingerprints = descriptor.fingerprints
+                        server.send_pyobj({k: fingerprints[k] for k in
+                                           workerkeys[int(message['id'])]})
+                    elif request == 'fingerprintprimes':
+                        try:
+                            fingerprintprimes = descriptor.fingerprintprimes
+                        except AttributeError:
+                            server.send_pyobj(None)
+                        else:
+                            server.send_pyobj({k: fingerprintprimes[k]
+                                               for k in
+                                               workerkeys[int(message['id'])]})
+                    elif request == 'args':
+                        server.send_pyobj(args)
+                    elif request == 'publisher':
+                        server.send_pyobj(self._sessions['publisher_socket'])
+                    else:
+                        raise NotImplementedError('Unknown request: {}'
+                                                  .format(request))
+            subscribers_working = np.array([False] * n_pids)
+
+            def thread_function():
+                """Broadcast from the background."""
+                thread = threading.current_thread()
+                while True:
+                    if thread.abort is True:
+                        break
+                    self._sessions['publisher'].send_pyobj('test message')
+                    time.sleep(0.1)
+
+            thread = threading.Thread(target=thread_function)
+            thread.abort = False  # to cleanly exit the thread
+            thread.start()
+            while not subscribers_working.all():
+                message = server.recv_pyobj()
+                server.send_pyobj('meaningless reply')
+                if message['subject'] == 'subscriber working':
+                    subscribers_working[int(message['id'])] = True
+            thread.abort = True
+            self._sessions['publisher'].send_pyobj('done')
 
         if self.log_losses:
             p = self.parameters
@@ -406,6 +456,7 @@ class LossFunction:
                     ('=' * 5, '=' * 19, '=' * 12, '=' * 12, '=' * 12,
                      '=' * 12, '=' * 12))
 
+        self._data_sent = False  # (in case images changed) FIXME Still needed?
         self._initialized = True
 
     def _send_data_to_fortran(self,):
@@ -415,7 +466,8 @@ class LossFunction:
         if self._data_sent is True:
             return
 
-        num_images = len(self.images)
+        images = self._model.trainingparameters.images
+        num_images = len(images)
         p = self.parameters
         energy_coefficient = p.energy_coefficient
         overfit = p.overfit
@@ -430,6 +482,12 @@ class LossFunction:
             num_atoms = None
         elif mode == 'image-centered':
             raise NotImplementedError('Image-centered mode is not coded yet.')
+        descriptor = self._model.trainingparameters.descriptor
+        fingerprints = descriptor.fingerprints
+        if hasattr(descriptor, 'fingerprintprimes'):
+            fingerprintprimes = descriptor.fingerprintprimes
+        else:
+            fingerprintprimes = None
 
         (actual_energies, actual_forces, elements, atomic_positions,
          num_images_atoms, atomic_numbers, raveled_fingerprints, num_neighbors,
@@ -437,9 +495,9 @@ class LossFunction:
 
         value = ravel_data(train_forces,
                            mode,
-                           self.images,
-                           self.fingerprints,
-                           self.fingerprintprimes,)
+                           images,
+                           fingerprints,
+                           fingerprintprimes,)
 
         if mode == 'image-centered':
             if not train_forces:
@@ -480,15 +538,10 @@ class LossFunction:
         self._initialized = False
         if not hasattr(self, '_sessions'):
             return
-        server = self._sessions['master']
-
-        finished = np.array([False] * self._sessions['n_pids'])
-        while not finished.all():
-            message = server.recv_pyobj()
-            if (message['subject'] == '<request>' and
-                    message['data'] == 'parameters'):
-                server.send_pyobj('<stop>')
-                finished[int(message['id'])] = True
+        # Need to properly close socket connections, due to bug in ZMQ with
+        # python3. See: https://github.com/zeromq/pyzmq/issues/831
+        self._sessions['master'].close()
+        self._sessions['publisher'].close()
 
         for _ in self._sessions['connections']:
             if hasattr(_, 'logout'):
@@ -509,7 +562,7 @@ class LossFunction:
             only return zero for dloss_dparameters.
         """
 
-        self._initialize()
+        self._initialize(args={'lossprime': lossprime, 'd': self.d})
 
         if self._parallel['cores'] == 1:
             if self._model.fortran:
@@ -530,17 +583,9 @@ class LossFunction:
             server = self._sessions['master']
             n_pids = self._sessions['n_pids']
 
-            # Subdivide tasks.
-            keys = make_sublists(self.images.keys(), n_pids)
-
-            args = {'lossprime': lossprime,
-                    'd': self.d}
-
             results = self.process_parallels(parametervector,
                                              server,
-                                             n_pids,
-                                             keys,
-                                             args=args)
+                                             n_pids)
             loss = results['loss']
             dloss_dparameters = results['dloss_dparameters']
             energy_loss = results['energy_loss']
@@ -568,10 +613,6 @@ class LossFunction:
                                                    force_maxresid)
                 if converged:
                     self._cleanup()
-                    if self._parallel['cores'] != 1:
-                        # Needed to properly close socket connection
-                        # (python3).
-                        server.close()
                     raise ConvergenceOccurred()
 
         return {'loss': self.loss,
@@ -604,10 +645,13 @@ class LossFunction:
         force_maxresid = 0.
         dloss_dparameters = np.array([0.] * len(parametervector))
         model = self._model
-        for hash in self.images.keys():
-            image = self.images[hash]
+        images = self._model.trainingparameters.images
+        descriptor = self._model.trainingparameters.descriptor
+        fingerprints = descriptor.fingerprints
+        for hash in images.keys():
+            image = images[hash]
             no_of_atoms = len(image)
-            amp_energy = model.calculate_energy(self.fingerprints[hash])
+            amp_energy = model.calculate_energy(fingerprints[hash])
             actual_energy = image.get_potential_energy(apply_constraint=False)
             residual_per_atom = abs(amp_energy - actual_energy) / \
                 len(image)
@@ -624,11 +668,11 @@ class LossFunction:
                     if self.d is None:
                         denergy_dparameters = \
                             model.calculate_dEnergy_dParameters(
-                                self.fingerprints[hash])
+                                fingerprints[hash])
                     else:
                         denergy_dparameters = \
                             model.calculate_numerical_dEnergy_dParameters(
-                                self.fingerprints[hash], d=self.d)
+                                fingerprints[hash], d=self.d)
                     temp = p.energy_coefficient * 2. * \
                         (amp_energy - actual_energy) * \
                         denergy_dparameters / \
@@ -636,9 +680,10 @@ class LossFunction:
                     dloss_dparameters += temp
 
             if p.force_coefficient is not None:
+                fingerprintprimes = descriptor.fingerprintprimes
                 amp_forces = \
-                    model.calculate_forces(self.fingerprints[hash],
-                                           self.fingerprintprimes[hash])
+                    model.calculate_forces(fingerprints[hash],
+                                           fingerprintprimes[hash])
                 actual_forces = image.get_forces(apply_constraint=False)
                 for index in range(no_of_atoms):
                     for i in range(3):
@@ -659,13 +704,13 @@ class LossFunction:
                         if self.d is None:
                             dforces_dparameters = \
                                 model.calculate_dForces_dParameters(
-                                    self.fingerprints[hash],
-                                    self.fingerprintprimes[hash])
+                                    fingerprints[hash],
+                                    fingerprintprimes[hash])
                         else:
                             dforces_dparameters = \
                                 model.calculate_numerical_dForces_dParameters(
-                                    self.fingerprints[hash],
-                                    self.fingerprintprimes[hash],
+                                    fingerprints[hash],
+                                    fingerprintprimes[hash],
                                     d=self.d)
                         for selfindex in range(no_of_atoms):
                             for i in range(3):
@@ -701,7 +746,7 @@ class LossFunction:
     # d['subject']: what the message is asking for / telling you.
     # d['data']: optional data passed from worker.
 
-    def process_parallels(self, vector, server, n_pids, keys, args):
+    def process_parallels(self, vector, server, n_pids):
         """
 
         Parameters
@@ -712,67 +757,39 @@ class LossFunction:
             Master session of parallel processing.
         processes: list of objects
             Worker sessions for parallel processing.
-        keys : list
-            List of images keys for worker processes.
-        args : dict
-            Dictionary containing arguments of the method to be called on each
-            worker process.
         """
-        # For each process
-        finished = np.array([False] * n_pids)
+        # FIXME/ap: We don't need to pass in most of the arguments.
+        # They are stored already.
         results = {'loss': 0.,
                    'dloss_dparameters': [0.] * len(vector),
                    'energy_loss': 0.,
                    'force_loss': 0.,
                    'energy_maxresid': 0.,
                    'force_maxresid': 0.}
+
+        publisher = self._sessions['publisher']
+
+        # Broadcast parameters for this call.
+        publisher.send_pyobj(vector)
+
+        # Receive the result.
+        finished = np.array([False] * self._sessions['n_pids'])
         while not finished.all():
             message = server.recv_pyobj()
-            if message['subject'] == '<purpose>':
-                server.send_string('calculate_loss_function')
-            elif message['subject'] == '<request>':
-                request = message['data']  # Variable name.
-                if request == 'images':
-                    subimages = {k: self.images[k] for k in
-                                 keys[int(message['id'])]}
-                    server.send_pyobj(subimages)
-                elif request == 'fortran':
-                    server.send_pyobj(self._model.fortran)
-                elif request == 'modelstring':
-                    server.send_pyobj(self._model.tostring())
-                elif request == 'lossfunctionstring':
-                    server.send_pyobj(self.parameters.tostring())
-                elif request == 'fingerprints':
-                    server.send_pyobj({k: self.fingerprints[k] for k in
-                                       keys[int(message['id'])]})
-                elif request == 'fingerprintprimes':
-                    if self.fingerprintprimes is not None:
-                        server.send_pyobj({k: self.fingerprintprimes[k] for k
-                                           in keys[int(message['id'])]})
-                    else:
-                        server.send_pyobj(None)
-                elif request == 'args':
-                    server.send_pyobj(args)
-                elif request == 'parameters':
-                    if finished[int(message['id'])]:
-                        server.send_pyobj('<continue>')
-                    else:
-                        server.send_pyobj(vector)
-                else:
-                    raise NotImplementedError()
-            elif message['subject'] == '<result>':
-                result = message['data']
-                server.send_string('meaningless reply')
+            server.send_pyobj('thank you')
 
-                results['loss'] += result['loss']
-                results['dloss_dparameters'] += result['dloss_dparameters']
-                results['energy_loss'] += result['energy_loss']
-                results['force_loss'] += result['force_loss']
-                if result['energy_maxresid'] > results['energy_maxresid']:
-                    results['energy_maxresid'] = result['energy_maxresid']
-                if result['force_maxresid'] > results['force_maxresid']:
-                    results['force_maxresid'] = result['force_maxresid']
-                finished[int(message['id'])] = True
+            assert message['subject'] == 'result'
+            result = message['data']
+
+            results['loss'] += result['loss']
+            results['dloss_dparameters'] += result['dloss_dparameters']
+            results['energy_loss'] += result['energy_loss']
+            results['force_loss'] += result['force_loss']
+            if result['energy_maxresid'] > results['energy_maxresid']:
+                results['energy_maxresid'] = result['energy_maxresid']
+            if result['force_maxresid'] > results['force_maxresid']:
+                results['force_maxresid'] = result['force_maxresid']
+            finished[int(message['id'])] = True
 
         return results
 
@@ -797,10 +814,11 @@ class LossFunction:
             Maximum force residual.
         """
         p = self.parameters
+        images = self._model.trainingparameters.images
         energy_rmse_converged = True
         log = self._model.log
         if p.convergence['energy_rmse'] is not None:
-            energy_rmse = np.sqrt(energy_loss / len(self.images))
+            energy_rmse = np.sqrt(energy_loss / len(images))
             if energy_rmse > p.convergence['energy_rmse']:
                 energy_rmse_converged = False
         energy_maxresid_converged = True
@@ -810,7 +828,7 @@ class LossFunction:
         if p.force_coefficient is not None:
             force_rmse_converged = True
             if p.convergence['force_rmse'] is not None:
-                force_rmse = np.sqrt(force_loss / len(self.images))
+                force_rmse = np.sqrt(force_loss / len(images))
                 if force_rmse > p.convergence['force_rmse']:
                     force_rmse_converged = False
             force_maxresid_converged = True

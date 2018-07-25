@@ -8,13 +8,41 @@ Development version
 
 (Significant changes since the last release are itemized here.)
 
+* A *documented* bootstrap module, complete with examples of use, is included for uncertainty predictions.
+
+* Improved interprocess communication which should reduce network traffic for parallel jobs.
+
+* Amp is now part of the Debian archives! This means it should soon be available in package managers for linux releases such as Ubuntu.
+
+* The neural network now has a retries keyword, so that it can automatically refresh its parameters and re-try training if it does not converge.
+
+* The convergence plots (via :mod:`amp.analysis` and `amp-plotconvergence`) now handle multiple training attempts from a single log file.
+
+* The image hashing routine, used to uniquely identify images, has been updated to correctly handle permutations in very large atomic systems. (Note this means that images hashed with a prior version of Amp will have a different unique identifier, so you should not mix databases of fingerprints.)
+
+* Added Kernel Ridge Regression to Amp.
+
+* Incorporation of Behler's G5 angular symmetry function.
+
+0.6.1
+-----
+Release date: July 19, 2018
+
+* Installation via pip is now possible.
+
+0.6
+---
+Release date: July 31, 2017
+
+* Python 3 compatibility. Following the release of python3-compatible ASE, we decided to jump on the wagon ourselves. The code should still work fine in python 2.7. (The exception is the tensorflow module, which still only lives inside python 2, unfortunately.)
 * A community page has been added with resources such as the new mailing list and issue tracker.
 * The default convergence parameters have been changed to energy-only training; force-training can be added by the user via the loss function.
+  This makes convergence easier for new users.
 * Convergence plots show maximum residuals as well as root mean-squared error.
 * Parameters to make the Gaussian feature vectors are now output to the log file.
 * The helper function :func:`~amp.descriptor.gaussian.make_symmetry_functions` has been added to more easily customize Gaussian fingerprint parameters.
-* Amp has been ported to Python 3. The only module that is not yet ported is TensorFlow.
-* Incorporation of Behler's G5 angular symmetry function.
+
+Permanently available at https://doi.org/10.5281/zenodo.836788
 
 0.5
 ---
@@ -63,4 +91,10 @@ Release date: November 12, 2014
 
 Permanently available at https://doi.org/10.5281/zenodo.12665.
 
-First public bitbucket release: September, 2014.
+
+Alpha version milestones
+------------------------
+
+First public code (bitbucket): September 1, 2014.
+
+First project commit: May 5, 2014.

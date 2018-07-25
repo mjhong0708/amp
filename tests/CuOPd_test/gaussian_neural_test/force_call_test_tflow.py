@@ -6,18 +6,37 @@ by the code with and without fortran modules.
 
 """
 
+import sys
 import numpy as np
-from ase import Atoms
 from collections import OrderedDict
+from ase import Atoms
+
 from amp import Amp
 from amp.descriptor.gaussian import Gaussian
-from amp.model.tflow import NeuralNetwork
 
-# The test function for non-periodic systems
+
+def check_perform():
+    """Determines whether or not to perform the test.
+    This should only perform the test if the python version is 2.x
+    and tensorflow is installed. If returns False (meaning don't
+    peform test), also supplies the reason."""
+    if sys.version_info >= (3,):
+        return False, 'amp.model.tflow not supported in python3.'
+    try:
+        import tensorflow
+    except ImportError:
+        return False, 'Tensorflow not installed.'
+    return True, ''
 
 
 def non_periodic_test():
+    """Gaussian/tflowNeural non-periodic."""
+    perform, reason = check_perform()
+    if not perform:
+        print('Skipping this test because {}'.format(reason))
+        return
 
+    from amp.model.tflow import NeuralNetwork
     # Making the list of non-periodic images
     images = [Atoms(symbols='PdOPd2',
                     pbc=np.array([False, False, False], dtype=bool),
@@ -111,7 +130,7 @@ def non_periodic_test():
                  {'type': 'G4', 'elements': ['Cu', 'Cu'], 'eta':0.3,
                   'gamma':0.6, 'zeta':0.5}]}
 
-    hiddenlayers = {'O': (2,1), 'Pd': (2,1), 'Cu': (2,1)}
+    hiddenlayers = {'O': (2, 1), 'Pd': (2, 1), 'Cu': (2, 1)}
 
     weights = OrderedDict([('O', OrderedDict([(1, np.matrix([[-2.0, 6.0],
                                                              [3.0, -3.0],
@@ -197,9 +216,14 @@ def non_periodic_test():
                             'is wrong!' % (direction, index, image_no + 1)
 
 
-# The test function for periodic systems
 def periodic_test():
+    """Gaussian/tflowNeural periodic."""
+    perform, reason = check_perform()
+    if not perform:
+        print('Skipping this test because {}'.format(reason))
+        return
 
+    from amp.model.tflow import NeuralNetwork
     # Making the list of periodic images
     images = [Atoms(symbols='PdOPd',
                     pbc=np.array([True, False, False], dtype=bool),
@@ -255,7 +279,7 @@ def periodic_test():
                  {'type': 'G4', 'elements': ['Cu', 'Cu'], 'eta':0.3,
                           'gamma':0.6, 'zeta':0.5}]}
 
-    hiddenlayers = {'O': (2,1), 'Pd': (2,1), 'Cu': (2,1)}
+    hiddenlayers = {'O': (2, 1), 'Pd': (2, 1), 'Cu': (2, 1)}
 
     weights = OrderedDict([('O', OrderedDict([(1, np.matrix([[-2.0, 6.0],
                                                              [3.0, -3.0],

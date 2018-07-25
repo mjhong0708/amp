@@ -530,6 +530,10 @@ scalings = {"O": {"intercept": 4.2468934359280288,
 # number of processes and different number of images
 
 def test():
+    """Guassian/Neural training.
+
+    Checks consistency of pure-python and fortran versions.
+    """
 
     images = make_images()
 

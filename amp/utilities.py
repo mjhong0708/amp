@@ -15,11 +15,14 @@ from datetime import datetime
 from getpass import getuser
 from ase import io as aseio
 from ase.db import connect
-from ase.calculators.calculator import PropertyNotImplementedError
 try:
     import cPickle as pickle    # Python2
 except ImportError:
     import pickle               # Python3
+
+
+class PropertyNotImplementedError(NotImplementedError):
+    pass
 
 
 # Parallel processing ########################################################
@@ -154,7 +157,7 @@ def make_sublists(masterlist, n):
     return sublists
 
 
-def setup_parallel(parallel, workercommand, log):
+def setup_parallel(parallel, workercommand, log, setup_publisher=False):
     """Starts the worker processes and the master to control them.
 
     This makes an SSH connection to each node (including the one the master
@@ -170,6 +173,9 @@ def setup_parallel(parallel, workercommand, log):
     this will be " <pid> <serversocket> &" where <pid> is the unique ID
     assigned to each process and <serversocket> is the address of the
     server, like 'node321:34292'.
+
+    If setup_publisher is True, also sets up a publisher instead of just
+    a reply socket.
 
     Returns
     -------
@@ -193,6 +199,15 @@ def setup_parallel(parallel, workercommand, log):
     port = server.bind_to_random_port('tcp://*')
     serversocket = '%s:%s' % (serverhostname, port)
     log(' Established server at %s.' % serversocket)
+    sessions = {'master': server,
+                'mastersocket': serversocket}
+    if setup_publisher:
+        publisher = context.socket(zmq.PUB)
+        port = publisher.bind_to_random_port('tcp://*')
+        publishersocket = '{}:{}'.format(serverhostname, port)
+        log(' Established publisher at {}.'.format(publishersocket))
+        sessions['publisher'] = publisher
+        sessions['publisher_socket'] = publishersocket
 
     workercommand += ' %s ' + serversocket
 
@@ -208,7 +223,9 @@ def setup_parallel(parallel, workercommand, log):
                                          log,
                                          parallel['envcommand']))
 
-    return server, connections, pid_count
+    sessions['n_pids'] = pid_count
+    sessions['connections'] = connections
+    return sessions
 
 
 def start_workers(process_ids, workerhostname, workercommand, log,
@@ -276,8 +293,16 @@ class FileDatabase:
         self.loosepath = os.path.join(self.path, 'loose')
         self.tarpath = os.path.join(self.path, 'archive.tar.gz')
         if not os.path.exists(self.path):
-            os.mkdir(self.path)
-            os.mkdir(self.loosepath)
+            try:
+                os.mkdir(self.path)
+            except OSError:
+                # Many simultaneous processes might be trying to make the
+                # directory at the same time.
+                pass
+            try:
+                os.mkdir(self.loosepath)
+            except OSError:
+                pass
         self._memdict = {}  # Items already accessed; stored in memory.
 
     @classmethod
@@ -426,8 +451,10 @@ class Data:
         else:
             python = sys.executable
             workercommand = '%s -m %s' % (python, self.calc.__module__)
-            server, connections, n_pids = setup_parallel(parallel,
-                                                         workercommand, log)
+            sessions = setup_parallel(parallel, workercommand, log)
+            server = sessions['master']
+            connections = sessions['connections']
+            n_pids = sessions['n_pids']
 
             globals = self.calc.globals
             keyed = self.calc.keyed
@@ -442,11 +469,11 @@ class Data:
 
             active = 0  # count of processes actively calculating
             log(' Parallel calculations starting...', tic='parallel')
+            active = n_pids  # currently active workers
             while True:
                 message = server.recv_pyobj()
                 if message['subject'] == '<purpose>':
                     server.send_pyobj(self.calc.parallel_command)
-                    active += 1
                 elif message['subject'] == '<request>':
                     request = message['data']  # Variable name.
                     if request == 'images':
@@ -614,7 +641,8 @@ def get_hash(atoms):
     string = str(atoms.pbc)
     for number in atoms.cell.flatten():
         string += '%.15f' % number
-    string += str(atoms.get_atomic_numbers())
+    for number in atoms.get_atomic_numbers():
+        string += '%3d' % number
     for number in atoms.get_positions().flatten():
         string += '%.15f' % number
 
@@ -809,7 +837,7 @@ o      o   o       o   o
 
 def importer(name):
     """Handles strange import cases, like pxssh which might show
-    up in eithr the package pexpect or pxssh.
+    up in either the package pexpect or pxssh.
     """
 
     if name == 'pxssh':
@@ -834,7 +862,6 @@ def importer(name):
 
 
 class Annealer(object):
-
     """
     Inspired by the simulated annealing implementation of
     Richard J. Wagner <wagnerr@umich.edu> and
@@ -863,6 +890,23 @@ class Annealer(object):
     >>> calc.train(images=images)
 
     for gradient descent optimization.
+
+    Parameters
+    ----------
+    calc : object
+        Amp calculator.
+    images : dict
+        Dictionary of images.
+    Tmax : float
+        Maximum temperature.
+    Tmin : float
+        Minimum temperature.
+    steps : int
+        Number of iterations.
+    updates : int
+        Number of updates.
+    train_forces : bool
+        Turn off forces.
     """
 
     Tmax = 20.0             # Max (starting) temperature
@@ -873,8 +917,8 @@ class Annealer(object):
     user_exit = False
     save_state_on_exit = False
 
-    def __init__(self, calc, images,
-                 Tmax=None, Tmin=None, steps=None, updates=None):
+    def __init__(self, calc, images, Tmax=None, Tmin=None, steps=None,
+                 updates=None, train_forces=True):
         if Tmax is not None:
             self.Tmax = Tmax
         if Tmin is not None:
@@ -895,7 +939,8 @@ class Annealer(object):
         self.calc._log('\nDescriptor\n==========')
         # Derivatives of fingerprints need to be calculated if train_forces is
         # True.
-        calculate_derivatives = True
+        calculate_derivatives = train_forces
+
         self.calc.descriptor.calculate_fingerprints(
             images=images,
             parallel=self.calc._parallel,
@@ -1094,8 +1139,8 @@ class Annealer(object):
                     bestLoss = L
             if self.updates > 1:
                 if step // updateWavelength > (step - 1) // updateWavelength:
-                    self.update(
-                        step, T, L, accepts / trials, improves / trials)
+                    self.update(step, T, L, float(accepts) / trials,
+                                float(improves) / trials)
                     trials, accepts, improves = 0, 0, 0
 
         # line break after progress output

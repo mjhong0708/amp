@@ -65,16 +65,23 @@ Releases
 
 To create a release, we go through the following steps.
 
+* Reserve a DOI for the new release via zenodo.org.
+  Do this by creating a new upload, and choosing "pre-reserve" before adding any files.
+
+* Prepare the master branch for the release.
+  (1) Update Release Notes, where the changes should have been catalogued under a "Development version" heading; move these to a new heading for this release, along with a release date and the DOI from above.
+  (2) Also note the latest stable release on the index.rst page.
+
 * Create a new branch on the bitbucket repository with the version name, as in `v0.5`.
   (Don't create a separate branch if this is a bugfix release, e.g., 0.5.1 --- just add those to the v0.5 branch.)
-  All subsequent work is in the new branch.
   Note the branch name starts with "v", while the tag names will not, to avoid naming conflicts.
 
-* Change `docs/conf.py`'s version information to match the new version number.
+* Check out the new branch to your local machine (e.g., `git fetch && git checkout v0.5`).
+  All subsequent work is in the new branch.
 
-* Change the version that prints out in the Amp headers by changing the `_ampversion` variable in `amp/__init__.py`.
+* Change `amp/VERSION` to reflect the release number (without 'beta'). Note this will automatically change it in docs/conf.py, the Amp log files, and setup.py.
 
-* Change revision history to include this release; generally the changes should have been catalogued under a "Development version" heading.
+* On the Release Notes page, delete the "Development version" heading.
 
 * Commit and push the changes to the new branch on bitbucket.
 
@@ -82,10 +89,16 @@ To create a release, we go through the following steps.
   Do this on a local machine (on the correct branch) with `git tag -a 0.5`, followed by `git push origin --tags`.
 
 * Add the version to readthedocs' available versions; also set it as the default stable version.
+  (This may already be done automatically.)
 
-* Change the nightly tests to test this branch as the "stable" build.
+* Upload an archive and finalize the DOI via zenodo.org.
+  Note that all the ".git" files and folders should be removed from the .tar.gz archive before uploading to Zenodo.
 
-* Create a DOI for the release via zenodo.org.
-  Note that all the ".git" files and folders should be removed from the files before uploading to Zenodo.
-  The DOI can then be added to the development version's release notes.
-  (I don't think there's a way to get it into the archival version on Zenodo!)
+* Prepare and upload to PyPI (for pip)::
+
+    $ python3 setup.py sdist
+    $ twine upload dist/*
+
+* Send a note to the amp-users list summarizing the release.
+
+* In the master branch, update the VERSION file to reflect the new beta version.

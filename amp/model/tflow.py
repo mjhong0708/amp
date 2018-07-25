@@ -15,6 +15,7 @@ import uuid
 
 from . import LossFunction
 from ..utilities import ConvergenceOccurred
+from tensorflow.core.protobuf import saver_pb2
 
 try:
     import tensorflow as tf
@@ -25,6 +26,10 @@ except ImportError:
     import warnings
     warnings.warn('Please install tensorflow if you plan to use this '
                   'Amp module.')
+try:
+    basestring  # python3
+except NameError:
+    basestring = str  # python2
 
 
 class NeuralNetwork:
@@ -80,12 +85,6 @@ class NeuralNetwork:
 
     sess
         tensorflow session to use (None means start a new session)
-
-    maxAtomsForces : int
-        Number of atoms to be used in the force training. It sets the upper
-        bound on the number of atoms that can be used to calculate the force
-        for. E.g., if maxAtomsForces=40, then forces can only be calculated
-        for images with less than 40 atoms.
 
     energy_coefficient : float
         Used to adjust the loss function; this is the weight applied to the
@@ -174,7 +173,6 @@ class NeuralNetwork:
                  sess=None,
                  energy_coefficient=1.0,
                  force_coefficient=0.04,
-                 scikit_model=None,
                  convergenceCriteria=None,
                  optimizationMethod='l-BFGS-b',
                  input_keep_prob=0.8,
@@ -306,14 +304,15 @@ class NeuralNetwork:
             trainvarlist = tf.trainable_variables()
             trainvarlist = [a for a in trainvarlist
                             if a.name[:8] == self.saveVariableName]
-            self.saver = tf.train.Saver(trainvarlist)
+            self.saver = tf.train.Saver(trainvarlist,
+                                        write_version=saver_pb2.SaverDef.V1)
             if tfVars is not None:
-                self.sess.run(tf.initialize_all_variables())
+                self.sess.run(tf.global_variables_initializer())
                 with open('tfAmpNN-checkpoint-restore', 'w') as fhandle:
                     fhandle.write(tfVars)
                 self.saver.restore(self.sess, 'tfAmpNN-checkpoint-restore')
             else:
-                self.sess.run(tf.initialize_all_variables())
+                self.sess.run(tf.global_variables_initializer())
 
     # This function is used to test the code by pre-setting the weights in the
     # model for each element, so that results can be checked against
@@ -672,7 +671,7 @@ class NeuralNetwork:
 
             # loss function, as included in model/__init__.py
             self.energy_loss = tf.reduce_sum(
-                tf.square(tf.div(tf.sub(self.energy, self.y_),
+                tf.square(tf.div(tf.subtract(self.energy, self.y_),
                                  self.nAtoms_in)))
             # Define the training step for energy training.
 
@@ -682,7 +681,7 @@ class NeuralNetwork:
             # force loss function, as included in model/__init__.py
             if self.parameters['relativeForceCutoff'] is None:
                 self.force_loss = tf.reduce_sum(
-                    tf.div(tf.square(tf.sub(self.forces_in, self.forces)),
+                    tf.div(tf.square(tf.subtract(self.forces_in, self.forces)),
                            self.nAtoms_forces)) / 3.
                 # tf.reduce_sum(tf.div(
                 # tf.reduce_mean(tf.square(tf.sub(self.forces_in,
@@ -692,7 +691,7 @@ class NeuralNetwork:
                 self.force_loss = \
                     tf.reduce_sum(tf.div(tf.div(
                                          tf.square(
-                                             tf.sub(
+                                             tf.subtract(
                                                  self.forces_in, self.forces)),
                                          tf.square(
                                              self.forces_in) +
@@ -707,9 +706,10 @@ class NeuralNetwork:
 
             # Define max residuals
             self.energy_maxresid = tf.reduce_max(
-                tf.abs(tf.div(tf.sub(self.energy, self.y_), self.nAtoms_in)))
+                tf.abs(tf.div(tf.subtract(self.energy, self.y_),
+                       self.nAtoms_in)))
             self.force_maxresid = tf.reduce_max(
-                tf.abs(tf.sub(self.forces_in, self.forces)))
+                tf.abs(tf.subtract(self.forces_in, self.forces)))
 
             # Define the training step for force training.
             if self.parameters['regularization_strength'] is not None:
@@ -752,7 +752,7 @@ class NeuralNetwork:
 
     def initializeVariables(self):
         """Resets all of the variables in the current tensorflow model."""
-        self.sess.run(tf.initialize_all_variables())
+        self.sess.run(tf.global_variables_initializer())
 
     def generateFeedInput(self, curinds,
                           energies,
@@ -791,7 +791,8 @@ class NeuralNetwork:
                 for i in range(len(aAF)):
                     for j in range(len(aAF[i])):
                         if (self.parameters['fprange'][element][1][j] -
-                           self.parameters['fprange'][element][0][j]) > 10.**-8:
+                           self.parameters['fprange'][element][0][j]) >  \
+                                   10.**-8:
                             aAF[i][j] = -1. + \
                                 2. * (atomArraysFinal[element][i][j] -
                                       self.parameters['fprange'][element][0][j]) / (
@@ -807,7 +808,8 @@ class NeuralNetwork:
                     for i in range(dgdx_to_scale.shape[0]):
                         for l in range(dgdx_to_scale.shape[1]):
                             if (self.parameters['fprange'][element][1][l] -
-                               self.parameters['fprange'][element][0][l]) > 10.**-8:
+                               self.parameters['fprange'][element][0][l]) > \
+                                       10.**-8:
                                 dgdx_to_scale[i][l][:] = \
                                     2. * dgdx_to_scale[i][l][:] / \
                                     (self.parameters['fprange'][element][1][l] -
@@ -868,7 +870,7 @@ class NeuralNetwork:
             for element in descriptor.parameters.Gs:
                 self.elementFingerprintLengths[element] = len(
                     descriptor.parameters.Gs[element])
-            self.elements = self.elementFingerprintLengths.keys()
+            self.elements = list(self.elementFingerprintLengths.keys())
             self.elements.sort()
             self.constructSessGraphModel(self.tfVars, self.sess)
 
@@ -970,9 +972,6 @@ class NeuralNetwork:
                      np.max(atomArraysAll[element], axis=0)]
 
         if self.parameters['force_coefficient'] is not None:
-            # forces = map(lambda x: images[x].get_forces(
-            #    apply_constraint=False), keylist)
-            # forces = np.zeros((len(keylist), self.maxAtomsForces, 3))
             forces = []
             for i in range(len(keylist)):
                 atoms = images[keylist[i]]
@@ -1512,14 +1511,14 @@ def model(x, segmentinds, keep_prob, input_keep_prob, batchsize,
 
     # multiply through with the dg/dx tensor, and sum along the components of g
     # to get a tensor of dE/dx (one row per atom considered, second dim =3)
-    dEdx = tf.reduce_sum(tf.mul(dEdg_arranged_tile, dgdx), 1)
+    dEdx = tf.reduce_sum(tf.multiply(dEdg_arranged_tile, dgdx), 1)
 
     # this should be a tensor of size (total atoms in training set)x3,
     # representing the contribution of each atom to the total energy via
     # interactions with elements of the current atom type
     dEdx_arranged = tf.unsorted_segment_sum(dEdx, dgdx_Xindices, totalNumAtoms)
 
-    return tf.mul(reducedSum, mask), dEdx_arranged, l2_regularization
+    return tf.multiply(reducedSum, mask), dEdx_arranged, l2_regularization
 #    dEg
 #    dEjdgj1 = tf.expand_dims(dEjdgj, 1)
 #    dEjdgj2 = tf.expand_dims(dEjdgj1, 1)
@@ -1631,8 +1630,6 @@ def generateTensorFlowArrays(fingerprintDB, elements, keylist,
     fingerprintDerDB: a database of fingerprint derivatives, as taken from the
                       descriptor
 
-    maxAtomsForces: the maximum length of the atoms
-
     Outputs:
 
     atomArraysAll: a dictionary of fingerprint inputs to each element's neural
@@ -1651,6 +1648,7 @@ def generateTensorFlowArrays(fingerprintDB, elements, keylist,
     """
 
     nAtomsDict = {}
+    keylist = list(keylist)
     for element in elements:
         nAtomsDict[element] = np.zeros(len(keylist))
 
@@ -1717,7 +1715,7 @@ def generateTensorFlowArrays(fingerprintDB, elements, keylist,
             fp = fingerprintDB[keylist[j]]
             fpDer = fingerprintDerDB[keylist[j]]
             atomSymbols, fpdata = zip(*fp)
-            atomdata = zip(atomSymbols, range(len(atomSymbols)))
+            atomdata = list(zip(atomSymbols, range(len(atomSymbols))))
 
             for element in elements:
                 curatoms = [atom for atom in atomdata if atom[0] == element]
