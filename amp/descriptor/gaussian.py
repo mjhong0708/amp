@@ -162,6 +162,11 @@ class Gaussian(object):
                         .format(index, fp['type'], fp['elements'][0],
                                 fp['elements'][1], fp['eta'], fp['gamma'],
                                 fp['zeta']))
+                elif fp['type'] == 'G5':
+                    log(' {}: {}, ({}, {}), eta={}, gamma={}, zeta={}'
+                        .format(index, fp['type'], fp['elements'][0],
+                                fp['elements'][1], fp['eta'], fp['gamma'],
+                                fp['zeta']))
                 else:
                     log(str(fp))
 
@@ -845,13 +850,13 @@ def make_symmetry_functions(elements, type, etas, zetas=None, gammas=None):
         List of element types. The first in the list is considered the
         central element for this fingerprint. #FIXME: Does that matter?
     type : str
-        Either G2 or G4.
+        Either G2, G4, or G5.
     etas : list of floats
-        eta values to use in G2 or G4 fingerprints
+        eta values to use in G2, G4 or G5 fingerprints
     zetas : list of floats
-        zeta values to use in G4 fingerprints
+        zeta values to use in G4, and G5 fingerprints
     gammas : list of floats
-        gamma values to use in G4 fingerprints
+        gamma values to use in G4, and G5 fingerprints
 
     Returns
     -------
@@ -873,6 +878,19 @@ def make_symmetry_functions(elements, type, etas, zetas=None, gammas=None):
                         for el2 in elements[i1:]:
                             els = sorted([el1, el2])
                             G.append({'type': 'G4',
+                                      'elements': els,
+                                      'eta': eta,
+                                      'gamma': gamma,
+                                      'zeta': zeta})
+    elif type == 'G5':
+        G = []
+        for eta in etas:
+            for zeta in zetas:
+                for gamma in gammas:
+                    for i1, el1 in enumerate(elements):
+                        for el2 in elements[i1:]:
+                            els = sorted([el1, el2])
+                            G.append({'type': 'G5',
                                       'elements': els,
                                       'eta': eta,
                                       'gamma': gamma,
