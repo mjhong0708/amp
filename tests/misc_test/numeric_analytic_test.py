@@ -14,7 +14,7 @@ from amp.regression import Regressor
 
 
 def generate_data():
-    """Generates test or training data with a simple MD simulation."""
+    """Generates atomic images for tests."""
     atoms = fcc110('Pt', (2, 2, 1), vacuum=7.)
     atoms[0].symbol = 'Cu'
     del atoms[3]
