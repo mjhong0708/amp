@@ -24,4 +24,4 @@ pipelines:
           - export PYTHONPATH=$AMP:$PYTHONPATH
           - cd amp/
           - make
-          - make py3tests
+          - make tests
