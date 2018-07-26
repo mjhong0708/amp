@@ -78,6 +78,19 @@ The Gaussian angular fingerprints are computed for all triplets of atoms :math:`
 
 with parameters :math:`\lambda`, :math:`\eta`, and :math:`\zeta`, which again can be chosen to build more elements of a feature vector.
 
+There is an alternative angular symmetry function that takes into account the
+triplet configurations inside the cutoff sphere where the distance
+:math:`i,j,k` is larger than the cutoff radius making them more appropriate for
+larger larger atomic separations.
+
+.. math::
+  G_{i}^{III}=2^{1-\zeta}\sum^{\tiny{\begin{array}{c} \text{atoms j, k within }R_c\\
+  \text{ distance of atom i}
+  \end{array}}}_{\scriptsize\begin{array}{c}
+  j,\,k\ne i \\
+  (j\ne k) \end{array}}{\left(1+\lambda \cos \theta_{ijk}\right)^\zeta
+  e^{-\eta\left(R_{ij}^2+R_{ik}^2\right)/R_c^2}f_c\left(R_{ij}\right)f_c\left(R_{ik}\right)},
+
 The cutoff function :math:`f_c\left(R_{ij}\right)` in the above equations defines the energetically relevant local environment with value one at :math:`R_{ij}=0` and zero at :math:`R_{ij}=R_{c}`, where :math:`R_c` is the cutoff radius.
 In order to have a continuous force-field, the cutoff function :math:`f_c\left(R_{ij}\right)` as well as its first derivative should be continuous in :math:`R_{ij}\in\left[0,\infty\right)`. One possible expression for such a function as proposed by Behler [1] is
 
