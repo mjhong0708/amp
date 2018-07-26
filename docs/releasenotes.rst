@@ -22,6 +22,8 @@ Development version
 
 * Added Kernel Ridge Regression to Amp.
 
+* Incorporation of Behler's G5 angular symmetry function.
+
 0.6.1
 -----
 Release date: July 19, 2018

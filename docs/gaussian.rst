@@ -32,3 +32,28 @@ There is also a helper function :func:`~amp.descriptor.gaussian.make_symmetry_fu
  calc = Amp(descriptor=Gaussian(Gs=G),
             model=NeuralNetwork())
 
+
+To include angular symmetry functions of triplets inside the cutoff sphere but
+with distances larger than the cutoff radius you need to slightly modify the
+snippet above:
+
+.. code-block:: python
+
+ import numpy as np
+ from amp import Amp
+ from amp.descriptor.gaussian import Gaussian, make_symmetry_functions
+ from amp.model.neuralnetwork import NeuralNetwork
+
+ elements = ['Cu', 'Pt']
+ G = make_symmetry_functions(elements=elements, type='G2',
+                             etas=np.logspace(np.log10(0.05), np.log10(5.),
+                                              num=4))
+ G += make_symmetry_functions(elements=elements, type='G5',
+                              etas=[0.005],
+                              zetas=[1., 4.],
+                              gammas=[+1., -1.])
+
+ G = {'Cu': G,
+      'Pt': G}
+ calc = Amp(descriptor=Gaussian(Gs=G),
+            model=NeuralNetwork())

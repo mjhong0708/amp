@@ -12,9 +12,11 @@ from ase.md import VelocityVerlet
 from ase.constraints import FixAtoms
 
 from amp import Amp
-from amp.descriptor.gaussian import Gaussian
+from amp.descriptor.gaussian import Gaussian, make_symmetry_functions
 from amp.model.neuralnetwork import NeuralNetwork
 from amp.model import LossFunction
+
+import numpy as np
 
 
 def generate_data(count):
@@ -41,11 +43,20 @@ def generate_data(count):
 
 
 def train_test():
-    """Gaussian/Neural train test."""
-    label = 'train_test/calc'
+    label = 'train_test_g5/calc'
     train_images = generate_data(2)
+    elements = ['Pt', 'Cu']
+    G = make_symmetry_functions(elements=elements, type='G2',
+                etas=np.logspace(np.log10(0.05), np.log10(5.),
+                                 num=4))
+    G += make_symmetry_functions(elements=elements, type='G5',
+                 etas=[0.005],
+                 zetas=[1., 4.],
+                 gammas=[+1., -1.])
 
-    calc = Amp(descriptor=Gaussian(),
+    G = {element: G for element in elements}
+
+    calc = Amp(descriptor=Gaussian(Gs=G),
                model=NeuralNetwork(hiddenlayers=(3, 3)),
                label=label,
                cores=1)
