@@ -155,8 +155,8 @@ class Amp(Calculator, object):
         Only a filename or file-like object is required, in typical cases.
 
         If using a home-rolled descriptor or model, also supply uninstantiated
-        classes to those models, as in Model=MyModel.  (Not as
-        Model=MyModel()!)
+        classes to those models, as in Model=MyModel.
+        (Not as Model=MyModel()!)
 
         Any additional keyword arguments (such as label or dblabel) can be
         fed through to Amp.

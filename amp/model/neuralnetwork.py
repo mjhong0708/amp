@@ -6,6 +6,7 @@ from ase.calculators.calculator import Parameters
 from . import LossFunction, calculate_fingerprints_range, Model
 from ..regression import Regressor
 from ..utilities import Logger, hash_images, make_filename
+from .. import Amp
 
 
 class NeuralNetwork(Model):
@@ -73,16 +74,16 @@ class NeuralNetwork(Model):
         function optimization via amp.regression.Regressor.
     lossfunction : object
         Loss function object.
-    retries : int
-        If model does not converge during training, number of times to retry
-        before giving up.
     fortran : bool
         Can optionally shut off fortran, primarily for debugging.
     checkpoints : int
         Frequency with which to save parameter checkpoints upon training. E.g.,
-        100 saves a checkpoint on each 100th training step.  Specify None for
-        no checkpoints. Note: You can make this negative to not overwrite
-        previous checkpoints.
+        100 saves a checkpoint on each 100th training step.  By default only
+        the last checkpoint is retained; to keep all checkpoints make the
+        frequency negative instead of positive.  Specify None for no
+        checkpoints.  Note that checkpoints can be used to resume a training
+        run simply by resubmitting the same script; if a checkpoint file is
+        found it will be used.
 
     .. note:: Dimensions of weight two dimensional arrays should be consistent
               with hiddenlayers.
@@ -94,7 +95,7 @@ class NeuralNetwork(Model):
 
     def __init__(self, hiddenlayers=(5, 5), activation='tanh', weights=None,
                  scalings=None, fprange=None, mode=None, version=None,
-                 regressor=None, lossfunction=None, retries=0, fortran=True,
+                 regressor=None, lossfunction=None, fortran=True,
                  checkpoints=100):
 
         # Version check, particularly if restarting.
@@ -132,7 +133,6 @@ class NeuralNetwork(Model):
         self.lossfunction = lossfunction
         self.fortran = fortran
         self.checkpoints = checkpoints
-        self.retries = retries
         if self.lossfunction is None:
             self.lossfunction = LossFunction()
 
@@ -164,14 +164,18 @@ class NeuralNetwork(Model):
             variables but skips the last line of starting the regressor.
         """
 
+        self.step = 0
+        self._log = log
+        self._load_from_checkpoints()  # if present; resume training
+
         # Set all parameters and report to logfile.
         self._parallel = parallel
-        self._log = log
 
         if self.regressor is None:
             self.regressor = Regressor()
 
         p = self.parameters
+
         tp = self.trainingparameters = Parameters()
         tp.images = trainingimages
         tp.descriptor = descriptor
@@ -217,15 +221,7 @@ class NeuralNetwork(Model):
             return
 
         # Regress the model.
-        result = False
-        tries = 0
-        while (result is False) and (tries <= self.retries):
-            log('Try {:d}/{:d}.'.format(tries, self.retries))
-            self.step = 0
-            if tries > 0:
-                self.randomize(trainingimages)
-            result = self.regressor.regress(model=self, log=log)
-            tries += 1
+        result = self.regressor.regress(model=self, log=log)
         return result  # True / False
 
     def randomize(self, trainingimages=None, weights=True, scalings=True):
@@ -313,7 +309,9 @@ class NeuralNetwork(Model):
         if self.step == 0:
             filename = make_filename(self.parent.label,
                                      '-initial-parameters.amp')
-            filename = self.parent.save(filename, overwrite=True)
+            if not os.path.exists(filename):
+                # If it exists, must be resuming from checkpoints.
+                filename = self.parent.save(filename)
         if self.checkpoints:
             if self.step % self.checkpoints == 0:
                 self._log('Saving checkpoint data.')
@@ -333,6 +331,28 @@ class NeuralNetwork(Model):
             self.observer(self, vector, loss)
         self.step += 1
         return loss
+
+    def _load_from_checkpoints(self):
+        """If checkpoints are present, this will load from them and therefore
+        resume a previous training run."""
+        # Check default checkpoint pattern.
+        filename = make_filename(self.parent.label, '-checkpoint.amp')
+        dirname = os.path.join(self.parent.label + '-checkpionts')
+        if os.path.exists(filename):
+            calc = Amp.load(filename, logging=False)
+        elif os.path.exists(dirname):
+            checkpoints = os.listdir(dirname)
+            last = sorted([int(_[:-4]) for _ in checkpoints])[-1]
+            filename = os.path.join(dirname, '{}.amp'.format(last))
+            calc = Amp.load(filename, logging=False)
+            self.step = last
+        else:
+            return  # No checkpoints present; run normally.
+        self._log('Found checkpoint file: {}.'.format(filename))
+        p = calc.model.parameters
+        self.parameters = p
+        self._log('Loaded last neural network parameters from checkpoint. '
+                  'Resuming training run.')
 
     def get_lossprime(self, vector):
         """Method to be called by the regression master.

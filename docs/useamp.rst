@@ -150,16 +150,16 @@ Under the hood, the train function is pretty simple; it just runs:
 * In the final pair of lines, if the target fit was achieved, the model is saved to disk.
 
 ----------------------------------
-Re-training
+Re-training and resuming training
 ----------------------------------
 
-If training is successful, Amp saves the parameters into an '<label>.amp' file (by default the label is 'amp', so this file is 'amp.amp'). You can load the pretrained calculator and re-train it further with tighter convergence criteria. You can specify if the pre-trained amp.amp will be overwritten by the re-trained one through the key word 'overwrite' (default is False).
+If training is successful, Amp saves the parameters into an '<label>.amp' file (by default the label is 'amp', so this file is 'amp.amp'). You can load the pretrained calculator and re-train it further with tighter convergence criteria or more/different images. You can specify if the pre-trained amp.amp will be overwritten by the re-trained one through the key word 'overwrite' (default is False).
 
 .. code-block:: python
 
    calc = Amp.load('amp.amp')
    calc.model.lossfunction = LossFunction(convergence=convergence)
-   calc.train(overwrite=True)
+   calc.train(overwrite=True, images='training.traj')
 
 If training does not succeed, Amp raises a :exc:`~amp.utilities.TrainingConvergenceError`.
 You can use this within your scripts to catch when training succeeds or fails, for example:
@@ -175,6 +175,12 @@ You can use this within your scripts to catch when training succeeds or fails, f
     except TrainingConvergenceError:
         # Whatever you want to happen if training fails;
         # e.g., refresh parameters and train again.
+
+
+The neural network calculator saves checkpoints, and you can use these to resume a training run or to monitor the performance on a validation set.
+Use the `checkpoints` keyword to control this behavior.
+If your script times out before training finishes, you can generally just re-submit the same script; if the code finds a checkpoint file it will load the parameters from the checkpoint file and resume training from that point.
+This will be noted in the log file.
 
 ------------------------------------
 Global search in the parameter space
