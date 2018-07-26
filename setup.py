@@ -10,7 +10,7 @@ fmodules = Extension(name='amp.fmodules',
                               'amp/descriptor/zernike.f90',
                               'amp/model.f90'])
 
-setup(name='amp', version='dev', long_description=open('README.md').read(),
+setup(name='amp', version='dev', long_description=open('README').read(),
       packages=['amp', 'amp.descriptor', 'amp.regression', 'amp.model'],
       package_dir={'amp': 'amp', 'descriptor': 'descriptor',
                    'regression': 'regression', 'model': 'model'},
