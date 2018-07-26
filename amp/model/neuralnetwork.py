@@ -43,14 +43,14 @@ class NeuralNetwork(Model):
         function, "tanh" refers to tanh function, and "sigmoid" refers to
         sigmoid function.
     weights : dict
-        In the case of no descriptor, keys correspond to layers and values are
-        two dimensional arrays of network weight.  In the atom-centered mode,
-        keys correspond to chemical elements and values are dictionaries with
-        layer keys and network weight two dimensional arrays as values. Arrays
-        are set up to connect node i in the previous layer with node j in the
-        current layer with indices w[i,j]. The last value for index i
-        corresponds to bias. If weights is not given, arrays will be randomly
-        generated.
+        In the atom-centered mode, keys correspond to chemical elements and
+        values are dictionaries with layer keys and network weight two
+        dimensional arrays as values. Arrays are set up to connect node i in
+        the previous layer with node j in the current layer with indices
+        w[i,j]. The last value for index i corresponds to bias.  In the case of
+        no descriptor, keys correspond to layers and values are two dimensional
+        arrays of network weight.  If weights is not given, arrays will be
+        randomly generated.
     scalings : dict
         In the case of no descriptor, keys are "intercept" and "slope" and
         values are real numbers. In the fingerprinting scheme, keys correspond
@@ -64,23 +64,23 @@ class NeuralNetwork(Model):
 
         >>> fprange={"Pd": [0.31, 0.59], "O":[0.56, 0.72]}
 
+    mode : str
+        Can be either 'atom-centered' or 'image-centered'.
+    version : object
+        Version of this class.
     regressor : object
         Regressor object for finding best fit model parameters, e.g. by loss
         function optimization via amp.regression.Regressor.
-    mode : str
-        Can be either 'atom-centered' or 'image-centered'.
     lossfunction : object
         Loss function object.
     retries : int
         If model does not converge during training, number of times to retry
         before giving up.
-    version : object
-        Version of this class.
     fortran : bool
         Can optionally shut off fortran, primarily for debugging.
     checkpoints : int
         Frequency with which to save parameter checkpoints upon training. E.g.,
-        100 saves a checkpoint on each 100th training setp.  Specify None for
+        100 saves a checkpoint on each 100th training step.  Specify None for
         no checkpoints. Note: You can make this negative to not overwrite
         previous checkpoints.
 
@@ -93,8 +93,8 @@ class NeuralNetwork(Model):
     """
 
     def __init__(self, hiddenlayers=(5, 5), activation='tanh', weights=None,
-                 scalings=None, fprange=None, regressor=None, mode=None,
-                 lossfunction=None, retries=0, version=None, fortran=True,
+                 scalings=None, fprange=None, mode=None, version=None,
+                 regressor=None, lossfunction=None, retries=0, fortran=True,
                  checkpoints=100):
 
         # Version check, particularly if restarting.
