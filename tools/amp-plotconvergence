@@ -28,7 +28,7 @@ if len(args) == 2:
     plotfile = args.pop(-1)
 logfile = args.pop(0)
 
-data_dictionaries = read_trainlog(logfile, verbose=False, multiple=-1)
+data_dictionaries = read_trainlog(logfile, verbose=False, multiple=True)
 print('{:d} convergence attempt(s) found.'.format(len(data_dictionaries)))
 with PdfPages(plotfile) as pdf:
     for index, data in enumerate(data_dictionaries):
