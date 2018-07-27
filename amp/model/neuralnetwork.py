@@ -1252,6 +1252,7 @@ class NodePlot:
         """Accumulates the data for the symbol."""
         data = self.data
         layerkeys = list(output.keys())  # Correspond to layers.
+        layerkeys.sort()
 
         if symbol not in data:
             # Create headers, structure.
