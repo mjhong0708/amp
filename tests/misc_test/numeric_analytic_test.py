@@ -118,6 +118,7 @@ def test():
         for i in range(3):
             diff = abs(forces[image_no][atom_no][i] -
                        ref_forces[image_no][atom_no][i])
+            print('{:3d} {:1d} {:7.1e}'.format(atom_no, i, diff))
             assert (diff < 10.**(-6.)), \
                 'The calculated %i force of atom %i of ' \
                 'image %i is wrong! (Diff = %f)' \
