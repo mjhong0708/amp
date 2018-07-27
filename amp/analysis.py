@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 
-from . import Amp
-from .utilities import now, hash_images, make_filename
 import os
 import numpy as np
-import matplotlib
-matplotlib.use('Agg')
+from ase.io import Trajectory
+
 from matplotlib import pyplot
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib import rcParams
-from ase.io import Trajectory
+
+from . import Amp
+from .utilities import now, hash_images, make_filename
 
 rcParams.update({'figure.autolayout': True})
 
@@ -270,7 +270,8 @@ def plot_parity_and_error(calc,
 
         if model_name == 'KernelRidge':
             if calc.model.trainingimages is not None:
-                trainingimages = hash_images(Trajectory(calc.model.trainingimages))
+                trainingimages = hash_images(
+                    Trajectory(calc.model.trainingimages))
                 energy_args['trainingimages'] = trainingimages
                 calc.descriptor.calculate_fingerprints(
                         images=trainingimages,
@@ -327,7 +328,7 @@ def plot_parity_and_error(calc,
                     forces_args['trainingimages'] = trainingimages
                     forces_args['t_descriptor'] = t_descriptor
 
-            amp_forces =  calc.model.calculate_forces(**forces_args)
+            amp_forces = calc.model.calculate_forces(**forces_args)
             actual_forces = image.get_forces(apply_constraint=False)
             force_data[hash] = [actual_forces, amp_forces,
                                 abs(np.array(amp_forces) -
@@ -466,9 +467,9 @@ def read_trainlog(logfile, verbose=True, multiple=0):
     verbose : bool
         Write out logfile during analysis.
 
-    multiple : int
+    multiple : int or True
         If multiple training sessions are recorded in the same log file,
-        return session number <multiple> (counting from 0). If set to -1,
+        return session number <multiple> (counting from 0). If set to True,
         returns all sessions as list.
     """
     data = {}
@@ -481,7 +482,7 @@ def read_trainlog(logfile, verbose=True, multiple=0):
     for index, line in enumerate(lines):
         if line.startswith('Amp training started.'):
             multiple_starts.append(index)
-    if multiple == -1:
+    if multiple is True:
         datalist = []
         for index in range(len(multiple_starts)):
             datalist.append(read_trainlog(logfile, verbose,
@@ -591,6 +592,9 @@ def read_trainlog(logfile, verbose=True, multiple=0):
             break
         elif '...optimization unsuccessful.' in line:
             d['converged'] = False
+            break
+        elif len(line) == 0:
+            # Job apparently timed out.
             break
         print_(line)
         if trainforces:
