@@ -84,6 +84,11 @@ class NeuralNetwork(Model):
         checkpoints.  Note that checkpoints can be used to resume a training
         run simply by resubmitting the same script; if a checkpoint file is
         found it will be used.
+    randomseed : None or int
+        Seed to use in random number generator for making initial guess of
+        training parameters. You should only set this if you want a script to
+        always generate the same "random" initial parameters. This primarily
+        useful for unit tests or benchmarking.
 
     .. note:: Dimensions of weight two dimensional arrays should be consistent
               with hiddenlayers.
@@ -96,7 +101,7 @@ class NeuralNetwork(Model):
     def __init__(self, hiddenlayers=(5, 5), activation='tanh', weights=None,
                  scalings=None, fprange=None, mode=None, version=None,
                  regressor=None, lossfunction=None, fortran=True,
-                 checkpoints=100):
+                 checkpoints=100, randomseed=None):
 
         # Version check, particularly if restarting.
         compatibleversions = ['2015.12', ]
@@ -129,12 +134,13 @@ class NeuralNetwork(Model):
             raise NotImplementedError(_)
 
         self.regressor = regressor
-        self.parent = None  # Can hold a reference to main Amp instance.
+        self.parent = None  # Will hold a reference to main Amp instance.
         self.lossfunction = lossfunction
         self.fortran = fortran
         self.checkpoints = checkpoints
         if self.lossfunction is None:
             self.lossfunction = LossFunction()
+        self.randomseed = randomseed
 
     def fit(self,
             trainingimages,
@@ -207,13 +213,14 @@ class NeuralNetwork(Model):
 
         if p.weights is None:
             log('Initializing with random weights.')
-            self.randomize(scalings=False)
+            self.randomize(scalings=False, seed=self.randomseed)
         else:
             log('Initial weights already present.')
 
         if p.scalings is None:
             log('Initializing with random scalings.')
-            self.randomize(weights=False, trainingimages=trainingimages)
+            self.randomize(weights=False, trainingimages=trainingimages,
+                           seed=self.randomseed)
         else:
             log('Initial scalings already present.')
 
@@ -224,7 +231,8 @@ class NeuralNetwork(Model):
         result = self.regressor.regress(model=self, log=log)
         return result  # True / False
 
-    def randomize(self, trainingimages=None, weights=True, scalings=True):
+    def randomize(self, trainingimages=None, weights=True, scalings=True,
+                  seed=None):
         """Randomizes the model parameters (i.e., re-initializes them);
         this is typically used just before training.
 
@@ -237,6 +245,11 @@ class NeuralNetwork(Model):
             If False, do not randomize weights.
         scalings : bool
             If False, do not randomize scalings.
+        seed : None or int
+            Seed to use in random number generator for making initial guess of
+            training parameters. You should only set this if you want a script
+            to always generate the same "random" initial parameters. This
+            primarily useful for unit tests or benchmarking.
         """
         p = self.parameters
         if weights:
@@ -248,13 +261,13 @@ class NeuralNetwork(Model):
                 p.weights = get_random_weights(hiddenlayers=p.hiddenlayers,
                                                activation=p.activation,
                                                len_of_fps=len_of_fps,
-                                               )
+                                               seed=seed,)
         if scalings:
             if p.mode == 'image-centered':
                 raise NotImplementedError('Need to code.')
             elif p.mode == 'atom-centered':
-                p.scalings = get_random_scalings(trainingimages, p.activation,
-                                                 p.fprange.keys())
+                p.scalings = get_initial_scalings(trainingimages, p.activation,
+                                                  p.fprange.keys())
 
     @property
     def forcetraining(self):
@@ -848,7 +861,7 @@ def calculate_ohat_D_delta(parameters, outputs, W):
 
 
 def get_random_weights(hiddenlayers, activation,
-                       len_of_fps=None, no_of_atoms=None,):
+                       len_of_fps=None, no_of_atoms=None, seed=None):
     """Generates random weight arrays from variables.
 
     hiddenlayers: dict
@@ -884,6 +897,11 @@ def get_random_weights(hiddenlayers, activation,
     no_of_atoms : int
         Number of atoms in atomic systems; used only in the case of no
         descriptor.
+    seed : None or int
+        Seed to use in random number generator for making initial guess of
+        training parameters. You should only set this if you want a script to
+        always generate the same "random" initial parameters. This primarily
+        useful for unit tests or benchmarking.
 
     Returns
     -------
@@ -891,6 +909,7 @@ def get_random_weights(hiddenlayers, activation,
         weights
     """
 
+    rs = np.random.RandomState(seed=seed)
     weight = {}
     nn_structure = {}
 
@@ -910,7 +929,7 @@ def get_random_weights(hiddenlayers, activation,
         epsilon = np.sqrt(6. / (nn_structure[0] +
                                 nn_structure[1]))
         normalized_arg_range = 2. * epsilon
-        weight[1] = np.random.random((3 * no_of_atoms + 1,
+        weight[1] = rs.random_sample((3 * no_of_atoms + 1,
                                       nn_structure[1])) * \
             normalized_arg_range - \
             normalized_arg_range / 2.
@@ -919,7 +938,7 @@ def get_random_weights(hiddenlayers, activation,
             epsilon = np.sqrt(6. / (nn_structure[layer + 1] +
                                     nn_structure[layer + 2]))
             normalized_arg_range = 2. * epsilon
-            weight[layer + 2] = np.random.random(
+            weight[layer + 2] = rs.random_sample(
                 (nn_structure[layer + 1] + 1,
                  nn_structure[layer + 2])) * \
                 normalized_arg_range - normalized_arg_range / 2.
@@ -928,7 +947,7 @@ def get_random_weights(hiddenlayers, activation,
                                 nn_structure[-1]))
         normalized_arg_range = 2. * epsilon
         weight[len(list(nn_structure)) - 1] = \
-            np.random.random((nn_structure[-2] + 1, 1)) \
+            rs.random_sample((nn_structure[-2] + 1, 1)) \
             * normalized_arg_range - normalized_arg_range / 2.
 
         if False:  # This seemed to be setting all biases to zero?
@@ -957,7 +976,7 @@ def get_random_weights(hiddenlayers, activation,
             epsilon = np.sqrt(6. / (nn_structure[element][0] +
                                     nn_structure[element][1]))
             normalized_arg_range = 2. * epsilon
-            weight[element][1] = (np.random.random(
+            weight[element][1] = (rs.random_sample(
                 (_len_of_fps + 1, nn_structure[element][1])) *
                 normalized_arg_range - normalized_arg_range / 2.)
             len_of_hiddenlayers = len(list(nn_structure[element])) - 3
@@ -965,7 +984,7 @@ def get_random_weights(hiddenlayers, activation,
                 epsilon = np.sqrt(6. / (nn_structure[element][layer + 1] +
                                         nn_structure[element][layer + 2]))
                 normalized_arg_range = 2. * epsilon
-                weight[element][layer + 2] = np.random.random(
+                weight[element][layer + 2] = rs.random_sample(
                     (nn_structure[element][layer + 1] + 1,
                      nn_structure[element][layer + 2])) * \
                     normalized_arg_range - normalized_arg_range / 2.
@@ -974,7 +993,7 @@ def get_random_weights(hiddenlayers, activation,
                                     nn_structure[element][-1]))
             normalized_arg_range = 2. * epsilon
             weight[element][len(list(nn_structure[element])) - 1] = \
-                np.random.random((nn_structure[element][-2] + 1, 1)) \
+                rs.random_sample((nn_structure[element][-2] + 1, 1)) \
                 * normalized_arg_range - normalized_arg_range / 2.
 
             if False:  # This seemed to be setting all biases to zero?
@@ -987,7 +1006,7 @@ def get_random_weights(hiddenlayers, activation,
     return weight
 
 
-def get_random_scalings(images, activation, elements=None):
+def get_initial_scalings(images, activation, elements=None, seed=None):
     """Generates initial scaling matrices, such that the range of activation is
     scaled to the range of actual energies.
 

@@ -43,7 +43,9 @@ def test():
     Gs = {'Cu': _G, 'Pt': _G}
     calc = Amp(descriptor=Gaussian(Gs=Gs),
                model=NeuralNetwork(hiddenlayers=(2, 1),
-                                   regressor=regressor,),
+                                   regressor=regressor,
+                                   randomseed=42,
+                                   ),
                cores=1)
 
     step = 0
@@ -123,6 +125,7 @@ def test():
                 'The calculated %i force of atom %i of ' \
                 'image %i is wrong! (Diff = %f)' \
                 % (i, atom_no, image_no + 1, diff)
+
 
 if __name__ == '__main__':
     test()
