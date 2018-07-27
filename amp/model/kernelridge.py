@@ -2755,10 +2755,6 @@ def ravel_data(train_forces, mode, images, fingerprints, fingerprintprimes):
                     elements += [fingerprints[hash][index][0]]
                     raveled_fingerprints += [fingerprints[hash][index][1]]
             elements = sorted(set(elements))
-            # Could also work without images:
-#            raveled_fingerprints = [afp
-#                    for hash, value in fingerprints.iteritems()
-#                    for (element, afp) in value]
             return elements, raveled_fingerprints
 
         elements, raveled_fingerprints = ravel_fingerprints(images,

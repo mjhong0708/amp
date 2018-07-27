@@ -260,7 +260,7 @@ def plot_parity_and_error(calc,
 
     calc._log('Calculating potential energies...', tic='pot-energy')
     energy_data = {}
-    for hash, image in images.iteritems():
+    for hash, image in images.items():
         no_of_atoms = len(image)
         energy_args = dict(
                 fingerprints=calc.descriptor.fingerprints[hash],
@@ -292,24 +292,24 @@ def plot_parity_and_error(calc,
 
     # calculating minimum and maximum energies
     min_act_energy = min([energy_data[hash][0]
-                          for hash, image in images.iteritems()])
+                          for hash, image in images.items()])
     max_act_energy = max([energy_data[hash][0]
-                          for hash, image in images.iteritems()])
+                          for hash, image in images.items()])
     min_act_energy_per_atom = min([energy_data[hash][2]
-                                   for hash, image in images.iteritems()])
+                                   for hash, image in images.items()])
     max_act_energy_per_atom = max([energy_data[hash][2]
-                                   for hash, image in images.iteritems()])
+                                   for hash, image in images.items()])
 
     # calculating energy per atom rmse
     energy_square_error = 0.
-    for hash, image in images.iteritems():
+    for hash, image in images.items():
         energy_square_error += energy_data[hash][3] ** 2.
     energy_per_atom_rmse = np.sqrt(energy_square_error / len(images))
 
     if plot_forces is True:
         calc._log('Calculating forces...', tic='forces')
         force_data = {}
-        for hash, image in images.iteritems():
+        for hash, image in images.items():
             forces_args = dict(
                     fingerprints=calc.descriptor.fingerprints[hash],
                     fingerprintprimes=calc.descriptor.fingerprintprimes[hash]
@@ -335,18 +335,18 @@ def plot_parity_and_error(calc,
         calc._log('...forces calculated.', toc='forces')
 
         min_act_force = min([force_data[hash][0][index][k]
-                             for hash, image in images.iteritems()
+                             for hash, image in images.items()
                              for index in range(len(image))
                              for k in range(3)])
 
         max_act_force = max([force_data[hash][0][index][k]
-                             for hash, image in images.iteritems()
+                             for hash, image in images.items()
                              for index in range(len(image))
                              for k in range(3)])
 
         # calculating force rmse
         force_square_error = 0.
-        for hash, image in images.iteritems():
+        for hash, image in images.items():
             no_of_atoms = len(image)
             for index in range(no_of_atoms):
                 for k in range(3):
@@ -558,7 +558,7 @@ def read_trainlog(logfile, verbose=True, multiple=0):
         if ready == [True] * 7:
             break
 
-    for _ in d.iteritems():
+    for _ in d.items():
         print_('{}: {}'.format(_[0], _[1]))
     E = d['energy_rmse']**2 * no_images
     if trainforces:

@@ -945,7 +945,7 @@ def ravel_data(train_forces,
             elements = sorted(set(elements))
             # Could also work without images:
 #            raveled_fingerprints = [afp
-#                    for hash, value in fingerprints.iteritems()
+#                    for hash, value in fingerprints.items()
 #                    for (element, afp) in value]
             return elements, raveled_fingerprints
 
