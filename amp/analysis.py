@@ -4,8 +4,6 @@ import os
 import numpy as np
 from ase.io import Trajectory
 
-import matplotlib
-matplotlib.use('Agg')  # Needed for headless operation.
 from matplotlib import pyplot
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib import rcParams
