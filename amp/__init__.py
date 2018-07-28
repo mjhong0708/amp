@@ -52,7 +52,8 @@ class Amp(Calculator, object):
         weights, and scalings; for more information see docstring for the class
         NeuralNetwork.
     label : str
-        Default prefix/location used for all files.
+        Default prefix/location used for all files. Setting to None disables
+        logging.
     dblabel : str
         Optional separate prefix/location for database files, including
         fingerprints, fingerprint derivatives, and neighborlists. This file
