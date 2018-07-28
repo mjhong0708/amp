@@ -1,6 +1,7 @@
 import os
 import numpy as np
 from collections import OrderedDict
+from scipy.optimize import fmin
 from ase.calculators.calculator import Parameters
 
 from . import LossFunction, calculate_fingerprints_range, Model
@@ -56,7 +57,7 @@ class NeuralNetwork(Model):
         In the case of no descriptor, keys are "intercept" and "slope" and
         values are real numbers. In the fingerprinting scheme, keys correspond
         to chemical elements and values are dictionaries with "intercept" and
-        "slope" keys and real number values. If scalings is not given, it will
+        "slope" keys and real number values. If scalings is None, it will
         be guessed based on the input range of energies.
     fprange : dict
         Range of fingerprints of each chemical species.  Should be fed as
@@ -74,6 +75,12 @@ class NeuralNetwork(Model):
         function optimization via amp.regression.Regressor.
     lossfunction : object
         Loss function object.
+    prescale : bool
+        If True, will start with a simple single-parameter (per element)
+        regression to find the best-fit values for the scaling parameters. This
+        portion of the code is not parallelized, but can greatly improve the
+        likelihood of and path to convergence, as this is the most sensitive
+        parameter.  Ignored if scalings are explicitly supplied.
     fortran : bool
         Can optionally shut off fortran, primarily for debugging.
     checkpoints : int
@@ -101,7 +108,7 @@ class NeuralNetwork(Model):
     def __init__(self, hiddenlayers=(5, 5), activation='tanh', weights=None,
                  scalings=None, fprange=None, mode=None, version=None,
                  regressor=None, lossfunction=None, fortran=True,
-                 checkpoints=100, randomseed=None):
+                 checkpoints=100, randomseed=None, prescale=False):
 
         # Version check, particularly if restarting.
         compatibleversions = ['2015.12', ]
@@ -141,6 +148,7 @@ class NeuralNetwork(Model):
         if self.lossfunction is None:
             self.lossfunction = LossFunction()
         self.randomseed = randomseed
+        self.prescale = prescale
 
     def fit(self,
             trainingimages,
@@ -217,6 +225,14 @@ class NeuralNetwork(Model):
         else:
             log('Initial weights already present.')
 
+        if p.scalings is None and self.prescale is True:
+            self.log('Finding good guesses for scaling intercepts.')
+            self.prescale_intercepts(trainingimages)
+            self.log(' Atomic energies found:')
+            for element in self.parameters.scalings.keys():
+                self.log('{:2s}: {:14.4f}'.format(
+                    element, self.parameters.scalings[element]['intercept']))
+
         if p.scalings is None:
             log('Initializing with random scalings.')
             self.randomize(weights=False, trainingimages=trainingimages,
@@ -230,6 +246,39 @@ class NeuralNetwork(Model):
         # Regress the model.
         result = self.regressor.regress(model=self, log=log)
         return result  # True / False
+
+    def prescale_intercepts(self, trainingimages):
+        """Calculates a reasonable guess for the per-atom energy, by regressing
+        a one-parameter-per-element model (per-atom energies), and uses this as
+        the scaling energy. This is a reasonably inefficient
+        residual-minimization technique, but doesn't typically bottleneck the
+        code. The slopes are not explicitly calculated, and take as w """
+
+        # This still assumes slope=1 is a goood guess.
+        # But in units of eV, it's not bad.
+
+        elements = self.parameters.fprange.keys()
+
+        def get_rmse_per_atom(scalings_list):
+            scalings = {element: scaling for
+                        (element, scaling) in zip(elements, scalings_list)}
+            calc = OffsetCalculator(scalings=scalings)
+            msea = 0.  # mean-squared (error per atom)
+            for image in trainingimages.values():
+                true_energy = image.get_potential_energy(
+                        apply_constraint=False)
+                predicted_energy = calc.get_potential_energy(image)
+                msea += ((true_energy - predicted_energy) / len(image))**2
+            return np.sqrt(msea)  # root-mean-squared (error per atom)
+
+        answer = fmin(get_rmse_per_atom, x0=[1.]*len(elements))
+        scaling_intercepts = {element: intercept for element, intercept in
+                              zip(elements, answer)}
+        p = self.parameters
+        p.scalings = {}
+        for element in elements:
+            p.scalings[element] = {'intercept': scaling_intercepts[element],
+                                   'slope': 1.}
 
     def randomize(self, trainingimages=None, weights=True, scalings=True,
                   seed=None):
@@ -1275,3 +1324,20 @@ class NodePlot:
         """Converts the data table into a numpy array."""
         for symbol in self.data:
             self.data[symbol]['table'] = np.array(self.data[symbol]['table'])
+
+
+class OffsetCalculator:
+    """A calculator in which energy is only a sum of one-body atomic terms,
+    with an energy per element type. This is used to calculate the scaling
+    parameters."""
+
+    def __init__(self, scalings):
+        """Scalings is a dictionary [element:energy]."""
+        self.scalings = scalings
+
+    def get_potential_energy(self, atoms):
+        """Calculate a crude potential energy."""
+        energy = 0.
+        for atom in atoms:
+            energy += self.scalings[atom.symbol]
+        return energy
