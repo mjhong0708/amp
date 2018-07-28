@@ -226,12 +226,14 @@ class NeuralNetwork(Model):
             log('Initial weights already present.')
 
         if p.scalings is None and self.prescale is True:
-            self.log('Finding good guesses for scaling intercepts.')
+            self.log('Finding good guesses for scaling intercepts...',
+                     tic='prescale')
             self.prescale_intercepts(trainingimages)
             self.log(' Atomic energies found:')
             for element in self.parameters.scalings.keys():
                 self.log('{:2s}: {:14.4f}'.format(
                     element, self.parameters.scalings[element]['intercept']))
+            self.log('...prescale complete.', toc='prescale')
 
         if p.scalings is None:
             log('Initializing with random scalings.')
