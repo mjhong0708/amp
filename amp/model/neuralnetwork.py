@@ -57,7 +57,7 @@ class NeuralNetwork(Model):
         values are real numbers. In the fingerprinting scheme, keys correspond
         to chemical elements and values are dictionaries with "intercept" and
         "slope" keys and real number values. If scalings is not given, it will
-        be randomly generated.
+        be guessed based on the input range of energies.
     fprange : dict
         Range of fingerprints of each chemical species.  Should be fed as
         a dictionary of chemical species and a list of minimum and maximun,
