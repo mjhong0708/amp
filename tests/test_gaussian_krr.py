@@ -1,11 +1,12 @@
 #!/usr/bin/env python
-"""Simple test of the Amp calculator, using Gaussian descriptors and neural
-network model. Randomly generates data with the EMT potential in MD
+"""Simple test of the Amp calculator, using Gaussian descriptors and Kernel
+Ridge model. Randomly generates data with the EMT potential in MD
 simulations."""
 
 from ase.calculators.emt import EMT
 from ase.build import fcc110
 from ase import Atoms, Atom
+from ase.io import Trajectory
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase import units
 from ase.md import VelocityVerlet
@@ -13,8 +14,7 @@ from ase.constraints import FixAtoms
 
 from amp import Amp
 from amp.descriptor.gaussian import Gaussian
-from amp.model.neuralnetwork import NeuralNetwork
-from amp.model import LossFunction
+from amp.model.kernelridge import KernelRidge
 
 
 def generate_data(count):
@@ -41,17 +41,18 @@ def generate_data(count):
 
 
 def train_test():
-    """Gaussian/Neural train test."""
+    """Gaussian/KRR train test."""
     label = 'train_test/calc'
     train_images = generate_data(2)
+    traj = Trajectory('trainingset.traj', mode='w')
+
+    for image in train_images:
+        traj.write(image)
 
     calc = Amp(descriptor=Gaussian(),
-               model=NeuralNetwork(hiddenlayers=(3, 3)),
+               model=KernelRidge(forcetraining=True, trainingimages='trainingset.traj'),
                label=label,
                cores=1)
-    loss = LossFunction(convergence={'energy_rmse': 0.02,
-                                     'force_rmse': 0.03})
-    calc.model.lossfunction = loss
 
     calc.train(images=train_images,)
     for image in train_images:

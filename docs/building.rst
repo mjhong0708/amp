@@ -184,4 +184,4 @@ In the final line above, the master has sent a string with the `parallel_command
     socket.recv_string() # Needed to complete REQ/REP.
 
 
-
+Note that in python3, there is apparently an issue that garbage collection does not work correctly. Thus, we also need to call socket.close() on each zmq.Context.socket object before it is destroyed, otherwise the program may hang when trying to make new connections.

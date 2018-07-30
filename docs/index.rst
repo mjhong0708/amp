@@ -27,6 +27,10 @@ https://listserv.brown.edu/?SUBED1=AMP-USERS&A=1
 
 Amp is now part of the Debian archives! This means it will soon be available via your package manager in linux releases like Ubuntu.
 
+Amp is now installable via pip! This means you should be able to install with just::
+
+   $ pip3 install amp-atomistics
+
 **Manual**:
 
 .. toctree::

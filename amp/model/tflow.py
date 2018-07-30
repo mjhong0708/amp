@@ -26,6 +26,10 @@ except ImportError:
     import warnings
     warnings.warn('Please install tensorflow if you plan to use this '
                   'Amp module.')
+try:
+    basestring  # python3
+except NameError:
+    basestring = str  # python2
 
 
 class NeuralNetwork:
@@ -81,12 +85,6 @@ class NeuralNetwork:
 
     sess
         tensorflow session to use (None means start a new session)
-
-    maxAtomsForces : int
-        Number of atoms to be used in the force training. It sets the upper
-        bound on the number of atoms that can be used to calculate the force
-        for. E.g., if maxAtomsForces=40, then forces can only be calculated
-        for images with less than 40 atoms.
 
     energy_coefficient : float
         Used to adjust the loss function; this is the weight applied to the
@@ -974,9 +972,6 @@ class NeuralNetwork:
                      np.max(atomArraysAll[element], axis=0)]
 
         if self.parameters['force_coefficient'] is not None:
-            # forces = map(lambda x: images[x].get_forces(
-            #    apply_constraint=False), keylist)
-            # forces = np.zeros((len(keylist), self.maxAtomsForces, 3))
             forces = []
             for i in range(len(keylist)):
                 atoms = images[keylist[i]]
@@ -1634,8 +1629,6 @@ def generateTensorFlowArrays(fingerprintDB, elements, keylist,
 
     fingerprintDerDB: a database of fingerprint derivatives, as taken from the
                       descriptor
-
-    maxAtomsForces: the maximum length of the atoms
 
     Outputs:
 

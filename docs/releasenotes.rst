@@ -20,6 +20,16 @@ Development version
 
 * The image hashing routine, used to uniquely identify images, has been updated to correctly handle permutations in very large atomic systems. (Note this means that images hashed with a prior version of Amp will have a different unique identifier, so you should not mix databases of fingerprints.)
 
+* Added Kernel Ridge Regression to Amp.
+
+* Incorporation of Behler's G5 angular symmetry function.
+
+0.6.1
+-----
+Release date: July 19, 2018
+
+* Installation via pip is now possible.
+
 0.6
 ---
 Release date: July 31, 2017

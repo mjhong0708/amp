@@ -2,7 +2,6 @@ from ..utilities import ConvergenceOccurred
 
 
 class Regressor:
-
     """Class to manage the regression of a generic model. That is, for a
     given parameter set, calculates the cost function (the difference in
     predicted energies and actual energies across training images), then
@@ -28,7 +27,7 @@ class Regressor:
         """optimizer can be specified; it should behave like a
         scipy.optimize optimizer. That is, it should take as its first two
         arguments the function to be optimized and the initial guess of the
-        optimal paramters. Additional keyword arguments can be fed through
+        optimal parameters. Additional keyword arguments can be fed through
         the optimizer_kwargs dictionary."""
 
         user_kwargs = optimizer_kwargs
@@ -68,6 +67,15 @@ class Regressor:
                                 'method': 'Newton-CG', 
                                 'options': {'xtol': 1e-15, }
                                }
+
+        elif optimizer == 'Nelder-Mead':
+            from scipy.optimize import minimize as optimizer
+            optimizer_kwargs = {
+                                'method': 'Nelder-Mead',
+                                'options': {'maxfun': 99999999,
+                                            'maxiter': 99999999, }
+                               }
+            lossprime = False
 
         if user_kwargs:
             optimizer_kwargs.update(user_kwargs)

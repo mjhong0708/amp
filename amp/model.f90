@@ -1,14 +1,14 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-!     Fortran Version = 9
+!     Fortran Version = 10
       subroutine check_version(version, warning)
       implicit none
 
       integer::  version, warning
 !f2py         intent(in)::  version
 !f2py         intent(out)::  warning
-      if (version .NE. 9) then
+      if (version .NE. 10) then
           warning = 1
       else
           warning = 0
@@ -216,16 +216,16 @@
                 calculate_denergy_dparameters_(num_inputs, inputs, &
                 num_parameters, parameters)
             else  ! atom-centered mode
-				do j = 1, num_parameters
-					denergy_dparameters(j) = 0.0d0
-				end do
+                                do j = 1, num_parameters
+                                    denergy_dparameters(j) = 0.0d0
+                                end do
                 if (numericprime .EQV. .FALSE.) then
                     call calculate_denergy_dparameters(image_no)
                 else
                     call calculate_numerical_denergy_dparameters(image_no)
                 end if
             end if
-			! calculates contribution of energyloss to dloss_dparameters
+            ! calculates contribution of energyloss to dloss_dparameters
             do j = 1, num_parameters
                 dloss_dparameters(j) = dloss_dparameters(j) + &
                 energy_coefficient *  2.0d0 * &
@@ -244,7 +244,7 @@
             end do
             ! calculates amp_forces
             call calculate_forces(image_no)
-			! calculates forceloss
+                ! calculates forceloss
             do selfindex = 1, num_atoms
                 do i = 1, 3
                     forceloss = forceloss + &
@@ -266,16 +266,16 @@
             end do
             if (lossprime .EQV. .TRUE.) then
                 allocate(dforces_dparameters(num_atoms))
-				do selfindex = 1, num_atoms
-					allocate(dforces_dparameters(&
-					selfindex)%twodarray(3, num_parameters))
-					do i = 1, 3
-					    do j = 1, num_parameters
-					        dforces_dparameters(&
-					        selfindex)%twodarray(i, j) = 0.0d0
-					    end do
-					end do
-				end do
+                                do selfindex = 1, num_atoms
+                                        allocate(dforces_dparameters(&
+                                        selfindex)%twodarray(3, num_parameters))
+                                        do i = 1, 3
+                                            do j = 1, num_parameters
+                                                dforces_dparameters(&
+                                                selfindex)%twodarray(i, j) = 0.0d0
+                                            end do
+                                        end do
+                                end do
                 ! calculates dforces_dparameters
                 if (numericprime .EQV. .FALSE.) then
                     call calculate_dforces_dparameters(image_no)
@@ -297,10 +297,10 @@
                         end do
                     end do
                 end do
-				do p = 1, size(dforces_dparameters)
-					deallocate(dforces_dparameters(p)%twodarray)
-				end do
-				deallocate(dforces_dparameters)
+                                do p = 1, size(dforces_dparameters)
+                                    deallocate(dforces_dparameters(p)%twodarray)
+                                end do
+                                deallocate(dforces_dparameters)
             end if
             deallocate(actual_forces_)
             deallocate(amp_forces)
@@ -320,7 +320,7 @@
           overfitloss = overfit * overfitloss
           loss = loss + overfitloss
           do j = 1, num_parameters
-		      doverfitloss_dparameters(j) = &
+              doverfitloss_dparameters(j) = &
               2.0d0 * overfit * parameters(j)
               dloss_dparameters(j) = dloss_dparameters(j) + &
               doverfitloss_dparameters(j)
@@ -643,21 +643,21 @@
           parameters(j) = parameters(j) + d
           deallocate(amp_forces)
           call calculate_forces(image_no)
-		  allocate(fplus(num_atoms, 3))
-		  do selfindex = 1, num_atoms
-			do i = 1, 3
-				fplus(selfindex, i) = amp_forces(selfindex, i)
-			end do
-		  end do
+                allocate(fplus(num_atoms, 3))
+                do selfindex = 1, num_atoms
+                    do i = 1, 3
+                        fplus(selfindex, i) = amp_forces(selfindex, i)
+                    end do
+                end do
           parameters(j) = parameters(j) - 2.0d0 * d
           deallocate(amp_forces)
           call calculate_forces(image_no)
-		  allocate(fminus(num_atoms, 3))
-		  do selfindex = 1, num_atoms
-			do i = 1, 3
-				fminus(selfindex, i) = amp_forces(selfindex, i)
-			end do
-		  end do
+                allocate(fminus(num_atoms, 3))
+                do selfindex = 1, num_atoms
+                    do i = 1, 3
+                        fminus(selfindex, i) = amp_forces(selfindex, i)
+                    end do
+                end do
           do selfindex = 1, num_atoms
               do i = 1, 3
                   dforces_dparameters(selfindex)%twodarray(i, j) = &
@@ -805,7 +805,7 @@
         allocate(unraveled_fingerprintprimes(&
         image_no)%onedarray(num_atoms))
         do selfindex = 1, num_atoms
-			! neighborindices list is generated.
+        ! neighborindices list is generated.
             allocate(neighborindices(size(unraveled_neighborlists(&
             image_no)%onedarray(selfindex)%onedarray)))
             do p = 1, size(unraveled_neighborlists(&

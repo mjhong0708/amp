@@ -240,7 +240,6 @@ class Model(object):
 
 
 class LossFunction:
-
     """Basic loss function, which can be used by the model.get_loss
     method which is required in standard model classes.
 
@@ -543,9 +542,10 @@ class LossFunction:
         self._initialized = False
         if not hasattr(self, '_sessions'):
             return
-        server = self._sessions['master']
-        # Need to properly close socket connection (python3).
-        server.close()
+        # Need to properly close socket connections, due to bug in ZMQ with
+        # python3. See: https://github.com/zeromq/pyzmq/issues/831
+        self._sessions['master'].close()
+        self._sessions['publisher'].close()
 
         for _ in self._sessions['connections']:
             if hasattr(_, 'logout'):
@@ -950,7 +950,7 @@ def ravel_data(train_forces,
             elements = sorted(set(elements))
             # Could also work without images:
 #            raveled_fingerprints = [afp
-#                    for hash, value in fingerprints.iteritems()
+#                    for hash, value in fingerprints.items()
 #                    for (element, afp) in value]
             return elements, raveled_fingerprints
 

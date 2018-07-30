@@ -26,14 +26,16 @@ try:
 except ImportError:
     warnings.warn('Did not find fortran modules.')
 else:
-    fmodules_version = 9
+    fmodules_version = 10
     wrong_version = fmodules.check_version(version=fmodules_version)
     if wrong_version:
         raise RuntimeError('fortran modules are not updated. Recompile '
                            'with f2py as described in the README. '
                            'Correct version is %i.' % fmodules_version)
 
-_ampversion = '(development)'
+version_file = os.path.join(os.path.split(os.path.abspath(__file__))[0],
+                            'VERSION')
+_ampversion = open(version_file).read().strip()
 
 
 class Amp(Calculator, object):
@@ -50,7 +52,8 @@ class Amp(Calculator, object):
         weights, and scalings; for more information see docstring for the class
         NeuralNetwork.
     label : str
-        Default prefix/location used for all files.
+        Default prefix/location used for all files. Setting to None disables
+        logging.
     dblabel : str
         Optional separate prefix/location for database files, including
         fingerprints, fingerprint derivatives, and neighborlists. This file
@@ -110,8 +113,7 @@ class Amp(Calculator, object):
 
     @property
     def descriptor(self):
-        """
-        Get or set the atomic descriptor.
+        """Get or set the atomic descriptor.
 
         Parameters
         ----------
@@ -130,8 +132,7 @@ class Amp(Calculator, object):
 
     @property
     def model(self):
-        """
-        Get or set the machine-learning model.
+        """Get or set the machine-learning model.
 
         Parameters
         ----------
@@ -155,8 +156,8 @@ class Amp(Calculator, object):
         Only a filename or file-like object is required, in typical cases.
 
         If using a home-rolled descriptor or model, also supply uninstantiated
-        classes to those models, as in Model=MyModel.  (Not as
-        Model=MyModel()!)
+        classes to those models, as in Model=MyModel.
+        (Not as Model=MyModel()!)
 
         Any additional keyword arguments (such as label or dblabel) can be
         fed through to Amp.
@@ -234,9 +235,7 @@ class Amp(Calculator, object):
         self._printheader(self._log)
 
     def calculate(self, atoms, properties, system_changes):
-        """Calculation of the energy of system and forces of all atoms.
-
-        """
+        """Calculation of the energy of system and forces of all atoms."""
         # The inherited method below just sets the atoms object,
         # if specified, to self.atoms.
         Calculator.calculate(self, atoms, properties, system_changes)
@@ -252,22 +251,84 @@ class Amp(Calculator, object):
             self.descriptor.calculate_fingerprints(images=images,
                                                    log=log,
                                                    calculate_derivatives=False)
-            energy = self.model.calculate_energy(
-                self.descriptor.fingerprints[key])
+            if self.model.__class__.__name__ != 'KernelRidge':
+                energy = self.model.calculate_energy(
+                        self.descriptor.fingerprints[key]
+                        )
+
+            else:  # KRR needs training images.
+                fingerprints = self.descriptor.fingerprints
+
+                log('Loading the training set')
+
+                if isinstance(self.model.trainingimages, str):
+                    trainingimages = hash_images(
+                            ase.io.Trajectory(self.model.trainingimages)
+                            )
+                else:
+                    trainingimages = hash_images(self.model.trainingimages)
+
+                self.descriptor.calculate_fingerprints(
+                        images=trainingimages,
+                        log=log,
+                        calculate_derivatives=False
+                        )
+                fp_trainingimages = self.descriptor.fingerprints
+
+                energy = self.model.calculate_energy(
+                        fingerprints,
+                        hash=key,
+                        trainingimages=trainingimages,
+                        fp_trainingimages=fp_trainingimages
+                        )
             self.results['energy'] = energy
             log('...potential energy calculated.', toc='pot-energy')
 
         if properties == ['forces']:
-            log('Calculating forces...', tic='forces')
-            self.descriptor.calculate_fingerprints(images=images,
-                                                   log=log,
-                                                   calculate_derivatives=True)
-            forces = \
-                self.model.calculate_forces(
-                    self.descriptor.fingerprints[key],
-                    self.descriptor.fingerprintprimes[key])
-            self.results['forces'] = forces
-            log('...forces calculated.', toc='forces')
+            if self.model.__class__.__name__ != 'KernelRidge':
+                log('Calculating forces...', tic='forces')
+                self.descriptor.calculate_fingerprints(
+                        images=images,
+                        log=log,
+                        calculate_derivatives=True
+                        )
+                forces = \
+                    self.model.calculate_forces(
+                        self.descriptor.fingerprints[key],
+                        self.descriptor.fingerprintprimes[key])
+                self.results['forces'] = forces
+                log('...forces calculated.', toc='forces')
+
+            else:
+                log('Calculating forces...', tic='forces')
+                self.descriptor.calculate_fingerprints(
+                        images=images,
+                        log=log,
+                        calculate_derivatives=True
+                        )
+                log('Loading the training set')
+                if isinstance(self.model.trainingimages, str):
+                    trainingimages = hash_images(
+                            ase.io.Trajectory(self.model.trainingimages)
+                            )
+                else:
+                    trainingimages = hash_images(self.model.trainingimages)
+                self.descriptor.calculate_fingerprints(
+                        images=trainingimages,
+                        log=log,
+                        calculate_derivatives=True
+                        )
+                t_descriptor = self.descriptor
+                forces = \
+                    self.model.calculate_forces(
+                        self.descriptor.fingerprints[key],
+                        self.descriptor.fingerprintprimes[key],
+                        hash=key,
+                        trainingimages=trainingimages,
+                        t_descriptor=t_descriptor,
+                        )
+                self.results['forces'] = forces
+                log('...forces calculated.', toc='forces')
 
     def train(self,
               images,
@@ -384,8 +445,8 @@ class Amp(Calculator, object):
         ampdirectory = os.path.dirname(os.path.abspath(__file__))
         log('Amp directory: %s' % ampdirectory)
         commithash, commitdate = get_git_commit(ampdirectory)
-        log(' Last commit: %s' % commithash)
-        log(' Last commit date: %s' % commitdate)
+        log(' Last commit: {:s}'.format(commithash))
+        log(' Last commit date: {:s}'.format(commitdate))
         log('Python: v{0}.{1}.{2}: %s'.format(*sys.version_info[:3]) %
             sys.executable)
         log('ASE v%s: %s' % (aseversion, os.path.dirname(ase.__file__)))
@@ -398,7 +459,7 @@ class Amp(Calculator, object):
                 (scipy.version.version, os.path.dirname(scipy.__file__)))
         except ImportError:
             log('SciPy: not available')
-        # ZMQ an pxssh are only necessary for parallel calculations.
+        # ZMQ and pxssh are only necessary for parallel calculations.
         try:
             import zmq
             log('ZMQ/PyZMQ v%s/v%s: %s' %
@@ -431,17 +492,19 @@ def importhelper(importname):
     is silly.
     """
     if importname == '.descriptor.gaussian.Gaussian':
-        from .descriptor.gaussian import Gaussian as Module
+        from .descriptor.gaussian import Gaussian as Imported
     elif importname == '.descriptor.zernike.Zernike':
-        from .descriptor.zernike import Zernike as Module
+        from .descriptor.zernike import Zernike as Imported
     elif importname == '.descriptor.bispectrum.Bispectrum':
-        from .descriptor.bispectrum import Bispectrum as Module
+        from .descriptor.bispectrum import Bispectrum as Imported
     elif importname == '.model.neuralnetwork.NeuralNetwork':
-        from .model.neuralnetwork import NeuralNetwork as Module
+        from .model.neuralnetwork import NeuralNetwork as Imported
     elif importname == '.model.neuralnetwork.tflow':
-        from .model.tflow import NeuralNetwork as Module
+        from .model.tflow import NeuralNetwork as Imported
+    elif importname == '.model.kernelridge.KernelRidge':
+        from .model.kernelridge import KernelRidge as Imported
     elif importname == '.model.LossFunction':
-        from .model import LossFunction as Module
+        from .model import LossFunction as Imported
     else:
         raise NotImplementedError(
             'Attempt to import the module %s. Was this intended? '
@@ -450,7 +513,7 @@ def importhelper(importname):
             'module can be added to amp.importhelper.' %
             importname)
 
-    return Module
+    return Imported
 
 
 def get_git_commit(ampdirectory):
@@ -465,7 +528,8 @@ def get_git_commit(ampdirectory):
                                              stderr=devnull)
     except:
         output = b'unknown hash\tunknown date'
+    output = output.decode('utf-8')
     output = output.strip()
-    commithash, commitdate = output.split(b'\t')
+    commithash, commitdate = output.split('\t')
     os.chdir(pwd)
     return commithash, commitdate

@@ -424,7 +424,7 @@ def hash_with_duplicates(images):
         images = hash_images(images)
     duplicates = images.metadata['duplicates']
     dict_images = dict(images)
-    for oldhash, repititions in duplicates.iteritems():
+    for oldhash, repititions in duplicates.items():
         for repitition in range(repititions - 1):
             newhash = '-'.join([oldhash, '%i' % (repitition + 1)])
             assert newhash not in dict_images

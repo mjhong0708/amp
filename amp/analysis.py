@@ -1,14 +1,16 @@
 #!/usr/bin/env python
 
-from . import Amp
-from .utilities import now, hash_images, make_filename
 import os
 import numpy as np
-import matplotlib
-matplotlib.use('Agg')
+from ase.io import Trajectory
+
 from matplotlib import pyplot
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib import rcParams
+
+from . import Amp
+from .utilities import now, hash_images, make_filename
+
 rcParams.update({'figure.autolayout': True})
 
 
@@ -258,10 +260,30 @@ def plot_parity_and_error(calc,
 
     calc._log('Calculating potential energies...', tic='pot-energy')
     energy_data = {}
-    for hash, image in images.iteritems():
+    for hash, image in images.items():
         no_of_atoms = len(image)
-        amp_energy = calc.model.calculate_energy(
-            calc.descriptor.fingerprints[hash])
+        energy_args = dict(
+                fingerprints=calc.descriptor.fingerprints[hash],
+                )
+
+        model_name = calc.model.__class__.__name__
+
+        if model_name == 'KernelRidge':
+            if calc.model.trainingimages is not None:
+                trainingimages = hash_images(
+                    Trajectory(calc.model.trainingimages))
+                energy_args['trainingimages'] = trainingimages
+                calc.descriptor.calculate_fingerprints(
+                        images=trainingimages,
+                        parallel=calc._parallel,
+                        log=calc._log,
+                        calculate_derivatives=calculate_derivatives
+                        )
+                fp_trainingimages = calc.descriptor.fingerprints
+                energy_args['fp_trainingimages'] = fp_trainingimages
+                energy_args['hash'] = hash
+
+        amp_energy = calc.model.calculate_energy(**energy_args)
         actual_energy = image.get_potential_energy(apply_constraint=False)
         act_energy_per_atom = actual_energy / no_of_atoms
         energy_error = abs(amp_energy - actual_energy) / no_of_atoms
@@ -271,28 +293,42 @@ def plot_parity_and_error(calc,
 
     # calculating minimum and maximum energies
     min_act_energy = min([energy_data[hash][0]
-                          for hash, image in images.iteritems()])
+                          for hash, image in images.items()])
     max_act_energy = max([energy_data[hash][0]
-                          for hash, image in images.iteritems()])
+                          for hash, image in images.items()])
     min_act_energy_per_atom = min([energy_data[hash][2]
-                                   for hash, image in images.iteritems()])
+                                   for hash, image in images.items()])
     max_act_energy_per_atom = max([energy_data[hash][2]
-                                   for hash, image in images.iteritems()])
+                                   for hash, image in images.items()])
 
     # calculating energy per atom rmse
     energy_square_error = 0.
-    for hash, image in images.iteritems():
+    for hash, image in images.items():
         energy_square_error += energy_data[hash][3] ** 2.
     energy_per_atom_rmse = np.sqrt(energy_square_error / len(images))
 
     if plot_forces is True:
         calc._log('Calculating forces...', tic='forces')
         force_data = {}
-        for hash, image in images.iteritems():
-            amp_forces = \
-                calc.model.calculate_forces(
-                    calc.descriptor.fingerprints[hash],
-                    calc.descriptor.fingerprintprimes[hash])
+        for hash, image in images.items():
+            forces_args = dict(
+                    fingerprints=calc.descriptor.fingerprints[hash],
+                    fingerprintprimes=calc.descriptor.fingerprintprimes[hash]
+                    )
+
+            if model_name == 'KernelRidge':
+                if calc.model.trainingimages is not None:
+                    trainingimages = \
+                            hash_images(Trajectory(calc.model.trainingimages))
+                    calc.descriptor.calculate_fingerprints(
+                            images=trainingimages,
+                            calculate_derivatives=True
+                            )
+                    t_descriptor = calc.descriptor
+                    forces_args['trainingimages'] = trainingimages
+                    forces_args['t_descriptor'] = t_descriptor
+
+            amp_forces = calc.model.calculate_forces(**forces_args)
             actual_forces = image.get_forces(apply_constraint=False)
             force_data[hash] = [actual_forces, amp_forces,
                                 abs(np.array(amp_forces) -
@@ -300,18 +336,18 @@ def plot_parity_and_error(calc,
         calc._log('...forces calculated.', toc='forces')
 
         min_act_force = min([force_data[hash][0][index][k]
-                             for hash, image in images.iteritems()
+                             for hash, image in images.items()
                              for index in range(len(image))
                              for k in range(3)])
 
         max_act_force = max([force_data[hash][0][index][k]
-                             for hash, image in images.iteritems()
+                             for hash, image in images.items()
                              for index in range(len(image))
                              for k in range(3)])
 
         # calculating force rmse
         force_square_error = 0.
-        for hash, image in images.iteritems():
+        for hash, image in images.items():
             no_of_atoms = len(image)
             for index in range(no_of_atoms):
                 for k in range(3):
@@ -431,9 +467,9 @@ def read_trainlog(logfile, verbose=True, multiple=0):
     verbose : bool
         Write out logfile during analysis.
 
-    multiple : int
+    multiple : int or True
         If multiple training sessions are recorded in the same log file,
-        return session number <multiple> (counting from 0). If set to -1,
+        return session number <multiple> (counting from 0). If set to True,
         returns all sessions as list.
     """
     data = {}
@@ -446,7 +482,7 @@ def read_trainlog(logfile, verbose=True, multiple=0):
     for index, line in enumerate(lines):
         if line.startswith('Amp training started.'):
             multiple_starts.append(index)
-    if multiple == -1:
+    if multiple is True:
         datalist = []
         for index in range(len(multiple_starts)):
             datalist.append(read_trainlog(logfile, verbose,
@@ -523,7 +559,7 @@ def read_trainlog(logfile, verbose=True, multiple=0):
         if ready == [True] * 7:
             break
 
-    for _ in d.iteritems():
+    for _ in d.items():
         print_('{}: {}'.format(_[0], _[1]))
     E = d['energy_rmse']**2 * no_images
     if trainforces:
@@ -556,6 +592,9 @@ def read_trainlog(logfile, verbose=True, multiple=0):
             break
         elif '...optimization unsuccessful.' in line:
             d['converged'] = False
+            break
+        elif len(line) == 0:
+            # Job apparently timed out.
             break
         print_(line)
         if trainforces:

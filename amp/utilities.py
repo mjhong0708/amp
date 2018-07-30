@@ -293,8 +293,16 @@ class FileDatabase:
         self.loosepath = os.path.join(self.path, 'loose')
         self.tarpath = os.path.join(self.path, 'archive.tar.gz')
         if not os.path.exists(self.path):
-            os.mkdir(self.path)
-            os.mkdir(self.loosepath)
+            try:
+                os.mkdir(self.path)
+            except OSError:
+                # Many simultaneous processes might be trying to make the
+                # directory at the same time.
+                pass
+            try:
+                os.mkdir(self.loosepath)
+            except OSError:
+                pass
         self._memdict = {}  # Items already accessed; stored in memory.
 
     @classmethod
@@ -829,7 +837,7 @@ o      o   o       o   o
 
 def importer(name):
     """Handles strange import cases, like pxssh which might show
-    up in eithr the package pexpect or pxssh.
+    up in either the package pexpect or pxssh.
     """
 
     if name == 'pxssh':
