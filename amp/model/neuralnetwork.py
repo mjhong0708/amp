@@ -359,7 +359,7 @@ class NeuralNetwork(Model):
         p['weights'] = weights
         p['scalings'] = scalings
 
-    def get_loss(self, vector):
+    def get_loss(self, vector, lossprime):
         """Method to be called by the regression master.
 
         Takes one and only one input, a vector of parameters.
@@ -390,11 +390,16 @@ class NeuralNetwork(Model):
                     filename = make_filename(self.parent.label,
                                              '-checkpoint.amp')
                 self.parent.save(filename, overwrite=True)
-        loss = self.lossfunction.get_loss(vector, lossprime=False)['loss']
+        result = self.lossfunction.get_loss(vector, lossprime=lossprime)
         if hasattr(self, 'observer'):
             self.observer(self, vector, loss)
         self.step += 1
-        return loss
+
+        if lossprime:
+            return result['loss'], result['dloss_dparameters']
+        else:
+            return result['loss']
+
 
     def _load_from_checkpoints(self):
         """If checkpoints are present, this will load from them and therefore
@@ -417,21 +422,6 @@ class NeuralNetwork(Model):
         self.parameters = p
         self._log('Loaded last neural network parameters from checkpoint. '
                   'Resuming training run.')
-
-    def get_lossprime(self, vector):
-        """Method to be called by the regression master.
-
-        Takes one and only one input, a vector of parameters.  Returns one
-        output, the value of the derivative of the loss function with respect
-        to model parameters.
-
-        Parameters
-        ----------
-        vector : list
-            Parameters of the regression model in the form of a list.
-        """
-        return self.lossfunction.get_loss(vector,
-                                          lossprime=True)['dloss_dparameters']
 
     @property
     def lossfunction(self):
@@ -600,7 +590,7 @@ class NeuralNetwork(Model):
         direction : int
             Direction of force.
         nindex : int
-            Index of the atom at which force is acting.  (only used in
+            Index of the atom at which force is acting.  (only used in            
             the atom-centered mode)
         nsymbol : str
             Symbol of the atom at which force is acting.  (only used
