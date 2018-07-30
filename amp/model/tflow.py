@@ -319,7 +319,8 @@ class NeuralNetwork:
     # pre-computed exact estimates
     def setWeightsScalings(self, feedinput, weights, scalings):
         with self.graph.as_default():
-            namefun = lambda x: '%s_%s_' % (self.saveVariableName, element) + x
+            def namefun(x):
+                return '%s_%s_' % (self.saveVariableName, element) + x
             for element in weights:
                 for layer in weights[element]:
                     weight = weights[element][layer][0:-1]
@@ -769,6 +770,7 @@ class NeuralNetwork:
                           forcecoefficient=None, training=True):
         """Generates the input dictionary that maps various inputs on
         the python side to placeholders for the tensorflow model."""
+        p = self.parameters
 
         (atomArraysFinal,
          dgdx_batch,
@@ -790,14 +792,15 @@ class NeuralNetwork:
                 aAF = atomArraysFinal[element].copy()
                 for i in range(len(aAF)):
                     for j in range(len(aAF[i])):
-                        if (self.parameters['fprange'][element][1][j] -
-                           self.parameters['fprange'][element][0][j]) >  \
+                        if (p['fprange'][element][1][j] -
+                            p['fprange'][element][0][j]) >  \
                                    10.**-8:
-                            aAF[i][j] = -1. + \
-                                2. * (atomArraysFinal[element][i][j] -
-                                      self.parameters['fprange'][element][0][j]) / (
-                                self.parameters['fprange'][element][1][j] -
-                                self.parameters['fprange'][element][0][j])
+                            aAF[i][j] = (-1. + 2. *
+                                         (atomArraysFinal[element][i][j] -
+                                          p['fprange'][element]
+                                          [0][j]) /
+                                         (p['fprange'][element][1][j] -
+                                          p['fprange'][element][0][j]))
                 feedinput[self.tensordict[element]] = aAF
 
                 feedinput[self.indsdict[element]] = atomInds[element]
@@ -807,13 +810,13 @@ class NeuralNetwork:
                     dgdx_to_scale = dgdx_batch[element]
                     for i in range(dgdx_to_scale.shape[0]):
                         for l in range(dgdx_to_scale.shape[1]):
-                            if (self.parameters['fprange'][element][1][l] -
-                               self.parameters['fprange'][element][0][l]) > \
+                            if (p['fprange'][element][1][l] -
+                                p['fprange'][element][0][l]) > \
                                        10.**-8:
                                 dgdx_to_scale[i][l][:] = \
                                     2. * dgdx_to_scale[i][l][:] / \
-                                    (self.parameters['fprange'][element][1][l] -
-                                     self.parameters['fprange'][element][0][l])
+                                    (p['fprange'][element][1][l] -
+                                     p['fprange'][element][0][l])
                     feedinput[self.dgdx_dict[element]] = dgdx_to_scale
                     feedinput[self.dgdx_Eindices_dict[
                         element]] = dgdx_Eindices_batch[element]
@@ -855,7 +858,7 @@ class NeuralNetwork:
                     forcesExp[curinds], axis=0)
                 feedinput[self.forcecoefficient] = forcecoefficient
                 feedinput[self.energycoefficient] = energycoefficient
-        feedinput[self.energyProdScale] = self.parameters['energyProdScale']
+        feedinput[self.energyProdScale] = p['energyProdScale']
         return feedinput
 
     def fit(self, trainingimages, descriptor, parallel, log=None):
@@ -1069,9 +1072,6 @@ class NeuralNetwork:
                             forcecoefficient=self.parameters[
                                 'force_coefficient'],
                         )
-                    feed_keepprob_save = feedinput[self.keep_prob_in]
-                    feed_keepprob_save_input = feedinput[
-                        self.input_keep_prob_in]
                     feedinput[self.keep_prob_in] = 1.
                     feedinput[self.input_keep_prob_in] = 1.
                     if self.parameters['force_coefficient'] is not None:
@@ -1458,7 +1458,9 @@ def model(x, segmentinds, keep_prob, input_keep_prob, batchsize,
           dgdx_Xindices, dgdx_Eindices, element, unit_type, totalNumAtoms):
     """Generates a multilayer neural network with variable number
     of neurons, so that we have a template for each atom's NN."""
-    namefun = lambda x: '%s_%s_' % (name, element) + x
+    def namefun(x):
+        return '%s_%s_' % (name, element) + x
+
     nNeurons = neuronList[0]
     # Pass  the input tensors through the first soft-plus layer
     W_fc = weight_variable(
@@ -1691,8 +1693,6 @@ def generateTensorFlowArrays(fingerprintDB, elements, keylist,
             if len(atomArraysTemp) > 0:
                 atomArraysAll[element].append(atomArraysTemp)
         natoms[j] = len(atomSymbols)
-
-    natomsposition = np.cumsum(natoms) - natoms[0]
 
     for element in elements:
         if len(atomArraysAll[element]) > 0:
