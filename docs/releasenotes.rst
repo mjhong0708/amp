@@ -14,8 +14,6 @@ Development version
 
 * Amp is now part of the Debian archives! This means it should soon be available in package managers for linux releases such as Ubuntu.
 
-* The neural network now has a retries keyword, so that it can automatically refresh its parameters and re-try training if it does not converge.
-
 * The convergence plots (via :mod:`amp.analysis` and `amp-plotconvergence`) now handle multiple training attempts from a single log file.
 
 * The image hashing routine, used to uniquely identify images, has been updated to correctly handle permutations in very large atomic systems. (Note this means that images hashed with a prior version of Amp will have a different unique identifier, so you should not mix databases of fingerprints.)
@@ -23,6 +21,8 @@ Development version
 * Added Kernel Ridge Regression to Amp.
 
 * Incorporation of Behler's G5 angular symmetry function.
+
+* Neural network training scripts are now re-submittable; that is, if a job times out it can be re-submitted (unmodified) and will pick up from the last checkpoint.
 
 0.6.1
 -----
