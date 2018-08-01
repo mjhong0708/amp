@@ -341,11 +341,30 @@ class FileDatabase:
         self._memdict[key] = value
         path = os.path.join(self.loosepath, str(key))
         if os.path.exists(path):
-            with open(path, 'r') as f:
-                if f.read() == pickle.dumps(value, protocol=0):
+            with open(path, 'rb') as f:
+                contents = self._repeat_read(f)
+                log = Logger('setitem.txt')
+                if pickle.dumps(contents) == pickle.dumps(value):
+                    # Using pickle as a hash...
                     return  # Nothing to update.
         with open(path, 'wb') as f:
             pickle.dump(value, f, protocol=0)
+
+    def _repeat_read(self, f, maxtries=5, sleep=0.2):
+        """If one process is writing, the other process cannot read without
+        errors until it finishes. Reads file-like object f checking for
+        errors, and retries up to 'maxtries' times, sleeping 'sleep' sec
+        between tries."""
+        tries = 0
+        while tries < maxtries:
+            try:
+                contents = pickle.load(f)
+            except (UnicodeDecodeError, EOFError):
+                time.sleep(0.2)
+                tries += 1
+            else:
+                return contents
+        raise IOError('Too many file read attempts.')
 
     def __getitem__(self, key):
         if key in self._memdict:
@@ -353,7 +372,7 @@ class FileDatabase:
         keypath = os.path.join(self.loosepath, key)
         if os.path.exists(keypath):
             with open(keypath, 'rb') as f:
-                return pickle.load(f)
+                return self._repeat_read(f)
         elif os.path.exists(self.tarpath):
             with tarfile.open(self.tarpath) as tf:
                 return pickle.load(tf.extractfile(key))
