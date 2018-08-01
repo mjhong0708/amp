@@ -342,10 +342,10 @@ class FileDatabase:
         path = os.path.join(self.loosepath, str(key))
         if os.path.exists(path):
             with open(path, 'r') as f:
-                if f.read() == pickle.dumps(value):
+                if f.read() == pickle.dumps(value, protocol=0):
                     return  # Nothing to update.
         with open(path, 'wb') as f:
-            pickle.dump(value, f)
+            pickle.dump(value, f, protocol=0)
 
     def __getitem__(self, key):
         if key in self._memdict:
