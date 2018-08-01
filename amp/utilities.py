@@ -343,7 +343,6 @@ class FileDatabase:
         if os.path.exists(path):
             with open(path, 'rb') as f:
                 contents = self._repeat_read(f)
-                log = Logger('setitem.txt')
                 if pickle.dumps(contents) == pickle.dumps(value):
                     # Using pickle as a hash...
                     return  # Nothing to update.
@@ -359,7 +358,7 @@ class FileDatabase:
         while tries < maxtries:
             try:
                 contents = pickle.load(f)
-            except (UnicodeDecodeError, EOFError):
+            except (UnicodeDecodeError, EOFError, pickle.UnpicklingError):
                 time.sleep(0.2)
                 tries += 1
             else:
