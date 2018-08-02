@@ -289,7 +289,7 @@ class LossFunction:
         p = self.parameters = Parameters(
             {'importname': '.model.LossFunction'})
         # 'dict' creates a copy; otherwise mutable in class.
-        c = p['convergence'] = dict(self.default_parameters['convergence'])
+        p['convergence'] = dict(self.default_parameters['convergence'])
         if convergence is not None:
             for key, value in convergence.items():
                 p['convergence'][key] = value
@@ -303,11 +303,6 @@ class LossFunction:
         self._initialized = False
         self._data_sent = False
         self._parallel = parallel
-        if (c['force_rmse'] is None) and (c['force_maxresid'] is None):
-            p['force_coefficient'] = None
-        if p['force_coefficient'] is None:
-            c['force_rmse'] = None
-            c['force_maxresid'] = None
 
     def attach_model(self, model, images=None, fingerprints=None,
                      fingerprintprimes=None):
@@ -344,6 +339,16 @@ class LossFunction:
         SSH sessions, etc."""
         if self._initialized is True:
             return
+
+        # Force training is controlled by the force_coefficent key.
+        p = self.parameters
+        convergence = p['convergence']
+        if ((convergence['force_rmse'] is None) and
+            (convergence['force_maxresid'] is None)):
+            p['force_coefficient'] = None
+        if p['force_coefficient'] is None:
+            convergence['force_rmse'] = None
+            convergence['force_maxresid'] = None
 
         if self._parallel is None:
             self._parallel = self._model._parallel
@@ -424,8 +429,6 @@ class LossFunction:
             self._sessions['publisher'].send_pyobj('done')
 
         if self.log_losses:
-            p = self.parameters
-            convergence = p['convergence']
             log(' Loss function convergence criteria:')
             log('  energy_rmse: ' + str(convergence['energy_rmse']))
             log('  energy_maxresid: ' + str(convergence['energy_maxresid']))
