@@ -691,8 +691,7 @@ class LossFunction:
                         if force_resid > force_maxresid:
                             force_maxresid = force_resid
                         temp = (1. / 3.) * (amp_forces[index][i] -
-                                            actual_forces[index][i]) ** 2. / \
-                            no_of_atoms
+                                            actual_forces[index][i]) ** 2.
                         forceloss += temp
                 # Calculates derivative of the loss function with respect to
                 # parameters if lossprime is true
@@ -716,8 +715,7 @@ class LossFunction:
                                 temp = p.force_coefficient * (2.0 / 3.0) * \
                                     (amp_forces[selfindex][i] -
                                      actual_forces[selfindex][i]) * \
-                                    dforces_dparameters[(selfindex, i)] \
-                                    / no_of_atoms
+                                    dforces_dparameters[(selfindex, i)]
                                 dloss_dparameters += temp
 
         loss = p.energy_coefficient * energyloss

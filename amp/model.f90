@@ -249,7 +249,7 @@
                 do i = 1, 3
                     forceloss = forceloss + &
                     (1.0d0 / 3.0d0) * (amp_forces(selfindex, i) - &
-                    actual_forces_(selfindex, i)) ** 2.0d0 / num_atoms
+                    actual_forces_(selfindex, i)) ** 2.0d0
                 end do
             end do
 
@@ -293,7 +293,7 @@
                             (amp_forces(selfindex, i) - &
                             actual_forces_(selfindex, i)) * &
                             dforces_dparameters(&
-                            selfindex)%twodarray(i, j) / num_atoms
+                            selfindex)%twodarray(i, j)
                         end do
                     end do
                 end do
