@@ -44,15 +44,16 @@ To control how tightly the energy and/or forces are converged, you can adjust th
 
 .. code-block:: python
 
-   from amp.model import LossFunction
 
-   convergence = {'energy_rmse': 0.02, 'force_rmse': 0.04}
-   calc.model.lossfunction = LossFunction(convergence=convergence)
+   calc.model.lossfunction.parameters['convergence'].update(
+       {'energy_rmse': None,
+        'force_maxresid': 0.04})
 
 You can see the adjustable parameters and their default values in the dictionary :attr:`~amp.model.LossFunction.default_parameters`:
 
 .. code-block:: python
 
+    >>> from amp.model import LossFunction
     >>> LossFunction.default_parameters
     {'convergence': {'energy_rmse': 0.001, 'force_rmse': None, 'energy_maxresid': None, 'force_maxresid': None}}
 
