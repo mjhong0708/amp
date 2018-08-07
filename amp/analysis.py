@@ -365,8 +365,8 @@ def plot_parity_and_error(calc,
         ax = fig.add_subplot(211)
 
     calc._log('Plotting energy parities...', tic='energy-plot')
-    ax.plot(zip(*np.vstack(energy_data.values()))[0],
-            zip(*np.vstack(energy_data.values()))[1], color)
+    ax.plot(list(zip(*np.vstack(energy_data.values())))[0],
+            list(zip(*np.vstack(energy_data.values())))[1], color)
     # draw line
     ax.plot([min_act_energy, max_act_energy],
             [min_act_energy, max_act_energy],
@@ -405,8 +405,8 @@ def plot_parity_and_error(calc,
         ax = fig.add_subplot(211)
 
     calc._log('Plotting energy errors...', tic='energy-plot')
-    ax.plot(zip(*np.vstack(energy_data.values()))[2],
-            zip(*np.vstack(energy_data.values()))[3], color)
+    ax.plot(list(zip(*np.vstack(energy_data.values())))[2],
+            list(zip(*np.vstack(energy_data.values())))[3], color)
     # draw horizontal line for rmse
     ax.plot([min_act_energy_per_atom, max_act_energy_per_atom],
             [energy_per_atom_rmse, energy_per_atom_rmse],
