@@ -690,10 +690,9 @@ class LossFunction:
                                           actual_forces[index][i])
                         if force_resid > force_maxresid:
                             force_maxresid = force_resid
-                        temp = (1. / 3.) * (amp_forces[index][i] -
-                                            actual_forces[index][i]) ** 2. / \
-                            no_of_atoms
-                        forceloss += temp
+                        forceloss += force_resid**2
+                forceloss /= 3. * no_of_atoms  # mean over image
+
                 # Calculates derivative of the loss function with respect to
                 # parameters if lossprime is true
                 if lossprime:
@@ -713,12 +712,13 @@ class LossFunction:
                                     d=self.d)
                         for selfindex in range(no_of_atoms):
                             for i in range(3):
-                                temp = p.force_coefficient * (2.0 / 3.0) * \
+                                dloss_dparameters += (
                                     (amp_forces[selfindex][i] -
-                                     actual_forces[selfindex][i]) * \
-                                    dforces_dparameters[(selfindex, i)] \
-                                    / no_of_atoms
-                                dloss_dparameters += temp
+                                     actual_forces[selfindex][i]) *
+                                    dforces_dparameters[(selfindex, i)])
+                        dloss_dparameters *= ((2. / 3.) *
+                                              p.force_coefficient /
+                                              no_of_atoms)
 
         loss = p.energy_coefficient * energyloss
         if p.force_coefficient is not None:

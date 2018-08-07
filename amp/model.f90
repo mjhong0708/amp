@@ -1,7 +1,7 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-!     Fortran Version = 10
+!     Fortran Version = 11
       subroutine check_version(version, warning)
       implicit none
 
@@ -244,16 +244,7 @@
             end do
             ! calculates amp_forces
             call calculate_forces(image_no)
-                ! calculates forceloss
-            do selfindex = 1, num_atoms
-                do i = 1, 3
-                    forceloss = forceloss + &
-                    (1.0d0 / 3.0d0) * (amp_forces(selfindex, i) - &
-                    actual_forces_(selfindex, i)) ** 2.0d0 / num_atoms
-                end do
-            end do
-
-            ! calculates force_maxresid
+            ! calculates forceloss and force_maxresid
             do selfindex = 1, num_atoms
                 do i = 1, 3
                     force_resid = &
@@ -262,8 +253,10 @@
                     if (force_resid .GT. force_maxresid) then
                         force_maxresid = force_resid
                     end if
+                    forceloss = forceloss + force_resid ** 2.0d0
                 end do
             end do
+            forceloss = forceloss / 3.0d0 / num_atoms
             if (lossprime .EQV. .TRUE.) then
                 allocate(dforces_dparameters(num_atoms))
                                 do selfindex = 1, num_atoms
@@ -289,13 +282,17 @@
                         do j = 1, num_parameters
                             dloss_dparameters(j) = &
                             dloss_dparameters(j) + &
-                            force_coefficient * (2.0d0 / 3.0d0) * &
                             (amp_forces(selfindex, i) - &
                             actual_forces_(selfindex, i)) * &
                             dforces_dparameters(&
-                            selfindex)%twodarray(i, j) / num_atoms
+                            selfindex)%twodarray(i, j)
                         end do
                     end do
+                end do
+                do j = 1, num_parameters
+                    dloss_dparameters(j) = dloss_dparameters(j) * &
+                            force_coefficient * 2.0d0 / 3.0d0 / &
+                            num_atoms
                 end do
                                 do p = 1, size(dforces_dparameters)
                                     deallocate(dforces_dparameters(p)%twodarray)
