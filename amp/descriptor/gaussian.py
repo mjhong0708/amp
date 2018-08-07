@@ -1,4 +1,5 @@
 import numpy as np
+from copy import deepcopy
 
 from ase.data import atomic_numbers
 from ase.calculators.calculator import Parameters
@@ -21,7 +22,7 @@ class Gaussian(object):
         fed as a float representing the radius above which neighbor
         interactions are ignored; in this case a cosine cutoff function will be
         employed.  Default is a 6.5-Angstrom cosine cutoff.
-    Gs : dict
+    Gs : dict or list
         Dictionary of symbols and lists of dictionaries for making symmetry
         functions. Either auto-genetrated, or given in the following form, for
         example:
@@ -33,6 +34,10 @@ class Gaussian(object):
                ...              {"type":"G4", "elements":["O", "Au"],
                ...               "eta":2., "gamma":1., "zeta":5.0}]}
 
+        You can use amp.model.gaussian.make_symmetry_functions to help create
+        these lists of dictionaries.  If you supply a list instead of a
+        dictionary, it will assume you want identical symmetry functions for
+        each element.
     dblabel : str
         Optional separate prefix/location for database files, including
         fingerprints, fingerprint derivatives, and neighborlists. This file
@@ -148,6 +153,10 @@ class Gaussian(object):
         if p.Gs is None:
             log('No symmetry functions supplied; creating defaults.')
             p.Gs = make_default_symmetry_functions(p.elements)
+        elif not hasattr(p.Gs, 'keys'):
+            log('List of symmetry functions supplied; assumed identical for '
+                'each element.')
+            p.Gs = {element: deepcopy(p.Gs) for element in p.elements}
         log('Number of symmetry functions for each element:')
         for _ in p.Gs.keys():
             log(' %2s: %i' % (_, len(p.Gs[_])))
@@ -737,6 +746,7 @@ def calculate_G4(neighborsymbols, neighborpositions,
         ridge *= 2. ** (1. - zeta)
         return ridge
 
+
 def calculate_G5(neighborsymbols, neighborpositions,
                  G_elements, gamma, zeta, eta, cutoff,
                  Ri, fortran):
@@ -749,7 +759,8 @@ def calculate_G5(neighborsymbols, neighborpositions,
     separations, and useful for angular configurations in which R_jk is larger
     than Rc but still inside the cutoff radius e.g. triplets of 180 degrees.
 
-    For more information see: J. Behler, Int. J. Quantum Chem. 115, 1032 (2015).
+    For more information see: J. Behler, Int. J. Quantum Chem. 115, 1032
+    (2015).
 
     Parameters
     ----------
@@ -836,7 +847,6 @@ def calculate_G5(neighborsymbols, neighborpositions,
                 ridge += term
         ridge *= 2. ** (1. - zeta)
         return ridge
-
 
 
 def make_symmetry_functions(elements, type, etas, zetas=None, gammas=None):
@@ -1321,6 +1331,7 @@ def calculate_G4_prime(neighborindices, neighborsymbols, neighborpositions,
 
     return ridge
 
+
 def calculate_G5_prime(neighborindices, neighborsymbols, neighborpositions,
                        G_elements, gamma, zeta, eta,
                        cutoff, i, Ri, m, l, fortran):
@@ -1456,6 +1467,7 @@ def calculate_G5_prime(neighborindices, neighborsymbols, neighborpositions,
         ridge *= 2. ** (1. - zeta)
 
     return ridge
+
 
 if __name__ == "__main__":
     """Directly calling this module; apparently from another node.
