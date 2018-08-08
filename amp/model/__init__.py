@@ -684,14 +684,16 @@ class LossFunction:
                     model.calculate_forces(fingerprints[hash],
                                            fingerprintprimes[hash])
                 actual_forces = image.get_forces(apply_constraint=False)
+                image_forceloss = 0.
                 for index in range(no_of_atoms):
                     for i in range(3):
                         force_resid = abs(amp_forces[index][i] -
                                           actual_forces[index][i])
                         if force_resid > force_maxresid:
                             force_maxresid = force_resid
-                        forceloss += force_resid**2
-                forceloss /= 3. * no_of_atoms  # mean over image
+                        image_forceloss += force_resid**2
+                image_forceloss /=  3. * no_of_atoms  # mean over image
+                forceloss += image_forceloss
 
                 # Calculates derivative of the loss function with respect to
                 # parameters if lossprime is true
@@ -710,15 +712,15 @@ class LossFunction:
                                     fingerprints[hash],
                                     fingerprintprimes[hash],
                                     d=self.d)
+                        image_dldp = 0.
                         for selfindex in range(no_of_atoms):
                             for i in range(3):
-                                dloss_dparameters += (
+                                image_dldp += (
                                     (amp_forces[selfindex][i] -
                                      actual_forces[selfindex][i]) *
                                     dforces_dparameters[(selfindex, i)])
-                        dloss_dparameters *= ((2. / 3.) *
-                                              p.force_coefficient /
-                                              no_of_atoms)
+                        image_dldp *= p.force_coefficient * 2. / 3. / no_of_atoms
+                        dloss_dparameters += image_dldp
 
         loss = p.energy_coefficient * energyloss
         if p.force_coefficient is not None:

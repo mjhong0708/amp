@@ -88,6 +88,7 @@
       double precision:: loss, energyloss, forceloss
       double precision:: energy_maxresid, force_maxresid
       double precision:: dloss_dparameters(num_parameters)
+      double precision:: image_dldp(num_parameters)
 !f2py         intent(in):: parameters, num_parameters
 !f2py         intent(in):: lossprime
 !f2py         intent(out):: loss, energyloss, forceloss
@@ -135,7 +136,7 @@
       unraveled_atomic_numbers(:)
       double precision:: amp_energy, actual_energy, atom_energy
       double precision:: residual_per_atom, dforce, force_resid
-      double precision:: overfitloss
+      double precision:: overfitloss, image_forceloss
       integer:: i, index, j, p, k, q, l, m, &
       len_of_fingerprint, symbol, element, image_no, num_inputs
       double precision:: denergy_dparameters(num_parameters)
@@ -245,18 +246,20 @@
             ! calculates amp_forces
             call calculate_forces(image_no)
             ! calculates forceloss and force_maxresid
+            image_forceloss = 0.0d0
             do selfindex = 1, num_atoms
                 do i = 1, 3
-                    force_resid = &
-                    ABS(amp_forces(selfindex, i) - &
+                    force_resid = ABS(amp_forces(selfindex, i) - &
                     actual_forces_(selfindex, i))
                     if (force_resid .GT. force_maxresid) then
                         force_maxresid = force_resid
                     end if
-                    forceloss = forceloss + force_resid ** 2.0d0
+                    image_forceloss = image_forceloss + force_resid ** 2.0d0
                 end do
             end do
-            forceloss = forceloss / 3.0d0 / num_atoms
+            image_forceloss = image_forceloss / 3.0d0 / num_atoms
+            forceloss = forceloss + image_forceloss
+
             if (lossprime .EQV. .TRUE.) then
                 allocate(dforces_dparameters(num_atoms))
                                 do selfindex = 1, num_atoms
@@ -277,11 +280,13 @@
                 end if
                 ! calculates contribution of forceloss to
                 ! dloss_dparameters
+                do j = 1, num_parameters
+                    image_dldp(j) = 0.0d0
+                end do
                 do selfindex = 1, num_atoms
                     do i = 1, 3
                         do j = 1, num_parameters
-                            dloss_dparameters(j) = &
-                            dloss_dparameters(j) + &
+                            image_dldp(j) = image_dldp(j) + &
                             (amp_forces(selfindex, i) - &
                             actual_forces_(selfindex, i)) * &
                             dforces_dparameters(&
@@ -290,9 +295,10 @@
                     end do
                 end do
                 do j = 1, num_parameters
-                    dloss_dparameters(j) = dloss_dparameters(j) * &
-                            force_coefficient * 2.0d0 / 3.0d0 / &
-                            num_atoms
+                    image_dldp(j) = image_dldp(j) * force_coefficient &
+                            * 2.0d0 / 3.0d0 / num_atoms
+                    dloss_dparameters(j) = dloss_dparameters(j) + &
+                    image_dldp(j)
                 end do
                                 do p = 1, size(dforces_dparameters)
                                     deallocate(dforces_dparameters(p)%twodarray)
