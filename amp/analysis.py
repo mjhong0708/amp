@@ -180,6 +180,7 @@ def plot_parity_and_error(calc,
                           label_parity='parity',
                           label_error='error',
                           dblabel=None,
+                          xtic_angle=45.,
                           plot_forces=True,
                           plotfile_parity=None,
                           plotfile_error=None,
@@ -209,6 +210,8 @@ def plot_parity_and_error(calc,
         Optional separate prefix/location of database files, including
         fingerprints, fingerprint primes, and neighborlists, to avoid
         calculating them. If not supplied, just uses the value from label.
+    xtic_angle : float
+        Set the xtics angles. Default is 45.
     plot_forces : bool
         Determines whether or not forces should be plotted as well.
     plotfile_parity : Object
@@ -375,6 +378,7 @@ def plot_parity_and_error(calc,
     ax.set_xlabel("ab initio energy, eV")
     ax.set_ylabel("Amp energy, eV")
     ax.set_title("Energies")
+    ax.tick_params(axis='x', rotation=xtic_angle)
     calc._log('...energies plotted.', toc='energy-plot')
 
     if plot_forces is True:
@@ -391,6 +395,7 @@ def plot_parity_and_error(calc,
         ax.set_xlabel("ab initio force, eV/Ang")
         ax.set_ylabel("Amp force, eV/Ang")
         ax.set_title("Forces")
+        ax.tick_params(axis='x', rotation=xtic_angle)
         calc._log('...forces plotted.', toc='force-plot')
 
     fig.savefig(plotfile_parity)
@@ -420,6 +425,7 @@ def plot_parity_and_error(calc,
     ax.set_xlabel("ab initio energy (eV) per atom")
     ax.set_ylabel("$|$ab initio energy - Amp energy$|$ / number of atoms")
     ax.set_title("Energies")
+    ax.tick_params(axis='x', rotation=xtic_angle)
     calc._log('...energy errors plotted.', toc='energy-plot')
 
     if plot_forces is True:
@@ -443,6 +449,7 @@ def plot_parity_and_error(calc,
         ax.set_xlabel("ab initio force, eV/Ang")
         ax.set_ylabel("$|$ab initio force - Amp force$|$")
         ax.set_title("Forces")
+        ax.tick_params(axis='x', rotation=xtic_angle)
         calc._log('...force errors plotted.', toc='force-plot')
 
     fig.savefig(plotfile_error)
