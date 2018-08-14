@@ -101,6 +101,7 @@ def plot_sensitivity(calc,
     # Set up local loss function.
     calc.model.lossfunction.attach_model(
         calc.model,
+        log=calc._log,
         fingerprints=calc.descriptor.fingerprints,
         fingerprintprimes=calc.descriptor.fingerprintprimes,
         images=images)
@@ -460,6 +461,130 @@ def plot_parity_and_error(calc,
             return energy_data
         else:
             return energy_data, force_data
+
+
+def calc_rmse(calc_paths,
+               images,
+               cores=None,
+               dblabel=None,
+               energy_coefficient=1.0,
+               force_coefficient=0.04,
+              ):
+    """Calculates energy and force RMSEs for a set of Amp calculators. All
+    calculators must have the same descriptors and models.
+
+    Parameters
+    ----------
+    calc_paths : list
+        List of paths for loading existing ".amp" files.
+    images : list or str
+        List of ASE atoms objects with positions, symbols, energies, and forces
+        in ASE format. This can also be the path to an ASE trajectory (.traj)
+        or database (.db) file.  Energies can be obtained from any reference,
+        e.g. DFT calculations.
+    cores : int
+        Can specify cores to use for parallel processing; if None, will
+        determine from environment
+    dblabel : str
+        Optional separate prefix/location of database files, including
+        fingerprints, fingerprint primes, and neighborlists, to avoid
+        calculating them. If not supplied, just uses the value from label.
+    energy_coefficient : float
+        Coefficient of energy loss in the total loss function.
+    force_coefficient : float
+        Coefficient of force loss in the total loss function.
+    """
+
+    from amp.model import LossFunction
+
+    calcs = []
+    calc = Amp.load(file=calc_paths[0], cores=cores, dblabel=dblabel)
+    calcs.append(calc)
+    for i in range(1,len(calc_paths)):
+        calcs.append(Amp.load(file=calc_paths[i], cores=cores,
+                              dblabel=dblabel, logging=False))
+        calc._log('Loaded file: %s' % calc_paths[i])
+
+    if force_coefficient == 0.:
+        calculate_derivatives = False
+        convergence = {'energy_rmse': 0.001}
+    else:
+        calculate_derivatives = True
+        convergence = {'energy_rmse': 0.001, 'force_rmse': 0.01}
+    # Setting the convergence is a kludgy way to keep LossFunction.__init__()
+    # from resetting the force_coefficient to 0
+
+    calc._log('\nAmp calc_rmse started. ' + now() + '\n')
+    calc._log('Descriptor: %s' % calc.descriptor.__class__.__name__)
+    calc._log('Model: %s' % calc.model.__class__.__name__)
+
+    images = hash_images(images)
+
+    calc._log('\nDescriptor\n==========')
+    calc.descriptor.calculate_fingerprints(
+        images=images,
+        parallel=calc._parallel,
+        log=calc._log,
+        calculate_derivatives=calculate_derivatives)
+
+    lossfunction = LossFunction(energy_coefficient=energy_coefficient,
+                                force_coefficient=force_coefficient,
+                                parallel=calc._parallel,
+                                raise_ConvergenceOccurred=False,
+                                convergence=convergence,
+                                )
+    calc.model.lossfunction = lossfunction
+
+    if force_coefficient == 0.:
+        calc.model.lossfunction.attach_model(
+            calc.model,
+            log=calc._log,
+            fingerprints=calc.descriptor.fingerprints,
+            images=images)
+    else:
+        calc.model.lossfunction.attach_model(
+            calc.model,
+            log=calc._log,
+            fingerprints=calc.descriptor.fingerprints,
+            fingerprintprimes=calc.descriptor.fingerprintprimes,
+            images=images)
+
+    steps, loss, energy_loss, force_loss = [], [], [], []
+    energy_maxresid, force_maxresid, energy_rmse, force_rmse = [], [], [], []
+    for i in range(len(calc_paths)):
+        steps.append(int(os.path.basename(calc_paths[i])[:-4]))
+        vector = calcs[i].model.vector.copy()
+        results = calc.model.lossfunction.get_loss(
+                      vector,
+                      lossprime=calculate_derivatives)
+        loss.append(results['loss'])
+        energy_loss.append(results['energy_loss'])
+        force_loss.append(results['force_loss'])
+        energy_maxresid.append(results['energy_maxresid'])
+        force_maxresid.append(results['force_maxresid'])
+        energy_rmse.append(np.sqrt(energy_loss[i] / len(images)))
+        if force_coefficient == 0.:
+            calc._log('%5i %19s %12.4e   %10.4e   %10.4e' %
+                      (steps[i], now(), loss[i], energy_rmse[i],
+                       energy_maxresid[i]))
+        else:
+            force_rmse.append(np.sqrt(force_loss[i] / len(images)))
+            calc._log('%5i %19s %12.4e   %10.4e  '
+                      ' %10.4e   %10.4e   %10.4e' %
+                      (steps[i], now(), loss[i], energy_rmse[i],
+                       energy_maxresid[i], force_rmse[i] ,force_maxresid[i]))
+
+    data = {}
+    data['steps'] = steps
+    data['loss'] = loss
+    data['energy_loss'] = energy_loss
+    data['force_loss'] = force_loss
+    data['energy_maxresid'] = energy_maxresid
+    data['force_maxresid'] = force_maxresid
+    data['energy_rmse'] = energy_rmse
+    if force_coefficient != 0.:
+        data['force_rmse'] = force_rmse
+    return data
 
 
 def read_trainlog(logfile, verbose=True, multiple=0):

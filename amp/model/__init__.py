@@ -305,7 +305,7 @@ class LossFunction:
         self._parallel = parallel
 
     def attach_model(self, model, images=None, fingerprints=None,
-                     fingerprintprimes=None):
+                     fingerprintprimes=None, log=None):
         """Attach the model to be used to the loss function.
         hashed images, fingerprints and fingerprintprimes can optionally be
         specified; this is typically for use in parallelization.
@@ -333,6 +333,8 @@ class LossFunction:
             descriptor.fingerprints = fingerprints
         if fingerprintprimes is not None:
             descriptor.fingerprintprimes = fingerprintprimes
+        if log is not None:
+            self.log = log
 
     def _initialize(self, args=None):
         """Procedures to be run on the first call only, such as establishing
@@ -352,15 +354,17 @@ class LossFunction:
 
         if self._parallel is None:
             self._parallel = self._model._parallel
-        log = self._model.log
+        if not hasattr(self, 'log'):
+            self.log = self._model.log
+        log = self.log
 
         if self._parallel['cores'] != 1:
             # Initialize workers and send them parameters.
 
             python = sys.executable
             workercommand = '%s -m %s' % (python, self.__module__)
-            self._sessions = setup_parallel(self._parallel, workercommand, log,
-                                            setup_publisher=True)
+            self._sessions = setup_parallel(self._parallel, workercommand,
+                                            log, setup_publisher=True)
             n_pids = self._sessions['n_pids']
             images = self._model.trainingparameters.images
             workerkeys = make_sublists(images.keys(), n_pids)
@@ -564,6 +568,8 @@ class LossFunction:
             If True, will calculate and return dloss_dparameters, else will
             only return zero for dloss_dparameters.
         """
+
+        self._step += 1
 
         self._initialize(args={'lossprime': lossprime, 'd': self.d})
 
@@ -848,8 +854,6 @@ class LossFunction:
                      'C' if force_rmse_converged else '-',
                      force_maxresid,
                      'C' if force_maxresid_converged else '-'))
-
-            self._step += 1
             return energy_rmse_converged and energy_maxresid_converged and \
                 force_rmse_converged and force_maxresid_converged
         else:
@@ -859,7 +863,6 @@ class LossFunction:
                      'C' if energy_rmse_converged else '-',
                      energy_maxresid,
                      'C' if energy_maxresid_converged else '-'))
-            self._step += 1
             return energy_rmse_converged and energy_maxresid_converged
 
 
