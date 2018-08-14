@@ -384,7 +384,6 @@ class LossFunction:
         self.raise_ConvergenceOccurred = raise_ConvergenceOccurred
         self.log_losses = log_losses
         self.d = d
-        self._step = 0
         self._initialized = False
         self._data_sent = False
         self._parallel = parallel
@@ -919,7 +918,7 @@ class LossFunction:
             if self.log_losses:
                 log('%5i %19s %12.4e %10.4e %1s'
                     ' %10.4e %1s %10.4e %1s %10.4e %1s' %
-                    (self._step, now(), loss, energy_rmse,
+                    (self.lossfunction._step, now(), loss, energy_rmse,
                      'C' if energy_rmse_converged else '-',
                      energy_maxresid,
                      'C' if energy_maxresid_converged else '-',
@@ -928,17 +927,15 @@ class LossFunction:
                      force_maxresid,
                      'C' if force_maxresid_converged else '-'))
 
-            self._step += 1
             return energy_rmse_converged and energy_maxresid_converged and \
                 force_rmse_converged and force_maxresid_converged
         else:
             if self.log_losses:
                 log('%5i %19s %12.4e %10.4e %1s %10.4e %1s' %
-                    (self._step, now(), loss, energy_rmse,
+                    (self.lossfunction._step, now(), loss, energy_rmse,
                      'C' if energy_rmse_converged else '-',
                      energy_maxresid,
                      'C' if energy_maxresid_converged else '-'))
-            self._step += 1
             return energy_rmse_converged and energy_maxresid_converged
 
 
@@ -1973,20 +1970,19 @@ class KernelRidge(Model):
         """
 
         p = self.parameters
-        if self.step == 0:
+        if self.lossfunction._step == 0:
             filename = make_filename(self.parent.label,
                                      '-initial-parameters.amp')
             filename = self.parent.save(filename, overwrite=True)
         if self.checkpoints:
-            if self.step % self.checkpoints == 0:
+            if self.lossfunction._step % self.checkpoints == 0:
                 self._log('Saving checkpoint data.')
                 if self.checkpoints < 0:
                     path = os.path.join(self.parent.label + '-checkpoints')
-                    if self.step == 0:
-                        if not os.path.exists(path):
-                            os.mkdir(path)
+                    if not os.path.exists(path):
+                        os.mkdir(path)
                     filename = os.path.join(path,
-                                            '{}.amp'.format(int(self.step)))
+                                            '{}.amp'.format(int(self.lossfunction._step)))
                 else:
                     filename = make_filename(self.parent.label,
                                              '-checkpoint.amp')
@@ -1999,7 +1995,6 @@ class KernelRidge(Model):
                                           lossprime=False)['loss']
         if hasattr(self, 'observer'):
             self.observer(self, vector, loss)
-        self.step += 1
         return loss
 
     def get_lossprime(self, vector):

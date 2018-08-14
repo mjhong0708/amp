@@ -178,7 +178,6 @@ class NeuralNetwork(Model):
             variables but skips the last line of starting the regressor.
         """
 
-        self.step = 0
         self._log = log
         self._load_from_checkpoints()  # if present; resume training
 
@@ -370,30 +369,28 @@ class NeuralNetwork(Model):
         vector : list
             Parameters of the regression model in the form of a list.
         """
-        if self.step == 0:
+        if self.lossfunction._step == 0:
             filename = make_filename(self.parent.label,
                                      '-initial-parameters.amp')
             if not os.path.exists(filename):
                 # If it exists, must be resuming from checkpoints.
                 filename = self.parent.save(filename)
+        result = self.lossfunction.get_loss(vector, lossprime=lossprime)
         if self.checkpoints:
-            if self.step % self.checkpoints == 0:
+            if self.lossfunction._step % self.checkpoints == 0:
                 self._log('Saving checkpoint data.')
                 if self.checkpoints < 0:
                     path = os.path.join(self.parent.label + '-checkpoints')
-                    if self.step == 0:
-                        if not os.path.exists(path):
-                            os.mkdir(path)
+                    if not os.path.exists(path):
+                        os.mkdir(path)
                     filename = os.path.join(path,
-                                            '{}.amp'.format(int(self.step)))
+                                            '{}.amp'.format(int(self.lossfunction._step)))
                 else:
                     filename = make_filename(self.parent.label,
                                              '-checkpoint.amp')
                 self.parent.save(filename, overwrite=True)
-        result = self.lossfunction.get_loss(vector, lossprime=lossprime)
         if hasattr(self, 'observer'):
             self.observer(self, vector, loss)
-        self.step += 1
 
         if lossprime:
             return result['loss'], result['dloss_dparameters']
@@ -414,7 +411,7 @@ class NeuralNetwork(Model):
             last = sorted([int(_[:-4]) for _ in checkpoints])[-1]
             filename = os.path.join(dirname, '{}.amp'.format(last))
             calc = Amp.load(filename, logging=False)
-            self.step = last
+            self.lossfunction._step = last
         else:
             return  # No checkpoints present; run normally.
         self._log('Found checkpoint file: {}.'.format(filename))
