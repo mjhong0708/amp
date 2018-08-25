@@ -7,7 +7,7 @@
               use cutoffs
               implicit none
               integer, dimension(num_neighbors):: neighbornumbers
-              integer, dimension(1):: g_number
+              integer:: g_number
               double precision, dimension(num_neighbors, 3):: &
               neighborpositions
               double precision, dimension(3):: ri
@@ -27,7 +27,7 @@
 
               ridge = 0.0d0
               do j = 1, num_neighbors
-                  match = compare(neighbornumbers(j), g_number(1))
+                  match = compare(neighbornumbers(j), g_number)
                   if (match == 1) then
                     do xyz = 1, 3
                       Rij_vector(xyz) = &
@@ -273,7 +273,7 @@
               implicit none
               integer, dimension(num_neighbors):: neighborindices
               integer, dimension(num_neighbors):: neighbornumbers
-              integer, dimension(1):: g_number
+              integer:: g_number
               double precision, dimension(num_neighbors, 3):: &
               neighborpositions
               double precision, dimension(3):: ri, Rj
@@ -294,7 +294,7 @@
 
               ridge = 0.0d0
               do j = 1, num_neighbors
-                  match = compare(neighbornumbers(j), g_number(1))
+                  match = compare(neighbornumbers(j), g_number)
                   if (match == 1) then
                     do xyz = 1, 3
                       Rj(xyz) = neighborpositions(j, xyz)
