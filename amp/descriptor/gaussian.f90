@@ -6,12 +6,12 @@
 
               use cutoffs
               implicit none
+              integer:: num_neighbors
               integer, dimension(num_neighbors):: neighbornumbers
               integer:: g_number
               double precision, dimension(num_neighbors, 3):: &
               neighborpositions
               double precision, dimension(3):: ri
-              integer:: num_neighbors
               double precision::  g_eta, rc
               ! gamma parameter for the polynomial cutoff
               double precision, optional:: p_gamma
@@ -70,12 +70,12 @@
 
               use cutoffs
               implicit none
+              integer:: num_neighbors
               integer, dimension(num_neighbors):: neighbornumbers
               integer, dimension(2):: g_numbers
               double precision, dimension(num_neighbors, 3):: &
               neighborpositions
               double precision, dimension(3):: ri
-              integer:: num_neighbors
               double precision:: g_gamma, g_zeta, g_eta, rc
               ! gamma parameter for the polynomial cutoff
               double precision, optional:: p_gamma
@@ -175,12 +175,12 @@
 
               use cutoffs
               implicit none
+              integer:: num_neighbors
               integer, dimension(num_neighbors):: neighbornumbers
               integer, dimension(2):: g_numbers
               double precision, dimension(num_neighbors, 3):: &
               neighborpositions
               double precision, dimension(3):: ri
-              integer:: num_neighbors
               double precision:: g_gamma, g_zeta, g_eta, rc
               ! gamma parameter for the polynomial cutoff
               double precision, optional:: p_gamma
@@ -271,13 +271,14 @@
 
               use cutoffs
               implicit none
+              integer:: num_neighbors
               integer, dimension(num_neighbors):: neighborindices
               integer, dimension(num_neighbors):: neighbornumbers
               integer:: g_number
               double precision, dimension(num_neighbors, 3):: &
               neighborpositions
               double precision, dimension(3):: ri, Rj
-              integer:: num_neighbors, m, l, i
+              integer:: m, l, i
               double precision::  g_eta, rc
               ! gamma parameter for the polynomial cutoff
               double precision, optional:: p_gamma
@@ -366,13 +367,14 @@
 
               use cutoffs
               implicit none
+              integer:: num_neighbors
               integer, dimension(num_neighbors):: neighborindices
               integer, dimension(num_neighbors):: neighbornumbers
               integer, dimension(2):: g_numbers
               double precision, dimension(num_neighbors, 3):: &
               neighborpositions
               double precision, dimension(3):: ri, Rj, Rk
-              integer:: num_neighbors, i, m, l
+              integer:: i, m, l
               double precision:: g_gamma, g_zeta, g_eta, rc
               ! gamma parameter for the polynomial cutoff
               double precision, optional:: p_gamma
@@ -624,13 +626,14 @@
 
               use cutoffs
               implicit none
+              integer:: num_neighbors
               integer, dimension(num_neighbors):: neighborindices
               integer, dimension(num_neighbors):: neighbornumbers
               integer, dimension(2):: g_numbers
               double precision, dimension(num_neighbors, 3):: &
               neighborpositions
               double precision, dimension(3):: ri, Rj, Rk
-              integer:: num_neighbors, i, m, l
+              integer:: i, m, l
               double precision:: g_gamma, g_zeta, g_eta, rc
               ! gamma parameter for the polynomial cutoff
               double precision, optional:: p_gamma
