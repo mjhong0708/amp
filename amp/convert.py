@@ -252,3 +252,106 @@ def save_to_prophet(calc, filename='potential_', overwrite=False,
                     unit_convert('energy', units)))
         f.write('\n')
         f.close()
+
+
+def save_to_openkim(calc, filename='amp.params', overwrite=False,
+                    units="metal"):
+    """Saves the calculator in a way that it can be used with OpenKIM.
+
+    Parameters
+    ----------
+    calc : obj
+        A trained Amp calculator object.
+    filename : str
+        File object or path to the file to write to.
+    overwrite : bool
+        If an output file with the same name exists, overwrite it.
+    units : str
+        LAMMPS units style to be used with the outfile file.
+    """
+
+    from ase.calculators.lammpslib import unit_convert
+
+    if os.path.exists(filename):
+        if overwrite is False:
+            oldfilename = filename
+            filename = tempfile.NamedTemporaryFile(mode='w', delete=False,
+                                                   suffix='.params')
+            calc._log('File "%s" exists. Instead saving to "%s".' %
+                      (oldfilename, filename))
+        else:
+            oldfilename = tempfile.NamedTemporaryFile(mode='w',
+                                                      delete=False,
+                                                      suffix='.params')
+
+            calc._log('Overwriting file: "%s". Moving original to "%s".'
+                      % (filename, oldfilename))
+            shutil.move(filename, oldfilename)
+
+    desc_pars = calc.descriptor.parameters
+    model_pars = calc.model.parameters
+    if (desc_pars['mode'] != 'atom-centered' or
+       model_pars['mode'] != 'atom-centered'):
+        raise NotImplementedError(
+            'KIM model requires atom-centered symmetry functions.')
+    if desc_pars['cutoff']['name'] != 'Cosine':
+        raise NotImplementedError(
+            'KIM model requires cosine cutoff functions.')
+    elements = desc_pars['elements']
+    elements = sorted(elements)
+    f = open('../tools/amp-kim/amp_parameterized_model/' + filename, 'w')
+    f.write(str(len(elements)) + '  # number of chemical species')
+    f.write('\n')
+    f.write(' '.join(elements) + '  # chemical species')
+    f.write('\n')
+    f.write(' '.join(str(len(desc_pars['Gs'][element])) for element in elements) + \
+    '  # number of fingerprints of each chemical species')
+    f.write('\n')
+    for element in elements:
+        count = 0
+        # writing symmetry functions
+        for G in desc_pars['Gs'][element]:
+            if G['type'] == 'G2':
+                f.write(element + ' ' + 'g2' + '  # fingerprint of %s' %element)
+                f.write('\n')
+                f.write(G['element'] + ' ' + str(G['eta']) + '  # eta')
+            elif G['type'] == 'G4':
+                f.write(element + ' ' + 'g4' + \
+                '  # fingerprint of %s' %element)
+                f.write('\n')
+                f.write(G['elements'][0] + ' ' + G['elements'][1] + ' ' + \
+                str(G['eta']) + ' ' + str(G['gamma']) + ' ' + \
+                str(G['zeta']) + '  # eta, gamma, zeta')
+            f.write('\n')
+            # writing fingerprint range
+            f.write(str(model_pars['fprange'][element][count][0]) + ' ' + \
+            str(model_pars['fprange'][element][count][1]) + \
+            '  # range of fingerprint %i of %s' %(count, element))
+            f.write('\n')
+            count += 1
+    # writing the cutoff
+    cutoff = (desc_pars['cutoff']['kwargs']['Rc'] /
+              unit_convert('distance', units))
+    f.write(str(cutoff) + '  # cutoff radius')
+    f.write('\n')
+    f.write(model_pars['activation'] + '  # activation function')
+    f.write('\n')
+    # writing the neural network structures
+    for element in elements:
+        f.write(str(len(model_pars['hiddenlayers'][element])) + \
+        '  # number of hidden-layers of %s neural network' % element)
+        f.write('\n')
+        f.write(' '.join(str(_) for _ in model_pars['hiddenlayers'][element]) \
+        + '  # number of nodes of hidden-layers of %s neural network' % element)
+        f.write('\n')
+    
+    # writing parameters of the neural network
+    f.write(' '.join(str(_) for _ in \
+    #calc.model.ravel.to_vector(model_pars.weights, model_pars.scalings)
+    calc.model.vector
+    ) + \
+    '  # weights, biases, and scalings of neural networks')
+    f.write('\n')
+    f.close()
+
+
