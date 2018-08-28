@@ -298,8 +298,10 @@ def save_to_openkim(calc, filename='amp.params', overwrite=False,
         raise NotImplementedError(
             'KIM model requires cosine cutoff functions.')
     elements = desc_pars['elements']
+    path = os.path.dirname(__file__)
     elements = sorted(elements)
-    f = open('../tools/amp-kim/amp_parameterized_model/' + filename, 'w')
+    f = open(path + '/../tools/amp-kim/amp_parameterized_model/' +
+             filename, 'w')
     f.write(str(len(elements)) + '  # number of chemical species')
     f.write('\n')
     f.write(' '.join(elements) + '  # chemical species')
@@ -344,7 +346,7 @@ def save_to_openkim(calc, filename='amp.params', overwrite=False,
         f.write(' '.join(str(_) for _ in model_pars['hiddenlayers'][element]) \
         + '  # number of nodes of hidden-layers of %s neural network' % element)
         f.write('\n')
-    
+
     # writing parameters of the neural network
     f.write(' '.join(str(_) for _ in \
     #calc.model.ravel.to_vector(model_pars.weights, model_pars.scalings)
