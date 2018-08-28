@@ -306,29 +306,31 @@ def save_to_openkim(calc, filename='amp.params', overwrite=False,
     f.write('\n')
     f.write(' '.join(elements) + '  # chemical species')
     f.write('\n')
-    f.write(' '.join(str(len(desc_pars['Gs'][element])) for element in elements) + \
-    '  # number of fingerprints of each chemical species')
+    f.write(' '.join(str(len(desc_pars['Gs'][element])) for element in
+            elements) +
+            '  # number of fingerprints of each chemical species')
     f.write('\n')
     for element in elements:
         count = 0
         # writing symmetry functions
         for G in desc_pars['Gs'][element]:
             if G['type'] == 'G2':
-                f.write(element + ' ' + 'g2' + '  # fingerprint of %s' %element)
+                f.write(element + ' ' + 'g2' + '  # fingerprint of %s' %
+                        element)
                 f.write('\n')
                 f.write(G['element'] + ' ' + str(G['eta']) + '  # eta')
             elif G['type'] == 'G4':
-                f.write(element + ' ' + 'g4' + \
-                '  # fingerprint of %s' %element)
+                f.write(element + ' ' + 'g4' +
+                        '  # fingerprint of %s' % element)
                 f.write('\n')
-                f.write(G['elements'][0] + ' ' + G['elements'][1] + ' ' + \
-                str(G['eta']) + ' ' + str(G['gamma']) + ' ' + \
-                str(G['zeta']) + '  # eta, gamma, zeta')
+                f.write(G['elements'][0] + ' ' + G['elements'][1] + ' ' +
+                        str(G['eta']) + ' ' + str(G['gamma']) + ' ' +
+                        str(G['zeta']) + '  # eta, gamma, zeta')
             f.write('\n')
             # writing fingerprint range
-            f.write(str(model_pars['fprange'][element][count][0]) + ' ' + \
-            str(model_pars['fprange'][element][count][1]) + \
-            '  # range of fingerprint %i of %s' %(count, element))
+            f.write(str(model_pars['fprange'][element][count][0]) + ' ' +
+                    str(model_pars['fprange'][element][count][1]) +
+                    '  # range of fingerprint %i of %s' % (count, element))
             f.write('\n')
             count += 1
     # writing the cutoff
@@ -340,20 +342,19 @@ def save_to_openkim(calc, filename='amp.params', overwrite=False,
     f.write('\n')
     # writing the neural network structures
     for element in elements:
-        f.write(str(len(model_pars['hiddenlayers'][element])) + \
-        '  # number of hidden-layers of %s neural network' % element)
+        f.write(str(len(model_pars['hiddenlayers'][element])) +
+                '  # number of hidden-layers of %s neural network' % element)
         f.write('\n')
-        f.write(' '.join(str(_) for _ in model_pars['hiddenlayers'][element]) \
-        + '  # number of nodes of hidden-layers of %s neural network' % element)
+        f.write(' '.join(str(_) for _ in model_pars['hiddenlayers'][element]) +
+                '  # number of nodes of hidden-layers of %s neural network' %
+                element)
         f.write('\n')
 
     # writing parameters of the neural network
     f.write(' '.join(str(_) for _ in \
-    #calc.model.ravel.to_vector(model_pars.weights, model_pars.scalings)
-    calc.model.vector
-    ) + \
-    '  # weights, biases, and scalings of neural networks')
+                     # calc.model.ravel.to_vector(model_pars.weights,
+                     # model_pars.scalings)
+                     calc.model.vector) +
+            '  # weights, biases, and scalings of neural networks')
     f.write('\n')
     f.close()
-
-
