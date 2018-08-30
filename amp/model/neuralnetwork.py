@@ -951,7 +951,7 @@ def get_random_weights(hiddenlayers, activation,
     weight = {}
     nn_structure = {}
 
-    if no_of_atoms is not None:  # pure atomic-coordinates scheme
+    if no_of_atoms is not None:  # image-centered mode
 
         if isinstance(hiddenlayers, int):
             nn_structure = ([3 * no_of_atoms] + [hiddenlayers] + [1])
@@ -1087,7 +1087,7 @@ def get_initial_scalings(images, activation, elements=None, seed=None):
 
     scaling = {}
 
-    if elements is None:  # pure atomic-coordinates scheme
+    if elements is None:  # image-centered mode
 
         scaling = {}
         if activation == 'sigmoid':  # sigmoid activation function
