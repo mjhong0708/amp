@@ -22,6 +22,14 @@ def save_to_prophet(calc, filename='potential_', overwrite=False,
 
     from ase.calculators.lammpslib import unit_convert
 
+    warnings.warn(
+        'Conversion from Amp to PROPhet leads to energies and forces being '
+        'calculated correctly to within machine precision. Some choices of '
+        'symmetry function parameters have been found to result in the two '
+        'codes giving unequal energies and forces. It is important to verify '
+        'that the two codes give equal energies and forces for your system '
+        'prior to using PROPhet for MD.'
+
     if os.path.exists(filename):
         if overwrite is False:
             oldfilename = filename
@@ -91,15 +99,6 @@ def save_to_prophet(calc, filename='potential_', overwrite=False,
         # Write G2s.
         for Gs in range(0, n_G2, length_G2):
             eta = desc_pars['Gs'][el][Gs]['eta']
-            if (eta > 10):
-                warnings.warn(
-                    'Conversion from Amp to PROPhet leads to energies and '
-                    'forces being calculated correctly to within machine '
-                    'precision. With the chosen eta of ' + str(eta) + ' '
-                    'being greater than 10, it is possible that the '
-                    'results of the two codes will not be equal, so the '
-                    'neural net should not be used with both codes.'
-                    'Please lower the eta values.')
             for i in range(length_G2):
                 eta_2 = desc_pars['Gs'][el][Gs+i]['eta']
                 if eta != eta_2:
@@ -111,15 +110,6 @@ def save_to_prophet(calc, filename='potential_', overwrite=False,
         # Write G4s (G3s in PROPhet).
         for Gs in range(n_G2, n_G2+n_G4, length_G4):
             eta = desc_pars['Gs'][el][Gs]['eta']
-            if (eta > 10):
-                warnings.warn(
-                    'Conversion from Amp to PROPhet leads to energies and '
-                    'forces being calculated correctly to within machine '
-                    'precision. With the chosen eta of ' + str(eta) + ' '
-                    'being greater than 10, it is possible that the '
-                    'results of the two codes will not be equal, so the '
-                    'neural net should not be used with both codes.'
-                    'Please lower the eta values.')
             gamma = desc_pars['Gs'][el][Gs]['gamma']
             zeta = desc_pars['Gs'][el][Gs]['zeta']
             for i in range(length_G4):
