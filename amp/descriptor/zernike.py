@@ -593,6 +593,13 @@ class FingerprintPrimeCalculator:
                         if len(Rs) == 0:
                             norm_prime = 0.
                         else:
+                            if cutoff['name'] == 'Cosine':
+                                cutofffn_code = 1
+                            elif cutoff['name'] == 'Polynomial':
+                                cutofffn_code = 2
+                            else:
+                                print("Unknown cutoff function specified! \
+                                    Only supports 'Cosine' and 'Polynomial'.")
                             args_calculate_zernike_prime = dict(
                                     n=n,
                                     l=l,
@@ -602,7 +609,7 @@ class FingerprintPrimeCalculator:
                                     rs=Rs,
                                     g_numbers=G_numbers,
                                     cutoff=Rc,
-                                    cutofffn=cutoff['name'],
+                                    cutofffn_code=cutofffn_code,
                                     indexx=index,
                                     home=home,
                                     p=p,

@@ -3,7 +3,7 @@
 
         subroutine calculate_zernike_prime(n, l, n_length, n_indices, &
               numbers, rs, g_numbers, cutoff, indexx,  home, p, q, &
-              fac_length, factorial, norm_prime, cutofffn, p_gamma)
+              fac_length, factorial, norm_prime, cutofffn_code, p_gamma)
         use cutoffs
         implicit none
         integer::  n, l
@@ -15,7 +15,7 @@
         double precision::  cutoff
         ! gamma parameter for the polynomial cutoff
         double precision, optional:: p_gamma
-        character(len=20):: cutofffn
+        integer:: cutofffn_code
         complex*16::  norm_prime
 !f2py   intent(in)::  n, l, n_indices, numbers, g_numbers, rs, p_gamma
 !f2py   intent(in)::  home, indexx, p, q, cutoff, n_length, fac_length
@@ -49,19 +49,19 @@
                 ! Calculate z_nlm
                 if (present(p_gamma)) then
                     z_nlm = z_nlm_ * cutoff_fxn(rho * cutoff, &
-                    cutoff, cutofffn, p_gamma)
+                    cutoff, cutofffn_code, p_gamma)
                     ! Calculates z_nlm_prime
                     z_nlm_prime = z_nlm_ * &
                     cutoff_fxn_prime(rho * cutoff, cutoff, &
-                    cutofffn, p_gamma) * &
+                    cutofffn_code, p_gamma) * &
                     der_position(indexx, n_index, home, neighbor, p, q)
                 else
                     z_nlm = z_nlm_ * cutoff_fxn(rho * cutoff, &
-                    cutoff, cutofffn)
+                    cutoff, cutofffn_code)
                     ! Calculates z_nlm_prime
                     z_nlm_prime = z_nlm_ * &
                     cutoff_fxn_prime(rho * cutoff, cutoff, &
-                    cutofffn) * &
+                    cutofffn_code) * &
                     der_position(indexx, n_index, home, neighbor, p, q)
                 endif
 
@@ -73,24 +73,24 @@
                     if (present(p_gamma)) then
                         z_nlm_prime = z_nlm_prime + &
                         cutoff_fxn(rho * cutoff, cutoff, &
-                        cutofffn, p_gamma) * z_nlm_prime_ / &
+                        cutofffn_code, p_gamma) * z_nlm_prime_ / &
                         cutoff
                     else
                         z_nlm_prime = z_nlm_prime + &
                         cutoff_fxn(rho * cutoff, cutoff, &
-                        cutofffn) * z_nlm_prime_ / cutoff
+                        cutofffn_code) * z_nlm_prime_ / cutoff
                     end if
                 else if (kronecker(n_index, p) - kronecker(indexx, p) &
                     == -1) then
                     if (present(p_gamma)) then
                         z_nlm_prime = z_nlm_prime - &
                         cutoff_fxn(rho * cutoff, cutoff, &
-                        cutofffn, p_gamma) * z_nlm_prime_ / &
+                        cutofffn_code, p_gamma) * z_nlm_prime_ / &
                         cutoff
                     else
                         z_nlm_prime = z_nlm_prime - &
                         cutoff_fxn(rho * cutoff, cutoff, &
-                        cutofffn) * z_nlm_prime_ / cutoff
+                        cutofffn_code) * z_nlm_prime_ / cutoff
                     end if
                 end if
 

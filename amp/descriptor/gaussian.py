@@ -611,9 +611,14 @@ def calculate_G2(neighborsymbols,
         if len(neighbornumbers) == 0:
             ridge = 0.
         else:
-
-            cutofffn = cutoff['name']
             Rc = cutoff['kwargs']['Rc']
+            if cutoff['name'] == 'Cosine':
+                cutofffn_code = 1
+            elif cutoff['name'] == 'Polynomial':
+                cutofffn_code = 2
+            else:
+                print("Unknown cutoff function specified! \
+                Only supports 'Cosine' and 'Polynomial'.")
 
             args_calculate_g2 = dict(
                     neighbornumbers=neighbornumbers,
@@ -621,10 +626,10 @@ def calculate_G2(neighborsymbols,
                     g_number=G_number,
                     g_eta=eta,
                     rc=Rc,
-                    cutofffn=cutofffn,
+                    cutofffn_code=cutofffn_code,
                     ri=Ri
                     )
-            if cutofffn == 'Polynomial':
+            if cutofffn_code == 2:
                 args_calculate_g2['p_gamma'] = cutoff['kwargs']['gamma']
 
             ridge = fmodules.calculate_g2(**args_calculate_g2)
@@ -693,8 +698,14 @@ def calculate_G4(neighborsymbols, neighborpositions,
         if len(neighborpositions) == 0:
             return 0.
         else:
-            cutofffn = cutoff['name']
             Rc = cutoff['kwargs']['Rc']
+            if cutoff['name'] == 'Cosine':
+                cutofffn_code = 1
+            elif cutoff['name'] == 'Polynomial':
+                cutofffn_code = 2
+            else:
+                print("Unknown cutoff function specified! \
+                Only supports 'Cosine' and 'Polynomial'.")
 
             args_calculate_g4 = dict(
                     neighbornumbers=neighbornumbers,
@@ -704,10 +715,10 @@ def calculate_G4(neighborsymbols, neighborpositions,
                     g_zeta=zeta,
                     g_eta=eta,
                     rc=Rc,
-                    cutofffn=cutofffn,
+                    cutofffn_code=cutofffn_code,
                     ri=Ri
                     )
-            if cutofffn == 'Polynomial':
+            if cutofffn_code == 2:
                 args_calculate_g4['p_gamma'] = cutoff['kwargs']['gamma']
 
             ridge = fmodules.calculate_g4(**args_calculate_g4)
@@ -798,8 +809,14 @@ def calculate_G5(neighborsymbols, neighborpositions,
         if len(neighborpositions) == 0:
             return 0.
         else:
-            cutofffn = cutoff['name']
             Rc = cutoff['kwargs']['Rc']
+            if cutoff['name'] == 'Cosine':
+                cutofffn_code = 1
+            elif cutoff['name'] == 'Polynomial':
+                cutofffn_code = 2
+            else:
+                print("Unknown cutoff function specified! \
+                Only supports 'Cosine' and 'Polynomial'.")
 
             args_calculate_g5 = dict(
                     neighbornumbers=neighbornumbers,
@@ -809,10 +826,10 @@ def calculate_G5(neighborsymbols, neighborpositions,
                     g_zeta=zeta,
                     g_eta=eta,
                     rc=Rc,
-                    cutofffn=cutofffn,
+                    cutofffn_code=cutofffn_code,
                     ri=Ri
                     )
-            if cutofffn == 'Polynomial':
+            if cutofffn_code == 2:
                 args_calculate_g5['p_gamma'] = cutoff['kwargs']['gamma']
 
             ridge = fmodules.calculate_g5(**args_calculate_g5)
@@ -1138,8 +1155,14 @@ def calculate_G2_prime(neighborindices, neighborsymbols, neighborpositions,
         if len(neighborpositions) == 0:
             ridge = 0.
         else:
-            cutofffn = cutoff['name']
             Rc = cutoff['kwargs']['Rc']
+            if cutoff['name'] == 'Cosine':
+                cutofffn_code = 1
+            elif cutoff['name'] == 'Polynomial':
+                cutofffn_code = 2
+            else:
+                print("Unknown cutoff function specified! \
+                Only supports 'Cosine' and 'Polynomial'.")
 
             args_calculate_g2_prime = dict(
                     neighborindices=list(neighborindices),
@@ -1148,13 +1171,13 @@ def calculate_G2_prime(neighborindices, neighborsymbols, neighborpositions,
                     g_number=G_number,
                     g_eta=eta,
                     rc=Rc,
-                    cutofffn=cutofffn,
+                    cutofffn_code=cutofffn_code,
                     i=i,
                     ri=Ri,
                     m=m,
                     l=l
                     )
-            if cutofffn == 'Polynomial':
+            if cutofffn_code == 2:
                 args_calculate_g2_prime['p_gamma'] = cutoff['kwargs']['gamma']
 
             ridge = fmodules.calculate_g2_prime(**args_calculate_g2_prime)
@@ -1237,8 +1260,14 @@ def calculate_G4_prime(neighborindices, neighborsymbols, neighborpositions,
         if len(neighborpositions) == 0:
             ridge = 0.
         else:
-            cutofffn = cutoff['name']
             Rc = cutoff['kwargs']['Rc']
+            if cutoff['name'] == 'Cosine':
+                cutofffn_code = 1
+            elif cutoff['name'] == 'Polynomial':
+                cutofffn_code = 2
+            else:
+                print("Unknown cutoff function specified! \
+                Only supports 'Cosine' and 'Polynomial'.")
 
             args_calculate_g4_prime = dict(
                     neighborindices=list(neighborindices),
@@ -1249,13 +1278,13 @@ def calculate_G4_prime(neighborindices, neighborsymbols, neighborpositions,
                     g_zeta=zeta,
                     g_eta=eta,
                     rc=Rc,
-                    cutofffn=cutofffn,
+                    cutofffn_code=cutofffn_code,
                     i=i,
                     ri=Ri,
                     m=m,
                     l=l
                     )
-            if cutofffn == 'Polynomial':
+            if cutofffn_code == 2:
                 args_calculate_g4_prime['p_gamma'] = cutoff['kwargs']['gamma']
 
             ridge = fmodules.calculate_g4_prime(**args_calculate_g4_prime)
@@ -1386,8 +1415,14 @@ def calculate_G5_prime(neighborindices, neighborsymbols, neighborpositions,
         if len(neighborpositions) == 0:
             ridge = 0.
         else:
-            cutofffn = cutoff['name']
             Rc = cutoff['kwargs']['Rc']
+            if cutoff['name'] == 'Cosine':
+                cutofffn_code = 1
+            elif cutoff['name'] == 'Polynomial':
+                cutofffn_code = 2
+            else:
+                print("Unknown cutoff function specified! \
+                Only supports 'Cosine' and 'Polynomial'.")
 
             args_calculate_g5_prime = dict(
                     neighborindices=list(neighborindices),
@@ -1398,13 +1433,13 @@ def calculate_G5_prime(neighborindices, neighborsymbols, neighborpositions,
                     g_zeta=zeta,
                     g_eta=eta,
                     rc=Rc,
-                    cutofffn=cutofffn,
+                    cutofffn_code=cutofffn_code,
                     i=i,
                     ri=Ri,
                     m=m,
                     l=l
                     )
-            if cutofffn == 'Polynomial':
+            if cutofffn_code == 2:
                 args_calculate_g5_prime['p_gamma'] = cutoff['kwargs']['gamma']
 
             ridge = fmodules.calculate_g5_prime(**args_calculate_g5_prime)

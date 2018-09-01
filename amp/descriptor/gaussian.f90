@@ -2,20 +2,20 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
        subroutine calculate_g2(neighbornumbers, neighborpositions, &
-       g_number, g_eta, p_gamma, rc, cutofffn, ri, num_neighbors, ridge)
+       g_number, g_eta, p_gamma, rc, cutofffn_code, ri, num_neighbors, ridge)
 
               use cutoffs
               implicit none
+              integer:: num_neighbors
               integer, dimension(num_neighbors):: neighbornumbers
-              integer, dimension(1):: g_number
+              integer:: g_number
               double precision, dimension(num_neighbors, 3):: &
               neighborpositions
               double precision, dimension(3):: ri
-              integer:: num_neighbors
               double precision::  g_eta, rc
               ! gamma parameter for the polynomial cutoff
               double precision, optional:: p_gamma
-              character(len=20):: cutofffn
+              integer:: cutofffn_code
               double precision:: ridge
 !f2py         intent(in):: neighbornumbers, neighborpositions, g_number
 !f2py         intent(in):: g_eta, rc, ri, p_gamma
@@ -27,7 +27,7 @@
 
               ridge = 0.0d0
               do j = 1, num_neighbors
-                  match = compare(neighbornumbers(j), g_number(1))
+                  match = compare(neighbornumbers(j), g_number)
                   if (match == 1) then
                     do xyz = 1, 3
                       Rij_vector(xyz) = &
@@ -37,9 +37,9 @@
                     term = exp(-g_eta*(Rij**2.0d0) / (rc ** 2.0d0))
                     if (present(p_gamma)) then
                         term = term * cutoff_fxn(Rij, rc, &
-                            cutofffn, p_gamma)
+                            cutofffn_code, p_gamma)
                     else
-                        term = term * cutoff_fxn(Rij, rc, cutofffn)
+                        term = term * cutoff_fxn(Rij, rc, cutofffn_code)
                     endif
                     ridge = ridge + term
                   end if
@@ -65,21 +65,21 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       subroutine calculate_g4(neighbornumbers, neighborpositions, &
-      g_numbers, g_gamma, g_zeta, g_eta, rc, cutofffn, ri, &
+      g_numbers, g_gamma, g_zeta, g_eta, rc, cutofffn_code, ri, &
       num_neighbors, ridge, p_gamma)
 
               use cutoffs
               implicit none
+              integer:: num_neighbors
               integer, dimension(num_neighbors):: neighbornumbers
               integer, dimension(2):: g_numbers
               double precision, dimension(num_neighbors, 3):: &
               neighborpositions
               double precision, dimension(3):: ri
-              integer:: num_neighbors
               double precision:: g_gamma, g_zeta, g_eta, rc
               ! gamma parameter for the polynomial cutoff
               double precision, optional:: p_gamma
-              character(len=20):: cutofffn
+              integer:: cutofffn_code
               double precision:: ridge
 !f2py         intent(in):: neighbornumbers, neighborpositions
 !f2py         intent(in):: g_numbers, g_gamma, g_zeta
@@ -116,16 +116,16 @@
                     exp(-g_eta*(Rij**2 + Rik**2 + Rjk**2)&
                     /(rc ** 2.0d0))
                     if (present(p_gamma)) then
-                        term = term*cutoff_fxn(Rij, rc, cutofffn, &
+                        term = term*cutoff_fxn(Rij, rc, cutofffn_code, &
                             p_gamma)
-                        term = term*cutoff_fxn(Rik, rc, cutofffn, &
+                        term = term*cutoff_fxn(Rik, rc, cutofffn_code, &
                             p_gamma)
-                        term = term*cutoff_fxn(Rjk, rc, cutofffn, &
+                        term = term*cutoff_fxn(Rjk, rc, cutofffn_code, &
                             p_gamma)
                     else
-                        term = term*cutoff_fxn(Rij, rc, cutofffn)
-                        term = term*cutoff_fxn(Rik, rc, cutofffn)
-                        term = term*cutoff_fxn(Rjk, rc, cutofffn)
+                        term = term*cutoff_fxn(Rij, rc, cutofffn_code)
+                        term = term*cutoff_fxn(Rik, rc, cutofffn_code)
+                        term = term*cutoff_fxn(Rjk, rc, cutofffn_code)
                     endif
                     ridge = ridge + term
                   end if
@@ -170,21 +170,21 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       subroutine calculate_g5(neighbornumbers, neighborpositions, &
-      g_numbers, g_gamma, g_zeta, g_eta, rc, cutofffn, ri, &
+      g_numbers, g_gamma, g_zeta, g_eta, rc, cutofffn_code, ri, &
       num_neighbors, ridge, p_gamma)
 
               use cutoffs
               implicit none
+              integer:: num_neighbors
               integer, dimension(num_neighbors):: neighbornumbers
               integer, dimension(2):: g_numbers
               double precision, dimension(num_neighbors, 3):: &
               neighborpositions
               double precision, dimension(3):: ri
-              integer:: num_neighbors
               double precision:: g_gamma, g_zeta, g_eta, rc
               ! gamma parameter for the polynomial cutoff
               double precision, optional:: p_gamma
-              character(len=20):: cutofffn
+              integer:: cutofffn_code
               double precision:: ridge
 !f2py         intent(in):: neighbornumbers, neighborpositions
 !f2py         intent(in):: g_numbers, g_gamma, g_zeta
@@ -216,13 +216,13 @@
                     exp(-g_eta*(Rij**2 + Rik**2)&
                     /(rc ** 2.0d0))
                     if (present(p_gamma)) then
-                        term = term*cutoff_fxn(Rij, rc, cutofffn, &
+                        term = term*cutoff_fxn(Rij, rc, cutofffn_code, &
                             p_gamma)
-                        term = term*cutoff_fxn(Rik, rc, cutofffn, &
+                        term = term*cutoff_fxn(Rik, rc, cutofffn_code, &
                             p_gamma)
                     else
-                        term = term*cutoff_fxn(Rij, rc, cutofffn)
-                        term = term*cutoff_fxn(Rik, rc, cutofffn)
+                        term = term*cutoff_fxn(Rij, rc, cutofffn_code)
+                        term = term*cutoff_fxn(Rik, rc, cutofffn_code)
                     end if
                     ridge = ridge + term
                   end if
@@ -266,22 +266,23 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
        subroutine calculate_g2_prime(neighborindices, neighbornumbers, &
-       neighborpositions, g_number, g_eta, rc, cutofffn, i, ri, m, l, &
+       neighborpositions, g_number, g_eta, rc, cutofffn_code, i, ri, m, l, &
        num_neighbors, ridge, p_gamma)
 
               use cutoffs
               implicit none
+              integer:: num_neighbors
               integer, dimension(num_neighbors):: neighborindices
               integer, dimension(num_neighbors):: neighbornumbers
-              integer, dimension(1):: g_number
+              integer:: g_number
               double precision, dimension(num_neighbors, 3):: &
               neighborpositions
               double precision, dimension(3):: ri, Rj
-              integer:: num_neighbors, m, l, i
+              integer:: m, l, i
               double precision::  g_eta, rc
               ! gamma parameter for the polynomial cutoff
               double precision, optional:: p_gamma
-              character(len=20):: cutofffn
+              integer:: cutofffn_code
               double precision:: ridge
 !f2py         intent(in):: neighborindices, neighbornumbers
 !f2py         intent(in):: neighborpositions, g_number
@@ -294,7 +295,7 @@
 
               ridge = 0.0d0
               do j = 1, num_neighbors
-                  match = compare(neighbornumbers(j), g_number(1))
+                  match = compare(neighbornumbers(j), g_number)
                   if (match == 1) then
                     do xyz = 1, 3
                       Rj(xyz) = neighborpositions(j, xyz)
@@ -307,14 +308,14 @@
 
                         if (present(p_gamma)) then
                             term1 = - 2.0d0 * g_eta * Rij * &
-                            cutoff_fxn(Rij, rc, cutofffn, p_gamma) / &
+                            cutoff_fxn(Rij, rc, cutofffn_code, p_gamma) / &
                             (rc ** 2.0d0) + cutoff_fxn_prime(Rij, rc, &
-                            cutofffn, p_gamma)
+                            cutofffn_code, p_gamma)
                         else
                             term1 = - 2.0d0 * g_eta * Rij * &
-                            cutoff_fxn(Rij, rc, cutofffn) / &
+                            cutoff_fxn(Rij, rc, cutofffn_code) / &
                             (rc ** 2.0d0) + cutoff_fxn_prime(Rij, rc, &
-                            cutofffn)
+                            cutofffn_code)
                         endif
 
                         ridge = ridge + exp(- g_eta * (Rij**2.0d0) / &
@@ -362,21 +363,22 @@
 
       subroutine calculate_g4_prime(neighborindices, neighbornumbers, &
       neighborpositions, g_numbers, g_gamma, g_zeta, g_eta, rc, &
-      cutofffn, i, ri, m, l, num_neighbors, ridge, p_gamma)
+      cutofffn_code, i, ri, m, l, num_neighbors, ridge, p_gamma)
 
               use cutoffs
               implicit none
+              integer:: num_neighbors
               integer, dimension(num_neighbors):: neighborindices
               integer, dimension(num_neighbors):: neighbornumbers
               integer, dimension(2):: g_numbers
               double precision, dimension(num_neighbors, 3):: &
               neighborpositions
               double precision, dimension(3):: ri, Rj, Rk
-              integer:: num_neighbors, i, m, l
+              integer:: i, m, l
               double precision:: g_gamma, g_zeta, g_eta, rc
               ! gamma parameter for the polynomial cutoff
               double precision, optional:: p_gamma
-              character(len=20):: cutofffn
+              integer:: cutofffn_code
               double precision:: ridge
 !f2py         intent(in):: neighbornumbers, neighborpositions
 !f2py         intent(in):: g_numbers, g_gamma, g_zeta, p_gamma
@@ -413,13 +415,13 @@
                     dot_product(Rij_vector, Rik_vector) / Rij / Rik
                     c1 = (1.0d0 + g_gamma * costheta)
                     if (present(p_gamma)) then
-                        fcRij = cutoff_fxn(Rij, rc, cutofffn, p_gamma)
-                        fcRik = cutoff_fxn(Rik, rc, cutofffn, p_gamma)
-                        fcRjk = cutoff_fxn(Rjk, rc, cutofffn, p_gamma)
+                        fcRij = cutoff_fxn(Rij, rc, cutofffn_code, p_gamma)
+                        fcRik = cutoff_fxn(Rik, rc, cutofffn_code, p_gamma)
+                        fcRjk = cutoff_fxn(Rjk, rc, cutofffn_code, p_gamma)
                     else
-                        fcRij = cutoff_fxn(Rij, rc, cutofffn)
-                        fcRik = cutoff_fxn(Rik, rc, cutofffn)
-                        fcRjk = cutoff_fxn(Rjk, rc, cutofffn)
+                        fcRij = cutoff_fxn(Rij, rc, cutofffn_code)
+                        fcRik = cutoff_fxn(Rik, rc, cutofffn_code)
+                        fcRjk = cutoff_fxn(Rjk, rc, cutofffn_code)
                     endif
 
 
@@ -465,24 +467,24 @@
 
                     if (present(p_gamma)) then
                         term4 = &
-                        cutoff_fxn_prime(Rij, rc, cutofffn, p_gamma) &
+                        cutoff_fxn_prime(Rij, rc, cutofffn_code, p_gamma) &
                         * dRijdRml * fcRik * fcRjk
                         term5 = &
-                        fcRij * cutoff_fxn_prime(Rik, rc, cutofffn, &
+                        fcRij * cutoff_fxn_prime(Rik, rc, cutofffn_code, &
                         p_gamma) * dRikdRml * fcRjk
                         term6 = &
                         fcRij * fcRik * cutoff_fxn_prime(Rjk, rc, &
-                        cutofffn, p_gamma) * dRjkdRml
+                        cutofffn_code, p_gamma) * dRjkdRml
                     else
                         term4 = &
-                        cutoff_fxn_prime(Rij, rc, cutofffn) &
+                        cutoff_fxn_prime(Rij, rc, cutofffn_code) &
                         * dRijdRml * fcRik * fcRjk
                         term5 = &
-                        fcRij * cutoff_fxn_prime(Rik, rc, cutofffn) &
+                        fcRij * cutoff_fxn_prime(Rik, rc, cutofffn_code) &
                         * dRikdRml * fcRjk
                         term6 = &
                         fcRij * fcRik * cutoff_fxn_prime(Rjk, rc, &
-                        cutofffn) * dRjkdRml
+                        cutofffn_code) * dRjkdRml
                     endif
                     ridge = ridge + &
                     term1 * (term3 + c1 * (term4 + term5 + term6))
@@ -620,21 +622,22 @@
 
       subroutine calculate_g5_prime(neighborindices, neighbornumbers, &
       neighborpositions, g_numbers, g_gamma, g_zeta, g_eta, rc, &
-      cutofffn, i, ri, m, l, num_neighbors, ridge, p_gamma)
+      cutofffn_code, i, ri, m, l, num_neighbors, ridge, p_gamma)
 
               use cutoffs
               implicit none
+              integer:: num_neighbors
               integer, dimension(num_neighbors):: neighborindices
               integer, dimension(num_neighbors):: neighbornumbers
               integer, dimension(2):: g_numbers
               double precision, dimension(num_neighbors, 3):: &
               neighborpositions
               double precision, dimension(3):: ri, Rj, Rk
-              integer:: num_neighbors, i, m, l
+              integer:: i, m, l
               double precision:: g_gamma, g_zeta, g_eta, rc
               ! gamma parameter for the polynomial cutoff
               double precision, optional:: p_gamma
-              character(len=20):: cutofffn
+              integer:: cutofffn_code
               double precision:: ridge
 !f2py         intent(in):: neighbornumbers, neighborpositions
 !f2py         intent(in):: g_numbers, g_gamma, g_zeta, p_gamma
@@ -668,11 +671,11 @@
                     dot_product(Rij_vector, Rik_vector) / Rij / Rik
                     c1 = (1.0d0 + g_gamma * costheta)
                     if (present(p_gamma)) then
-                        fcRij = cutoff_fxn(Rij, rc, cutofffn, p_gamma)
-                        fcRik = cutoff_fxn(Rik, rc, cutofffn, p_gamma)
+                        fcRij = cutoff_fxn(Rij, rc, cutofffn_code, p_gamma)
+                        fcRik = cutoff_fxn(Rik, rc, cutofffn_code, p_gamma)
                     else
-                        fcRij = cutoff_fxn(Rij, rc, cutofffn)
-                        fcRik = cutoff_fxn(Rik, rc, cutofffn)
+                        fcRij = cutoff_fxn(Rij, rc, cutofffn_code)
+                        fcRik = cutoff_fxn(Rik, rc, cutofffn_code)
                     endif
 
                     if (g_zeta == 1.0d0) then
@@ -710,17 +713,17 @@
 
                     if(present(p_gamma)) then
                         term4 = &
-                        cutoff_fxn_prime(Rij, rc, cutofffn, p_gamma) &
+                        cutoff_fxn_prime(Rij, rc, cutofffn_code, p_gamma) &
                         * dRijdRml * fcRik
                         term5 = &
-                        fcRij * cutoff_fxn_prime(Rik, rc, cutofffn, &
+                        fcRij * cutoff_fxn_prime(Rik, rc, cutofffn_code, &
                         p_gamma) * dRikdRml
                     else
                         term4 = &
-                        cutoff_fxn_prime(Rij, rc, cutofffn) &
+                        cutoff_fxn_prime(Rij, rc, cutofffn_code) &
                         * dRijdRml * fcRik
                         term5 = &
-                        fcRij * cutoff_fxn_prime(Rik, rc, cutofffn) &
+                        fcRij * cutoff_fxn_prime(Rik, rc, cutofffn_code) &
                         * dRikdRml
                     end if
                     ridge = ridge + &
