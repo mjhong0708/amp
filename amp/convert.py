@@ -132,7 +132,7 @@ def save_to_prophet(calc, filename='potential_', overwrite=False,
                         'same eta, gamma, and zeta values for all '
                         'element pairs.')
             f.write('G3 ' + str(cutoff) + ' 0 ' + str(eta/cutoff**2) +
-                    ' ' + str(int(zeta)) + ' ' + str(int(gamma)) + '\n')
+                    ' ' + str(zeta) + ' ' + str(gamma) + '\n')
         # Write input means for G2.
         for i in range(n_els):
             for Gs in range(0, n_G2, length_G2):
