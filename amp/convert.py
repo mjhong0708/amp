@@ -28,7 +28,7 @@ def save_to_prophet(calc, filename='potential_', overwrite=False,
         'symmetry function parameters have been found to result in the two '
         'codes giving unequal energies and forces. It is important to verify '
         'that the two codes give equal energies and forces for your system '
-        'prior to using PROPhet for MD.'
+        'prior to using PROPhet for MD.')
 
     if os.path.exists(filename):
         if overwrite is False:
