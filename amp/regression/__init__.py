@@ -35,7 +35,7 @@ class Regressor:
         if optimizer == 'BFGS':
             from scipy.optimize import minimize as optimizer
             optimizer_kwargs = {
-                                'method' : 'BFGS', 
+                                'method' : 'BFGS',
                                 'options': {'gtol': 1e-15, }
                                }
             #optimizer_kwargs = {'method':'BFGS', 'gtol': 1e-15, }
@@ -64,7 +64,7 @@ class Regressor:
         elif optimizer == 'Newton-CG':
             from scipy.optimize import minimize as optimizer
             optimizer_kwargs = {
-                                'method': 'Newton-CG', 
+                                'method': 'Newton-CG',
                                 'options': {'xtol': 1e-15, }
                                }
 

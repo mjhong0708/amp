@@ -387,6 +387,7 @@ class LossFunction:
         self._initialized = False
         self._data_sent = False
         self._parallel = parallel
+        self._step = 0
         if (c['force_rmse'] is None) and (c['force_maxresid'] is None):
             p['force_coefficient'] = None
         if p['force_coefficient'] is None:
@@ -631,7 +632,7 @@ class LossFunction:
         del self._sessions['connections']
 
     def get_loss(self, parametervector, energy_weights, energy_kernel,
-                 forces_weights, forces_kernel, lossprime):
+                 forces_weights=None, forces_kernel=None, lossprime=False):
         """Returns the current value of the loss function for a given set of
         parameters, or, if the energy is less than the energy_tol raises a
         ConvergenceException.
@@ -894,10 +895,11 @@ class LossFunction:
             Maximum force residual.
         """
         p = self.parameters
+        images = self._model.trainingparameters.trainingimages
         energy_rmse_converged = True
         log = self._model.log
         if p.convergence['energy_rmse'] is not None:
-            energy_rmse = np.sqrt(energy_loss / len(self.images))
+            energy_rmse = np.sqrt(energy_loss / len(images))
             if energy_rmse > p.convergence['energy_rmse']:
                 energy_rmse_converged = False
         energy_maxresid_converged = True
@@ -907,7 +909,7 @@ class LossFunction:
         if p.force_coefficient is not None:
             force_rmse_converged = True
             if p.convergence['force_rmse'] is not None:
-                force_rmse = np.sqrt(force_loss / len(self.images))
+                force_rmse = np.sqrt(force_loss / len(images))
                 if force_rmse > p.convergence['force_rmse']:
                     force_rmse_converged = False
             force_maxresid_converged = True
@@ -918,7 +920,7 @@ class LossFunction:
             if self.log_losses:
                 log('%5i %19s %12.4e %10.4e %1s'
                     ' %10.4e %1s %10.4e %1s %10.4e %1s' %
-                    (self.lossfunction._step, now(), loss, energy_rmse,
+                    (self._step, now(), loss, energy_rmse,
                      'C' if energy_rmse_converged else '-',
                      energy_maxresid,
                      'C' if energy_maxresid_converged else '-',
@@ -926,13 +928,12 @@ class LossFunction:
                      'C' if force_rmse_converged else '-',
                      force_maxresid,
                      'C' if force_maxresid_converged else '-'))
-
             return energy_rmse_converged and energy_maxresid_converged and \
                 force_rmse_converged and force_maxresid_converged
         else:
             if self.log_losses:
                 log('%5i %19s %12.4e %10.4e %1s %10.4e %1s' %
-                    (self.lossfunction._step, now(), loss, energy_rmse,
+                    (self._step, now(), loss, energy_rmse,
                      'C' if energy_rmse_converged else '-',
                      energy_maxresid,
                      'C' if energy_maxresid_converged else '-'))
@@ -1685,7 +1686,7 @@ class KernelRidge(Model):
                             self.kernel_e_loss[symbol] = []
 
                         if isinstance(self.sigma, dict):
-                            sigma = self.sigma['energy']
+                            sigma = self.sigma['energy'][symbol]
                         else:
                             sigma = self.sigma
 
@@ -1957,7 +1958,7 @@ class KernelRidge(Model):
         weights = self.ravel.to_dicts(vector)
         p['weights'] = weights
 
-    def get_loss(self, vector):
+    def get_loss(self, vector, lossprime):
         """Method to be called by the regression master.
 
         Takes one and only one input, a vector of parameters.
@@ -1968,12 +1969,22 @@ class KernelRidge(Model):
         vector : list
             Parameters of the regression model in the form of a list.
         """
-
         p = self.parameters
         if self.lossfunction._step == 0:
             filename = make_filename(self.parent.label,
                                      '-initial-parameters.amp')
-            filename = self.parent.save(filename, overwrite=True)
+            if not os.path.exists(filename):
+                # If it exists, must be resuming from checkpoints.
+                filename = self.parent.save(filename)
+
+        K_e = self.kernel_e_loss
+        #K_f = self.kernel_f_cholesky
+        #loss = self.lossfunction.get_loss(vector, p.weights['energy'], K_e,
+        #                                  p.weights['forces'], K_f,
+        #                                  lossprime=lossprime)['loss']
+
+        result = self.lossfunction.get_loss(vector, p.weights['energy'], K_e,
+                                          lossprime=lossprime)['loss']
         if self.checkpoints:
             if self.lossfunction._step % self.checkpoints == 0:
                 self._log('Saving checkpoint data.')
@@ -1987,15 +1998,14 @@ class KernelRidge(Model):
                     filename = make_filename(self.parent.label,
                                              '-checkpoint.amp')
                 self.parent.save(filename, overwrite=True)
-
-        K_e = self.kernel_e_loss
-        K_f = self.kernel_f_cholesky
-        loss = self.lossfunction.get_loss(vector, p.weights['energy'], K_e,
-                                          p.weights['forces'], K_f,
-                                          lossprime=False)['loss']
         if hasattr(self, 'observer'):
             self.observer(self, vector, loss)
-        return loss
+
+        if lossprime:
+            return result['loss'], result['dloss_dparameters']
+        else:
+            return result
+            #return result['loss']
 
     def get_lossprime(self, vector):
         """Method to be called by the regression master.
