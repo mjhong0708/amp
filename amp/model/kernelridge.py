@@ -1194,6 +1194,13 @@ class KernelRidge(Model):
                 raise NotImplementedError('Needs to be coded.')
             elif p.mode == 'atom-centered':
                 weights = OrderedDict()
+
+                if self.cholesky is False:
+                    force_rmse = self.lossfunction.parameters['convergence']['force_rmse']
+
+                    if force_rmse is not None:
+                        self.properties.append('forces')
+
                 for prop in self.properties:
                     weights[prop] = OrderedDict()
 
@@ -1240,7 +1247,6 @@ class KernelRidge(Model):
             return
 
         if self.cholesky is False:
-            self.step = 0
             result = self.regressor.regress(model=self, log=log)
             return result  # True / False
         else:
@@ -1977,14 +1983,19 @@ class KernelRidge(Model):
                 # If it exists, must be resuming from checkpoints.
                 filename = self.parent.save(filename)
 
-        K_e = self.kernel_e_loss
-        #K_f = self.kernel_f_cholesky
-        #loss = self.lossfunction.get_loss(vector, p.weights['energy'], K_e,
-        #                                  p.weights['forces'], K_f,
-        #                                  lossprime=lossprime)['loss']
 
-        result = self.lossfunction.get_loss(vector, p.weights['energy'], K_e,
-                                          lossprime=lossprime)['loss']
+        force_rmse = self.lossfunction.parameters['convergence']['force_rmse']
+
+        if force_rmse is None:
+            K_e = self.kernel_e_loss
+            result = self.lossfunction.get_loss(vector, p.weights['energy'], K_e,
+                                                lossprime=lossprime)['loss']
+        else:
+            K_e = self.kernel_e_loss
+            K_f = self.kernel_f_cholesky
+            result = self.lossfunction.get_loss(vector, p.weights['energy'], K_e,
+                                                p.weights['forces'], K_f,
+                                                lossprime=lossprime)['loss']
         if self.checkpoints:
             if self.lossfunction._step % self.checkpoints == 0:
                 self._log('Saving checkpoint data.')
@@ -2000,6 +2011,8 @@ class KernelRidge(Model):
                 self.parent.save(filename, overwrite=True)
         if hasattr(self, 'observer'):
             self.observer(self, vector, loss)
+
+        self.lossfunction._step += 1
 
         if lossprime:
             return result['loss'], result['dloss_dparameters']
