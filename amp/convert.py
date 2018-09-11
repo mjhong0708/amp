@@ -37,9 +37,6 @@ def save_to_prophet(calc, filename='potential_', overwrite=False,
         '\n- Test your results carefully'
         '\n******************************************************************')
 
-    warnings.warn( str_warning )
-)
-
     if os.path.exists(filename):
         if overwrite is False:
             oldfilename = filename
