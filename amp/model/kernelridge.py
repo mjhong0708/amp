@@ -1185,7 +1185,9 @@ class KernelRidge(Model):
                     kijf_args['only_features'] = True
                 self.get_forces_kernel(**kijf_args)
 
-            log('...kernel computed in', toc='kernel')
+                log('...kernel matrices computed in', toc='kernel')
+            else:
+                log('...kernel matrix computed in', toc='kernel')
 
         # These weights are used for the case of the l2 loss function
         # minimization
@@ -2106,7 +2108,7 @@ class KernelRidge(Model):
             self.get_energy_kernel(**kij_args)
 
             if isinstance(self.sigma, dict):
-                sigma = self.sigma['energy']
+                sigma = self.sigma['energy'][symbol]
             else:
                 sigma = self.sigma
 
@@ -2261,7 +2263,7 @@ class KernelRidge(Model):
             features = self.ref_features_f[symbol][component]
 
             if isinstance(self.sigma, dict):
-                sigma = self.sigma['forces'][component]
+                sigma = self.sigma['forces'][symbol][component]
             else:
                 sigma = self.sigma
 
