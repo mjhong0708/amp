@@ -52,6 +52,7 @@ Amp is now installable via pip! This means you should be able to install with ju
    tensorflow.rst
    bootstrap.rst
    databases.rst
+   moleculardynamics.rst
    develop.rst
 
 **Module autodocumentation**:
