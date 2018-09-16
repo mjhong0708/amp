@@ -15,7 +15,7 @@ In the followings we discuss each step of installation.
 In this installation instruction, we assume that the following requirements are installed on your system:
 
 * git
-* cmake (If it is not installed on your system see `here` <https://cmake.org/install/>_)
+* cmake (If it is not installed on your system see `here <https://cmake.org/install/>`_)
 
 ----------------------------------
 Installation of KIM API v2
