@@ -11,10 +11,6 @@ endif()
 
 # End preamble
 
-$(cp ../../amp/model/neuralnetwork.f90 amp_model_driver/neuralnetwork.f90)
-$(cp ../../amp/descriptor/cutoffs.f90 amp_model_driver/cutoffs.f90)
-$(cp ../../amp/descriptor/gaussian.f90 amp_model_driver/gaussian.f90)
-
 
 set(MODEL_DRIVER_NAME "amp_model_driver")
 
@@ -30,3 +26,4 @@ target_sources(${MODEL_DRIVER_NAME} PRIVATE
   gaussian.f90
   neuralnetwork.f90
   )
+
