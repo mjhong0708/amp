@@ -137,7 +137,8 @@ Installation of `amp_parametrized_model`
 
 Now that you have `amp_model_driver` installed, you need to install the parameters also as the final step.
 **Note that this is the only step that you need to repeat when you change the parameters of the machine-learning model.**
-You should first parse all of the parameters of your `Amp` calculator to a text file by::
+You should first parse all of the parameters of your `Amp` calculator to a text file by
+
 
 .. code-block:: python
 
