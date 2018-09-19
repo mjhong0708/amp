@@ -166,10 +166,10 @@ and install your parameters by::
    $ kim-api-v2-collections-management install user ./amp_parameterized_model
 
 Congrats!
-Now you are ready to use the *Amp* calculator with `amp.params` in you molecular dynamics simulation by an input file like::
+Now you are ready to use the *Amp* calculator with `amp.params` in you molecular dynamics simulation by an input file like this
 
 
-.. code-block:: txt
+.. code-block:: bash
 
  variable	x index 1
  variable	y index 1
