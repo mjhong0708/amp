@@ -19,8 +19,8 @@ In this installation instruction, we assume that the following requirements are 
 * git
 * cmake (If it is not installed on your system see `here <https://cmake.org/install/>`_.)
 
-**Note that, as both the LAMMPS version and the KIM API version used in this tutorial are still under developement, we can only guarantee specific commit ID's to work.
-Future commits might break part of this installation instruction, untill a stable version of KIM API v2 compatible with LAMMPS is released.**
+**Note that, as both the LAMMPS version and the KIM API version used in this tutorial are still under development, we can only guarantee specific commit ID's to work.
+Future commits might break part of this installation instruction, until a stable version of KIM API v2 compatible with LAMMPS is released.**
 
 ----------------------------------
 Installation of KIM API v2
