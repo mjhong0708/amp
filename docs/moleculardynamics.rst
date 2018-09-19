@@ -143,7 +143,7 @@ You should first parse all of the parameters of your `Amp` calculator to a text 
 
  from amp import Amp
  from amp.convert import save_to_openkim
-
+ 
  calc = Amp(...)
  calc.train(...)
  save_to_openkim(calc)
