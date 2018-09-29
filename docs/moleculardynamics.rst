@@ -17,7 +17,7 @@ In the followings we discuss each step of installation.
 In this installation instruction, we assume that the following requirements are installed on your system:
 
 * git
-* cmake (If it is not installed on your system see `here <https://cmake.org/install/>`_.)
+* make
 
 **Note that, as both the LAMMPS version and the KIM API version used in this tutorial are still under development, we can only guarantee specific commit ID's to work.
 Future commits might break part of this installation instruction, until a stable version of KIM API v2 compatible with LAMMPS is released.**
@@ -28,38 +28,26 @@ Installation of KIM API v2
 
 The model driver provided in this repository is in the format of KIM API version 2.
 So you will need to install version 2 of the KIM API.
-The *devel-v2* branch of the OpenKIM `repository <https://github.com/openkim/kim-api/tree/devel-v2>`_ works well with LAMMPS and should be downloaded::
+The *master-v2* branch of the OpenKIM `repository <https://github.com/openkim/kim-api/tree/master-v2>`_ works well with LAMMPS and should be downloaded::
 
-   $ git clone -b devel-v2 https://github.com/openkim/kim-api.git
+   $ git clone -b master-v2 https://github.com/openkim/kim-api.git
 
-Move the HEAD of git to commit *1b810d0307d8f9d5c641339610a761034472561a* on September 4, 2018 by::
+You can make sure that you are on the correct branch of *origin/master-v2* by::
 
    $ cd kim-api/
-   $ git checkout 1b810d0307d8f9d5c641339610a761034472561a
-
-You can make sure that you are on the correct commit of *origin/devel-v2* by::
-
    $ git status
 
 Next you can install KIM API v2 by simply (note you should have gone to the *kim-api* directory in the last step)::
 
-   $ mkdir build
+   $ ./configure
 
-   $ cd build
+   $ make
 
-   $ CC=gcc CXX=g++ FC=gfortran cmake ../ -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=${HOME}/local -DKIM_API_BUILD_MODELS_AND_DRIVERS=ON
+   $ sudo make install
 
-   $ make -j4
+**Important step:** Add the following aliase to the bash script `.bashrc` (or `.bash_profile`) in your home directory::
 
-   $ make install
-
-Now you can make sure that all KIM tests pass by::
-
-   $ make test
-
-**Important step:** Now (and every time you open a new shell) you should "activate the kim-api" (set the "PATH" and "PKG_CONFIG_PATH" environment variables and load bash completions) by::
-
-   $ source ${HOME}/local/bin/kim-api-v2-activate
+   $ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$"/usr/local/lib/"
 
 Now you are ready to list model and model drivers available in KIM API v2 by::
 
@@ -75,22 +63,18 @@ Building LAMMPS
 
 Clone LAMMPS source files from the *kim-v2-update* branch of Ryan Elliott's `repository <https://github.com/ellio167/lammps/tree/kim-v2-update>`_::
 
-   $ git clone -b kim-v2-update https://github.com/ellio167/lammps.git 
+   $ git clone -b kim-v2-update https://github.com/ellio167/lammps.git
 
-Move the HEAD of the git to the commit ID *634ed487a5048b72147acdb09443218a5386fd60* on September 4, 2018 by::
+To make sure that the HEAD is on the correct branch, you can do::
 
    $ cd lammps/
-   $ git checkout 634ed487a5048b72147acdb09443218a5386fd60
-
-To make sure that the HEAD is on the correct commit, you can do::
-
    $ git status
 
-which should tell that your branch is on commit ID *634ed487a5048b72147acdb09443218a5386fd60* of *origin/kim-v2-update*.
+which should tell that your branch is on the branch *origin/kim-v2-update*.
 
 **Important bug-fixing step:** There is a bug in this version of LAMMPS on *kim-v2-update* branch, which should be fixed before proceeding further by::
 
-   $ sed -i "s/KIM::func/KIM::Function/g" ./src/KIM/pair_kim.cpp
+   $ sed -i "s/modelWillNotRequestNeighborsOfNoncontributingParticles)/modelWillNotRequestNeighborsOfNoncontributingParticles, 0)/g" ./src/KIM/pair_kim.cpp
 
 
 Now that the bug is fixed, we follow the instructions given `here <https://github.com/ellio167/lammps/tree/kim-v2-update/cmake#other-packages>`_ to build LAMMPS using *cmake*.
@@ -98,7 +82,7 @@ Briefly we first make a *build* folder and then build LAMMPS inside the folder::
 
    $ mkdir build
    $ cd build
-   $ cmake -D CMAKE_C_COMPILER=gcc -D CMAKE_CXX_COMPILER=g++ -D CMAKE_Fortran_COMPILER=gfortran -D PKG_KIM=on -D KIM_LIBRARY=$"${HOME}/local/lib/libkim-api-v2.so" -D KIM_INCLUDE_DIR=$"${HOME}/local/include/kim-api-v2" ../cmake
+   $ cmake -D CMAKE_C_COMPILER=gcc -D CMAKE_CXX_COMPILER=g++ -D CMAKE_Fortran_COMPILER=gfortran -D PKG_KIM=on -D KIM_LIBRARY=$"/usr/local/lib//libkim-api-v2.so" -D KIM_INCLUDE_DIR=$"/usr/local/include/kim-api-v2" ../cmake
    $ make
 
 
@@ -116,9 +100,9 @@ where *amp_directory* is where your *Amp* source files are located.
 
 Then make a copy of the fortran modules inside the *amp_model_driver* directory by::
 
-   $ cp ../../amp/descriptor/gaussian.f90 amp_model_driver/gaussian.f90
-   $ cp ../../amp/descriptor/cutoffs.f90 amp_model_driver/cutoffs.f90
-   $ cp ../../amp/model/neuralnetwork.f90 amp_model_driver/neuralnetwork.f90
+   $ cp ../../amp/descriptor/gaussian.f90 amp_model_driver/gaussian.F90
+   $ cp ../../amp/descriptor/cutoffs.f90 amp_model_driver/cutoffs.F90
+   $ cp ../../amp/model/neuralnetwork.f90 amp_model_driver/neuralnetwork.F90
 
 Finally you can install the *amp_model_driver* by::
 
