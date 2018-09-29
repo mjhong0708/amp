@@ -651,7 +651,6 @@
               double precision:: fcRijfcRik, dCosthetadRml
               double precision:: dRijdRml, dRikdRml
               double precision:: term1, term2, term3, term4, term5
-              double precision:: term6
 
               ridge = 0.0d0
               do j = 1, num_neighbors
