@@ -18,9 +18,9 @@ In this installation instruction, we assume that the following requirements are 
 
 * git
 * make
+* cmake (If it is not installed on your system see `here <https://cmake.org/install/>`_.)
 
-**Note that, as both the LAMMPS version and the KIM API version used in this tutorial are still under development, we can only guarantee specific commit ID's to work.
-Future commits might break part of this installation instruction, until a stable version of KIM API v2 compatible with LAMMPS is released.**
+**Note that, as both the LAMMPS version and the KIM API version used in this tutorial are still under development, we can only guarantee specific commit ID's to work, future commits may break part of this installation instruction, until a stable version of KIM API v2 compatible with LAMMPS is released.**
 
 ----------------------------------
 Installation of KIM API v2
@@ -40,9 +40,7 @@ You can make sure that you are on the correct branch of *origin/master-v2* by::
 Next you can install KIM API v2 by simply (note you should have gone to the *kim-api* directory in the last step)::
 
    $ ./configure
-
    $ make
-
    $ sudo make install
 
 **Important step:** Add the following aliase to the bash script `.bashrc` (or `.bash_profile`) in your home directory::
@@ -110,9 +108,9 @@ Finally you can install the *amp_model_driver* by::
 
 You can now remove the fortran modules that you copied earlier::
 
-   $ rm amp_model_driver/gaussian.f90
-   $ rm amp_model_driver/cutoffs.f90
-   $ rm amp_model_driver/neuralnetwork.f90
+   $ rm amp_model_driver/gaussian.F90
+   $ rm amp_model_driver/cutoffs.F90
+   $ rm amp_model_driver/neuralnetwork.F90
 
 
 ----------------------------------
@@ -166,7 +164,7 @@ Now you are ready to use the *Amp* calculator with `amp.params` in you molecular
  units		metal
  atom_style	atomic
 
- lattice		fcc 6.5
+ lattice        fcc 3.5
  region		box block 0 ${xx} 0 ${yy} 0 ${zz}
  create_box	1 box
  create_atoms	1 box

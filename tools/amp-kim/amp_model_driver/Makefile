@@ -24,7 +24,7 @@
 #    Alireza Khorshidi
 #    C. Franklin Goldsmith
 #    Ryan S. Elliott
-#.   Malte Doentgen
+#    Malte Doentgen
 #    Muammar El-Khatib Rodriguez
 
 # load all basic KIM make configuration
@@ -40,9 +40,9 @@ include $(shell $(KIM_API_BUILD_CONFIG) --master-config)
 MODEL_DRIVER_CREATE_FUNCTION_NAME := model_driver_create_routine
 MODEL_DRIVER_CREATE_FUNCTION_LANG := fortran
 
-$(cp ../../amp/model/neuralnetwork.f90 amp_model_driver/neuralnetwork.F90)
-$(cp ../../amp/descriptor/cutoffs.f90 amp_model_driver/cutoffs.F90)
-$(cp ../../amp/descriptor/gaussian.f90 amp_model_driver/gaussian.F90)
+#$(cp ../../amp/model/neuralnetwork.f90 amp_model_driver/neuralnetwork.F90)
+#$(cp ../../amp/descriptor/cutoffs.f90 amp_model_driver/cutoffs.F90)
+#$(cp ../../amp/descriptor/gaussian.f90 amp_model_driver/gaussian.F90)
 
 LOCALOBJ = cutoffs.o gaussian.o neuralnetwork.o amp_model_driver.o
 
