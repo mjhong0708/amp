@@ -295,10 +295,11 @@ def save_to_openkim(calc, filename='amp.params', overwrite=False,
         raise NotImplementedError(
             'KIM model requires cosine cutoff functions.')
     elements = desc_pars['elements']
-    path = os.path.dirname(__file__)
+#    path = os.path.dirname(__file__)
     elements = sorted(elements)
-    f = open(path + '/../tools/amp-kim/amp_parameterized_model/' +
-             filename, 'w')
+#    f = open(path + '/../tools/amp-kim/amp_parameterized_model/' +
+#             filename, 'w')
+    f = open(filename, 'w')
     f.write(str(len(elements)) + '  # number of chemical species')
     f.write('\n')
     f.write(' '.join(elements) + '  # chemical species')
