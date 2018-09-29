@@ -552,7 +552,8 @@ subroutine model_refresh(model_refresh_handle, ierr) bind(c)
   call kim_model_refresh_set_influence_distance_pointer(model_refresh_handle, &
     buf%influence_distance)
   call kim_model_refresh_set_neighbor_list_pointers(model_refresh_handle, &
-    1, buf%cutoff, buf%padding_neighbor_hints, buf%half_list_hints)
+    1, buf%cutoff, buf%padding_neighbor_hints)
+    !, buf%half_list_hints)
 
   ierr = 0  ! everything is good
 end subroutine model_refresh
@@ -889,7 +890,8 @@ call kim_model_driver_create_set_influence_distance_pointer( &
 ! register cutoff
 call kim_model_driver_create_set_neighbor_list_pointers( &
   model_driver_create_handle, 1, buffer%cutoff, &
-  buffer%padding_neighbor_hints, buffer%half_list_hints)
+  buffer%padding_neighbor_hints)
+  !, buffer%half_list_hints)
 
 ierr = 0  ! everything is good
 end subroutine model_driver_create
