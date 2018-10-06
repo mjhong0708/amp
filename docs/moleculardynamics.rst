@@ -143,7 +143,8 @@ Finally you move back to the *amp-kim* directory by::
 
    $ cd /amp_directory/tools/amp-kim/
 
-and install your parameters by::
+Note that installation of amp_parameterized_model will not work without amp.params being located in the /amp_directory/tools/amp-kim/ directory.
+Next install your parameters by::
 
    $ kim-api-v2-collections-management install user ./amp_parameterized_model
 

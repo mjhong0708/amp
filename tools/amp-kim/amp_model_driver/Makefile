@@ -36,7 +36,7 @@ include $(shell $(KIM_API_BUILD_CONFIG) --master-config)
 
 
 # set model driver specific details
--MODEL_DRIVER_NAME := amp_model_driver
+MODEL_DRIVER_NAME := amp_model_driver
 MODEL_DRIVER_CREATE_FUNCTION_NAME := model_driver_create_routine
 MODEL_DRIVER_CREATE_FUNCTION_LANG := fortran
 
