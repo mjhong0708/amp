@@ -229,7 +229,7 @@ if (ierr /= 0) then
   kim_log_message = "get_argument_pointer"
   LOG_ERROR()
   return
-endif
+end if
 
   ! Check to be sure that the species are correct
   do index = 1, num_atoms
@@ -281,7 +281,8 @@ if (comp_forces.eq.1)  forces  = 0.0_cd
   ! Allocate and set up neighborlists for particles
   allocate(neighborlists(num_atoms))
   do index = 1, num_atoms
-   if (particle_contributing(index) == 1) then
+  ! This is related to the ghost atoms, not checked in this version of code.
+  ! if (particle_contributing(index) == 1) then
     ierr = 0 ! everything is ok
     call kim_model_compute_arguments_get_neighbor_list( &
     model_compute_arguments_handle, 1, index, number_of_neighbors, &
@@ -296,8 +297,8 @@ if (comp_forces.eq.1)  forces  = 0.0_cd
       LOG_ERROR()
       ierr = 1
       return
-    endif
-   endif
+    end if
+  ! end if
   end do
 
   ! Allocate and set up fingerprints of particles
@@ -305,7 +306,8 @@ if (comp_forces.eq.1)  forces  = 0.0_cd
   rc = buf%cutoff(1)
   cutofffn_code = 1 ! for 'Cosine'
   do index = 1, num_atoms
-   if (particle_contributing(index) == 1) then
+  ! This is related to the ghost atoms, not checked in this version of code.
+  ! if (particle_contributing(index) == 1) then
     symbol = particle_species_codes(index)
     num_gs = size(buf%symmetry_functions(symbol)%gs)
     ri = coor(:, index)
@@ -330,13 +332,14 @@ if (comp_forces.eq.1)  forces  = 0.0_cd
     deallocate(neighbor_numbers)
     deallocate(neighbor_positions)
     deallocate(fingerprint)
-   endif
+  ! end if
   end do
 
   ! Allocate and set up fingerprintprimes of particles
   allocate(fingerprintprimes(num_atoms))
   do selfindex = 1, num_atoms
-   if (particle_contributing(selfindex) == 1) then
+  ! This is related to the ghost atoms, not checked in this version of code.
+  ! if (particle_contributing(selfindex) == 1) then
     number_of_neighbors = size(neighborlists(selfindex)%onedarray)
     allocate(fingerprintprimes(selfindex)%onedarray(number_of_neighbors))
     do p = 1, number_of_neighbors
@@ -372,7 +375,7 @@ if (comp_forces.eq.1)  forces  = 0.0_cd
       deallocate(neighbor_of_neighbor_indices)
       deallocate(neighbor_of_neighbor_positions)
     end do
-   endif
+  ! end if
   end do
 
   ! As of now, the code only works if the number of fingerprints for different species are the same.
@@ -418,7 +421,8 @@ if (comp_forces.eq.1)  forces  = 0.0_cd
   energy = 0.0_cd
   !  Loop over particles and compute energy
   do selfindex = 1, num_atoms
-    if (particle_contributing(selfindex) == 1) then
+   ! This is related to the ghost atoms, not checked in this version of code.
+   ! if (particle_contributing(selfindex) == 1) then
       selfsymbol = particle_species_codes(selfindex)
       atom_energy = calculate_atomic_energy(selfsymbol, &
       size(buf%symmetry_functions(selfsymbol)%gs), &
@@ -426,7 +430,7 @@ if (comp_forces.eq.1)  forces  = 0.0_cd
       buf%species_codes, size(buf%parameters), buf%parameters)
       energy = energy + atom_energy
 !      enepot(selfindex) = atom_energy
-    end if
+   ! end if
   end do
 
 ! Initialize forces
@@ -437,7 +441,8 @@ if (comp_forces.eq.1)  forces  = 0.0_cd
   end do
   !  Loop over particles and their neighbors and compute forces
   do selfindex = 1, num_atoms
-    if (particle_contributing(selfindex) == 1) then
+   ! This is related to the ghost atoms, not checked in this version of code.
+   ! if (particle_contributing(selfindex) == 1) then
 
       ! First the contribution of self particle on itself is calculated for forces
       selfsymbol = particle_species_codes(selfindex)
@@ -500,7 +505,7 @@ if (comp_forces.eq.1)  forces  = 0.0_cd
         end do
         deallocate(fingerprint)
       end do
-    end if
+   ! end if
   end do
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -511,29 +516,32 @@ if (comp_forces.eq.1)  forces  = 0.0_cd
 
   ! Deallocate fingerprintprimes of particles
   do selfindex = 1, num_atoms
-   if (particle_contributing(selfindex) == 1) then
+  ! This is related to the ghost atoms, not checked in this version of code.
+  ! if (particle_contributing(selfindex) == 1) then
     number_of_neighbors = size(neighborlists(selfindex)%onedarray)
     do p = 1, number_of_neighbors
       deallocate(fingerprintprimes(selfindex)%onedarray(p)%twodarray)
     end do
     deallocate(fingerprintprimes(selfindex)%onedarray)
-   endif
+  ! end if
   end do
   deallocate(fingerprintprimes)
 
   ! Deallocate fingerprints of particles
   do index = 1, num_atoms
-   if (particle_contributing(index) == 1) then
+  ! This is related to the ghost atoms, not checked in this version of code.
+  ! if (particle_contributing(index) == 1) then
     deallocate(fingerprints(index)%onedarray)
-   endif
+  ! end if
   end do
   deallocate(fingerprints)
 
   ! Deallocate neighborlist of particles
   do index = 1, num_atoms
-   if (particle_contributing(index) == 1) then
+  ! This is related to the ghost atoms, not checked in this version of code.
+  ! if (particle_contributing(index) == 1) then
     deallocate(neighborlists(index)%onedarray)
-   endif
+  ! end if
   end do
   deallocate(neighborlists)
 
@@ -1043,7 +1051,7 @@ if (ierr /= 0) then
   kim_log_message = "set_parameter"
   LOG_ERROR()
    goto 42
-endif
+end if
 
 
 ierr = 0
