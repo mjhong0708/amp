@@ -284,8 +284,18 @@
       end do
       deallocate(ohat)
 
-!      deallocating derived type parameters
+!      deallocating derived-type parameters
+      k = 0
       do element = 1, num_elements
+        if (element .GT. 1) then
+          k = k + no_layers_of_elements(element - 1)
+        end if
+        do j = 1, no_layers_of_elements(element) - 1
+          num_rows = no_nodes_of_elements(k + j) + 1
+          num_cols = no_nodes_of_elements(k + j + 1)
+          deallocate(unraveled_parameters(&
+          element)%weights(j)%twodarray)
+        end do
         deallocate(unraveled_parameters(element)%weights)
       end do
 
@@ -635,8 +645,18 @@
       end do
       deallocate(doutputs_dinputs)
 
-!     deallocating derived type parameters
+!     deallocating derived-type parameters
+      k = 0
       do element = 1, num_elements
+        if (element .GT. 1) then
+          k = k + no_layers_of_elements(element - 1)
+        end if
+        do j = 1, no_layers_of_elements(element) - 1
+          num_rows = no_nodes_of_elements(k + j) + 1
+          num_cols = no_nodes_of_elements(k + j + 1)
+          deallocate(unraveled_parameters(&
+          element)%weights(j)%twodarray)
+        end do
         deallocate(unraveled_parameters(element)%weights)
       end do
 
@@ -1099,7 +1119,19 @@
       end do
 
 !     deallocating derived-type parameters
+      k = 0
       do element = 1, num_elements
+        if (element .GT. 1) then
+          k = k + no_layers_of_elements(element - 1)
+        end if
+        do j = 1, no_layers_of_elements(element) - 1
+          num_rows = no_nodes_of_elements(k + j) + 1
+          num_cols = no_nodes_of_elements(k + j + 1)
+          deallocate(unraveled_parameters(&
+          element)%weights(j)%twodarray)
+          deallocate(unraveled_daenergy_dparameters(&
+          element)%weights(j)%twodarray)
+        end do
         deallocate(unraveled_parameters(element)%weights)
         deallocate(unraveled_daenergy_dparameters(element)%weights)
       end do
@@ -1868,7 +1900,19 @@
       end do
 
 !     deallocating derived-type parameters
+      k = 0
       do element = 1, num_elements
+        if (element .GT. 1) then
+          k = k + no_layers_of_elements(element - 1)
+        end if
+        do j = 1, no_layers_of_elements(element) - 1
+          num_rows = no_nodes_of_elements(k + j) + 1
+          num_cols = no_nodes_of_elements(k + j + 1)
+          deallocate(unraveled_parameters(&
+          element)%weights(j)%twodarray)
+          deallocate(unraveled_dforce_dparameters(&
+          element)%weights(j)%twodarray)
+        end do
         deallocate(unraveled_parameters(element)%weights)
         deallocate(unraveled_dforce_dparameters(element)%weights)
       end do
