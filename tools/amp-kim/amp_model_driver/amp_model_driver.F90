@@ -217,10 +217,11 @@ call kim_model_compute_arguments_get_argument_pointer( &
   model_compute_arguments_handle, &
   kim_compute_argument_name_partial_energy, energy, ierr2)
 ierr = ierr + ierr2
-call kim_model_compute_arguments_get_argument_pointer( &
-  model_compute_arguments_handle, &
-  kim_compute_argument_name_partial_forces, dim, num_atoms, forces, ierr2)
-ierr = ierr + ierr2
+! Force calculation is turned off by commenting these lines.
+!call kim_model_compute_arguments_get_argument_pointer( &
+!  model_compute_arguments_handle, &
+!  kim_compute_argument_name_partial_forces, dim, num_atoms, forces, ierr2)
+!ierr = ierr + ierr2
 call kim_model_compute_arguments_get_argument_pointer( &
   model_compute_arguments_handle, &
   kim_compute_argument_name_partial_particle_energy, num_atoms, enepot, ierr2)
@@ -335,6 +336,8 @@ if (comp_forces.eq.1)  forces  = 0.0_cd
   ! end if
   end do
 
+if (comp_forces.eq.1) then
+
   ! Allocate and set up fingerprintprimes of particles
   allocate(fingerprintprimes(num_atoms))
   do selfindex = 1, num_atoms
@@ -378,6 +381,8 @@ if (comp_forces.eq.1)  forces  = 0.0_cd
   ! end if
   end do
 
+end if
+
   ! As of now, the code only works if the number of fingerprints for different species are the same.
   allocate(min_fingerprints(buf%num_species, size(buf%symmetry_functions(1)%gs)))
   allocate(max_fingerprints(buf%num_species, size(buf%symmetry_functions(1)%gs)))
@@ -417,7 +422,10 @@ if (comp_forces.eq.1)  forces  = 0.0_cd
   end if
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!  ! Initialize energy
+
+if (comp_enepot.eq.1 .OR. comp_energy.eq.1) then
+
+  ! Initialize energy
   energy = 0.0_cd
   !  Loop over particles and compute energy
   do selfindex = 1, num_atoms
@@ -433,7 +441,11 @@ if (comp_forces.eq.1)  forces  = 0.0_cd
    ! end if
   end do
 
-! Initialize forces
+end if
+
+if (comp_forces.eq.1) then
+
+  ! Initialize forces
   do selfindex = 1, num_atoms
     do p = 1, 3
       forces(p, selfindex) = 0.0d0
@@ -507,6 +519,9 @@ if (comp_forces.eq.1)  forces  = 0.0_cd
       end do
    ! end if
   end do
+
+end if
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   deallocate(min_fingerprints)
@@ -514,6 +529,7 @@ if (comp_forces.eq.1)  forces  = 0.0_cd
   deallocate(no_layers_of_elements)
   deallocate(no_nodes_of_elements)
 
+if (comp_forces.eq.1) then
   ! Deallocate fingerprintprimes of particles
   do selfindex = 1, num_atoms
   ! This is related to the ghost atoms, not checked in this version of code.
@@ -526,6 +542,7 @@ if (comp_forces.eq.1)  forces  = 0.0_cd
   ! end if
   end do
   deallocate(fingerprintprimes)
+end if
 
   ! Deallocate fingerprints of particles
   do index = 1, num_atoms
