@@ -217,11 +217,11 @@ call kim_model_compute_arguments_get_argument_pointer( &
   model_compute_arguments_handle, &
   kim_compute_argument_name_partial_energy, energy, ierr2)
 ierr = ierr + ierr2
-! Force calculation is turned off by commenting these lines.
-!call kim_model_compute_arguments_get_argument_pointer( &
-!  model_compute_arguments_handle, &
-!  kim_compute_argument_name_partial_forces, dim, num_atoms, forces, ierr2)
-!ierr = ierr + ierr2
+! Force calculation can be turned off by commenting the next four lines.
+call kim_model_compute_arguments_get_argument_pointer( &
+  model_compute_arguments_handle, &
+  kim_compute_argument_name_partial_forces, dim, num_atoms, forces, ierr2)
+ierr = ierr + ierr2
 call kim_model_compute_arguments_get_argument_pointer( &
   model_compute_arguments_handle, &
   kim_compute_argument_name_partial_particle_energy, num_atoms, enepot, ierr2)
