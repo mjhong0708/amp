@@ -39,6 +39,8 @@ author_email = 'andrew_peterson@brown.edu'
 url = 'https://bitbucket.org/andrewpeterson/amp'
 package_data = {'amp': ['VERSION']}
 
+scripts = ['tools/amp-compress', 'tools/amp-plotconvergence']
+
 try:
     setup(name=name,
           version=version,
@@ -48,6 +50,7 @@ try:
           package_dir=package_dir,
           classifiers=classifiers,
           install_requires=install_requires,
+          scripts=scripts,
           ext_modules=ext_modules,
           author=author,
           author_email=author_email,
@@ -68,6 +71,7 @@ except SystemExit as ex:
           package_dir=package_dir,
           classifiers=classifiers,
           install_requires=install_requires,
+          scripts=scripts,
           ext_modules=[],
           author=author,
           author_email=author_email,
