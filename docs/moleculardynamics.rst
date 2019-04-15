@@ -1,5 +1,6 @@
 .. _moleculardynamics:
 
+
 ==================================
 Using *Amp* Potentials for Molecular Dynamics
 ==================================
@@ -20,6 +21,7 @@ In this installation instruction, we assume that the following requirements are 
 * cmake (If it is not installed on your system see `here <https://cmake.org/install/>`_.)
 * GNU compilers (gcc, g++, gfortran) version 4.8.x or higher.
 
+
 ----------------------------------
 Installation of KIM API
 ----------------------------------
@@ -38,7 +40,7 @@ Next do the following::
    $ sudo ldconfig
 
 The second line forces cmake to use gfortran-4.8 as the fortran compiler.
-We saw gfortran-5 throws error `Error: TS 29113/TS 18508: Noninteroperable array' but gfortran-4.8 should work fine.
+We saw gfortran-5 throws error "Error: TS 29113/TS 18508: Noninteroperable array" but gfortran-4.8 should work fine.
 Now you can list model and model drivers available in KIM API by::
 
    $ kim-api-collections-management list
