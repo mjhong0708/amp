@@ -5,13 +5,13 @@ Using *Amp* Potentials for Molecular Dynamics
 ==================================
 
 Machine-learning parameters trained in *Amp* can be used to perform fast molecular dynamics simulations, via the `Knowledge Base for Interatomic Models <https://openkim.org/>`_ (KIM).
-`LAMMPS <http://www.afs.enea.it/software/lammps/doc17/html/Section_packages.html#kim>`_ recognizes `kim` as a pair style that interfaces with the KIM repository of interatomic potentials.
+`LAMMPS <http://www.afs.enea.it/software/lammps/doc17/html/Section_packages.html#kim>`_ recognizes *kim* as a pair style that interfaces with the KIM repository of interatomic potentials.
 
 To build LAMMPS with the KIM package you must first install the KIM API (library) on your system.
 Below are the minimal steps you need in order to install the KIM API.
 After KIM API is installed, you will need to install LAMMMPS from its `github repository <https://github.com/lammps/lammps>`_.
 Finally we will need to install the model driver that is provided in the *Amp* repository.
-In the followings we discuss each step of installation.
+In the followings we discuss each of these steps.
 
 In this installation instruction, we assume that the following requirements are installed on your system:
 
@@ -39,7 +39,6 @@ Next do the following::
 
 The second line forces cmake to use gfortran-4.8 as the fortran compiler.
 We saw gfortran-5 throws error `Error: TS 29113/TS 18508: Noninteroperable array' but gfortran-4.8 should work fine.
-
 Now you can list model and model drivers available in KIM API by::
 
    $ kim-api-collections-management list
@@ -68,9 +67,9 @@ Installation of *amp_model_driver*
 ----------------------------------
 
 Now you are ready to install the *amp_model_driver* provided on this repository.
-To do that first move to *amp-kim* directory by::
+To do that first change to *amp-kim* directory by::
 
-   $ cd /amp_directory/tools/amp-kim/
+   $ cd /amp_directory/amp/tools/amp-kim/
 
 where *amp_directory* is where your *Amp* source files are located.
 
@@ -97,7 +96,7 @@ Installation of *amp_parametrized_model*
 
 Now that you have *amp_model_driver* installed, you need to install the parameters also as the final step.
 **Note that this is the only step that you need to repeat when you change the parameters of the machine-learning model.**
-You should first parse all of the parameters of your *Amp* calculator to a text file by
+You should first parse all of the parameters of your *Amp* calculator to a text file by::
 
 
 .. code-block:: python
@@ -110,24 +109,24 @@ You should first parse all of the parameters of your *Amp* calculator to a text 
  save_to_openkim(calc)
 
 
-where the last line parses the parameters of the calc object into a text file called `amp.params`.
+where the last line parses the parameters of the calc object into a text file called *amp.params*.
 
 You should then copy the generated text file into the *amp_parameterized_model* sub-directory of the *Amp* source directory::
 
-   $ cp /working_directory/amp.params amp_directory/tools/amp-kim/amp_parameterized_model/.
+   $ cp /working_directory/amp.params amp_directory/amp/tools/amp-kim/amp_parameterized_model/.
 
-where "working_directory" is where `amp.params` is located initially, and "amp_directory" is the directory of the *Amp* source files.
-Finally you move back to the *amp-kim* directory by::
+where *working_directory* is where *amp.params* is located initially, and *amp_directory* is the directory of the *Amp* source files.
+Finally you change back to the *amp-kim* directory by::
 
-   $ cd /amp_directory/tools/amp-kim/
+   $ cd /amp_directory/amp/tools/amp-kim/
 
-Note that installation of amp_parameterized_model will not work without amp.params being located in the /amp_directory/tools/amp-kim/amp_parameterized_model directory.
+Note that installation of *amp_parameterized_model* will not work without *amp.params* being located in the */amp_directory/amp/tools/amp-kim/amp_parameterized_model* directory.
 Next install your parameters by::
 
    $ kim-api-collections-management install user ./amp_parameterized_model
 
 Congrats!
-Now you are ready to use the *Amp* calculator with `amp.params` in you molecular dynamics simulation by an input file like this
+Now you are ready to use the *Amp* calculator with *amp.params* in you molecular dynamics simulation by an input file like this::
 
 
 .. code-block:: bash
