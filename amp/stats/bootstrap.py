@@ -154,7 +154,7 @@ class BootStrap:
         log('Training set: ' + str(images))
         images = hash_images(images)
         log('%i images in training set after hashing.' % len(images))
-        image_keys = images.keys()
+        image_keys = list(images.keys())
 
         originalpath = os.getcwd()
         trajpath = os.path.join(trainingpath, 'training-images')
