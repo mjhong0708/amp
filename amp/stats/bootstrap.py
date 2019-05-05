@@ -319,7 +319,7 @@ class BootStrap:
         if return_ensemble:
             result.append(energies)
         if len(result) == 1:
-            result == result[0]
+            result = result[0]
         return result
 
     def get_forces(self, atoms, output=(.5,)):
@@ -366,7 +366,7 @@ class BootStrap:
         if return_ensemble:
             result.append(forces)
         if len(result) == 1:
-            result == result[0]
+            result = result[0]
         return result
 
     def get_atomic_energies(self, atoms, output=(.5,)):
