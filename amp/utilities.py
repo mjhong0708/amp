@@ -657,7 +657,11 @@ def get_hash(atoms):
         Hash string key of 'atoms'.
     """
     string = str(atoms.pbc)
-    for number in atoms.cell.flatten():
+    try:
+        flattened_cell = atoms.cell.array.flatten()
+    except AttributeError:  # older ASE
+        flattened_cell = atoms.cell.flatten()
+    for number in flattened_cell:
         string += '%.15f' % number
     for number in atoms.get_atomic_numbers():
         string += '%3d' % number
