@@ -74,4 +74,3 @@ Amp is now installable via pip! This means you should be able to install with ju
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
-

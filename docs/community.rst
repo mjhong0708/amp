@@ -33,4 +33,3 @@ Contributions
 ----------------------------------
 
 You are welcome to contribute to this project. See the :any:`Develop` page.
-

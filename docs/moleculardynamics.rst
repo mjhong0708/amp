@@ -98,8 +98,7 @@ Installation of *amp_parametrized_model*
 
 Now that you have *amp_model_driver* installed, you need to install the parameters also as the final step.
 **Note that this is the only step that you need to repeat when you change the parameters of the machine-learning model.**
-You should first parse all of the parameters of your *Amp* calculator to a text file by::
-
+You should first parse all of the parameters of your *Amp* calculator to a text file by:
 
 .. code-block:: python
 
@@ -109,7 +108,6 @@ You should first parse all of the parameters of your *Amp* calculator to a text 
  calc = Amp(...)
  calc.train(...)
  save_to_openkim(calc)
-
 
 where the last line parses the parameters of the calc object into a text file called *amp.params*.
 
@@ -128,8 +126,7 @@ Next install your parameters by::
    $ kim-api-collections-management install user ./amp_parameterized_model
 
 Congrats!
-Now you are ready to use the *Amp* calculator with *amp.params* in you molecular dynamics simulation by an input file like this::
-
+Now you are ready to use the *Amp* calculator with *amp.params* in you molecular dynamics simulation by an input file like this:
 
 .. code-block:: bash
 
@@ -162,6 +159,4 @@ Now you are ready to use the *Amp* calculator with *amp.params* in you molecular
 
  run		10
 
-
 which, for example, is an input script for LAMMPS to do a molecular dynamics simulation of a Pd system for 10 units of time.
-

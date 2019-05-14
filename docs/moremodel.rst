@@ -28,7 +28,6 @@ Calling an observer during training
 -----------------------------------
 It can be useful to call a function known as an "observer" during the training of the model. In the neural network implementation, this can be accomplished by attaching an observer directly to the model. The observer is executed at each call to `model.get_loss`, and is fed the arguments (self, vector, loss). An example of using the observer to print out one component of the parameter vector is shown below:
 
-
 .. code-block:: python
 
     def observer(model, vector, loss):

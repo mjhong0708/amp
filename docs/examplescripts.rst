@@ -11,7 +11,6 @@ A basic fitting script
 
 The below script uses Gaussian descriptors with a neural network backend --- the Behler-Parrinello approach --- to train energies only to a training set made by the script. Note that most of the code is just generating the training data, and the training takes place in a couple of lines.
 
-
 .. code-block:: python
 
  """Simple test of the Amp calculator, using Gaussian descriptors and neural
@@ -66,7 +65,6 @@ A basic script with forces
 ----------------------------------
 
 The below script trains both energy and forces to the same training set as above. Note this may take some time to run, which will depend upon the initial guess for the neural network parameters that is randomly generated. Try decreasing the `force_rmse` convergence parameter if you would like faster results.
-
 
 .. code-block:: python
 

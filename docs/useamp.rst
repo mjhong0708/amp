@@ -44,7 +44,6 @@ To control how tightly the energy and/or forces are converged, you can adjust th
 
 .. code-block:: python
 
-
    calc.model.lossfunction.parameters['convergence'].update(
        {'energy_rmse': None,
         'force_maxresid': 0.04})

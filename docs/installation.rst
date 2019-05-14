@@ -147,20 +147,15 @@ If you do not have the GNU Makefile installed, you can prepare the Fortran exten
 1. Compile model Fortran subroutines inside the model and descriptor folders by::
 
     $ cd <installation-directory>/amp/model
-
     $ gfortran -c neuralnetwork.f90
-
     $ cd ../descriptor
-
     $ gfortran -c cutoffs.f90
 
 
 2. Move the modules "neuralnetwork.mod" and "cutoffs.mod" created in the last step, to the parent directory by::
 
     $ cd ..
-
     $ mv model/neuralnetwork.mod .
-
     $ mv descriptor/cutoffs.mod .
 
 3. Compile the model Fortran subroutines in companion with the descriptor and neuralnetwork subroutines by something like::

@@ -103,4 +103,3 @@ About
 ---------------------------------
 
 This module was contributed by Zachary Ulissi (Department of Chemical Engineering, Stanford University, zulissi@gmail.com) with help, testing, and discussions from Andrew Doyle (Stanford) and the Amp development team.
-
