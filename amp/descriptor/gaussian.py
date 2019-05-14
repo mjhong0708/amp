@@ -344,7 +344,7 @@ class FingerprintCalculator:
 
         num_symmetries = len(self.globals.Gs[symbol])
         fingerprint = [None] * num_symmetries
-        neighbornumbers = [atomic_numbers[symbol] for symbol in neighborsymbols]
+        neighbornumbers = [atomic_numbers[_] for _ in neighborsymbols]
 
         for count in range(num_symmetries):
             G = self.globals.Gs[symbol][count]
@@ -501,7 +501,7 @@ class FingerprintPrimeCalculator:
         num_symmetries = len(self.globals.Gs[symbol])
         Rindex = self.atoms.positions[index]
         fingerprintprime = [None] * num_symmetries
-        neighbornumbers = [atomic_numbers[symbol] for symbol in neighborsymbols]
+        neighbornumbers = [atomic_numbers[_] for _ in neighborsymbols]
 
         for count in range(num_symmetries):
             G = self.globals.Gs[symbol][count]
@@ -935,7 +935,7 @@ def make_default_symmetry_functions(elements):
         The generated symmetry function parameters.
     """
     G = {}
-    for element0 in elements:
+    for element in elements:
         # Radial symmetry functions.
         etas = np.logspace(np.log10(0.05), np.log10(5.), num=4)
         _G = make_symmetry_functions(type='G2', etas=etas, elements=elements)
@@ -943,7 +943,7 @@ def make_default_symmetry_functions(elements):
         _G += make_symmetry_functions(type='G4', etas=[0.005],
                                       zetas=[1., 4.], gammas=[+1., -1.],
                                       elements=elements)
-        G[element0] = _G
+        G[element] = _G
     return G
 
 
