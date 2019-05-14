@@ -102,12 +102,12 @@ You should first parse all of the parameters of your *Amp* calculator to a text 
 
 .. code-block:: python
 
- from amp import Amp
- from amp.convert import save_to_openkim
- 
- calc = Amp(...)
- calc.train(...)
- save_to_openkim(calc)
+   from amp import Amp
+   from amp.convert import save_to_openkim
+   
+   calc = Amp(...)
+   calc.train(...)
+   save_to_openkim(calc)
 
 where the last line parses the parameters of the calc object into a text file called *amp.params*.
 
@@ -130,33 +130,33 @@ Now you are ready to use the *Amp* calculator with *amp.params* in you molecular
 
 .. code-block:: bash
 
- variable	x index 1
- variable	y index 1
- variable	z index 1
+   variable       x index 1
+   variable       y index 1
+   variable       z index 1
 
- variable	xx equal 10*$x
- variable	yy equal 10*$y
- variable	zz equal 10*$z
+   variable       xx equal 10*$x
+   variable       yy equal 10*$y
+   variable       zz equal 10*$z
+   
+   units          metal
+   atom_style     atomic
 
- units		metal
- atom_style	atomic
-
- lattice        fcc 3.5
- region		box block 0 ${xx} 0 ${yy} 0 ${zz}
- create_box	1 box
- create_atoms	1 box
- mass		1 1.0
-
- velocity	all create 1.44 87287 loop geom
-
- pair_style      kim amp_parameterized_model
- pair_coeff	* * Pd
-
- neighbor	0.3 bin
- neigh_modify	delay 0 every 20 check no
-
- fix		1 all nve
-
- run		10
+   lattice        fcc 3.5
+   region         box block 0 ${xx} 0 ${yy} 0 ${zz}
+   create_box     1 box
+   create_atoms   1 box
+   mass           1 1.0
+   
+   velocity       all create 1.44 87287 loop geom
+   
+   pair_style     kim amp_parameterized_model
+   pair_coeff     * * Pd
+   
+   neighbor       0.3 bin
+   neigh_modify   delay 0 every 20 check no
+   
+   fix            1 all nve
+   
+   run            10
 
 which, for example, is an input script for LAMMPS to do a molecular dynamics simulation of a Pd system for 10 units of time.
