@@ -304,11 +304,12 @@ class FingerprintCalculator:
         self.atoms = image
         nl = self.keyed.neighborlist[key]
         fingerprints = []
+        chemical_symbols = np.array(image.get_chemical_symbols())
         for atom in image:
             symbol = atom.symbol
             index = atom.index
             neighborindices, neighboroffsets = nl[index]
-            neighborsymbols = np.array(image.get_chemical_symbols())[neighborindices]
+            neighborsymbols = chemical_symbols[neighborindices]
             neighborpositions = image.positions[neighborindices] + np.dot(neighboroffsets, image.get_cell())
             indexfp = self.get_fingerprint(
                 index, symbol, neighborsymbols, neighborpositions)
@@ -416,11 +417,12 @@ class FingerprintPrimeCalculator:
         self.atoms = image
         nl = self.keyed.neighborlist[key]
         fingerprintprimes = {}
+        chemical_symbols = np.array(image.get_chemical_symbols())
         for atom in image:
             selfsymbol = atom.symbol
             selfindex = atom.index
             selfneighborindices, selfneighboroffsets = nl[selfindex]
-            selfneighborsymbols = np.array(image.get_chemical_symbols())[selfneighborindices]
+            selfneighborsymbols = chemical_symbols[selfneighborindices]
             selfneighborpositions = image.positions[selfneighborindices] + np.dot(selfneighboroffsets, image.get_cell())
 
             for direction in range(3):
@@ -445,7 +447,7 @@ class FingerprintPrimeCalculator:
                     # atoms of type II (within the main cell only)
                     if (noffset[0] == 0 and noffset[1] == 0 and noffset[2] == 0):
                         nneighborindices, nneighboroffsets = nl[nindex]
-                        nneighborsymbols = np.array(image.get_chemical_symbols())[nneighborindices]
+                        nneighborsymbols = chemical_symbols[nneighborindices]
                         neighborpositions = image.positions[nneighborindices] + np.dot(nneighboroffsets, image.get_cell())
 
                         # for calculating derivatives of fingerprints,
