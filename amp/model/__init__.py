@@ -239,9 +239,6 @@ class LossFunction:
     """Basic loss function, which can be used by the model.get_loss
     method which is required in standard model classes.
 
-    This version is pure python and thus will be slow compared to a
-    fortran/parallel implementation.
-
     If parallel is None, it will pull it from the model itself. Only use
     this keyword to override the model's specification.
 
