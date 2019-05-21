@@ -274,9 +274,10 @@ class LossFunction:
         calculated by perturbing each parameter plus/minus d.
     weight_duplicates : bool
         If multiple identical images are present in the training set, whether
-        to weight them as such in the loss function. E.g., if False, any duplicate
-        images will only count as a single image, if True, then a triplicate image
-        will weight the same as having that image three times. Default is False.
+        to weight them as such in the loss function. E.g., if False, any
+        duplicate images will only count as a single image, if True, then a
+        triplicate image will weight the same as having that image three
+        times. Default is False.
     """
 
     default_parameters = {'convergence': {'energy_rmse': 0.001,
@@ -350,7 +351,7 @@ class LossFunction:
         p = self.parameters
         convergence = p['convergence']
         if ((convergence['force_rmse'] is None) and
-            (convergence['force_maxresid'] is None)):
+                (convergence['force_maxresid'] is None)):
             p['force_coefficient'] = None
         if p['force_coefficient'] is None:
             convergence['force_rmse'] = None
@@ -716,7 +717,7 @@ class LossFunction:
                         if force_resid > force_maxresid:
                             force_maxresid = force_resid
                         image_forceloss += force_resid**2
-                image_forceloss /=  3. * no_of_atoms  # mean over image
+                image_forceloss /= 3. * no_of_atoms  # mean over image
                 forceloss += image_weight * image_forceloss
 
                 # Calculates derivative of the loss function with respect to
@@ -743,7 +744,8 @@ class LossFunction:
                                     (amp_forces[selfindex][i] -
                                      actual_forces[selfindex][i]) *
                                     dforces_dparameters[(selfindex, i)])
-                        image_dldp *= p.force_coefficient * 2. / 3. / no_of_atoms
+                        image_dldp *= (p.force_coefficient * 2. / 3. /
+                                       no_of_atoms)
                         dloss_dparameters += image_weight * image_dldp
 
         loss = p.energy_coefficient * energyloss
@@ -942,9 +944,10 @@ def ravel_data(train_forces,
         derivatives as values.
     weight_duplicates : bool
         If multiple identical images are present in the training set, whether
-        to weight them as such in the loss function. E.g., if False, any duplicate
-        images will only count as a single image, if True, then a triplicate image
-        will weight the same as having that image three times. Default is False.
+        to weight them as such in the loss function. E.g., if False, any
+        duplicate images will only count as a single image, if True, then a
+        triplicate image will weight the same as having that image three
+        times. Default is False.
     """
     from ase.data import atomic_numbers
 
