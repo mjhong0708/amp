@@ -11,7 +11,7 @@ import tempfile
 
 import ase.io
 
-from ..utilities import hash_images, Logger, now, MetaDict
+from ..utilities import hash_images, Logger, now
 from .. import Amp
 
 try:
@@ -28,23 +28,22 @@ from amp.model.neuralnetwork import NeuralNetwork
 calc = Amp(descriptor=Gaussian(),
            model=NeuralNetwork(),
            dblabel='../amp-db')
+calc.model.lossfunction.parameters['weight_duplicates'] = True
 """
 
-train_line = "calc.train(images=hashed_images)"
+train_line = "calc.train(images=trainfile)"
 
 script = """#!/usr/bin/env python
 ${headerlines}
 
 from amp.utilities import TrainingConvergenceError, hash_images
 from ase.parallel import paropen
-from amp.stats.bootstrap import hash_with_duplicates
 import os
 
 ${calc_text}
 
 ensemble_index = int(os.path.split(os.getcwd())[-1])
 trainfile = '../training-images/%i.traj' % ensemble_index
-hashed_images = hash_with_duplicates(trainfile)
 
 converged = True
 try:
@@ -412,25 +411,6 @@ def bootstrap(vector, size=None, return_missing=False):
     unchosen = set(range(len(vector))).difference(set(ids))
     unchosen = [vector[_] for _ in unchosen]
     return chosen, unchosen
-
-
-def hash_with_duplicates(images):
-    """Creates new hash id's for duplicate images; new dictionary contains
-    a redundant copy of each atoms object, so that the lossfunctions can be
-    used as-is. Note will typically waste ~30% of the computational cost;
-    it would be more efficient to update the calls inside the loss
-    functions."""
-    if not hasattr(images, 'keys'):
-        images = hash_images(images)
-    duplicates = images.metadata['duplicates']
-    dict_images = MetaDict(images)
-    dict_images.metadata['duplicates'] = {}
-    for oldhash, repititions in duplicates.items():
-        for repitition in range(repititions - 1):
-            newhash = '-'.join([oldhash, '%i' % (repitition + 1)])
-            assert newhash not in dict_images
-            dict_images[newhash] = images[oldhash]
-    return dict_images
 
 
 def archive_directory(source_dir):
