@@ -4,7 +4,7 @@ import threading
 import time
 from ase.calculators.calculator import Parameters
 from ..utilities import (Logger, ConvergenceOccurred, make_sublists, now,
-                         setup_parallel)
+                         setup_parallel, MetaDict)
 try:
     from .. import fmodules
 except ImportError:
@@ -272,6 +272,11 @@ class LossFunction:
         If d is None, both loss function and its gradient are calculated
         analytically. If d is a float, then gradient of the loss function is
         calculated by perturbing each parameter plus/minus d.
+    weight_duplicates : bool
+        If multiple identical images are present in the training set, whether
+        to weight them as such in the loss function. E.g., if False, any duplicate
+        images will only count as a single image, if True, then a triplicate image
+        will weight the same as having that image three times. Default is False.
     """
 
     default_parameters = {'convergence': {'energy_rmse': 0.001,
@@ -282,7 +287,8 @@ class LossFunction:
 
     def __init__(self, energy_coefficient=1.0, force_coefficient=0.04,
                  convergence=None, parallel=None, overfit=0.,
-                 raise_ConvergenceOccurred=True, log_losses=True, d=None):
+                 raise_ConvergenceOccurred=True, log_losses=True, d=None,
+                 weight_duplicates=False):
         p = self.parameters = Parameters(
             {'importname': '.model.LossFunction'})
         # 'dict' creates a copy; otherwise mutable in class.
@@ -293,6 +299,7 @@ class LossFunction:
         p['energy_coefficient'] = energy_coefficient
         p['force_coefficient'] = force_coefficient
         p['overfit'] = overfit
+        p['weight_duplicates'] = weight_duplicates
         self.raise_ConvergenceOccurred = raise_ConvergenceOccurred
         self.log_losses = log_losses
         self.d = d
@@ -380,6 +387,8 @@ class LossFunction:
                     if request == 'images':
                         subimages = {k: images[k] for k in
                                      workerkeys[int(message['id'])]}
+                        subimages = MetaDict(subimages)
+                        subimages.metadata = images.metadata
                         server.send_pyobj(subimages)
                     elif request == 'fortran':
                         server.send_pyobj(self._model.fortran)
@@ -439,6 +448,7 @@ class LossFunction:
             log('  energy_coefficient: ' + str(p.energy_coefficient))
             log('  force_coefficient: ' + str(p.force_coefficient))
             log('  overfit: ' + str(p.overfit))
+            log('  weight duplicates:' + str(p.weight_duplicates))
             log('\n')
             if p.force_coefficient is None:
                 header = '%5s %19s %12s %12s %12s'
@@ -501,7 +511,8 @@ class LossFunction:
                            mode,
                            images,
                            fingerprints,
-                           fingerprintprimes,)
+                           fingerprintprimes,
+                           p.weight_duplicates,)
 
         if mode == 'image-centered':
             if not train_forces:
@@ -511,11 +522,12 @@ class LossFunction:
         else:
             if not train_forces:
                 (actual_energies, elements, num_images_atoms,
-                 atomic_numbers, raveled_fingerprints) = value
+                 atomic_numbers, raveled_fingerprints, image_weights) = value
             else:
                 (actual_energies, actual_forces, elements, num_images_atoms,
                  atomic_numbers, raveled_fingerprints, num_neighbors,
-                 raveled_neighborlists, raveled_fingerprintprimes) = value
+                 raveled_neighborlists, raveled_fingerprintprimes,
+                 image_weights) = value
 
         send_data_to_fortran(fmodules,
                              energy_coefficient,
@@ -534,7 +546,8 @@ class LossFunction:
                              raveled_neighborlists,
                              raveled_fingerprintprimes,
                              self._model,
-                             self.d)
+                             self.d,
+                             image_weights)
         self._data_sent = True
 
     def _cleanup(self):
@@ -630,6 +643,9 @@ class LossFunction:
         """Method that calculates the loss, derivative of the loss with respect
         to parameters (if requested), and max_residual.
 
+        This is the reference (pure-python) version and should not be called in
+        typical runs; the fortran version should be much faster.
+
         Parameters
         ----------
         parametervector : list
@@ -650,7 +666,13 @@ class LossFunction:
         images = self._model.trainingparameters.images
         descriptor = self._model.trainingparameters.descriptor
         fingerprints = descriptor.fingerprints
+        image_weight = 1.  # for weighting duplicates
         for hash in images.keys():
+            if p.weight_duplicates:
+                if hash in images.metadata['duplicates']:
+                    image_weight = float(images.metadata['duplicates'][hash])
+                else:
+                    image_weight = 1.
             image = images[hash]
             no_of_atoms = len(image)
             amp_energy = model.calculate_energy(fingerprints[hash])
@@ -659,8 +681,7 @@ class LossFunction:
                 len(image)
             if residual_per_atom > energy_maxresid:
                 energy_maxresid = residual_per_atom
-            energyloss += residual_per_atom**2
-
+            energyloss += image_weight * residual_per_atom**2
             # Calculates derivative of the loss function with respect to
             # parameters if lossprime is true
             if lossprime:
@@ -679,7 +700,7 @@ class LossFunction:
                         (amp_energy - actual_energy) * \
                         denergy_dparameters / \
                         (no_of_atoms ** 2.)
-                    dloss_dparameters += temp
+                    dloss_dparameters += image_weight * temp
 
             if p.force_coefficient is not None:
                 fingerprintprimes = descriptor.fingerprintprimes
@@ -696,7 +717,7 @@ class LossFunction:
                             force_maxresid = force_resid
                         image_forceloss += force_resid**2
                 image_forceloss /=  3. * no_of_atoms  # mean over image
-                forceloss += image_forceloss
+                forceloss += image_weight * image_forceloss
 
                 # Calculates derivative of the loss function with respect to
                 # parameters if lossprime is true
@@ -723,7 +744,7 @@ class LossFunction:
                                      actual_forces[selfindex][i]) *
                                     dforces_dparameters[(selfindex, i)])
                         image_dldp *= p.force_coefficient * 2. / 3. / no_of_atoms
-                        dloss_dparameters += image_dldp
+                        dloss_dparameters += image_weight * image_dldp
 
         loss = p.energy_coefficient * energyloss
         if p.force_coefficient is not None:
@@ -899,7 +920,9 @@ def ravel_data(train_forces,
                mode,
                images,
                fingerprints,
-               fingerprintprimes,):
+               fingerprintprimes,
+               weight_duplicates
+               ):
     """
     Reshapes data of images into lists.
 
@@ -909,28 +932,33 @@ def ravel_data(train_forces,
         Determining whether forces are also trained or not.
     mode : str
         Can be either 'atom-centered' or 'image-centered'.
-    images : list or str
-        List of ASE atoms objects with positions, symbols, energies, and forces
-        in ASE format. This is the training set of data. This can also be the
-        path to an ASE trajectory (.traj) or database (.db) file. Energies can
-        be obtained from any reference, e.g. DFT calculations.
-
+    images : dict
+        Dictionary of hashed images, from amp.utilities.hash_images.
     fingerprints : dict
         Dictionary with images hashs as keys and the corresponding fingerprints
         as values.
     fingerprintprimes : dict
         Dictionary with images hashs as keys and the corresponding fingerprint
         derivatives as values.
+    weight_duplicates : bool
+        If multiple identical images are present in the training set, whether
+        to weight them as such in the loss function. E.g., if False, any duplicate
+        images will only count as a single image, if True, then a triplicate image
+        will weight the same as having that image three times. Default is False.
     """
     from ase.data import atomic_numbers
 
-    actual_energies = [image.get_potential_energy(apply_constraint=False)
-                       for image in images.values()]
+    keylist = list(images.keys())  # Make sure order stays constant.
+
+    actual_energies = [images[key].get_potential_energy(apply_constraint=False)
+                       for key in keylist]
+    image_weights = [images.metadata['duplicates'].get(key, 1)
+                     for key in keylist]
 
     if mode == 'atom-centered':
-        num_images_atoms = [len(image) for image in images.values()]
+        num_images_atoms = [len(images[key]) for key in keylist]
         atomic_numbers = [atomic_numbers[atom.symbol]
-                          for image in images.values() for atom in image]
+                          for key in keylist for atom in images[key]]
 
         def ravel_fingerprints(images,
                                fingerprints):
@@ -939,7 +967,8 @@ def ravel_data(train_forces,
             """
             raveled_fingerprints = []
             elements = []
-            for hash, image in images.items():
+            for hash in keylist:
+                image = images[hash]
                 for index in range(len(image)):
                     elements += [fingerprints[hash][index][0]]
                     raveled_fingerprints += [fingerprints[hash][index][1]]
@@ -953,14 +982,13 @@ def ravel_data(train_forces,
         elements, raveled_fingerprints = ravel_fingerprints(images,
                                                             fingerprints)
     else:
-        atomic_positions = [image.positions.ravel()
-                            for image in images.values()]
+        atomic_positions = [images[key].positions.ravel() for key in keylist]
 
     if train_forces is True:
 
         actual_forces = \
-            [image.get_forces(apply_constraint=False)[index]
-             for image in images.values() for index in range(len(image))]
+            [images[key].get_forces(apply_constraint=False)[index]
+             for key in keylist for index in range(len(images[key]))]
 
         if mode == 'atom-centered':
 
@@ -978,7 +1006,8 @@ def ravel_data(train_forces,
                 num_neighbors = []
                 raveled_neighborlists = []
                 raveled_fingerprintprimes = []
-                for hash, image in images.items():
+                for hash in keylist:
+                    image = images[hash]
                     for atom in image:
                         selfindex = atom.index
                         selfsymbol = atom.symbol
@@ -1023,11 +1052,12 @@ def ravel_data(train_forces,
     else:
         if not train_forces:
             return (actual_energies, elements, num_images_atoms,
-                    atomic_numbers, raveled_fingerprints)
+                    atomic_numbers, raveled_fingerprints, image_weights)
         else:
             return (actual_energies, actual_forces, elements, num_images_atoms,
                     atomic_numbers, raveled_fingerprints, num_neighbors,
-                    raveled_neighborlists, raveled_fingerprintprimes)
+                    raveled_neighborlists, raveled_fingerprintprimes,
+                    image_weights)
 
 
 def send_data_to_fortran(_fmodules,
@@ -1047,7 +1077,9 @@ def send_data_to_fortran(_fmodules,
                          raveled_neighborlists,
                          raveled_fingerprintprimes,
                          model,
-                         d):
+                         d,
+                         image_weights,
+                         ):
     """
     Function that sends images data to fortran code. Is used just once on each
     core.
@@ -1063,6 +1095,7 @@ def send_data_to_fortran(_fmodules,
     _fmodules.images_props.actual_energies = actual_energies
     if train_forces:
         _fmodules.images_props.actual_forces = actual_forces
+    _fmodules.images_props.image_weights = image_weights
 
     _fmodules.model_props.energy_coefficient = energy_coefficient
     _fmodules.model_props.force_coefficient = force_coefficient
@@ -1111,7 +1144,7 @@ def send_data_to_fortran(_fmodules,
         _fmodules.images_props.num_atoms = num_atoms
         _fmodules.images_props.atomic_positions = atomic_positions
 
-    # for neural neyworks only
+    # For neural networks only.
     if model.parameters['importname'] == '.model.neuralnetwork.NeuralNetwork':
 
         hiddenlayers = model.parameters.hiddenlayers

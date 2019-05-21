@@ -1,14 +1,14 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-!     Fortran Version = 11
+!     Fortran Version = 12
       subroutine check_version(version, warning)
       implicit none
 
       integer::  version, warning
 !f2py         intent(in)::  version
 !f2py         intent(out)::  warning
-      if (version .NE. 11) then
+      if (version .NE. 12) then
           warning = 1
       else
           warning = 0
@@ -61,6 +61,7 @@
       integer, allocatable:: num_neighbors(:)
       integer, allocatable:: raveled_neighborlists(:)
       double precision, allocatable:: actual_energies(:)
+      double precision, allocatable:: image_weights(:)
       double precision, allocatable:: actual_forces(:, :)
 !     image-centered variables
       integer:: num_atoms
@@ -135,6 +136,7 @@
       type(integer_one_d_array), allocatable:: &
       unraveled_atomic_numbers(:)
       double precision:: amp_energy, actual_energy, atom_energy
+      double precision:: image_weight
       double precision:: residual_per_atom, dforce, force_resid
       double precision:: overfitloss, image_forceloss
       integer:: i, index, j, p, k, q, l, m, &
@@ -201,6 +203,7 @@
             num_atoms = num_images_atoms(image_no)
         end if
         actual_energy = actual_energies(image_no)
+        image_weight = image_weights(image_no)
         ! calculates amp_energy
         call calculate_energy(image_no)
         ! calculates energy_maxresid
@@ -209,7 +212,7 @@
             energy_maxresid = residual_per_atom
         end if
         ! calculates energyloss
-        energyloss = energyloss + residual_per_atom ** 2.0d0
+        energyloss = energyloss + image_weight * residual_per_atom ** 2.0d0
         if (lossprime .EQV. .TRUE.) then
             ! calculates denergy_dparameters
             if (mode_signal == 1) then ! image-centered mode
@@ -229,6 +232,7 @@
             ! calculates contribution of energyloss to dloss_dparameters
             do j = 1, num_parameters
                 dloss_dparameters(j) = dloss_dparameters(j) + &
+                image_weight * &
                 energy_coefficient *  2.0d0 * &
                 (amp_energy - actual_energy) * &
                 denergy_dparameters(j) / (num_atoms ** 2.0d0)
@@ -258,7 +262,7 @@
                 end do
             end do
             image_forceloss = image_forceloss / 3.0d0 / num_atoms
-            forceloss = forceloss + image_forceloss
+            forceloss = forceloss + image_weight * image_forceloss
 
             if (lossprime .EQV. .TRUE.) then
                 allocate(dforces_dparameters(num_atoms))
@@ -295,7 +299,8 @@
                     end do
                 end do
                 do j = 1, num_parameters
-                    image_dldp(j) = image_dldp(j) * force_coefficient &
+                    image_dldp(j) = image_weight * &
+                            image_dldp(j) * force_coefficient &
                             * 2.0d0 / 3.0d0 / num_atoms
                     dloss_dparameters(j) = dloss_dparameters(j) + &
                     image_dldp(j)
@@ -895,6 +900,9 @@
       end if
       if (allocated(actual_energies) .EQV. .TRUE.) then
         deallocate(actual_energies)
+      end if
+      if (allocated(image_weights) .EQV. .TRUE.) then
+        deallocate(image_weights)
       end if
       if (allocated(actual_forces) .EQV. .TRUE.) then
         deallocate(actual_forces)

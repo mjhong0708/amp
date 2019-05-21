@@ -11,7 +11,7 @@ import tempfile
 
 import ase.io
 
-from ..utilities import hash_images, Logger, now
+from ..utilities import hash_images, Logger, now, MetaDict
 from .. import Amp
 
 try:
@@ -423,7 +423,8 @@ def hash_with_duplicates(images):
     if not hasattr(images, 'keys'):
         images = hash_images(images)
     duplicates = images.metadata['duplicates']
-    dict_images = dict(images)
+    dict_images = MetaDict(images)
+    dict_images.metadata['duplicates'] = {}
     for oldhash, repititions in duplicates.items():
         for repitition in range(repititions - 1):
             newhash = '-'.join([oldhash, '%i' % (repitition + 1)])
