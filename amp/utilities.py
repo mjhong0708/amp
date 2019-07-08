@@ -250,11 +250,11 @@ def start_workers(process_ids, workerhostname, workercommand, log,
     if 'win' in sys.platform:
         import pexpect.popen_spawn
         spawn =  pexpect.popen_spawn.PopenSpawn
-        log('detecting Windows platform, running local connections with pexpect.popen_spawn.PopenSpawn')
+        log(' detecting Windows platform, running local connections with pexpect.popen_spawn.PopenSpawn')
     else:
         import pexpect
         spawn = pexpect.spawn
-        log('detecting non-Windows platform, running local connections with pexpect.spawn')
+        log(' detecting non-Windows platform, running local connections with pexpect.spawn')
     log(' Starting local connections.')
     children = []
     for process_id in process_ids:
