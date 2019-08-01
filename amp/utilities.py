@@ -69,30 +69,66 @@ def assign_cores(cores, log=None):
                 success(q, cores, log)
                 return cores
 
-    if 'SLURM_NODELIST' in os.environ.keys():
+    def parse_slurm_allocation(env_vars=None):
+        log('parsing SLURM node and task allocation from environment variables')
+        env_vars = os.environ if env_vars is None else env_vars  # for debugging; pass in dict with custom env vars
+        nnodes = int(env_vars['SLURM_NNODES'])  # number of nodes assigned
+
+        taskspernode_str = env_vars['SLURM_TASKS_PER_NODE']  # tasks to run on each node
+        if '(x{})'.format(nnodes) in taskspernode_str:  # e.g.: "32(x8)" for 8 nodes @ 32 tasks each
+            log('"(x{})" is present in SLURM_TASKS_PER_NODE --> reformatting'.format(nnodes))
+            taskspernode_str = taskspernode_str.replace('(x{})'.format(nnodes), '')  # parse tasks per node
+        log('tasks per node: {}'.format(taskspernode_str))
+
+        try:
+            taskspernode = int(taskspernode_str)  # in case something in parsing went wrong
+        except ValueError as e:
+            raise
+
+        if nnodes == 1:
+            assigned_cores = {'localhost': taskspernode}
+        else:
+
+            alloc_str = env_vars['SLURM_NODELIST']  # this variable is formatted in different ways
+            log('assigned SLURM_NODELIST: {}'.format(alloc_str))  # log it for clarity
+            if '[' in alloc_str and ']' in alloc_str:  # multiple nodes assigned, e.g. nid00[627, 662]
+                log('parsing node IDs')
+                header, assignments = alloc_str.split('[')
+                assignments = assignments.replace(']', '')
+                log('assignments: {}'.format(assignments))
+                nodes = assignments.split(',')
+                node_ids = []
+                for node in nodes:
+                    if '-' in node:  # node ids in a range, e.g. nid00[446-450, 501, 529-532] for 10 nodes
+                        # above would yield: 00446, 00447, 00448, 00449, 00450, 00501, 00529, 00530, 00531, 00532
+                        lower, upper = node.split('-')
+                        ids = [_ for _ in range(int(lower), int(upper) + 1)]  # extend range by 1 to include upper
+                        # ids.append(upper)  # or can append upper to end of list
+                        log('{} --> {}'.format(node, ids))
+                        node_ids += ids
+                    else:
+                        node_ids.append(int(node))  # node id is singular, does not need to be parsed
+                assigned_nodes = ['{}{}'.format(header, nid) for nid in node_ids]  # recombine header with nids
+            else:
+                assigned_nodes = [env_vars['SLURM_NODELIST']]  # if '[' and ']' not in variable, var = nid
+            log('assigned nodes: {}'.format(assigned_nodes))
+            assigned_cores = {node: taskspernode for node in assigned_nodes}
+        return assigned_cores
+
+    if 'SLURM_NODELIST' in os.environ:
         q = 'SLURM'
         try:
-            nnodes = int(os.environ['SLURM_NNODES'])
-            taskspernode = int(os.environ['SLURM_TASKS_PER_NODE'])
-            if nnodes == 1:
-                cores = {'localhost': taskspernode}
-            else:
-                nodes = os.environ['SLURM_NODELIST']
-                if '[' in nodes:
-                    # Formatted funny like 'node[572,578]'.
-                    prename, numbers = nodes.split('[')
-                    numbers = numbers[:-1].split(',')
-                    nodes = [prename + _ for _ in numbers]
-                else:
-                    nodes = nodes.split(',')
-                cores = {node: taskspernode for node in nodes}
+            cores = parse_slurm_allocation()  # move try-block contents to standalone function
         except:
             # Get the traceback to log it.
             fail(q, traceback_text=traceback.format_exc())
+
     elif 'PBS_NODEFILE' in os.environ.keys():
-        fail(q='PBS')
+        q = 'PBS'
+        fail(q=q)
     elif 'LOADL_PROCESSOR_LIST' in os.environ.keys():
-        fail(q='LOADL')
+        q = 'LOADL'
+        fail(q=q)
     elif 'PE_HOSTFILE' in os.environ.keys():
         q = 'SGE'
         try:
@@ -110,7 +146,7 @@ def assign_cores(cores, log=None):
         import multiprocessing
         ncores = multiprocessing.cpu_count()
         cores = {'localhost': ncores}
-        log('No queuing system detected; single machine assumed.')
+        log('number of cores manually specified; single machine assumed.')
         q = '<single machine>'
     success(q, cores, log)
     return cores
@@ -249,7 +285,7 @@ def start_workers(process_ids, workerhostname, workercommand, log,
         return ssh
     if 'win' in sys.platform:
         import pexpect.popen_spawn
-        spawn =  pexpect.popen_spawn.PopenSpawn
+        spawn = pexpect.popen_spawn.PopenSpawn
         log(' detecting Windows platform, running local connections with pexpect.popen_spawn.PopenSpawn')
     else:
         import pexpect
