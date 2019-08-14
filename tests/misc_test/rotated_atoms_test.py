@@ -46,10 +46,9 @@ def test():
         descriptor1.calculate_fingerprints(images)
         fp1 = descriptor1.fingerprints[list(images.keys())[0]]
 
-
         # Randomly Rotated (and translated) atomic configuration
         rot = [random.random(), random.random(), random.random()]
-        for i in range(1, len(atoms)+1):
+        for i in range(1, len(atoms) + 1):
             (atoms[i].x,
              atoms[i].y,
              atoms[i].z) = rotate_atom(atoms[i].x,
@@ -74,6 +73,7 @@ def test():
             for _, __ in zip(afp1, afp2):
                 assert (abs(_ - __) < 10 ** (-10.)), \
                     'rotated atoms test broken!'
+
 
 if __name__ == '__main__':
     test()
