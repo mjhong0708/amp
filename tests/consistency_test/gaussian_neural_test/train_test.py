@@ -546,7 +546,7 @@ def test():
 
     count = 0
     for fortran in [False, True]:
-        for cores in range(1, 2):
+        for cores in range(1, 3):
             string = 'consistgauss/%s-%i'
             label = string % (fortran, cores)
             calc = Amp(descriptor=Gaussian(cutoff=cutoff,

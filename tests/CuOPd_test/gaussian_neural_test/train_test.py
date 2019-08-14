@@ -236,7 +236,7 @@ def non_periodic_0th_bfgs_step_test():
     # number of processes
 
     for fortran in [False, True]:
-        for cores in range(1, 6):
+        for cores in range(1, 7):
             label = 'train-nonperiodic/%s-%i' % (fortran, cores)
             print(label)
             calc = Amp(descriptor=Gaussian(cutoff=6.5,
@@ -488,7 +488,7 @@ def periodic_0th_bfgs_step_test():
     # number of processes
 
     for fortran in [False, True]:
-        for cores in range(1, 4):
+        for cores in range(1, 5):
             label = 'train-periodic/%s-%i' % (fortran, cores)
             print(label)
             calc = Amp(descriptor=Gaussian(cutoff=4.,
