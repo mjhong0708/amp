@@ -48,7 +48,7 @@ def test():
 
         # Randomly Rotated (and translated) atomic configuration
         rot = [random.random(), random.random(), random.random()]
-        for i in range(1, len(atoms) + 1):
+        for i in range(1, len(atoms)):
             (atoms[i].x,
              atoms[i].y,
              atoms[i].z) = rotate_atom(atoms[i].x,

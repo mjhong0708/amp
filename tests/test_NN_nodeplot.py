@@ -2,7 +2,7 @@ import matplotlib
 matplotlib.use('Agg')  # For headless operation.
 
 from ase.calculators.emt import EMT
-from ase.lattice.surface import fcc110
+from ase.build import fcc110
 from ase import Atoms, Atom
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase import units
@@ -55,8 +55,8 @@ def train_data(images, setup_only=False):
     if not setup_only:
         calc.train(images=train_images, )
         for image in train_images:
-            print ("energy =", calc.get_potential_energy(image))
-            print ("forces =", calc.get_forces(image))
+            print("energy =", calc.get_potential_energy(image))
+            print("forces =", calc.get_forces(image))
     else:
         images = hash_images(train_images)
         calc.descriptor.calculate_fingerprints(images=images,
