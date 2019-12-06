@@ -869,8 +869,7 @@ def make_symmetry_functions(elements, type, etas, zetas=None, gammas=None):
     Parameters
     ----------
     elements : list of str
-        List of element types. The first in the list is considered the
-        central element for this fingerprint. #FIXME: Does that matter?
+        List of element types to be observed in this fingerprint.
     type : str
         Either G2, G4, or G5.
     etas : list of floats
