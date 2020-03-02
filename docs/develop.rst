@@ -7,7 +7,7 @@ Development
 This page contains standard practices for developing Amp, focusing on repositories and documentation.
 
 ----------------------------------
-Repositories and branching
+Master repository
 ----------------------------------
 
 The main Amp repository lives on bitbucket, `andrewpeterson/amp <https://bitbucket.org/andrewpeterson/amp>`_ .
@@ -27,14 +27,60 @@ Contributing
 You are welcome to contribute new features, bug fixes, better documentation, etc. to Amp.
 If you would like to contribute, please create a private fork and a branch for your new commits.
 When it is ready, send us a merge request.
-We follow the same basic model as ASE; please see the ASE documentation for complete instructions.
+We follow the same basic model as ASE; please see the ASE documentation for complete instructions; a summary is also listed below.
 
 As good coding practice, make sure your code passes both the pyflakes and pep8 tests.
-(On linux, you should be able to run `pyflakes file.py` and `pep8 file.py`, and then correct it by `autopep8 --in-place file.py`.)
+(On linux, you should be able to run `pyflakes file.py` and `pep8 file.py`; then correct your code until the warnings disappear.)
 If adding a new feature: consider adding a (very brief) test to the tests folder to ensure your new code continues to work, and also be sure to write clear documentation.
 Finally, to make users aware of your new feature or change, add a bullet point to the release notes page of the documentation under the Development version heading.
 
 It is also a good idea to send us an email if you are planning something complicated.
+
+
+----------------------------------
+Branching and forking
+----------------------------------
+
+If you would like to contribute, here is our recommended way of using git to ultimately create a merge request that contains all of your changes to be included in *Amp*.
+
+**Initial setup.** First, create an account on bitbucket, and from the official Amp repository click the button to create a *fork* into your own account. From the website for your fork, find the button to clone it, and use this to create a copy on your own filesystem. This means you will run a command similar to this on your own machine:
+
+.. code-block:: bash
+
+    git clone git@bitbucket.org:myusername/amp.git
+
+On your local computer, the term "origin" refers to your own fork of Amp; we will also need to be able to access the original fork; we'll name this "upstream" and link it with a command like:
+
+.. code-block:: bash
+
+    git remote add upstream git@bitbucket.org:andrewpeterson/amp.git
+
+You can check that the above makes sense by running `git remote -v`.
+
+**Making changes.** Before making any changes, it's a good idea to make sure your local copy is up-to-date with the parent fork. You can do this with
+
+.. code-block:: bash
+
+    git checkout master  # Make sure we are on the right branch.
+    git pull upstream master
+
+To make changes, first create a local branch with a descriptive name, for example "fix-fingerprints". You can do this with
+
+.. code-block:: bash
+
+    git checkout -b fix-fingerprints
+
+Your local code is now in a new branch, which you can verify by typing `git status`. Now, go ahead and edit your code and make commit your changes with `git commit`. You can make as many commits to your local copy as you like as you develop. When you think your code is ready to be part of the official Amp repository, first make sure it is still up-to-date with the upstream repository, then push your branch to your own fork:
+
+.. code-block:: bash
+
+   git pull upstream master
+   git push origin fix-fingerprints
+
+Now you are ready to put in a merge request. You will likely see a local message telling you how to do this after you push, but if not, just go to your own bitbucket page, open the branch there, and look for a button for a merge request. Type a clear description and submit.
+
+If you'd like to discuss some aspects of your code before it is ready, you can do the above but prefix the merge request title with "WIP: " (work in progress). Then others can review your code before you submit it officially.
+
 
 ----------------------------------
 Documentation
