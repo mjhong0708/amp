@@ -61,12 +61,12 @@ Download it and then change to the amp compatible branch::
 
 Now we need to set the following environment variables in our .bashrc::
 
-   $ export LAMPHET=path_to_your_codes/LAMPHET
-   $ export PROPhet_DIR=$LAMPHET/PROPhet/src
-   $ export LAMMPS_DIR=$LAMPHET/lammps/src 
-   $ export PATH=$PATH:$LAMMPS_DIR
-   $ export PYTHONPATH=$LAMPHET/lammps/python:$PYTHONPATH
-   $ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$LAMPHET/lammps/src
+   export LAMPHET=path_to_your_codes/LAMPHET
+   export PROPhet_DIR=$LAMPHET/PROPhet/src
+   export LAMMPS_DIR=$LAMPHET/lammps/src 
+   export PATH=$PATH:$LAMMPS_DIR
+   export PYTHONPATH=$LAMPHET/lammps/python:$PYTHONPATH
+   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$LAMPHET/lammps/src
 
 The next step is to compile PROPhet. To do this correctly, you will need to first write the makefile and manually edit it::
 
