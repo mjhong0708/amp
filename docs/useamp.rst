@@ -5,7 +5,7 @@ Using Amp
 ==================================
 
 If you are familiar with ASE, the use of Amp should be intuitive.
-At its most basic, Amp behaves like any other ASE calculator, except that it has a key extra method, called `train`, which allows you to fit the calculator to a set of atomic images.
+At its most basic, Amp behaves like any other ASE calculator, except that it has a key extra method, called :py:meth:`~amp.Amp.train`, which allows you to fit the calculator to a set of atomic images.
 This means you can use Amp as a substitute for an expensive calculator in any atomistic routine, such as molecular dynamics, global optimization, transition-state searches, normal-mode analyses, phonon analyses, etc.
 
 ----------------------------------

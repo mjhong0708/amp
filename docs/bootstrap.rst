@@ -143,7 +143,7 @@ When you run this, you should see that the median prediction matches the true en
 
 Hands-free training
 -------------------
-In typical use, calling the :meth:`~amp.stats.bootstrap.BootStrap.train` method of the :class:`~amp.stats.bootstrap.BootStrap` class  will spawn many independent training jobs.
+In typical use, calling the :py:meth:`~amp.stats.bootstrap.BootStrap.train` method of the :py:class:`~amp.stats.bootstrap.BootStrap` class  will spawn many independent training jobs.
 Subsequent calls to `train` will help you manage those jobs: checking which have converged, checking which failed to converge (and re-submitting them), checking which timed out (and re-submitting them), and, if all converged, creating a bundled calculator.
 It can be most efficient to submit a (single-core) job that repeatedly calls this command for you and acts as a job manager until all the training jobs are complete.
 This can be achieved by taking advantage of the `results` dictionary returned by train, as in the below example script which uses SLURM environment commands. 

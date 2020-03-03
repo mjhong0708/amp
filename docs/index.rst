@@ -67,6 +67,7 @@ Amp is now installable via pip! This means you should be able to install with ju
    modules/utilities.rst
    modules/analysis.rst
    modules/stats.rst
+   modules/convert.rst
 
 
 **Indices and tables**

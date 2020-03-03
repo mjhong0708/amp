@@ -2,35 +2,58 @@
 
 
 ********************************
-Using *Amp* Potentials for Fast Force Calls
+Fast Force Calls
 ********************************
 
-Here, we describe two ways to do fast force calls in AMP using PROPhet/LAMMPS and KIM/LAMMPS interface respectively. 
-Fast force calls can be used to perform molecular dynamics simulations using trained AMP potentials. 
+Force calls (or potential-energy calls) are done inside Amp in a single thread, which means they should be fast compared to something like DFT, but inherently much slower than an optimized molecular dynamics code.
+If you would like to run big, fast simulations, it's advisable to link the output of Amp to such a code, then run your simulation in a molecluar dynamics code.
+
+Here, we describe two ways to do fast force calls in Amp using PROPhet/LAMMPS and KIM/LAMMPS interface, respectively. 
+As of this writing, the former approach is more stable.
 
 ==================================
-USING PROPhet/LAMMPS
+Using PROPhet/LAMMPS
 ==================================
 
-This is a guide for compiling the neural network code `PROPhet <https://github.com/biklooost/PROPhet/>`_ and linking it to the `LAMMPS <https://github.com/lammps/lammps>`_ package.
-This can be used for doing fast force and energy evaluations for neural network potentials trained with the `AMP <https://bitbucket.org/andrewpeterson/amp/src/master/amp>`_ code.
+`PROPhet <https://github.com/biklooost/PROPhet/>`__ was a nice atomistic machine-learning code developed by Brian Kolb and Levi Lentz in the group of Alexie Kolpak at MIT.
+
+.. code-block:: none
+
+   //     _____________________________________      _____   |
+   //     ___/ __ \__/ __ \_/ __ \__/ __ \__/ /________/ /   |
+   //     __/ /_/ /_/ /_/ // / / /_/ /_/ /_/ __ \/ _ \/ __/  |
+   //     _/ ____/_/ _, _// /_/ /_/ ____/_/ / / /  __/ /_    |
+   //     /_/     /_/ |_| \____/ /_/     /_/ /_/\___/\__/    |
+   //---------------------------------------------------------
+
+Included in PROPhet was a potential that could be installed into `LAMMPS <https://github.com/lammps/lammps>`__ (a very fast molecular dynamics code); this potential allowed for neural-network potentials in the Behler--Parinello scheme to run in LAMMPS.
+If you install this potential into your own copy of LAMMPS, you can then use the utility function :py:func:`amp.convert.save_to_prophet` to output your data in a format where you can use LAMMPS for your force calls.
 
 
-----------------------------------
-Installation of PROPhet/LAMMPS
-----------------------------------
+The work of making the connection from Amp to PROPhet's LAMMPS potential was done by Efrem Braun (Berkeley), Levi Lentz (MIT), and August Edwards Guldberg Mikkelsen (DTU).
+If you use this interface with Amp, please cite the PROPhet paper in addition to the Amp paper in any publications that result:
 
-Create a folder, where everything will be stored called e.g. LAMPHET and go into it::
+    Kolb, Lentz & Kolpak, "Discovering charge density functionals and structure-property relationships with PROPhet: A general framework for coupling machine learning and first-principles methods", *Scientific Reports* 7:1192, 2017. |prophet_paper|
+
+
+.. |prophet_paper| raw:: html
+
+   <a href="http://dx.doi.org/10.1038/s41598-017-01251-z" target="_blank">[doi:10.1038/s41598-017-01251-z] </a>
+
+
+The instructions below assume you are on a linux-like system and have Amp already installed.
+It also uses git to download codes and change branches.
+Create a folder, where everything will be stored called (e.g., LAMPHET) and go into it::
 
    $ mkdir LAMPHET
    $ cd LAMPHET
 
-Download latest stable LAMMPS version into the LAMPHET directory::
+Download the latest stable LAMMPS version into the LAMPHET directory::
 
    $ git clone https://github.com/lammps/lammps.git
 
-Download the following version of the `PROPhet <https://github.com/Augustegm/PROPhet>`_ code. 
-Then change to the amp compatible branch::
+For this purpose, we will not be using the PROPhet version from the official repository, but instead from this `fork <https://github.com/Augustegm/PROPhet>`__.
+Download it and then change to the amp compatible branch::
 
    $ git clone https://github.com/Augustegm/PROPhet.git
    $ cd PROPhet
@@ -52,7 +75,7 @@ The next step is to compile PROPhet. To do this correctly, you will need to firs
 
 Edit line 8 in the Makefile to include the -fPIC option::
 
-   $ CFLAGS =-O3 -DUSE_MPI -fPIC
+   CFLAGS =-O3 -DUSE_MPI -fPIC
 
 Now build PROPhet by typing::
 
@@ -65,13 +88,14 @@ The next step is to compile LAMMPS. To do this we first need to copy over a file
 
 We also need to change some lines in the Makefile.package.empty file. Edit lines 4-6 to::
 
-   $ PKG_INC = -I$(PROPhet_DIR)
-   $ PKG_PATH = -L$(PROPhet_DIR)
-   $ PKG_LIB = -lPROPhet_lammps
+   PKG_INC = -I$(PROPhet_DIR)
+   PKG_PATH = -L$(PROPhet_DIR)
+   PKG_LIB = -lPROPhet_lammps
 
 Now we can compile LAMMPS. It is recommended to compile it in the four different ways
 giving a serial and parallel version as well as shared library versions, which are needed if one
 wants to use it from Python (needed for using the LAMMPS interface in ASE)::
+
    $ make serial
    $ make mpi
    $ make serial mode=shlib
@@ -82,12 +106,15 @@ wants to use it from Python (needed for using the LAMMPS interface in ASE)::
 USING KIM/LAMMPS
 ==================================
 
-Machine-learning parameters trained in *Amp* can be used to perform fast molecular dynamics simulations, via the `Knowledge Base for Interatomic Models <https://openkim.org/>`_ (KIM).
-`LAMMPS <http://www.afs.enea.it/software/lammps/doc17/html/Section_packages.html#kim>`_ recognizes *kim* as a pair style that interfaces with the KIM repository of interatomic potentials.
+*Note*: The forces predicted with the KIM approach may not be compatible with Amp forces as described in these merge-request `comments <https://bitbucket.org/andrewpeterson/amp/pull-requests/41/update-to-used-kim-api-version-200-final/diff>`__.
+Use this approach with caution.
+
+Machine-learning parameters trained in *Amp* can be used to perform fast molecular dynamics simulations, via the `Knowledge Base for Interatomic Models <https://openkim.org/>`__ (KIM).
+`LAMMPS <http://www.afs.enea.it/software/lammps/doc17/html/Section_packages.html#kim>`__ recognizes *kim* as a pair style that interfaces with the KIM repository of interatomic potentials.
 
 To build LAMMPS with the KIM package you must first install the KIM API (library) on your system.
 Below are the minimal steps you need in order to install the KIM API.
-After KIM API is installed, you will need to install LAMMMPS from its `github repository <https://github.com/lammps/lammps>`_.
+After KIM API is installed, you will need to install LAMMMPS from its `github repository <https://github.com/lammps/lammps>`__.
 Finally we will need to install the model driver that is provided in the *Amp* repository.
 In the followings we discuss each of these steps.
 
@@ -95,7 +122,7 @@ In this installation instruction, we assume that the following requirements are 
 
 * git
 * make
-* cmake (If it is not installed on your system see `here <https://cmake.org/install/>`_.)
+* cmake (If it is not installed on your system see `here <https://cmake.org/install/>`__.)
 * GNU compilers (gcc, g++, gfortran) version 4.8.x or higher.
 
 
@@ -103,7 +130,7 @@ In this installation instruction, we assume that the following requirements are 
 Installation of KIM API
 ----------------------------------
 
-You can follow the instructions given at the OpenKIM `github repository <https://github.com/openkim/kim-api/blob/master/INSTALL>`_ to install KIM API.
+You can follow the instructions given at the OpenKIM `github repository <https://github.com/openkim/kim-api/blob/master/INSTALL>`__ to install KIM API.
 In short, you need to clone the repository by::
 
    $ git clone https://github.com/openkim/kim-api.git
@@ -123,14 +150,14 @@ Now you can list model and model drivers available in KIM API by::
    $ kim-api-collections-management list
 
 or install and remove models and model drivers, etc.
-For a detailed explanation of possible options see `here <https://openkim.org/kim-api/>`_.
+For a detailed explanation of possible options see `here <https://openkim.org/kim-api/>`__.
 
 
 ----------------------------------
 Building LAMMPS
 ----------------------------------
 
-Clone LAMMPS source files from the `github repository <https://github.com/lammps/lammps>`_::
+Clone LAMMPS source files from the `github repository <https://github.com/lammps/lammps>`__::
 
    $ git clone https://github.com/lammps/lammps.git
 
@@ -169,9 +196,9 @@ You can now remove the fortran modules that you copied earlier::
    $ rm amp_model_driver/neuralnetwork.F90
 
 
-----------------------------------
+----------------------------------------
 Installation of *amp_parametrized_model*
-----------------------------------
+----------------------------------------
 
 Now that you have *amp_model_driver* installed, you need to install the parameters also as the final step.
 **Note that this is the only step that you need to repeat when you change the parameters of the machine-learning model.**

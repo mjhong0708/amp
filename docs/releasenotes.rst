@@ -8,6 +8,8 @@ Development version
 
 (Significant changes since the last release are itemized here.)
 
+* Fast force calls are now supported, via third-party codes. See the fast force calls portion of the documentation.
+
 * A *documented* bootstrap module, complete with examples of use, is included for uncertainty predictions.
 
 * Improved interprocess communication which should reduce network traffic for parallel jobs.
