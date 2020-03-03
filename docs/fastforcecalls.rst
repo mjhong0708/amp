@@ -1,8 +1,85 @@
-.. _moleculardynamics:
+.. _fastforcecalls:
+
+
+********************************
+Using *Amp* Potentials for Fast Force Calls
+********************************
+
+Here, we describe two ways to do fast force calls in AMP using PROPhet/LAMMPS and KIM/LAMMPS interface respectively. 
+Fast force calls can be used to perform molecular dynamics simulations using trained AMP potentials. 
+
+==================================
+USING PROPhet/LAMMPS
+==================================
+
+This is a guide for compiling the neural network code `PROPhet <https://github.com/biklooost/PROPhet/>`_ and linking it to the `LAMMPS <https://github.com/lammps/lammps>`_ package.
+This can be used for doing fast force and energy evaluations for neural network potentials trained with the `AMP <https://bitbucket.org/andrewpeterson/amp/src/master/amp>`_ code.
+
+
+----------------------------------
+Installation of PROPhet/LAMMPS
+----------------------------------
+
+Create a folder, where everything will be stored called e.g. LAMPHET and go into it::
+
+   $ mkdir LAMPHET
+   $ cd LAMPHET
+
+Download latest stable LAMMPS version into the LAMPHET directory::
+
+   $ git clone https://github.com/lammps/lammps.git
+
+Download the following version of the `PROPhet <https://github.com/Augustegm/PROPhet>`_ code. 
+Then change to the amp compatible branch::
+
+   $ git clone https://github.com/Augustegm/PROPhet.git
+   $ cd PROPhet
+   $ git checkout amp_compatible
+
+Now we need to set the following environment variables in our .bashrc::
+
+   $ export LAMPHET=path_to_your_codes/LAMPHET
+   $ export PROPhet_DIR=$LAMPHET/PROPhet/src
+   $ export LAMMPS_DIR=$LAMPHET/lammps/src 
+   $ export PATH=$PATH:$LAMMPS_DIR
+   $ export PYTHONPATH=$LAMPHET/lammps/python:$PYTHONPATH
+   $ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$LAMPHET/lammps/src
+
+The next step is to compile PROPhet. To do this correctly, you will need to first write the makefile and manually edit it::
+
+   $ cd $PROPhet_DIR
+   $ ./configure --prefix=$LAMPHET/prophet-install --enable-lammps=$LAMMPS_DIR
+
+Edit line 8 in the Makefile to include the -fPIC option::
+
+   $ CFLAGS =-O3 -DUSE_MPI -fPIC
+
+Now build PROPhet by typing::
+
+   $ make
+
+The next step is to compile LAMMPS. To do this we first need to copy over a file from PROPhet::
+
+   $ cd $LAMMPS_DIR
+   $ cp $PROPhet_DIR/pair_nn.h .
+
+We also need to change some lines in the Makefile.package.empty file. Edit lines 4-6 to::
+
+   $ PKG_INC = -I$(PROPhet_DIR)
+   $ PKG_PATH = -L$(PROPhet_DIR)
+   $ PKG_LIB = -lPROPhet_lammps
+
+Now we can compile LAMMPS. It is recommended to compile it in the four different ways
+giving a serial and parallel version as well as shared library versions, which are needed if one
+wants to use it from Python (needed for using the LAMMPS interface in ASE)::
+   $ make serial
+   $ make mpi
+   $ make serial mode=shlib
+   $ make mpi mode=shlib
 
 
 ==================================
-Using *Amp* Potentials for Molecular Dynamics
+USING KIM/LAMMPS
 ==================================
 
 Machine-learning parameters trained in *Amp* can be used to perform fast molecular dynamics simulations, via the `Knowledge Base for Interatomic Models <https://openkim.org/>`_ (KIM).
@@ -160,3 +237,4 @@ Now you are ready to use the *Amp* calculator with *amp.params* in you molecular
    run            10
 
 which, for example, is an input script for LAMMPS to do a molecular dynamics simulation of a Pd system for 10 units of time.
+
