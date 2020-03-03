@@ -2,6 +2,7 @@ import os
 import shutil
 import tempfile
 import warnings
+from ase.calculators.lammps.unitconvert import convert
 
 
 def save_to_prophet(calc, filename='potential_', overwrite=False,
@@ -19,23 +20,6 @@ def save_to_prophet(calc, filename='potential_', overwrite=False,
     units : str
         LAMMPS units style to be used with the outfile file.
     """
-
-    from ase.calculators.lammpslib import unit_convert
-
-    warnings.warn(
-        'Conversion from Amp to PROPhet leads to energies and forces being '
-        'calculated correctly to within machine precision. Some choices of '
-        'symmetry function parameters have been found to result in the two '
-        'codes giving unequal energies and forces. It is important to verify '
-        'that the two codes give equal energies and forces for your system '
-        'prior to using PROPhet for MD.'
-        '\n******************************************************************'
-        '\nTo mitigate the problem:'
-        '\n- It is recommended to use large `eta` for G2.'
-        '\n  and large `eta` and `zeta` for G4.'
-        '\n- Use PROPhet to retrain the NN for few iterations.'
-        '\n- Test your results carefully'
-        '\n******************************************************************')
 
     if os.path.exists(filename):
         if overwrite is False:
@@ -69,8 +53,8 @@ def save_to_prophet(calc, filename='potential_', overwrite=False,
     n_els = len(els)
     length_G2 = int(n_els)
     length_G4 = int(n_els*(n_els+1)/2)
-    cutoff = (desc_pars['cutoff']['kwargs']['Rc'] /
-              unit_convert('distance', units))
+    cutoff = convert(desc_pars['cutoff']['kwargs']['Rc'], 'distance', 'ASE', units) 
+
     # Get correct order of elements listed in the Amp object
     el = desc_pars['elements'][0]
     n_G2 = sum(1 for k in desc_pars['Gs'][el] if k['type'] == 'G2')
@@ -106,6 +90,7 @@ def save_to_prophet(calc, filename='potential_', overwrite=False,
         # Write G2s.
         for Gs in range(0, n_G2, length_G2):
             eta = desc_pars['Gs'][el][Gs]['eta']
+            Rs = desc_pars['Gs'][el][Gs]['Rs']
             for i in range(length_G2):
                 eta_2 = desc_pars['Gs'][el][Gs+i]['eta']
                 if eta != eta_2:
@@ -113,7 +98,7 @@ def save_to_prophet(calc, filename='potential_', overwrite=False,
                         'PROPhet requires each G2 function to have the '
                         'same eta value for all element pairs.')
             f.write('G2 ' + str(cutoff) + ' 0 ' + str(eta/cutoff**2) +
-                    ' 0\n')
+                    ' {}\n'.format(Rs)) #August 10/2-2020: Added non-centered Gaussian options. Therefore G2 dictionary should contain the key 'Rs' specifying the offset of each radial Gaussian.
         # Write G4s (G3s in PROPhet).
         for Gs in range(n_G2, n_G2+n_G4, length_G4):
             eta = desc_pars['Gs'][el][Gs]['eta']
@@ -138,6 +123,7 @@ def save_to_prophet(calc, filename='potential_', overwrite=False,
                 #    print(desc_pars['Gs'][el][Gs+i])
                 mean = (model_pars['fprange'][el][Gs+i][1] +
                         model_pars['fprange'][el][Gs+i][0]) / 2.
+                #mean = model_pars['fprange'][el][Gs+i][1]
                 f.write(str(mean) + ' ')
         # Write input means for G4.
         for i in range(n_els):
@@ -149,7 +135,7 @@ def save_to_prophet(calc, filename='potential_', overwrite=False,
                     mean = (model_pars['fprange'][el][Gs + j + n_els * i +
                                                       int((i - i**2) / 2)][1] +
                             model_pars['fprange'][el][Gs + j + n_els * i +
-                                                      int((i - i**2) / 2)][0])
+                                                      int((i - i**2) / 2)][0])/2 #August added divide by 2
                     # NB the G4 mean is doubled to correct for PROPhet
                     # counting each neighbor pair twice as much as Amp
                     f.write(str(mean) + ' ')
@@ -159,6 +145,7 @@ def save_to_prophet(calc, filename='potential_', overwrite=False,
             for Gs in range(0, n_G2, length_G2):
                 variance = (model_pars['fprange'][el][Gs+i][1] -
                             model_pars['fprange'][el][Gs+i][0]) / 2.
+                #variance = model_pars['fprange'][el][Gs+i][0]
                 f.write(str(variance) + ' ')
         # Write input variances for G4.
         for i in range(n_els):
@@ -169,7 +156,7 @@ def save_to_prophet(calc, filename='potential_', overwrite=False,
                                                               2)][1] -
                                 model_pars['fprange'][el][Gs + j + n_els * i +
                                                           int((i - i**2) /
-                                                              2)][0])
+                                                              2)][0])/2 #August added divide by 2
                     # NB the G4 variance is doubled to correct for PROPhet
                     # counting each neighbor pair twice as much as Amp
                     f.write(str(variance) + ' ')
@@ -241,12 +228,10 @@ def save_to_prophet(calc, filename='potential_', overwrite=False,
         f.write('[[ layer ' + str(layer+2) + ' ]]\n')
         f.write('  [ node ' + str(curr_node) + ' ]  linear\n')
         f.write('   ')
-        f.write(str(model_pars['scalings'][el]['slope'] /
-                    unit_convert('energy', units)))
+        f.write(str(convert(model_pars['scalings'][el]['slope'], 'energy', 'ASE', units)))
         f.write('\n')
         f.write('   ')
-        f.write(str(model_pars['scalings'][el]['intercept'] /
-                    unit_convert('energy', units)))
+        f.write(str(convert(model_pars['scalings'][el]['intercept'], 'energy', 'ASE', units)))
         f.write('\n')
         f.close()
 
@@ -266,8 +251,6 @@ def save_to_openkim(calc, filename='amp.params', overwrite=False,
     units : str
         LAMMPS units style to be used with the outfile file.
     """
-
-    from ase.calculators.lammpslib import unit_convert
 
     if os.path.exists(filename):
         if overwrite is False:
@@ -331,9 +314,10 @@ def save_to_openkim(calc, filename='amp.params', overwrite=False,
                     '  # range of fingerprint %i of %s' % (count, element))
             f.write('\n')
             count += 1
+
     # writing the cutoff
-    cutoff = (desc_pars['cutoff']['kwargs']['Rc'] /
-              unit_convert('distance', units))
+    cutoff = convert(desc_pars['cutoff']['kwargs']['Rc'], 'distance', 'ASE', units) 
+
     f.write(str(cutoff) + '  # cutoff radius')
     f.write('\n')
     f.write(model_pars['activation'] + '  # activation function')
