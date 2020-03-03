@@ -90,7 +90,6 @@ def save_to_prophet(calc, filename='potential_', overwrite=False,
         # Write G2s.
         for Gs in range(0, n_G2, length_G2):
             eta = desc_pars['Gs'][el][Gs]['eta']
-            Rs = desc_pars['Gs'][el][Gs]['Rs']
             for i in range(length_G2):
                 eta_2 = desc_pars['Gs'][el][Gs+i]['eta']
                 if eta != eta_2:
@@ -98,7 +97,7 @@ def save_to_prophet(calc, filename='potential_', overwrite=False,
                         'PROPhet requires each G2 function to have the '
                         'same eta value for all element pairs.')
             f.write('G2 ' + str(cutoff) + ' 0 ' + str(eta/cutoff**2) +
-                    ' {}\n'.format(Rs)) #August 10/2-2020: Added non-centered Gaussian options. Therefore G2 dictionary should contain the key 'Rs' specifying the offset of each radial Gaussian.
+                    ' {}\n'.format(0.0)) #August 10/2-2020: Center of radial Gaussian. This should be changed if one wants to allow for non-centered Gaussians.
         # Write G4s (G3s in PROPhet).
         for Gs in range(n_G2, n_G2+n_G4, length_G4):
             eta = desc_pars['Gs'][el][Gs]['eta']
