@@ -68,14 +68,16 @@ Now we need to set the following environment variables in our .bashrc::
    export PYTHONPATH=$LAMPHET/lammps/python:$PYTHONPATH
    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$LAMPHET/lammps/src
 
-The next step is to compile PROPhet. To do this correctly, you will need to first write the makefile and manually edit it::
+The next step is to compile PROPhet. To do this correctly, you will need to first write the `Makefile` and then we will manually edit it::
 
    $ cd $PROPhet_DIR
    $ ./configure --prefix=$LAMPHET/prophet-install --enable-lammps=$LAMMPS_DIR
 
-Edit line 8 in the Makefile to include the -fPIC option::
+Append `-fPIC` to line 8 in the `Makefile`.
+It should look like one of the two lines below::
 
    CFLAGS =-O3 -DUSE_MPI -fPIC
+   CFLAGS =-O3 -fPIC
 
 Now build PROPhet by typing::
 
@@ -86,7 +88,7 @@ The next step is to compile LAMMPS. To do this we first need to copy over a file
    $ cd $LAMMPS_DIR
    $ cp $PROPhet_DIR/pair_nn.h .
 
-We also need to change some lines in the Makefile.package.empty file. Edit lines 4-6 to::
+We also need to change some lines in the `Makefile.package.empty` file. Edit lines 4-6 to::
 
    PKG_INC = -I$(PROPhet_DIR)
    PKG_PATH = -L$(PROPhet_DIR)
@@ -103,7 +105,7 @@ wants to use it from Python (needed for using the LAMMPS interface in ASE)::
 
 
 ==================================
-USING KIM/LAMMPS
+Using OpenKIM
 ==================================
 
 *Note*: The forces predicted with the KIM approach may not be compatible with Amp forces as described in these merge-request `comments <https://bitbucket.org/andrewpeterson/amp/pull-requests/41/update-to-used-kim-api-version-200-final/diff>`__.
