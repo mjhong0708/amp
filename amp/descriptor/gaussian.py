@@ -310,7 +310,8 @@ class FingerprintCalculator:
             index = atom.index
             neighborindices, neighboroffsets = nl[index]
             neighborsymbols = chemical_symbols[neighborindices]
-            neighborpositions = image.positions[neighborindices] + np.dot(neighboroffsets, image.get_cell())
+            neighborpositions = (image.positions[neighborindices] +
+                                 np.dot(neighboroffsets, image.get_cell()))
             indexfp = self.get_fingerprint(
                 index, symbol, neighborsymbols, neighborpositions)
             fingerprints.append(indexfp)
@@ -351,19 +352,19 @@ class FingerprintCalculator:
             G = self.globals.Gs[symbol][count]
 
             if G['type'] == 'G2':
-                ridge = calculate_G2(neighbornumbers, neighborsymbols, neighborpositions,
-                                     G['element'], G['eta'],
+                ridge = calculate_G2(neighbornumbers, neighborsymbols,
+                                     neighborpositions, G['element'], G['eta'],
                                      self.globals.cutoff, Ri, self.fortran)
             elif G['type'] == 'G4':
-                ridge = calculate_G4(neighbornumbers, neighborsymbols, neighborpositions,
-                                     G['elements'], G['gamma'],
-                                     G['zeta'], G['eta'], self.globals.cutoff,
-                                     Ri, self.fortran)
+                ridge = calculate_G4(neighbornumbers, neighborsymbols,
+                                     neighborpositions, G['elements'],
+                                     G['gamma'], G['zeta'], G['eta'],
+                                     self.globals.cutoff, Ri, self.fortran)
             elif G['type'] == 'G5':
-                ridge = calculate_G5(neighbornumbers, neighborsymbols, neighborpositions,
-                                     G['elements'], G['gamma'],
-                                     G['zeta'], G['eta'], self.globals.cutoff,
-                                     Ri, self.fortran)
+                ridge = calculate_G5(neighbornumbers, neighborsymbols,
+                                     neighborpositions, G['elements'],
+                                     G['gamma'], G['zeta'], G['eta'],
+                                     self.globals.cutoff, Ri, self.fortran)
             else:
                 raise NotImplementedError('Unknown G type: %s' % G['type'])
             fingerprint[count] = ridge
@@ -423,7 +424,9 @@ class FingerprintPrimeCalculator:
             selfindex = atom.index
             selfneighborindices, selfneighboroffsets = nl[selfindex]
             selfneighborsymbols = chemical_symbols[selfneighborindices]
-            selfneighborpositions = image.positions[selfneighborindices] + np.dot(selfneighboroffsets, image.get_cell())
+            selfneighborpositions = (image.positions[selfneighborindices] +
+                                     np.dot(selfneighboroffsets,
+                                            image.get_cell()))
 
             for direction in range(3):
                 # Calculating derivative of fingerprints of self atom w.r.t.
@@ -434,9 +437,8 @@ class FingerprintPrimeCalculator:
                     selfneighborsymbols,
                     selfneighborpositions, selfindex, direction)
 
-                fingerprintprimes[
-                    (selfindex, selfsymbol, selfindex, selfsymbol, direction)] = \
-                    fpprime
+                fingerprintprimes[(selfindex, selfsymbol, selfindex,
+                                   selfsymbol, direction)] = fpprime
                 # Calculating derivative of fingerprints of neighbor atom
                 # w.r.t. coordinates of self atom.
                 for nindex, nsymbol, noffset in \
@@ -448,7 +450,9 @@ class FingerprintPrimeCalculator:
                     if (noffset[0] == 0 and noffset[1] == 0 and noffset[2] == 0):
                         nneighborindices, nneighboroffsets = nl[nindex]
                         nneighborsymbols = chemical_symbols[nneighborindices]
-                        neighborpositions = image.positions[nneighborindices] + np.dot(nneighboroffsets, image.get_cell())
+                        neighborpositions = (image.positions[nneighborindices] +
+                                             np.dot(nneighboroffsets,
+                                                    image.get_cell()))
 
                         # for calculating derivatives of fingerprints,
                         # summation runs over neighboring atoms of type
@@ -459,9 +463,8 @@ class FingerprintPrimeCalculator:
                             nneighborsymbols,
                             neighborpositions, selfindex, direction)
 
-                        fingerprintprimes[
-                            (selfindex, selfsymbol, nindex, nsymbol, direction)] = \
-                            fpprime
+                        fingerprintprimes[(selfindex, selfsymbol, nindex,
+                                           nsymbol, direction)] = fpprime
 
         return fingerprintprimes
 
@@ -563,7 +566,8 @@ class FingerprintPrimeCalculator:
 # Auxiliary functions #########################################################
 
 
-def calculate_G2(neighbornumbers, neighborsymbols, neighborpositions, G_element, eta, cutoff, Ri, fortran):
+def calculate_G2(neighbornumbers, neighborsymbols, neighborpositions,
+                 G_element, eta, cutoff, Ri, fortran):
     """Calculate G2 symmetry function.
 
     Ideally this will not be used but will be a template for how to build the
@@ -1102,8 +1106,8 @@ def dCos_theta_ijk_dR_ml(i, j, k, Ri, Rj, Rk, m, l):
     return dCos_theta_ijk_dR_ml
 
 
-def calculate_G2_prime(neighborindices, neighbornumbers, neighborsymbols, neighborpositions,
-                       G_element, eta, cutoff,
+def calculate_G2_prime(neighborindices, neighbornumbers, neighborsymbols,
+                       neighborpositions, G_element, eta, cutoff,
                        i, Ri, m, l, fortran):
     """Calculates coordinate derivative of G2 symmetry function for atom at
     index i and position Ri with respect to coordinate x_{l} of atom index
@@ -1203,8 +1207,8 @@ def calculate_G2_prime(neighborindices, neighbornumbers, neighborsymbols, neighb
     return ridge
 
 
-def calculate_G4_prime(neighborindices, neighbornumbers, neighborsymbols, neighborpositions,
-                       G_elements, gamma, zeta, eta,
+def calculate_G4_prime(neighborindices, neighbornumbers, neighborsymbols,
+                       neighborpositions, G_elements, gamma, zeta, eta,
                        cutoff, i, Ri, m, l, fortran):
     """Calculates coordinate derivative of G4 symmetry function for atom at
     index i and position Ri with respect to coordinate x_{l} of atom index m.
@@ -1361,8 +1365,8 @@ def calculate_G4_prime(neighborindices, neighbornumbers, neighborsymbols, neighb
     return ridge
 
 
-def calculate_G5_prime(neighborindices, neighbornumbers, neighborsymbols, neighborpositions,
-                       G_elements, gamma, zeta, eta,
+def calculate_G5_prime(neighborindices, neighbornumbers, neighborsymbols,
+                       neighborpositions, G_elements, gamma, zeta, eta,
                        cutoff, i, Ri, m, l, fortran):
     """Calculates coordinate derivative of G5 symmetry function for atom at
     index i and position Ri with respect to coordinate x_{l} of atom index m.
