@@ -59,7 +59,7 @@ A Gaussian descriptor :math:`\textbf{G}` as a function of pair-atom distances an
 Radial fingerprints of the Gaussian type capture the interaction of atom :math:`i` with all atoms :math:`j` as the sum of Gaussians with width :math:`\eta` and center :math:`R_s`,
 
 .. math::
-  G_{i}^{I}=\sum^{\tiny{\begin{array}{c} \text{atoms j within }R_c\\
+  G_{i}^\mathrm{I}=\sum^{\tiny{\begin{array}{c} \text{atoms j within }R_c\\
   \text{ distance of atom i}
   \end{array}}}_{j\ne i}{e^{-\eta(R_{ij}-R_s)^2/R_c^2}f_c\left(R_{ij}\right)}.
 
@@ -69,7 +69,7 @@ The next type is the angular fingerprint accounting for three-atom interactions.
 The Gaussian angular fingerprints are computed for all triplets of atoms :math:`i`, :math:`j`, and :math:`k` by summing over the cosine values of the angles :math:`\theta_{ijk}=\cos^{-1}\left(\displaystyle\frac{\textbf{R}_{ij}.\textbf{R}_{ik}}{R_{ij}R_{ik}}\right)`, (:math:`\textbf{R}_{ij}=\textbf{R}_{i}-\textbf{R}_{j}`), centered at atom :math:`i`, according to
 
 .. math::
-  G_{i}^{II}=2^{1-\zeta}\sum^{\tiny{\begin{array}{c} \text{atoms j, k within }R_c\\
+  G_{i}^\mathrm{II}=2^{1-\zeta}\sum^{\tiny{\begin{array}{c} \text{atoms j, k within }R_c\\
   \text{ distance of atom i}
   \end{array}}}_{\scriptsize\begin{array}{c}
   j,\,k\ne i \\
@@ -81,7 +81,7 @@ with parameters :math:`\lambda`, :math:`\eta`, and :math:`\zeta`, which again ca
 There is an alternative angular symmetry function that ignores the separation between atoms :math:`j` and :math:`k`; this can be better behaved than the previous function.
 
 .. math::
-  G_{i}^{III}=2^{1-\zeta}\sum^{\tiny{\begin{array}{c} \text{atoms j, k within }R_c\\
+  G_{i}^\mathrm{III}=2^{1-\zeta}\sum^{\tiny{\begin{array}{c} \text{atoms j, k within }R_c\\
   \text{ distance of atom i}
   \end{array}}}_{\scriptsize\begin{array}{c}
   j,\,k\ne i \\
@@ -109,7 +109,7 @@ Another more general choice for the cutoff function is the following polynomial 
 
 with a user-specified parameter :math:`\gamma` that determines the rate of decay of the cutoff function as it extends from :math:`r=0` to :math:`r=R_c`.
 
-The figure below shows how components of the fingerprints :math:`\textbf{G}_{i}^{I}` and :math:`\textbf{G}_{i}^{II}` change with, respectively, distance :math:`R_{ij}` between the pair of atoms :math:`i` and :math:`j` and the valence angle :math:`\theta_{ijk}` between the triplet of atoms :math:`i`, :math:`j`, and :math:`k` with central atom :math:`i`:
+The figure below shows how components of the fingerprints :math:`\textbf{G}^\mathrm{I}` and :math:`\textbf{G}^\mathrm{II}` change with, respectively, distance :math:`R_{ij}` between the pair of atoms :math:`i` and :math:`j` and the valence angle :math:`\theta_{ijk}` between the triplet of atoms :math:`i`, :math:`j`, and :math:`k` with central atom :math:`i`:
 
 .. image:: _static/gaussian.svg
    :width: 800 px
