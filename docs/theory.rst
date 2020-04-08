@@ -78,10 +78,7 @@ The Gaussian angular fingerprints are computed for all triplets of atoms :math:`
 
 with parameters :math:`\lambda`, :math:`\eta`, and :math:`\zeta`, which again can be chosen to build more elements of a feature vector.
 
-There is an alternative angular symmetry function that takes into account the
-triplet configurations inside the cutoff sphere where the distance
-:math:`i,j,k` is larger than the cutoff radius making them more appropriate for
-larger larger atomic separations.
+There is an alternative angular symmetry function that ignores the separation between atoms :math:`j` and :math:`k`; this can be better behaved than the previous function.
 
 .. math::
   G_{i}^{III}=2^{1-\zeta}\sum^{\tiny{\begin{array}{c} \text{atoms j, k within }R_c\\
