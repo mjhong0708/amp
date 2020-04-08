@@ -111,6 +111,9 @@
                     Rjk = sqrt(dot_product(Rjk_vector, Rjk_vector))
                     costheta = &
                     dot_product(Rij_vector, Rik_vector) / Rij / Rik
+                    if (costheta < -1.0d0) then
+                        costheta = -1.0d0
+                    end if
                     term = (1.0d0 + g_gamma * costheta)**g_zeta
                     term = term*&
                     exp(-g_eta*(Rij**2 + Rik**2 + Rjk**2)&
@@ -211,6 +214,9 @@
                     Rik = sqrt(dot_product(Rik_vector, Rik_vector))
                     costheta = &
                     dot_product(Rij_vector, Rik_vector) / Rij / Rik
+                    if (costheta < -1.0d0) then
+                        costheta = -1.0d0
+                    end if
                     term = (1.0d0 + g_gamma * costheta)**g_zeta
                     term = term*&
                     exp(-g_eta*(Rij**2 + Rik**2)&
@@ -413,6 +419,9 @@
                     Rjk = sqrt(dot_product(Rjk_vector, Rjk_vector))
                     costheta = &
                     dot_product(Rij_vector, Rik_vector) / Rij / Rik
+                    if (costheta < -1.0d0) then
+                        costheta = -1.0d0
+                    end if
                     c1 = (1.0d0 + g_gamma * costheta)
                     if (present(p_gamma)) then
                         fcRij = cutoff_fxn(Rij, rc, cutofffn_code, p_gamma)
@@ -668,6 +677,9 @@
                     Rik = sqrt(dot_product(Rik_vector, Rik_vector))
                     costheta = &
                     dot_product(Rij_vector, Rik_vector) / Rij / Rik
+                    if (costheta < -1.0d0) then
+                        costheta = -1.0d0
+                    end if
                     c1 = (1.0d0 + g_gamma * costheta)
                     if (present(p_gamma)) then
                         fcRij = cutoff_fxn(Rij, rc, cutofffn_code, p_gamma)
