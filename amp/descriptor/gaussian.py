@@ -645,8 +645,7 @@ def calculate_G2(neighbornumbers, neighborsymbols, neighborpositions, G_element,
 
 
 def calculate_G4(neighbornumbers, neighborsymbols, neighborpositions,
-                 G_elements, gamma, zeta, eta, cutoff,
-                 Ri, fortran):
+                 G_elements, gamma, zeta, eta, cutoff, Ri, fortran):
     """Calculate G4 symmetry function.
 
     Ideally this will not be used but will be a template for how to build the
@@ -685,37 +684,35 @@ def calculate_G4(neighbornumbers, neighborsymbols, neighborpositions,
     ridge : float
         G4 fingerprint.
     """
+    if len(neighborpositions) == 0:
+        return 0.
     if fortran:  # fortran version; faster
         G_numbers = sorted([atomic_numbers[el] for el in G_elements])
 
-        if len(neighborpositions) == 0:
-            return 0.
+        Rc = cutoff['kwargs']['Rc']
+        if cutoff['name'] == 'Cosine':
+            cutofffn_code = 1
+        elif cutoff['name'] == 'Polynomial':
+            cutofffn_code = 2
         else:
-            Rc = cutoff['kwargs']['Rc']
-            if cutoff['name'] == 'Cosine':
-                cutofffn_code = 1
-            elif cutoff['name'] == 'Polynomial':
-                cutofffn_code = 2
-            else:
-                print("Unknown cutoff function specified! \
-                Only supports 'Cosine' and 'Polynomial'.")
+            print("Unknown cutoff function specified! \
+            Only supports 'Cosine' and 'Polynomial'.")
 
-            args_calculate_g4 = dict(
-                    neighbornumbers=neighbornumbers,
-                    neighborpositions=neighborpositions,
-                    g_numbers=G_numbers,
-                    g_gamma=gamma,
-                    g_zeta=zeta,
-                    g_eta=eta,
-                    rc=Rc,
-                    cutofffn_code=cutofffn_code,
-                    ri=Ri
-                    )
-            if cutofffn_code == 2:
-                args_calculate_g4['p_gamma'] = cutoff['kwargs']['gamma']
+        args_calculate_g4 = dict(
+                neighbornumbers=neighbornumbers,
+                neighborpositions=neighborpositions,
+                g_numbers=G_numbers,
+                g_gamma=gamma,
+                g_zeta=zeta,
+                g_eta=eta,
+                rc=Rc,
+                cutofffn_code=cutofffn_code,
+                ri=Ri
+                )
+        if cutofffn_code == 2:
+            args_calculate_g4['p_gamma'] = cutoff['kwargs']['gamma']
 
-            ridge = fmodules.calculate_g4(**args_calculate_g4)
-            return ridge
+        return fmodules.calculate_g4(**args_calculate_g4)
     else:
         Rc = cutoff['kwargs']['Rc']
         cutoff_fxn = dict2cutoff(cutoff)
@@ -733,6 +730,9 @@ def calculate_G4(neighbornumbers, neighborsymbols, neighborpositions,
                 Rjk_vector = neighborpositions[k] - neighborpositions[j]
                 Rjk = np.linalg.norm(Rjk_vector)
                 cos_theta_ijk = np.dot(Rij_vector, Rik_vector) / Rij / Rik
+                if cos_theta_ijk < -1.:
+                    # Can occur by rounding error.
+                    cos_theta_ijk = -1.
                 term = (1. + gamma * cos_theta_ijk) ** zeta
                 term *= np.exp(-eta * (Rij ** 2. + Rik ** 2. + Rjk ** 2.) /
                                (Rc ** 2.))
@@ -844,6 +844,9 @@ def calculate_G5(neighbornumbers, neighborsymbols, neighborpositions,
                 Rik_vector = neighborpositions[k] - Ri
                 Rik = np.linalg.norm(Rik_vector)
                 cos_theta_ijk = np.dot(Rij_vector, Rik_vector) / Rij / Rik
+                if cos_theta_ijk < -1:
+                    # Can occur by rounding error.
+                    cos_theta_ijk = -1.
                 term = (1. + gamma * cos_theta_ijk) ** zeta
                 term *= np.exp(-eta * (Rij ** 2. + Rik ** 2.) /
                                (Rc ** 2.))
@@ -1302,6 +1305,9 @@ def calculate_G4_prime(neighborindices, neighbornumbers, neighborsymbols, neighb
                 Rjk_vector = neighborpositions[k] - neighborpositions[j]
                 Rjk = np.linalg.norm(Rjk_vector)
                 cos_theta_ijk = np.dot(Rij_vector, Rik_vector) / Rij / Rik
+                if cos_theta_ijk < -1.:
+                    # Can occur by rounding error.
+                    cos_theta_ijk = -1.
                 c1 = (1. + gamma * cos_theta_ijk)
 
                 _Rij = dict(Rij=Rij)
@@ -1453,6 +1459,8 @@ def calculate_G5_prime(neighborindices, neighbornumbers, neighborsymbols, neighb
                 Rik_vector = neighborpositions[k] - Ri
                 Rik = np.linalg.norm(Rik_vector)
                 cos_theta_ijk = np.dot(Rij_vector, Rik_vector) / Rij / Rik
+                if cos_theta_ijk < -1.:
+                    cos_theta_ijk = -1.
                 c1 = (1. + gamma * cos_theta_ijk)
 
                 _Rij = dict(Rij=Rij)
