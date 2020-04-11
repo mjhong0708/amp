@@ -24,7 +24,7 @@ def test():
     atoms.extend(adsorbate)
     atoms.set_constraint(FixAtoms(indices=[0, 2]))
     calc = EMT()  # cheap calculator
-    atoms.set_calculator(calc)
+    atoms.calc = calc
 
     # Run some molecular dynamics to generate data.
     trajectory = io.Trajectory('data.traj', 'w', atoms=atoms)

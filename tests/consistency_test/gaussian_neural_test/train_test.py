@@ -69,7 +69,7 @@ def make_images():
                              9.18295137e+00]]))]
 
     for atoms in images:
-        atoms.set_calculator(EMT())
+        atoms.calc = EMT()
         atoms.get_potential_energy(apply_constraint=False)
         atoms.get_forces(apply_constraint=False)
 
