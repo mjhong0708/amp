@@ -79,8 +79,8 @@ class Amp(Calculator, object):
 
         self.logging = logging
         Calculator.__init__(self, label=label, atoms=atoms)
-        # Note self._log is set and self._printheader is called by above
-        # call when it runs self.set_label.
+        # Note self._log is set when Calculator.__init__ sets the label.
+        self._printheader(self._log)
 
         self._parallel = {'envcommand': envcommand}
 
@@ -210,29 +210,26 @@ class Amp(Calculator, object):
         if len(changed_parameters) > 0:
             self.reset()
 
-    def set_label(self, label):
-        """Sets label, ensuring that any needed directories are made.
+    @property
+    def label(self):
+        # Note this only needed so we can define a setter.
+        return Calculator.label.__get__(self)
 
-        Parameters
-        ----------
-        label : str
-            Default prefix/location used for all files.
-        """
-        Calculator.set_label(self, label)
+    @label.setter
+    def label(self, label):
+        Calculator.label.__set__(self, label)
 
         # Create directories for output structure if needed.
         # Note ASE doesn't do this for us.
         if self.label:
-            if (self.directory != os.curdir and
-                    not os.path.isdir(self.directory)):
+            if not os.path.isdir(self.directory):
                 os.makedirs(self.directory)
 
+        # Create logger corresponding to label.
         if self.logging is True:
             self._log = Logger(make_filename(self.label, '-log.txt'))
         else:
             self._log = Logger(None)
-
-        self._printheader(self._log)
 
     def calculate(self, atoms, properties, system_changes):
         """Calculation of the energy of system and forces of all atoms."""
