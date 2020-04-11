@@ -94,7 +94,7 @@ def non_periodic_0th_bfgs_step_test():
                         [[0.,  0.,  0.]]))]
 
     for image in images:
-        image.set_calculator(EMT())
+        image.calc = EMT()
         image.get_potential_energy(apply_constraint=False)
         image.get_forces(apply_constraint=False)
 
@@ -364,7 +364,7 @@ def periodic_0th_bfgs_step_test():
                         [[0.,  0., 0.]]))]
 
     for image in images:
-        image.set_calculator(EMT())
+        image.calc = EMT()
         image.get_potential_energy(apply_constraint=False)
         image.get_forces(apply_constraint=False)
 

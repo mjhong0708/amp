@@ -91,7 +91,7 @@ def test():
                                    mode='atom-centered'),
                cores=1)
 
-    atoms.set_calculator(calc)
+    atoms.calc = calc
 
     e1 = atoms.get_potential_energy(apply_constraint=False)
     e2 = calc.get_potential_energy(atoms)
