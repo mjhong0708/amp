@@ -589,7 +589,7 @@ class Data:
     def close(self):
         """Safely close the database.
         """
-        if self.d:
+        if self.d is not None:
             self.d.close()
         self.d = None
 
