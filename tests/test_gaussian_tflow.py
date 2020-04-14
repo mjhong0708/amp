@@ -5,7 +5,7 @@ simulations."""
 
 import sys
 from ase.calculators.emt import EMT
-from ase.lattice.surface import fcc110
+from ase.build import fcc110
 from ase import Atoms, Atom
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase import units

@@ -1,4 +1,4 @@
-from ase.lattice.surface import fcc110
+from ase.build import fcc110
 from ase import Atom, Atoms
 from ase.constraints import FixAtoms
 from ase.calculators.emt import EMT
