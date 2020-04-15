@@ -50,7 +50,7 @@ class Gaussian(object):
     version : str
         Version of fingerprints.
     fortran : bool
-        If True, will use fortran modules, if False, will not.
+        If True, will use fortran modules (if compiled), if False, will not.
     mode : str
         Can be either 'atom-centered' or 'image-centered'.
 
@@ -102,6 +102,8 @@ class Gaussian(object):
 
         self.dblabel = dblabel
         self.fortran = fortran
+        if fmodules is None:
+            self.fortran = False
         self.parent = None  # Can hold a reference to main Amp instance.
 
     def tostring(self):
