@@ -47,14 +47,14 @@ def train_test():
     train_images = generate_data(2)
     elements = ['Pt', 'Cu']
     G = make_symmetry_functions(elements=elements, type='G2',
-                etas=np.logspace(np.log10(0.05), np.log10(5.),
-                                 num=4))
+                etas=np.logspace(np.log10(0.05), np.log10(5.), num=4),
+                offsets=[0, 2.])
     G += make_symmetry_functions(elements=elements, type='G5',
                  etas=[0.005],
                  zetas=[1., 4.],
                  gammas=[+1., -1.])
 
-    G = {element: G for element in elements}
+    G = {element: G[::_] for element, _ in zip(elements, [1, 2])}
 
     calc = Amp(descriptor=Gaussian(Gs=G),
                model=NeuralNetwork(hiddenlayers=(3, 3)),
