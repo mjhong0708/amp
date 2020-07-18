@@ -277,7 +277,7 @@ class FingerprintCalculator:
         example:
 
                >>> Gs = {"O": [{"type":"G2", "element":"O", "eta":10.,
-                                "offset": 2.},
+               ...              "offset": 2.},
                ...             {"type":"G4", "elements":["O", "Au"],
                ...              "eta":5., "gamma":1., "zeta":1.0}],
                ...       "Au": [{"type":"G2", "element":"O", "eta":2.},
@@ -388,7 +388,7 @@ class FingerprintPrimeCalculator:
         example:
 
                >>> Gs = {"O": [{"type":"G2", "element":"O", "eta":10.,
-                                "offset": 2.},
+               ...              "offset": 2.},
                ...             {"type":"G4", "elements":["O", "Au"],
                ...              "eta":5., "gamma":1., "zeta":1.0}],
                ...       "Au": [{"type":"G2", "element":"O", "eta":2.},
