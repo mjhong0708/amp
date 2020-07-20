@@ -28,7 +28,7 @@ class Gaussian(object):
         example:
 
                >>> Gs = {"O": [{"type":"G2", "element":"O", "eta":10.,
-                                "offset": 2.},
+               ...              "offset": 2.},
                ...             {"type":"G4", "elements":["O", "Au"],
                ...              "eta":5., "gamma":1., "zeta":1.0}],
                ...       "Au": [{"type":"G2", "element":"O", "eta":2.},
@@ -1214,10 +1214,10 @@ def calculate_G2_prime(neighborindices, neighbornumbers, neighborsymbols,
                     args_cutoff_fxn = dict(Rij=Rij)
                     if cutoff['name'] == 'Polynomial':
                         args_cutoff_fxn['gamma'] = cutoff['kwargs']['gamma']
-                    term1 = (-2. * eta * (Rij-offset) *
+                    term1 = (-2. * eta * (Rij - offset) *
                              cutoff_fxn(**args_cutoff_fxn) / (Rc ** 2.) +
                              cutoff_fxn.prime(**args_cutoff_fxn))
-                    ridge += np.exp(- eta * ((Rij-offset) ** 2.) /
+                    ridge += np.exp(- eta * ((Rij - offset) ** 2.) /
                                     (Rc ** 2.)) * term1 * dRijdRml
 
     return ridge
