@@ -904,7 +904,7 @@ def make_symmetry_functions(elements, type, etas, offsets=None,
         parameters.
     """
     if type == 'G2':
-        offsets = [0] if offsets is None else offsets
+        offsets = [0.] if offsets is None else offsets
         G = [{'type': 'G2', 'element': element, 'eta': eta, 'offset': offset}
              for eta in etas
              for element in elements
