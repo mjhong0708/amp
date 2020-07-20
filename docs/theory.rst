@@ -56,7 +56,7 @@ Gaussian
 ********
 
 A Gaussian descriptor :math:`\textbf{G}` as a function of pair-atom distances and three-atom angles has been suggested by Behler [1], and is implemented within Amp.
-Radial fingerprints of the Gaussian type capture the interaction of atom :math:`i` with all atoms :math:`j` as the sum of Gaussians with width :math:`\eta` and center (offset) :math:`R_s`,
+Radial fingerprints of the Gaussian type capture the interaction of atom :math:`i` with all atoms :math:`j` as the sum of Gaussians with width :math:`\eta` and center :math:`R_s`,
 
 .. math::
   G_{i}^\mathrm{II}=\sum^{\tiny{\begin{array}{c} \text{atoms j within }R_c\\
