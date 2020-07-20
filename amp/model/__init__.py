@@ -529,6 +529,7 @@ class LossFunction:
                  atomic_numbers, raveled_fingerprints, num_neighbors,
                  raveled_neighborlists, raveled_fingerprintprimes,
                  image_weights) = value
+
         send_data_to_fortran(fmodules,
                              energy_coefficient,
                              force_coefficient,
@@ -983,10 +984,6 @@ def ravel_data(train_forces,
 
         elements, raveled_fingerprints = ravel_fingerprints(images,
                                                             fingerprints)
-        len_fps = [len(_) for _ in raveled_fingerprints]
-        max_len_fps = max(len_fps)
-        raveled_fingerprints = [ _ + [0]*(max_len_fps-len(_))
-                                for _ in raveled_fingerprints]
     else:
         atomic_positions = [images[key].positions.ravel() for key in keylist]
 
@@ -1050,10 +1047,6 @@ def ravel_data(train_forces,
              raveled_fingerprintprimes) = \
                 ravel_neighborlists_and_fingerprintprimes(images,
                                                           fingerprintprimes)
-            len_fp_primes = [len(_) for _ in raveled_fingerprintprimes]
-            max_len_fp_primes = max(len_fp_primes)
-            raveled_fingerprintprimes = [ _ + [0]*(max_len_fp_primes-len(_))
-                                         for _ in raveled_fingerprintprimes]
     if mode == 'image-centered':
         if not train_forces:
             return (actual_energies, atomic_positions)
@@ -1145,12 +1138,6 @@ def send_data_to_fortran(_fmodules,
         _fmodules.fingerprint_props.num_fingerprints_of_elements = \
             num_fingerprints_of_elements
         _fmodules.fingerprint_props.raveled_fingerprints = raveled_fingerprints
-        len_min_fps = [len(_) for _ in min_fingerprints]
-        max_len_min_fps = max(len_min_fps)
-        min_fingerprints = [ _ + [0]*(max_len_min_fps-len(_))
-                            for _ in min_fingerprints]
-        max_fingerprints = [ _ + [0]*(max_len_min_fps-len(_))
-                            for _ in max_fingerprints]
         _fmodules.neuralnetwork.min_fingerprints = min_fingerprints
         _fmodules.neuralnetwork.max_fingerprints = max_fingerprints
         if train_forces:
