@@ -21,8 +21,7 @@ There is also a helper function :py:func:`~amp.descriptor.gaussian.make_symmetry
  elements = ['Cu', 'Pt']
  G = make_symmetry_functions(elements=elements, type='G2',
                              etas=np.logspace(np.log10(0.05), np.log10(5.),
-                                              num=4),
-                             offsets=[0., 2.])
+                                              num=4))
  G += make_symmetry_functions(elements=elements, type='G4',
                               etas=[0.005],
                               zetas=[1., 4.],
@@ -48,8 +47,7 @@ snippet above:
  elements = ['Cu', 'Pt']
  G = make_symmetry_functions(elements=elements, type='G2',
                              etas=np.logspace(np.log10(0.05), np.log10(5.),
-                                              num=4),
-                             offsets=[0., 2.])
+                                              num=4))
  G += make_symmetry_functions(elements=elements, type='G5',
                               etas=[0.005],
                               zetas=[1., 4.],
