@@ -651,7 +651,7 @@ def calculate_G2(neighbornumbers, neighborsymbols, neighborpositions,
                 args_cutoff_fxn = dict(Rij=Rij)
                 if cutoff['name'] == 'Polynomial':
                     args_cutoff_fxn['gamma'] = cutoff['kwargs']['gamma']
-                ridge += (np.exp(-eta * ((Rij-offset) ** 2.) / (Rc ** 2.)) *
+                ridge += (np.exp(-eta * ((Rij - offset) ** 2.) / (Rc ** 2.)) *
                           cutoff_fxn(**args_cutoff_fxn))
     return ridge
 

@@ -314,18 +314,19 @@
                         Rij = sqrt(dot_product(Rij_vector, Rij_vector))
 
                         if (present(p_gamma)) then
-                            term1 = - 2.0d0 * g_eta * (Rij-offset) * &
+                            term1 = - 2.0d0 * g_eta * (Rij - offset) * &
                             cutoff_fxn(Rij, rc, cutofffn_code, p_gamma) / &
                             (rc ** 2.0d0) + cutoff_fxn_prime(Rij, rc, &
                             cutofffn_code, p_gamma)
                         else
-                            term1 = - 2.0d0 * g_eta * (Rij-offset) * &
+                            term1 = - 2.0d0 * g_eta * (Rij - offset) * &
                             cutoff_fxn(Rij, rc, cutofffn_code) / &
                             (rc ** 2.0d0) + cutoff_fxn_prime(Rij, rc, &
                             cutofffn_code)
                         endif
 
-                        ridge = ridge + exp(- g_eta * ((Rij-offset)**2.0d0) / &
+                        ridge = ridge + &
+                        exp(- g_eta * ((Rij - offset)**2.0d0) / &
                         (rc ** 2.0d0)) * term1 * dRijdRml
                     end if
                   end if
