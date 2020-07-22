@@ -47,12 +47,13 @@ def train_test():
     train_images = generate_data(2)
     elements = ['Pt', 'Cu']
     G = make_symmetry_functions(elements=elements, type='G2',
-                etas=np.logspace(np.log10(0.05), np.log10(5.),
-                                 num=4))
+                                etas=np.logspace(np.log10(0.05), np.log10(5.),
+                                                 num=4),
+                                offsets=[0., 2.])
     G += make_symmetry_functions(elements=elements, type='G5',
-                 etas=[0.005],
-                 zetas=[1., 4.],
-                 gammas=[+1., -1.])
+                                 etas=[0.005],
+                                 zetas=[1., 4.],
+                                 gammas=[+1., -1.])
 
     G = {element: G for element in elements}
 
@@ -71,7 +72,7 @@ def train_test():
 
     # Test that we can re-load this calculator and call it again.
     del calc
-    calc2 = Amp.load(label + '.amp')
+    calc2 = Amp.load(label + '.amp', label=label)
     for image in train_images:
         print("energy = %s" % str(calc2.get_potential_energy(image)))
         print("forces = %s" % str(calc2.get_forces(image)))

@@ -2,7 +2,8 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
        subroutine calculate_g2(neighbornumbers, neighborpositions, &
-       g_number, g_eta, p_gamma, rc, cutofffn_code, ri, num_neighbors, ridge)
+       g_number, g_eta, p_gamma, rc, offset, cutofffn_code, ri, &
+       num_neighbors, ridge)
 
               use cutoffs
               implicit none
@@ -12,7 +13,7 @@
               double precision, dimension(num_neighbors, 3):: &
               neighborpositions
               double precision, dimension(3):: ri
-              double precision::  g_eta, rc
+              double precision::  g_eta, rc, offset
               ! gamma parameter for the polynomial cutoff
               double precision, optional:: p_gamma
               integer:: cutofffn_code
@@ -34,7 +35,7 @@
                       neighborpositions(j, xyz) - ri(xyz)
                     end do
                     Rij = sqrt(dot_product(Rij_vector, Rij_vector))
-                    term = exp(-g_eta*(Rij**2.0d0) / (rc ** 2.0d0))
+                    term = exp(-g_eta*((Rij - offset)**2.0d0) / (rc ** 2.0d0))
                     if (present(p_gamma)) then
                         term = term * cutoff_fxn(Rij, rc, &
                             cutofffn_code, p_gamma)
@@ -273,7 +274,7 @@
 
        subroutine calculate_g2_prime(neighborindices, neighbornumbers, &
        neighborpositions, g_number, g_eta, rc, cutofffn_code, i, ri, m, l, &
-       num_neighbors, ridge, p_gamma)
+       offset, num_neighbors, ridge, p_gamma)
 
               use cutoffs
               implicit none
@@ -285,7 +286,7 @@
               neighborpositions
               double precision, dimension(3):: ri, Rj
               integer:: m, l, i
-              double precision::  g_eta, rc
+              double precision::  g_eta, rc, offset
               ! gamma parameter for the polynomial cutoff
               double precision, optional:: p_gamma
               integer:: cutofffn_code
@@ -313,18 +314,19 @@
                         Rij = sqrt(dot_product(Rij_vector, Rij_vector))
 
                         if (present(p_gamma)) then
-                            term1 = - 2.0d0 * g_eta * Rij * &
+                            term1 = - 2.0d0 * g_eta * (Rij - offset) * &
                             cutoff_fxn(Rij, rc, cutofffn_code, p_gamma) / &
                             (rc ** 2.0d0) + cutoff_fxn_prime(Rij, rc, &
                             cutofffn_code, p_gamma)
                         else
-                            term1 = - 2.0d0 * g_eta * Rij * &
+                            term1 = - 2.0d0 * g_eta * (Rij - offset) * &
                             cutoff_fxn(Rij, rc, cutofffn_code) / &
                             (rc ** 2.0d0) + cutoff_fxn_prime(Rij, rc, &
                             cutofffn_code)
                         endif
 
-                        ridge = ridge + exp(- g_eta * (Rij**2.0d0) / &
+                        ridge = ridge + &
+                        exp(- g_eta * ((Rij - offset)**2.0d0) / &
                         (rc ** 2.0d0)) * term1 * dRijdRml
                     end if
                   end if
