@@ -176,6 +176,7 @@ class BootStrap:
         pwd = os.getcwd()
 
         for index in range(n):
+            log('Creating job {:d}.'.format(index))
             os.mkdir('%i' % index)
             os.chdir('%i' % index)
             with open('run.py', 'w') as f:
