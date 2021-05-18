@@ -5,7 +5,7 @@ simulations."""
 
 import sys
 from ase.calculators.emt import EMT
-from ase.lattice.surface import fcc110
+from ase.build import fcc110
 from ase import Atoms, Atom
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase import units
@@ -37,17 +37,17 @@ def generate_data(count):
                        Atom('Cu', atoms[7].position + (0., 0., 5.))])
     atoms.extend(adsorbate)
     atoms.set_constraint(FixAtoms(indices=[0, 2]))
-    atoms.set_calculator(EMT())
+    atoms.calc = EMT()
     MaxwellBoltzmannDistribution(atoms, 300. * units.kB)
     dyn = VelocityVerlet(atoms, dt=1. * units.fs)
     newatoms = atoms.copy()
-    newatoms.set_calculator(EMT())
+    newatoms.calc = EMT()
     newatoms.get_potential_energy()
     images = [newatoms]
     for step in range(count - 1):
         dyn.run(50)
         newatoms = atoms.copy()
-        newatoms.set_calculator(EMT())
+        newatoms.calc = EMT()
         newatoms.get_potential_energy()
         images.append(newatoms)
     return images

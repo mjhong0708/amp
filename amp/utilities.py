@@ -15,14 +15,11 @@ from datetime import datetime
 from getpass import getuser
 from ase import io as aseio
 from ase.db import connect
+from ase.calculators.calculator import PropertyNotImplementedError
 try:
     import cPickle as pickle    # Python2
 except ImportError:
     import pickle               # Python3
-
-
-class PropertyNotImplementedError(NotImplementedError):
-    pass
 
 
 # Parallel processing ########################################################
@@ -72,30 +69,84 @@ def assign_cores(cores, log=None):
                 success(q, cores, log)
                 return cores
 
-    if 'SLURM_NODELIST' in os.environ.keys():
+    def parse_slurm_allocation(env_vars=None):
+        """If debugging you can pass in a dictionary with custom environment
+        variables."""
+
+        log('Parsing SLURM node and task allocation from environment '
+            'variables')
+        env_vars = os.environ if env_vars is None else env_vars
+        # Number of nodes assigned.
+        nnodes = int(env_vars['SLURM_NNODES'])
+        # Tasks to run on each node.
+        taskspernode_str = env_vars['SLURM_TASKS_PER_NODE']
+        # Parse things like "32(x8)" for 8 nodes @ 32 tasks each
+        if '(x{})'.format(nnodes) in taskspernode_str:
+            log('"(x{})" is present in SLURM_TASKS_PER_NODE --> reformatting'
+                .format(nnodes))
+            # Parse tasks per node.
+            taskspernode_str = taskspernode_str.replace('(x{})'
+                                                        .format(nnodes), '')
+        log('tasks per node: {}'.format(taskspernode_str))
+
+        try:
+            # In case something in parsing went wrong.
+            taskspernode = int(taskspernode_str)
+        except ValueError as e:
+            raise
+
+        if nnodes == 1:
+            assigned_cores = {'localhost': taskspernode}
+        else:
+            # This variable is formatted in different ways.
+            alloc_str = env_vars['SLURM_NODELIST']
+            log('assigned SLURM_NODELIST: {}'.format(alloc_str))
+            if '[' in alloc_str and ']' in alloc_str:
+                # Multiple nodes assigned, e.g. nid00[627, 662].
+                log('parsing node IDs')
+                header, assignments = alloc_str.split('[')
+                assignments = assignments.replace(']', '')
+                log('assignments: {}'.format(assignments))
+                nodes = assignments.split(',')
+                node_ids = []
+                for node in nodes:
+                    if '-' in node:
+                        # Node ids in range, e.g. nid00[446-450, 501, 529-532]
+                        # for 10 nodes would yield: 00446, 00447, 00448, 00449,
+                        # 00450, 00501, 00529, 00530, 00531, 00532
+                        lower, upper = node.split('-')
+                        # Extend range by 1 to include upper.
+                        ids = [_ for _ in range(int(lower), int(upper) + 1)]
+                        log('{} --> {}'.format(node, ids))
+                        node_ids += ids
+                    else:
+                        # Node id is singular, does not need to be parsed.
+                        node_ids.append(int(node))
+                # Recombine header with nids.
+                assigned_nodes = ['{}{}'.format(header, nid) for nid
+                                  in node_ids]
+            else:
+                # If '[' and ']' not in variable, var = nid.
+                assigned_nodes = [env_vars['SLURM_NODELIST']]
+            log('assigned nodes: {}'.format(assigned_nodes))
+            assigned_cores = {node: taskspernode for node in assigned_nodes}
+        return assigned_cores
+
+    if 'SLURM_NODELIST' in os.environ:
         q = 'SLURM'
         try:
-            nnodes = int(os.environ['SLURM_NNODES'])
-            taskspernode = int(os.environ['SLURM_TASKS_PER_NODE'])
-            if nnodes == 1:
-                cores = {'localhost': taskspernode}
-            else:
-                nodes = os.environ['SLURM_NODELIST']
-                if '[' in nodes:
-                    # Formatted funny like 'node[572,578]'.
-                    prename, numbers = nodes.split('[')
-                    numbers = numbers[:-1].split(',')
-                    nodes = [prename + _ for _ in numbers]
-                else:
-                    nodes = nodes.split(',')
-                cores = {node: taskspernode for node in nodes}
+            # Move try-block contents to standalone function.
+            cores = parse_slurm_allocation()
         except:
             # Get the traceback to log it.
             fail(q, traceback_text=traceback.format_exc())
+
     elif 'PBS_NODEFILE' in os.environ.keys():
-        fail(q='PBS')
+        q = 'PBS'
+        fail(q=q)
     elif 'LOADL_PROCESSOR_LIST' in os.environ.keys():
-        fail(q='LOADL')
+        q = 'LOADL'
+        fail(q=q)
     elif 'PE_HOSTFILE' in os.environ.keys():
         q = 'SGE'
         try:
@@ -113,7 +164,7 @@ def assign_cores(cores, log=None):
         import multiprocessing
         ncores = multiprocessing.cpu_count()
         cores = {'localhost': ncores}
-        log('No queuing system detected; single machine assumed.')
+        log('number of cores manually specified; single machine assumed.')
         q = '<single machine>'
     success(q, cores, log)
     return cores
@@ -250,11 +301,20 @@ def start_workers(process_ids, workerhostname, workercommand, log,
             log('  Session %i (%s): %s' %
                 (process_id, workerhostname, ssh.before.strip()))
         return ssh
-    import pexpect
+    if 'win' in sys.platform:
+        import pexpect.popen_spawn
+        spawn = pexpect.popen_spawn.PopenSpawn
+        log(' detected Windows platform, running local connections with '
+            'pexpect.popen_spawn.PopenSpawn')
+    else:
+        import pexpect
+        spawn = pexpect.spawn
+        log(' detected non-Windows platform, running local connections '
+            'with pexpect.spawn')
     log(' Starting local connections.')
     children = []
     for process_id in process_ids:
-        child = pexpect.spawn(workercommand % process_id)
+        child = spawn(workercommand % process_id)
         child.expect('<amp-connect>')
         child.expect('<stderr>')
         log('  Session %i (%s): %s' %
@@ -471,7 +531,7 @@ class Data:
             workercommand = '%s -m %s' % (python, self.calc.__module__)
             sessions = setup_parallel(parallel, workercommand, log)
             server = sessions['master']
-            connections = sessions['connections']
+            sessions['connections']
             n_pids = sessions['n_pids']
 
             globals = self.calc.globals
@@ -529,7 +589,7 @@ class Data:
     def close(self):
         """Safely close the database.
         """
-        if self.d:
+        if self.d is not None:
             self.d.close()
         self.d = None
 
@@ -575,11 +635,14 @@ class Logger:
         if self.file is None:
             return
         if label:
+            if label in self.tics:
+                raise RuntimeError("tic label '{:s}' already in log"
+                                   .format(label))
             self.tics[label] = time.time()
         else:
             self._tic = time.time()
 
-    def __call__(self, message, toc=None, tic=False):
+    def __call__(self, message, toc=False, tic=False, check=False, flush=True):
         """Writes message to the log file.
 
         Parameters
@@ -588,25 +651,44 @@ class Logger:
             Message to be written.
         toc : bool or str
             If toc=True or toc=label, it will append timing information in
-            minutes to the timer.
+            minutes to the timer. Also clears the associated timer.
         tic : bool or str
             If tic=True or tic=label, will start the generic timer or a timer
             associated with label. Equivalent to self.tic(label).
+        check : bool or str
+            Same as 'toc', but keeps the associated timer running.
+        flush : bool
+            If true, writes to file immediately. (Calls file.flush().)
         """
         if self.file is None:
             return
         dt = ''
-        if toc:
-            if toc is True:
+        if toc or check:
+            if toc:
+                assert check is False
+                label = toc
+            else:
+                label = check
+            if label is True:
                 tic = self._tic
             else:
-                tic = self.tics[toc]
-            dt = (time.time() - tic) / 60.
-            dt = ' %.1f min.' % dt
+                tic = self.tics[label]
+                if toc:
+                    del self.tics[label]
+            dt = (time.time() - tic)
+            if dt > 60.:
+                dt = ' %.1f min.' % (dt / 60.)
+            elif dt > 1.:
+                dt = ' %.1f s' % dt
+            elif dt > 0.001:
+                dt = ' %.1f ms' % (dt * 1e3)
+            else:
+                dt = ' %.1f us' % (dt * 1e6)
         if self.file.closed:
             self.file = open(self.filename, 'a')
         self.file.write(message + dt + '\n')
-        self.file.flush()
+        if flush:
+            self.file.flush()
         if tic:
             if tic is True:
                 self.tic()

@@ -44,7 +44,7 @@ def test():
     ref_fp_primes = {}
     count = 0
     for fortran in [True, False]:
-        for ncores in range(1, 3):
+        for ncores in range(1, 4):
             cores = assign_cores(ncores)
             descriptor = Zernike(fortran=fortran,
                                  dblabel='Zernike-%s-%d' % (fortran, ncores))

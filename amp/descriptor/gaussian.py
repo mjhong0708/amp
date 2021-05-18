@@ -27,7 +27,8 @@ class Gaussian(object):
         functions. Either auto-genetrated, or given in the following form, for
         example:
 
-               >>> Gs = {"O": [{"type":"G2", "element":"O", "eta":10.},
+               >>> Gs = {"O": [{"type":"G2", "element":"O", "eta":10.,
+               ...              "offset": 2.},
                ...             {"type":"G4", "elements":["O", "Au"],
                ...              "eta":5., "gamma":1., "zeta":1.0}],
                ...       "Au": [{"type":"G2", "element":"O", "eta":2.},
@@ -50,7 +51,7 @@ class Gaussian(object):
     version : str
         Version of fingerprints.
     fortran : bool
-        If True, will use fortran modules, if False, will not.
+        If True, will use fortran modules (if compiled), if False, will not.
     mode : str
         Can be either 'atom-centered' or 'image-centered'.
 
@@ -102,6 +103,8 @@ class Gaussian(object):
 
         self.dblabel = dblabel
         self.fortran = fortran
+        if fmodules is None:
+            self.fortran = False
         self.parent = None  # Can hold a reference to main Amp instance.
 
     def tostring(self):
@@ -164,8 +167,9 @@ class Gaussian(object):
             log('{} feature vector functions:'.format(element))
             for index, fp in enumerate(fingerprints):
                 if fp['type'] == 'G2':
-                    log(' {}: {}, {}, eta = {}'
-                        .format(index, fp['type'], fp['element'], fp['eta']))
+                    log(' {}: {}, {}, eta = {}, offset = {}'
+                        .format(index, fp['type'], fp['element'], fp['eta'],
+                                fp['offset']))
                 elif fp['type'] == 'G4':
                     log(' {}: {}, ({}, {}), eta={}, gamma={}, zeta={}'
                         .format(index, fp['type'], fp['elements'][0],
@@ -272,7 +276,8 @@ class FingerprintCalculator:
         functions. Either auto-genetrated, or given in the following form, for
         example:
 
-               >>> Gs = {"O": [{"type":"G2", "element":"O", "eta":10.},
+               >>> Gs = {"O": [{"type":"G2", "element":"O", "eta":10.,
+               ...              "offset": 2.},
                ...             {"type":"G4", "elements":["O", "Au"],
                ...              "eta":5., "gamma":1., "zeta":1.0}],
                ...       "Au": [{"type":"G2", "element":"O", "eta":2.},
@@ -310,7 +315,8 @@ class FingerprintCalculator:
             index = atom.index
             neighborindices, neighboroffsets = nl[index]
             neighborsymbols = chemical_symbols[neighborindices]
-            neighborpositions = image.positions[neighborindices] + np.dot(neighboroffsets, image.get_cell())
+            neighborpositions = (image.positions[neighborindices] +
+                                 np.dot(neighboroffsets, image.get_cell()))
             indexfp = self.get_fingerprint(
                 index, symbol, neighborsymbols, neighborpositions)
             fingerprints.append(indexfp)
@@ -346,28 +352,26 @@ class FingerprintCalculator:
         num_symmetries = len(self.globals.Gs[symbol])
         fingerprint = [None] * num_symmetries
         neighbornumbers = [atomic_numbers[_] for _ in neighborsymbols]
-
         for count in range(num_symmetries):
             G = self.globals.Gs[symbol][count]
-
             if G['type'] == 'G2':
-                ridge = calculate_G2(neighbornumbers, neighborsymbols, neighborpositions,
-                                     G['element'], G['eta'],
-                                     self.globals.cutoff, Ri, self.fortran)
+                ridge = calculate_G2(neighbornumbers, neighborsymbols,
+                                     neighborpositions, G['element'], G['eta'],
+                                     G['offset'], self.globals.cutoff, Ri,
+                                     self.fortran)
             elif G['type'] == 'G4':
-                ridge = calculate_G4(neighbornumbers, neighborsymbols, neighborpositions,
-                                     G['elements'], G['gamma'],
-                                     G['zeta'], G['eta'], self.globals.cutoff,
-                                     Ri, self.fortran)
+                ridge = calculate_G4(neighbornumbers, neighborsymbols,
+                                     neighborpositions, G['elements'],
+                                     G['gamma'], G['zeta'], G['eta'],
+                                     self.globals.cutoff, Ri, self.fortran)
             elif G['type'] == 'G5':
-                ridge = calculate_G5(neighbornumbers, neighborsymbols, neighborpositions,
-                                     G['elements'], G['gamma'],
-                                     G['zeta'], G['eta'], self.globals.cutoff,
-                                     Ri, self.fortran)
+                ridge = calculate_G5(neighbornumbers, neighborsymbols,
+                                     neighborpositions, G['elements'],
+                                     G['gamma'], G['zeta'], G['eta'],
+                                     self.globals.cutoff, Ri, self.fortran)
             else:
                 raise NotImplementedError('Unknown G type: %s' % G['type'])
             fingerprint[count] = ridge
-
         return symbol, fingerprint
 
 
@@ -383,7 +387,8 @@ class FingerprintPrimeCalculator:
         functions. Either auto-genetrated, or given in the following form, for
         example:
 
-               >>> Gs = {"O": [{"type":"G2", "element":"O", "eta":10.},
+               >>> Gs = {"O": [{"type":"G2", "element":"O", "eta":10.,
+               ...              "offset": 2.},
                ...             {"type":"G4", "elements":["O", "Au"],
                ...              "eta":5., "gamma":1., "zeta":1.0}],
                ...       "Au": [{"type":"G2", "element":"O", "eta":2.},
@@ -423,7 +428,9 @@ class FingerprintPrimeCalculator:
             selfindex = atom.index
             selfneighborindices, selfneighboroffsets = nl[selfindex]
             selfneighborsymbols = chemical_symbols[selfneighborindices]
-            selfneighborpositions = image.positions[selfneighborindices] + np.dot(selfneighboroffsets, image.get_cell())
+            selfneighborpositions = (image.positions[selfneighborindices] +
+                                     np.dot(selfneighboroffsets,
+                                            image.get_cell()))
 
             for direction in range(3):
                 # Calculating derivative of fingerprints of self atom w.r.t.
@@ -434,9 +441,8 @@ class FingerprintPrimeCalculator:
                     selfneighborsymbols,
                     selfneighborpositions, selfindex, direction)
 
-                fingerprintprimes[
-                    (selfindex, selfsymbol, selfindex, selfsymbol, direction)] = \
-                    fpprime
+                fingerprintprimes[(selfindex, selfsymbol, selfindex,
+                                   selfsymbol, direction)] = fpprime
                 # Calculating derivative of fingerprints of neighbor atom
                 # w.r.t. coordinates of self atom.
                 for nindex, nsymbol, noffset in \
@@ -448,7 +454,9 @@ class FingerprintPrimeCalculator:
                     if (noffset[0] == 0 and noffset[1] == 0 and noffset[2] == 0):
                         nneighborindices, nneighboroffsets = nl[nindex]
                         nneighborsymbols = chemical_symbols[nneighborindices]
-                        neighborpositions = image.positions[nneighborindices] + np.dot(nneighboroffsets, image.get_cell())
+                        neighborpositions = (image.positions[nneighborindices] +
+                                             np.dot(nneighboroffsets,
+                                                    image.get_cell()))
 
                         # for calculating derivatives of fingerprints,
                         # summation runs over neighboring atoms of type
@@ -459,9 +467,8 @@ class FingerprintPrimeCalculator:
                             nneighborsymbols,
                             neighborpositions, selfindex, direction)
 
-                        fingerprintprimes[
-                            (selfindex, selfsymbol, nindex, nsymbol, direction)] = \
-                            fpprime
+                        fingerprintprimes[(selfindex, selfsymbol, nindex,
+                                           nsymbol, direction)] = fpprime
 
         return fingerprintprimes
 
@@ -515,6 +522,7 @@ class FingerprintPrimeCalculator:
                     neighborpositions,
                     G['element'],
                     G['eta'],
+                    G['offset'],
                     self.globals.cutoff,
                     index,
                     Rindex,
@@ -563,7 +571,8 @@ class FingerprintPrimeCalculator:
 # Auxiliary functions #########################################################
 
 
-def calculate_G2(neighbornumbers, neighborsymbols, neighborpositions, G_element, eta, cutoff, Ri, fortran):
+def calculate_G2(neighbornumbers, neighborsymbols, neighborpositions,
+                 G_element, eta, offset, cutoff, Ri, fortran):
     """Calculate G2 symmetry function.
 
     Ideally this will not be used but will be a template for how to build the
@@ -583,6 +592,8 @@ def calculate_G2(neighbornumbers, neighborsymbols, neighborpositions, G_element,
         Chemical symbol of the center atom.
     eta : float
         Parameter of Gaussian symmetry functions.
+    offset: float
+        offset values for gaussians in G2 fingerprints
     cutoff : dict
         Cutoff function, typically from amp.descriptor.cutoffs. Should be also
         formatted as a dictionary by todict method, e.g.
@@ -617,6 +628,7 @@ def calculate_G2(neighbornumbers, neighborsymbols, neighborpositions, G_element,
                     neighborpositions=neighborpositions,
                     g_number=G_number,
                     g_eta=eta,
+                    offset=offset,
                     rc=Rc,
                     cutofffn_code=cutofffn_code,
                     ri=Ri
@@ -639,14 +651,13 @@ def calculate_G2(neighbornumbers, neighborsymbols, neighborpositions, G_element,
                 args_cutoff_fxn = dict(Rij=Rij)
                 if cutoff['name'] == 'Polynomial':
                     args_cutoff_fxn['gamma'] = cutoff['kwargs']['gamma']
-                ridge += (np.exp(-eta * (Rij ** 2.) / (Rc ** 2.)) *
+                ridge += (np.exp(-eta * ((Rij - offset) ** 2.) / (Rc ** 2.)) *
                           cutoff_fxn(**args_cutoff_fxn))
     return ridge
 
 
 def calculate_G4(neighbornumbers, neighborsymbols, neighborpositions,
-                 G_elements, gamma, zeta, eta, cutoff,
-                 Ri, fortran):
+                 G_elements, gamma, zeta, eta, cutoff, Ri, fortran):
     """Calculate G4 symmetry function.
 
     Ideally this will not be used but will be a template for how to build the
@@ -685,37 +696,35 @@ def calculate_G4(neighbornumbers, neighborsymbols, neighborpositions,
     ridge : float
         G4 fingerprint.
     """
+    if len(neighborpositions) == 0:
+        return 0.
     if fortran:  # fortran version; faster
         G_numbers = sorted([atomic_numbers[el] for el in G_elements])
 
-        if len(neighborpositions) == 0:
-            return 0.
+        Rc = cutoff['kwargs']['Rc']
+        if cutoff['name'] == 'Cosine':
+            cutofffn_code = 1
+        elif cutoff['name'] == 'Polynomial':
+            cutofffn_code = 2
         else:
-            Rc = cutoff['kwargs']['Rc']
-            if cutoff['name'] == 'Cosine':
-                cutofffn_code = 1
-            elif cutoff['name'] == 'Polynomial':
-                cutofffn_code = 2
-            else:
-                print("Unknown cutoff function specified! \
-                Only supports 'Cosine' and 'Polynomial'.")
+            print("Unknown cutoff function specified! \
+            Only supports 'Cosine' and 'Polynomial'.")
 
-            args_calculate_g4 = dict(
-                    neighbornumbers=neighbornumbers,
-                    neighborpositions=neighborpositions,
-                    g_numbers=G_numbers,
-                    g_gamma=gamma,
-                    g_zeta=zeta,
-                    g_eta=eta,
-                    rc=Rc,
-                    cutofffn_code=cutofffn_code,
-                    ri=Ri
-                    )
-            if cutofffn_code == 2:
-                args_calculate_g4['p_gamma'] = cutoff['kwargs']['gamma']
+        args_calculate_g4 = dict(
+                neighbornumbers=neighbornumbers,
+                neighborpositions=neighborpositions,
+                g_numbers=G_numbers,
+                g_gamma=gamma,
+                g_zeta=zeta,
+                g_eta=eta,
+                rc=Rc,
+                cutofffn_code=cutofffn_code,
+                ri=Ri
+                )
+        if cutofffn_code == 2:
+            args_calculate_g4['p_gamma'] = cutoff['kwargs']['gamma']
 
-            ridge = fmodules.calculate_g4(**args_calculate_g4)
-            return ridge
+        return fmodules.calculate_g4(**args_calculate_g4)
     else:
         Rc = cutoff['kwargs']['Rc']
         cutoff_fxn = dict2cutoff(cutoff)
@@ -733,6 +742,9 @@ def calculate_G4(neighbornumbers, neighborsymbols, neighborpositions,
                 Rjk_vector = neighborpositions[k] - neighborpositions[j]
                 Rjk = np.linalg.norm(Rjk_vector)
                 cos_theta_ijk = np.dot(Rij_vector, Rik_vector) / Rij / Rik
+                if cos_theta_ijk < -1.:
+                    # Can occur by rounding error.
+                    cos_theta_ijk = -1.
                 term = (1. + gamma * cos_theta_ijk) ** zeta
                 term *= np.exp(-eta * (Rij ** 2. + Rik ** 2. + Rjk ** 2.) /
                                (Rc ** 2.))
@@ -844,6 +856,9 @@ def calculate_G5(neighbornumbers, neighborsymbols, neighborpositions,
                 Rik_vector = neighborpositions[k] - Ri
                 Rik = np.linalg.norm(Rik_vector)
                 cos_theta_ijk = np.dot(Rij_vector, Rik_vector) / Rij / Rik
+                if cos_theta_ijk < -1:
+                    # Can occur by rounding error.
+                    cos_theta_ijk = -1.
                 term = (1. + gamma * cos_theta_ijk) ** zeta
                 term *= np.exp(-eta * (Rij ** 2. + Rik ** 2.) /
                                (Rc ** 2.))
@@ -861,7 +876,8 @@ def calculate_G5(neighbornumbers, neighborsymbols, neighborpositions,
         return ridge
 
 
-def make_symmetry_functions(elements, type, etas, zetas=None, gammas=None):
+def make_symmetry_functions(elements, type, etas, offsets=None,
+                            zetas=None, gammas=None):
     """Helper function to create Gaussian symmetry functions.
     Returns a list of dictionaries with symmetry function parameters
     in the format expected by the Gaussian class.
@@ -869,12 +885,13 @@ def make_symmetry_functions(elements, type, etas, zetas=None, gammas=None):
     Parameters
     ----------
     elements : list of str
-        List of element types. The first in the list is considered the
-        central element for this fingerprint. #FIXME: Does that matter?
+        List of element types to be observed in this fingerprint.
     type : str
         Either G2, G4, or G5.
     etas : list of floats
         eta values to use in G2, G4 or G5 fingerprints
+    offsets: list of floats
+        offset values to use in G2 fingerprints
     zetas : list of floats
         zeta values to use in G4, and G5 fingerprints
     gammas : list of floats
@@ -887,9 +904,11 @@ def make_symmetry_functions(elements, type, etas, zetas=None, gammas=None):
         parameters.
     """
     if type == 'G2':
-        G = [{'type': 'G2', 'element': element, 'eta': eta}
+        offsets = [0.] if offsets is None else offsets
+        G = [{'type': 'G2', 'element': element, 'eta': eta, 'offset': offset}
              for eta in etas
-             for element in elements]
+             for element in elements
+             for offset in offsets]
         return G
     elif type == 'G4':
         G = []
@@ -1100,8 +1119,8 @@ def dCos_theta_ijk_dR_ml(i, j, k, Ri, Rj, Rk, m, l):
     return dCos_theta_ijk_dR_ml
 
 
-def calculate_G2_prime(neighborindices, neighbornumbers, neighborsymbols, neighborpositions,
-                       G_element, eta, cutoff,
+def calculate_G2_prime(neighborindices, neighbornumbers, neighborsymbols,
+                       neighborpositions, G_element, eta, offset, cutoff,
                        i, Ri, m, l, fortran):
     """Calculates coordinate derivative of G2 symmetry function for atom at
     index i and position Ri with respect to coordinate x_{l} of atom index
@@ -1124,6 +1143,8 @@ def calculate_G2_prime(neighborindices, neighbornumbers, neighborsymbols, neighb
         Symmetry functions of the center atom.
     eta : float
         Parameter of Behler symmetry functions.
+    offset: float
+        Offset for gaussians in G2 fingerprints
     cutoff : dict
         Cutoff function, typically from amp.descriptor.cutoffs. Should be also
         formatted as a dictionary by todict method, e.g.
@@ -1166,6 +1187,7 @@ def calculate_G2_prime(neighborindices, neighbornumbers, neighborsymbols, neighb
                     g_number=G_number,
                     g_eta=eta,
                     rc=Rc,
+                    offset=offset,
                     cutofffn_code=cutofffn_code,
                     i=i,
                     ri=Ri,
@@ -1192,17 +1214,17 @@ def calculate_G2_prime(neighborindices, neighbornumbers, neighborsymbols, neighb
                     args_cutoff_fxn = dict(Rij=Rij)
                     if cutoff['name'] == 'Polynomial':
                         args_cutoff_fxn['gamma'] = cutoff['kwargs']['gamma']
-                    term1 = (-2. * eta * Rij * cutoff_fxn(**args_cutoff_fxn) /
-                             (Rc ** 2.) +
+                    term1 = (-2. * eta * (Rij - offset) *
+                             cutoff_fxn(**args_cutoff_fxn) / (Rc ** 2.) +
                              cutoff_fxn.prime(**args_cutoff_fxn))
-                    ridge += np.exp(- eta * (Rij ** 2.) / (Rc ** 2.)) * \
-                        term1 * dRijdRml
+                    ridge += np.exp(- eta * ((Rij - offset) ** 2.) /
+                                    (Rc ** 2.)) * term1 * dRijdRml
 
     return ridge
 
 
-def calculate_G4_prime(neighborindices, neighbornumbers, neighborsymbols, neighborpositions,
-                       G_elements, gamma, zeta, eta,
+def calculate_G4_prime(neighborindices, neighbornumbers, neighborsymbols,
+                       neighborpositions, G_elements, gamma, zeta, eta,
                        cutoff, i, Ri, m, l, fortran):
     """Calculates coordinate derivative of G4 symmetry function for atom at
     index i and position Ri with respect to coordinate x_{l} of atom index m.
@@ -1303,6 +1325,9 @@ def calculate_G4_prime(neighborindices, neighbornumbers, neighborsymbols, neighb
                 Rjk_vector = neighborpositions[k] - neighborpositions[j]
                 Rjk = np.linalg.norm(Rjk_vector)
                 cos_theta_ijk = np.dot(Rij_vector, Rik_vector) / Rij / Rik
+                if cos_theta_ijk < -1.:
+                    # Can occur by rounding error.
+                    cos_theta_ijk = -1.
                 c1 = (1. + gamma * cos_theta_ijk)
 
                 _Rij = dict(Rij=Rij)
@@ -1356,8 +1381,8 @@ def calculate_G4_prime(neighborindices, neighbornumbers, neighborsymbols, neighb
     return ridge
 
 
-def calculate_G5_prime(neighborindices, neighbornumbers, neighborsymbols, neighborpositions,
-                       G_elements, gamma, zeta, eta,
+def calculate_G5_prime(neighborindices, neighbornumbers, neighborsymbols,
+                       neighborpositions, G_elements, gamma, zeta, eta,
                        cutoff, i, Ri, m, l, fortran):
     """Calculates coordinate derivative of G5 symmetry function for atom at
     index i and position Ri with respect to coordinate x_{l} of atom index m.
@@ -1454,6 +1479,8 @@ def calculate_G5_prime(neighborindices, neighbornumbers, neighborsymbols, neighb
                 Rik_vector = neighborpositions[k] - Ri
                 Rik = np.linalg.norm(Rik_vector)
                 cos_theta_ijk = np.dot(Rij_vector, Rik_vector) / Rij / Rik
+                if cos_theta_ijk < -1.:
+                    cos_theta_ijk = -1.
                 c1 = (1. + gamma * cos_theta_ijk)
 
                 _Rij = dict(Rij=Rij)

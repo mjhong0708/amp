@@ -36,7 +36,7 @@ The below script shows a simple example of creating a bootstrap ensemble of 10 c
         from ase import Atoms, Atom, units
         import ase.io
         from ase.calculators.emt import EMT
-        from ase.lattice.surface import fcc110
+        from ase.build import fcc110
         from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
         from ase.md import VelocityVerlet
         from ase.constraints import FixAtoms
@@ -47,7 +47,7 @@ The below script shows a simple example of creating a bootstrap ensemble of 10 c
         atoms.extend(Atoms([Atom('Cu', atoms[7].position + (0., 0., 2.5)),
                             Atom('Cu', atoms[7].position + (0., 0., 5.))]))
         atoms.set_constraint(FixAtoms(indices=[0, 2]))
-        atoms.set_calculator(EMT())
+        atoms.calc = EMT()
         atoms.get_potential_energy()
         traj.write(atoms)
         MaxwellBoltzmannDistribution(atoms, 300. * units.kB)
@@ -143,7 +143,7 @@ When you run this, you should see that the median prediction matches the true en
 
 Hands-free training
 -------------------
-In typical use, calling the :meth:`~amp.stats.bootstrap.BootStrap.train` method of the :class:`~amp.stats.bootstrap.BootStrap` class  will spawn many independent training jobs.
+In typical use, calling the :py:meth:`~amp.stats.bootstrap.BootStrap.train` method of the :py:class:`~amp.stats.bootstrap.BootStrap` class  will spawn many independent training jobs.
 Subsequent calls to `train` will help you manage those jobs: checking which have converged, checking which failed to converge (and re-submitting them), checking which timed out (and re-submitting them), and, if all converged, creating a bundled calculator.
 It can be most efficient to submit a (single-core) job that repeatedly calls this command for you and acts as a job manager until all the training jobs are complete.
 This can be achieved by taking advantage of the `results` dictionary returned by train, as in the below example script which uses SLURM environment commands. 

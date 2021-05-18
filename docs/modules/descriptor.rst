@@ -35,3 +35,13 @@ Cutoff functions
     :members:
     :undoc-members:
     :show-inheritance:
+
+Example
+-------
+
+(This contains just a minimal example of how to build your own descriptor.)
+
+.. automodule:: amp.descriptor.example
+    :members:
+    :undoc-members:
+    :show-inheritance:

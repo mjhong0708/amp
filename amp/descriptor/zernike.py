@@ -576,9 +576,9 @@ class FingerprintPrimeCalculator:
         cutoff = self.globals.cutoff
         Rc = cutoff['kwargs']['Rc']
 
-        if cutoff['name'] is 'Cosine':
+        if cutoff['name'] == 'Cosine':
             cutoff_fxn = Cosine(Rc)
-        elif cutoff['name'] is 'Polynomial':
+        elif cutoff['name'] == 'Polynomial':
             p_gamma = cutoff['kwargs']['gamma']
             cutoff_fxn = Polynomial(Rc, gamma=p_gamma)
 

@@ -26,17 +26,17 @@ def generate_data(count):
                        Atom('Cu', atoms[7].position + (0., 0., 5.))])
     atoms.extend(adsorbate)
     atoms.set_constraint(FixAtoms(indices=[0, 2]))
-    atoms.set_calculator(EMT())
+    atoms.calc = EMT()
     MaxwellBoltzmannDistribution(atoms, 300. * units.kB)
     dyn = VelocityVerlet(atoms, dt=1. * units.fs)
     newatoms = atoms.copy()
-    newatoms.set_calculator(EMT())
+    newatoms.calc = EMT()
     newatoms.get_potential_energy()
     images = [newatoms]
     for step in range(count - 1):
         dyn.run(50)
         newatoms = atoms.copy()
-        newatoms.set_calculator(EMT())
+        newatoms.calc = EMT()
         newatoms.get_potential_energy()
         images.append(newatoms)
     return images
@@ -47,12 +47,13 @@ def train_test():
     train_images = generate_data(2)
     elements = ['Pt', 'Cu']
     G = make_symmetry_functions(elements=elements, type='G2',
-                etas=np.logspace(np.log10(0.05), np.log10(5.),
-                                 num=4))
+                                etas=np.logspace(np.log10(0.05), np.log10(5.),
+                                                 num=4),
+                                offsets=[0., 2.])
     G += make_symmetry_functions(elements=elements, type='G5',
-                 etas=[0.005],
-                 zetas=[1., 4.],
-                 gammas=[+1., -1.])
+                                 etas=[0.005],
+                                 zetas=[1., 4.],
+                                 gammas=[+1., -1.])
 
     G = {element: G for element in elements}
 
@@ -71,7 +72,7 @@ def train_test():
 
     # Test that we can re-load this calculator and call it again.
     del calc
-    calc2 = Amp.load(label + '.amp')
+    calc2 = Amp.load(label + '.amp', label=label)
     for image in train_images:
         print("energy = %s" % str(calc2.get_potential_energy(image)))
         print("forces = %s" % str(calc2.get_forces(image)))

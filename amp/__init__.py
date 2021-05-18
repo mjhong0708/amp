@@ -11,6 +11,7 @@ import warnings
 
 import ase
 from ase.calculators.calculator import Calculator, Parameters
+from ase.utils.timing import Timer, timer
 try:
     from ase import __version__ as aseversion
 except ImportError:
@@ -26,7 +27,7 @@ try:
 except ImportError:
     warnings.warn('Did not find fortran modules.')
 else:
-    fmodules_version = 12
+    fmodules_version = 13
     wrong_version = fmodules.check_version(version=fmodules_version)
     if wrong_version:
         raise RuntimeError('fortran modules are not updated. Recompile '
@@ -77,10 +78,11 @@ class Amp(Calculator, object):
     def __init__(self, descriptor, model, label='amp', dblabel=None,
                  cores=None, envcommand=None, logging=True, atoms=None):
 
+        self.timer = Timer()
         self.logging = logging
         Calculator.__init__(self, label=label, atoms=atoms)
-        # Note self._log is set and self._printheader is called by above
-        # call when it runs self.set_label.
+        # Note self._log is set when Calculator.__init__ sets the label.
+        self._printheader(self._log)
 
         self._parallel = {'envcommand': envcommand}
 
@@ -90,6 +92,11 @@ class Amp(Calculator, object):
         self.cores = cores  # Note this calls 'assign_cores'.
 
         self.dblabel = label if dblabel is None else dblabel
+
+    def __del__(self):
+        """ Write timings to log file when calculator is closed."""
+        if hasattr(self, 'timer') and self._log.file is not None:
+            self.timer.write(self._log.file)
 
     @property
     def cores(self):
@@ -210,30 +217,28 @@ class Amp(Calculator, object):
         if len(changed_parameters) > 0:
             self.reset()
 
-    def set_label(self, label):
-        """Sets label, ensuring that any needed directories are made.
+    @property
+    def label(self):
+        # Note this only needed so we can define a setter.
+        return Calculator.label.__get__(self)
 
-        Parameters
-        ----------
-        label : str
-            Default prefix/location used for all files.
-        """
-        Calculator.set_label(self, label)
+    @label.setter
+    def label(self, label):
+        Calculator.label.__set__(self, label)
 
         # Create directories for output structure if needed.
         # Note ASE doesn't do this for us.
         if self.label:
-            if (self.directory != os.curdir and
-                    not os.path.isdir(self.directory)):
+            if not os.path.isdir(self.directory):
                 os.makedirs(self.directory)
 
+        # Create logger corresponding to label.
         if self.logging is True:
             self._log = Logger(make_filename(self.label, '-log.txt'))
         else:
             self._log = Logger(None)
 
-        self._printheader(self._log)
-
+    @timer('calculate')
     def calculate(self, atoms, properties, system_changes):
         """Calculation of the energy of system and forces of all atoms."""
         # The inherited method below just sets the atoms object,
@@ -248,13 +253,16 @@ class Amp(Calculator, object):
 
         if properties == ['energy']:
             log('Calculating potential energy...', tic='pot-energy')
+            self.timer.start('calculate_fingerprints')
             self.descriptor.calculate_fingerprints(images=images,
                                                    log=log,
                                                    calculate_derivatives=False)
+            self.timer.stop('calculate_fingerprints')
             if self.model.__class__.__name__ != 'KernelRidge':
+                self.timer.start('calculate_energy')
                 energy = self.model.calculate_energy(
-                        self.descriptor.fingerprints[key]
-                        )
+                        self.descriptor.fingerprints[key])
+                self.timer.stop('calculate_energy')
 
             else:  # KRR needs training images.
                 fingerprints = self.descriptor.fingerprints
@@ -287,15 +295,15 @@ class Amp(Calculator, object):
         if properties == ['forces']:
             if self.model.__class__.__name__ != 'KernelRidge':
                 log('Calculating forces...', tic='forces')
-                self.descriptor.calculate_fingerprints(
-                        images=images,
-                        log=log,
-                        calculate_derivatives=True
-                        )
-                forces = \
-                    self.model.calculate_forces(
-                        self.descriptor.fingerprints[key],
-                        self.descriptor.fingerprintprimes[key])
+                with self.timer('calculate_fingerprint_w_der'):
+                    self.descriptor.calculate_fingerprints(
+                            images=images,
+                            log=log,
+                            calculate_derivatives=True)
+                with self.timer('calculate_forces'):
+                    forces = self.model.calculate_forces(
+                            self.descriptor.fingerprints[key],
+                            self.descriptor.fingerprintprimes[key])
                 self.results['forces'] = forces
                 log('...forces calculated.', toc='forces')
 
@@ -330,6 +338,7 @@ class Amp(Calculator, object):
                 self.results['forces'] = forces
                 log('...forces calculated.', toc='forces')
 
+    @timer('train')
     def train(self,
               images,
               overwrite=False,
@@ -354,22 +363,25 @@ class Amp(Calculator, object):
                                         self.descriptor))
         log('Model: %s\n  (%s)' % (self.model.__class__.__name__, self.model))
 
-        images = hash_images(images, log=log)
+        with self.timer('hash_images'):
+            images = hash_images(images, log=log)
 
         log('\nDescriptor\n==========')
         train_forces = self.model.forcetraining  # True / False
         check_images(images, forces=train_forces)
-        self.descriptor.calculate_fingerprints(
-                images=images,
-                parallel=self._parallel,
-                log=log,
-                calculate_derivatives=train_forces)
+        with self.timer('calculate_fingerprints'):
+            self.descriptor.calculate_fingerprints(
+                    images=images,
+                    parallel=self._parallel,
+                    log=log,
+                    calculate_derivatives=train_forces)
 
         log('\nModel fitting\n=============')
-        result = self.model.fit(trainingimages=images,
-                                descriptor=self.descriptor,
-                                log=log,
-                                parallel=self._parallel)
+        with self.timer('fit model'):
+            result = self.model.fit(trainingimages=images,
+                                    descriptor=self.descriptor,
+                                    log=log,
+                                    parallel=self._parallel)
 
         if result is True:
             log('Amp successfully trained. Saving current parameters.')

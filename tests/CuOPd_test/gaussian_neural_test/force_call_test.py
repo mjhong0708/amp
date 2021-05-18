@@ -99,17 +99,17 @@ def non_periodic_test():
             [[0.0, 0.0, 0.0]]]
 
     # Parameters
-    Gs = {'O': [{'type': 'G2', 'element': 'Pd', 'eta': 0.8},
+    Gs = {'O': [{'type': 'G2', 'element': 'Pd', 'eta': 0.8, 'offset': 0.},
                 {'type': 'G4', 'elements': [
                     'Pd', 'Pd'], 'eta':0.2, 'gamma':0.3, 'zeta':1},
                 {'type': 'G4', 'elements': ['O', 'Pd'], 'eta':0.3, 'gamma':0.6,
                  'zeta':0.5}],
-          'Pd': [{'type': 'G2', 'element': 'Pd', 'eta': 0.2},
+          'Pd': [{'type': 'G2', 'element': 'Pd', 'eta': 0.2, 'offset': 0.},
                  {'type': 'G4', 'elements': ['Pd', 'Pd'],
                   'eta':0.9, 'gamma':0.75, 'zeta':1.5},
                  {'type': 'G4', 'elements': ['O', 'Pd'], 'eta':0.4,
                   'gamma':0.3, 'zeta':4}],
-          'Cu': [{'type': 'G2', 'element': 'Cu', 'eta': 0.8},
+          'Cu': [{'type': 'G2', 'element': 'Cu', 'eta': 0.8, 'offset': 0.},
                  {'type': 'G4', 'elements': ['Cu', 'O'],
                   'eta':0.2, 'gamma':0.3, 'zeta':1},
                  {'type': 'G4', 'elements': ['Cu', 'Cu'], 'eta':0.3,
@@ -157,7 +157,7 @@ def non_periodic_test():
 
     # Testing pure-python and fortran versions of Gaussian-neural force call
     for fortran in [False, True]:
-        for cores in range(1, 6):
+        for cores in range(1, 7):
             label = 'call-nonperiodic/%s-%i' % (fortran, cores)
             calc = Amp(descriptor=Gaussian(cutoff=6.5,
                                            Gs=Gs,
@@ -249,13 +249,13 @@ def periodic_test():
             [[0.0, 0.0, 0.0]]]
 
     # Parameters
-    Gs = {'O': [{'type': 'G2', 'element': 'Pd', 'eta': 0.8},
+    Gs = {'O': [{'type': 'G2', 'element': 'Pd', 'eta': 0.8, 'offset': 0.},
                 {'type': 'G4', 'elements': ['O', 'Pd'], 'eta':0.3, 'gamma':0.6,
                  'zeta':0.5}],
-          'Pd': [{'type': 'G2', 'element': 'Pd', 'eta': 0.2},
+          'Pd': [{'type': 'G2', 'element': 'Pd', 'eta': 0.2, 'offset': 0.},
                  {'type': 'G4', 'elements': ['Pd', 'Pd'],
                   'eta':0.9, 'gamma':0.75, 'zeta':1.5}],
-          'Cu': [{'type': 'G2', 'element': 'Cu', 'eta': 0.8},
+          'Cu': [{'type': 'G2', 'element': 'Cu', 'eta': 0.8, 'offset': 0.},
                  {'type': 'G4', 'elements': ['Cu', 'Cu'], 'eta':0.3,
                           'gamma':0.6, 'zeta':0.5}]}
 
@@ -302,7 +302,7 @@ def periodic_test():
 
     # Testing pure-python and fortran versions of Gaussian-neural force call
     for fortran in [False, True]:
-        for cores in range(1, 4):
+        for cores in range(1, 5):
             label = 'call-periodic/%s-%i' % (fortran, cores)
             calc = Amp(descriptor=Gaussian(cutoff=4.,
                                            Gs=Gs,

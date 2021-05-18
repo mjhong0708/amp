@@ -40,7 +40,7 @@ The below script uses Gaussian descriptors with a neural network backend --- the
      atoms.extend(Atoms([Atom('Cu', atoms[7].position + (0., 0., 2.5)),
                          Atom('Cu', atoms[7].position + (0., 0., 5.))]))
      atoms.set_constraint(FixAtoms(indices=[0, 2]))
-     atoms.set_calculator(EMT())
+     atoms.calc = EMT()
      atoms.get_potential_energy()
      traj.write(atoms)
      MaxwellBoltzmannDistribution(atoms, 300. * units.kB)
@@ -76,7 +76,7 @@ The below script trains both energy and forces to the same training set as above
  from ase import Atoms, Atom, units
  import ase.io
  from ase.calculators.emt import EMT
- from ase.lattice.surface import fcc110
+ from ase.build import fcc110
  from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
  from ase.md import VelocityVerlet
  from ase.constraints import FixAtoms
@@ -96,7 +96,7 @@ The below script trains both energy and forces to the same training set as above
      atoms.extend(Atoms([Atom('Cu', atoms[7].position + (0., 0., 2.5)),
                          Atom('Cu', atoms[7].position + (0., 0., 5.))]))
      atoms.set_constraint(FixAtoms(indices=[0, 2]))
-     atoms.set_calculator(EMT())
+     atoms.calc = EMT()
      atoms.get_potential_energy()
      traj.write(atoms)
      MaxwellBoltzmannDistribution(atoms, 300. * units.kB)

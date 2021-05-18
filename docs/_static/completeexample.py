@@ -1,4 +1,4 @@
-from ase.lattice.surface import fcc110
+from ase.build import fcc110
 from ase import Atom, Atoms
 from ase.constraints import FixAtoms
 from ase.calculators.emt import EMT
@@ -24,7 +24,7 @@ def test():
     atoms.extend(adsorbate)
     atoms.set_constraint(FixAtoms(indices=[0, 2]))
     calc = EMT()  # cheap calculator
-    atoms.set_calculator(calc)
+    atoms.calc = calc
 
     # Run some molecular dynamics to generate data.
     trajectory = io.Trajectory('data.traj', 'w', atoms=atoms)

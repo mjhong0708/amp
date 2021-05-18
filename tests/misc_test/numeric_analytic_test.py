@@ -18,11 +18,11 @@ def generate_data():
     atoms = fcc110('Pt', (2, 2, 1), vacuum=7.)
     atoms[0].symbol = 'Cu'
     del atoms[3]
-    atoms.set_calculator(EMT())
+    atoms.calc = EMT()
     atoms.get_potential_energy()
     atoms.get_forces()
     newatoms = atoms.copy()
-    newatoms.set_calculator(EMT())
+    newatoms.calc = EMT()
     newatoms[0].position += (0.27, -0.11, 0.3)
     newatoms[1].position += (0.12, 0.03, -0.22)
     newatoms.get_potential_energy()
@@ -114,7 +114,7 @@ def test():
     # Checks analytical and numerical forces
     forces = []
     for image in images:
-        image.set_calculator(calc)
+        image.calc = calc
         forces += [calc.calculate_numerical_forces(image, d=d)]
     for atom_no in range(len(images[0])):
         for i in range(3):

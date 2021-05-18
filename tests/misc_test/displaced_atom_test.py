@@ -38,12 +38,12 @@ def test():
     ###########################################################################
     # Parameters
 
-    Gs = {'O': [{'type': 'G2', 'element': 'Pd', 'eta': 0.8},
+    Gs = {'O': [{'type': 'G2', 'element': 'Pd', 'eta': 0.8, 'offset': 0.},
                 {'type': 'G4', 'elements': [
                     'Pd', 'Pd'], 'eta':0.2, 'gamma':0.3, 'zeta':1},
                 {'type': 'G4', 'elements': ['O', 'Pd'], 'eta':0.3, 'gamma':0.6,
                  'zeta':0.5}],
-          'Pd': [{'type': 'G2', 'element': 'Pd', 'eta': 0.2},
+          'Pd': [{'type': 'G2', 'element': 'Pd', 'eta': 0.2, 'offset': 0.},
                  {'type': 'G4', 'elements': ['Pd', 'Pd'],
                   'eta':0.9, 'gamma':0.75, 'zeta':1.5},
                  {'type': 'G4', 'elements': ['O', 'Pd'], 'eta':0.4,
@@ -91,7 +91,7 @@ def test():
                                    mode='atom-centered'),
                cores=1)
 
-    atoms.set_calculator(calc)
+    atoms.calc = calc
 
     e1 = atoms.get_potential_energy(apply_constraint=False)
     e2 = calc.get_potential_energy(atoms)

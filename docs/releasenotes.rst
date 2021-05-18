@@ -8,6 +8,10 @@ Development version
 
 (Significant changes since the last release are itemized here.)
 
+* Added offsets in G2 fingerprints; that is, G2 symmetry functions with shifted Gaussian centers can be used.
+
+* Fast force calls are now supported, via third-party codes. See the fast force calls portion of the documentation.
+
 * A *documented* bootstrap module, complete with examples of use, is included for uncertainty predictions.
 
 * Improved interprocess communication which should reduce network traffic for parallel jobs.
