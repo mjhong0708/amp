@@ -1534,6 +1534,7 @@ if __name__ == "__main__":
     This session will then start a zmq session with that socket, labeling
     itself with id. Instructions on what to do will come from the socket.
     """
+    import os
     import sys
     import tempfile
     import zmq
@@ -1548,8 +1549,11 @@ if __name__ == "__main__":
     # error is directed. This should be caught by pxssh. (This could
     # alternatively be done by zmq, but this works.)
     print('<amp-connect>')  # Signal that program started.
+    if not os.path.exists('tempfiles'):
+        os.mkdir('tempfiles')
     sys.stderr = tempfile.NamedTemporaryFile(mode='w', delete=False,
-                                             suffix='.stderr', dir='./')
+                                             suffix='.stderr',
+                             dir=f"{os.getcwd()}/tempfiles")
     print('Log and error written to %s<stderr>' % sys.stderr.name)
     sys.stderr.write('initiated\n')
     sys.stderr.flush()
