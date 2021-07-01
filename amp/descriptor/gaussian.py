@@ -1549,7 +1549,7 @@ if __name__ == "__main__":
     # alternatively be done by zmq, but this works.)
     print('<amp-connect>')  # Signal that program started.
     sys.stderr = tempfile.NamedTemporaryFile(mode='w', delete=False,
-                                             suffix='.stderr')
+                                             suffix='.stderr', dir='./')
     print('Log and error written to %s<stderr>' % sys.stderr.name)
     sys.stderr.write('initiated\n')
     sys.stderr.flush()

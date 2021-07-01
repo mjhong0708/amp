@@ -22,7 +22,7 @@ msg = MessageDictionary(proc_id)
 # error is directed.
 print('<amp-connect>')  # Signal that program started.
 sys.stderr = tempfile.NamedTemporaryFile(mode='w', delete=False,
-                                         suffix='.stderr')
+                                         suffix='.stderr', dir='./')
 print('Log and stderr written to %s<stderr>' % sys.stderr.name)
 
 # Also send logger output to stderr to aid in debugging.
