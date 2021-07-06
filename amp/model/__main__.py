@@ -26,7 +26,7 @@ if not os.path.exists('tempfiles'):
     os.mkdir('tempfiles')
 sys.stderr = tempfile.NamedTemporaryFile(mode='w', delete=False,
                                          suffix='.stderr',
-                         dir=f"{os.getcwd()}/tempfiles")
+                         dir="%s/tempfiles" % os.getcwd())
 print('Log and stderr written to %s<stderr>' % sys.stderr.name)
 
 # Also send logger output to stderr to aid in debugging.

@@ -1553,7 +1553,7 @@ if __name__ == "__main__":
         os.mkdir('tempfiles')
     sys.stderr = tempfile.NamedTemporaryFile(mode='w', delete=False,
                                              suffix='.stderr',
-                             dir=f"{os.getcwd()}/tempfiles")
+                         dir="%s/tempfiles" % os.getcwd())
     print('Log and error written to %s<stderr>' % sys.stderr.name)
     sys.stderr.write('initiated\n')
     sys.stderr.flush()
