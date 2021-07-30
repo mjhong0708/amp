@@ -6,6 +6,7 @@ python -m amp.model id hostname:port
 This session will then start a zmq session with that socket, labeling
 itself with id. Instructions on what to do will come from the socket.
 """
+import os
 import sys
 import tempfile
 import zmq
@@ -21,8 +22,11 @@ msg = MessageDictionary(proc_id)
 # Send standard lines to stdout signaling process started and where
 # error is directed.
 print('<amp-connect>')  # Signal that program started.
+if not os.path.exists('tempfiles'):
+    os.mkdir('tempfiles')
 sys.stderr = tempfile.NamedTemporaryFile(mode='w', delete=False,
-                                         suffix='.stderr')
+                                         suffix='.stderr',
+                         dir="%s/tempfiles" % os.getcwd())
 print('Log and stderr written to %s<stderr>' % sys.stderr.name)
 
 # Also send logger output to stderr to aid in debugging.
