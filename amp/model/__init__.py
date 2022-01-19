@@ -984,6 +984,12 @@ def ravel_data(train_forces,
 
         elements, raveled_fingerprints = ravel_fingerprints(images,
                                                             fingerprints)
+        if len(raveled_fingerprints) != 0:
+            # Add zero paddings to fingerprints
+            len_of_fps = [len(_) for _ in raveled_fingerprints]
+            max_len_of_fps = max(len_of_fps)
+            raveled_fingerprints = [_ + [0]*(max_len_of_fps-len(_))
+                                    for _ in raveled_fingerprints]
     else:
         atomic_positions = [images[key].positions.ravel() for key in keylist]
 
@@ -1047,6 +1053,13 @@ def ravel_data(train_forces,
              raveled_fingerprintprimes) = \
                 ravel_neighborlists_and_fingerprintprimes(images,
                                                           fingerprintprimes)
+            if len(raveled_fingerprintprimes) != 0:
+                # Add zero paddings to fingerprintprimes
+                len_of_fp_primes = [len(_) for _ in raveled_fingerprintprimes]
+                max_len_of_fp_primes = max(len_of_fp_primes)
+                raveled_fingerprintprimes = \
+                                    [_ + [0] * (max_len_of_fp_primes - len(_))
+                                     for _ in raveled_fingerprintprimes]
     if mode == 'image-centered':
         if not train_forces:
             return (actual_energies, atomic_positions)
@@ -1123,6 +1136,16 @@ def send_data_to_fortran(_fmodules,
                              for _
                              in range(len(fprange[elm]))]
                             for elm in elements]
+        if len(min_fingerprints) != 0:
+            # Add zero paddings to min_fingerprints and max_fingerprints
+            len_of_min_fps = [len(_) for _ in min_fingerprints]
+            max_len_of_min_fps = max(len_of_min_fps)
+            min_fingerprints = [_ + [0]*(max_len_of_min_fps - len(_))
+                                for _ in min_fingerprints]
+            max_fingerprints = [_ + [0]*(max_len_of_min_fps - len(_))
+                                for _ in max_fingerprints]
+            num_fingerprints_of_elements = \
+                [len(fprange[elm]) for elm in elements]
         num_fingerprints_of_elements = \
             [len(fprange[elm]) for elm in elements]
 
