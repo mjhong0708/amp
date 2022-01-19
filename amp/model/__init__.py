@@ -4,7 +4,7 @@ import threading
 import time
 from ase.calculators.calculator import Parameters
 from ..utilities import (Logger, ConvergenceOccurred, make_sublists, now,
-                         setup_parallel, MetaDict)
+                         setup_parallel, MetaDict, get_overfit_mask)
 try:
     from .. import fmodules
 except ImportError:
@@ -263,7 +263,8 @@ class LossFunction:
         Parallel configuration dictionary. Will pull from model itself if
         not specified.
     overfit : float
-        Multiplier of the weights norm penalty term in the loss function.
+        Multiplier of atomic neural network weights norm penalty term in
+        the loss function.
     raise_ConvergenceOccurred : bool
         If True will raise convergence notice.
     log_losses : bool
@@ -587,12 +588,14 @@ class LossFunction:
         if self._parallel['cores'] == 1:
             if self._model.fortran:
                 self._model.vector = parametervector
+                overfit_mask = get_overfit_mask(self._model, parametervector)
                 self._send_data_to_fortran()
                 (loss, dloss_dparameters, energy_loss, force_loss,
                  energy_maxresid, force_maxresid) = \
                     fmodules.calculate_loss(parameters=parametervector,
                                             num_parameters=len(
                                                 parametervector),
+                                            overfit_mask=overfit_mask,
                                             lossprime=lossprime)
             else:
                 loss, dloss_dparameters, energy_loss, force_loss, \
@@ -757,12 +760,15 @@ class LossFunction:
         # loss and dloss_dparameters is also added.
         if p.overfit > 0.:
             overfitloss = 0.
-            for component in parametervector:
+            overfit_mask = get_overfit_mask(model, parametervector)
+            overfit_vector = np.array(parametervector)[overfit_mask]
+            for component in overfit_vector:
                 overfitloss += component ** 2.
             overfitloss *= p.overfit
             loss += overfitloss
-            doverfitloss_dparameters = \
-                2 * p.overfit * np.array(parametervector)
+            doverfitloss_dparameters = np.zeros(len(dloss_dparameters))
+            doverfitloss_dparameters[overfit_mask] = \
+                2 * p.overfit * overfit_vector
             dloss_dparameters += doverfitloss_dparameters
 
         return loss, dloss_dparameters, energyloss, forceloss, \

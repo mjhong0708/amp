@@ -72,7 +72,7 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !     subroutine that calculates the loss function and its prime
-      subroutine calculate_loss(parameters, num_parameters, &
+      subroutine calculate_loss(parameters, num_parameters, overfit_mask, &
       lossprime, loss, dloss_dparameters, energyloss, forceloss, &
       energy_maxresid, force_maxresid)
 
@@ -90,6 +90,7 @@
       double precision:: energy_maxresid, force_maxresid
       double precision:: dloss_dparameters(num_parameters)
       double precision:: image_dldp(num_parameters)
+      integer:: overfit_mask(num_parameters)
 !f2py         intent(in):: parameters, num_parameters
 !f2py         intent(in):: lossprime
 !f2py         intent(out):: loss, energyloss, forceloss
@@ -191,6 +192,7 @@
       force_maxresid = 0.0d0
       do j = 1, num_parameters
         dloss_dparameters(j) = 0.0d0
+        doverfitloss_dparameters(j) = 0.0d0
       end do
 
 !     summation over images
@@ -319,19 +321,26 @@
 
       ! if overfit coefficient is more than zero, overfit
       ! contribution to loss and dloss_dparameters is also added.
+      ! Do not regularize scaling parameters
       if (overfit .GT. 0.0d0) then
           overfitloss = 0.0d0
           do j = 1, num_parameters
-              overfitloss = overfitloss + &
-              parameters(j) ** 2.0d0
+              mask = overfit_mask(j)
+              if (mask == 1) then
+                overfitloss = overfitloss + &
+                parameters(j) ** 2.0d0
+              end if
           end do
           overfitloss = overfit * overfitloss
           loss = loss + overfitloss
           do j = 1, num_parameters
-              doverfitloss_dparameters(j) = &
-              2.0d0 * overfit * parameters(j)
-              dloss_dparameters(j) = dloss_dparameters(j) + &
-              doverfitloss_dparameters(j)
+              mask = overfit_mask(j)
+              if (mask == 1) then
+                doverfitloss_dparameters(j) = &
+                2.0d0 * overfit * parameters(j)
+                dloss_dparameters(j) = dloss_dparameters(j) + &
+                doverfitloss_dparameters(j)
+              end if
           end do
       end if
 

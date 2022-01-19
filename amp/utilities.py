@@ -1335,3 +1335,39 @@ def enforce_magnetic_moments(atoms, supplied_magmom_dict=None):
         if atom.symbol in magmom_dict.keys():
             atom.magmom = magmom_dict[atom.symbol]
     return atoms
+
+
+def get_overfit_mask(nn_model, parametervector):
+    """Compute masked indices for overfit parameters in a raveled
+    parametervector. The basic principle for overfit/regularization
+    is that only weights and slopes should be regularized. In other
+    words, biases and intercepts should be removed. This function
+    is designed for the neural network model in Amp.
+    """
+    overfit_mask = np.zeros(len(parametervector))
+    p = nn_model.parameters
+    nn_weights = p.weights
+    scalings = p.scalings
+    elements = sorted(nn_weights.keys())
+    count = 0
+
+    # Perform regularization only on atomic NN weights
+    for key1 in elements:
+        for key2 in sorted(nn_weights[key1].keys()):
+            ori_count = count
+            lshape = np.shape(nn_weights[key1][key2])
+            count += int(lshape[0] * lshape[1])
+            if key2 == 1:
+                overfit_mask[ori_count:(count - lshape[1])] = 1
+
+    # Count scaling parameters
+    for key1 in elements:
+        # overfit_mask[count:(count + 2)] = 0
+        for key2 in sorted(scalings[key1].keys()):
+            count += 1
+    # Make sure counted number of parameters match the length
+    # of parameter vector.
+    msg = 'Counted parameters not equal to parametervector'
+    assert count == len(parametervector), msg
+
+    return overfit_mask.astype(int)
