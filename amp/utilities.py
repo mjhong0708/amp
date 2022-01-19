@@ -14,9 +14,13 @@ import traceback
 import subprocess
 from datetime import datetime
 from getpass import getuser
+from ase import Atoms
 from ase import io as aseio
 from ase.db import connect
 from ase.calculators.calculator import PropertyNotImplementedError
+from ase.calculators.singlepoint import SinglePointCalculator
+
+
 try:
     import cPickle as pickle    # Python2
 except ImportError:
@@ -1371,3 +1375,91 @@ def get_overfit_mask(nn_model, parametervector):
     assert count == len(parametervector), msg
 
     return overfit_mask.astype(int)
+
+
+def extract_an_atomic_chunk(atoms, index, parent_calc=None,
+                             cutoff=6.5, vacuum=5.):
+    """Extract a chunk from atoms centering on the atom with a given index.
+    `cutoff` defines the range within which atoms are included in the atomic
+    chunk. `vacuum` represents the thickness of surrounded vacuum layers.
+    """
+    from amp.descriptor.gaussian import NeighborlistCalculator
+    atoms.set_constraint()
+    hash_id = get_hash(atoms)
+    nl_calc = NeighborlistCalculator(cutoff=cutoff)
+    nl = nl_calc.calculate(atoms, hash_id)
+    neighborindices, neighboroffsets = nl[index]
+    indices = [index] + list(neighborindices)
+    symbols = np.array(atoms.get_chemical_symbols())[indices]
+    magmoms = np.array(atoms.get_initial_magnetic_moments())[indices]
+    neighborpositions = (atoms.positions[neighborindices] +
+                         np.dot(neighboroffsets, atoms.get_cell()))
+    positions = np.vstack((atoms.positions[index], neighborpositions))
+    chunk = Atoms(symbols=symbols,
+                  positions=positions,
+                  magmoms=magmoms,
+                  pbc=False)
+    chunk.center(vacuum=vacuum)
+    hash_id_of_piece = get_hash(chunk)
+    force_only_id = (hash_id_of_piece, 0)
+    if parent_calc is not None:
+        if parent_calc.name == 'gpaw':
+            return chunk, force_only_id
+        chunk.calc = parent_calc
+        e = chunk.get_potential_energy()
+        f = chunk.get_forces(apply_constraint=False)
+        sp = SinglePointCalculator(chunk, energy=e, forces=f)
+        chunk.set_calculator(sp)
+    return chunk, force_only_id
+
+
+def get_atomic_uncertainties(load, atoms, force=True, label='amp',
+                                   threshold=None):
+    """Compute atomic uncertainties based on ensemble predictions of
+    either atomic energies or forces. If threshold is specificed,
+    indices of atoms whose atomic uncertainty is larger than the
+    threshold will be identified."""
+    from amp.stats.bootstrap import BootStrap
+    calc = BootStrap(load=load, label=label)
+    output = [0., 1.]
+    if threshold is not None and threshold <= -1.0:
+        raise RuntimeError('threshold must be larger than -1.0.')
+    if not force:
+        # atomic energy uncertainty uses prediction halfspread
+        # between the maximum and minimum ensemble predictions
+        atomic_energies = calc.get_atomic_energies(atoms, output=output)
+        hs_atomic_energies = np.abs(atomic_energies[0] - atomic_energies[1])/2
+        if threshold is None:
+            return [np.argmax(hs_atomic_energies)], \
+                   [np.max(hs_atomic_energies)], hs_atomic_energies
+        else:
+            if threshold < 0 and threshold > -1.:
+                threshold = np.percentile(hs_atomic_energies,
+                                          q=100*abs(threshold))
+            indices = np.arange(len(hs_atomic_energies))
+            indices_chosen = indices[hs_atomic_energies > threshold]
+            hs_chosen = hs_atomic_energies[indices_chosen]
+            return indices_chosen, hs_chosen, hs_atomic_energies
+    else:
+        # atomic force uncertainty uses the standard deviation of ensemble
+        # force predictions, multiplied by a factor of 2.58.
+        output.append('e') # return all ensemble forces
+        all_forces = calc.get_forces(atoms, output=output)
+        ensemble_forces = all_forces[-1]
+        average_force = np.mean(ensemble_forces, axis=0)
+        force_devs = ensemble_forces - average_force
+        force_devs = np.sqrt((force_devs ** 2).sum(axis=2))
+        n_ensembles = len(calc.ensemble)
+        sigma = np.sqrt((force_devs**2).sum(axis=0) / (n_ensembles - 1))
+        f_deltas = 2.58 * sigma
+        if threshold is None:
+            # return the maximum uncertainty
+            return [np.argmax(f_deltas)], [np.max(f_deltas)], f_deltas
+        else:
+            if threshold < 0 and threshold > -1.:
+                threshold = np.percentile(f_deltas,
+                                          q=100*abs(threshold))
+            indices = np.arange(len(f_deltas))
+            indices_chosen = indices[f_deltas > threshold]
+            sigma_chosen = f_deltas[indices_chosen]
+            return indices_chosen, sigma_chosen, f_deltas
