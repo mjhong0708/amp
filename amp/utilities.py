@@ -594,13 +594,16 @@ class Logger:
         a logger that does nothing.
     """
 
-    def __init__(self, file):
+    def __init__(self, file, overwrite=False):
         if file is None:
             self.file = None
             return
         if isinstance(file, str):
             self.filename = file
-            file = open(file, 'a')
+            if not overwrite:
+                file = open(file, 'a')
+            else:
+                file = open(file, 'w')
         self.file = file
         self.tics = {}
 
@@ -1322,3 +1325,13 @@ class MetaDict(dict):
     so that images can still be iterated by keys.
     """
     metadata = {}
+
+
+def enforce_magnetic_moments(atoms, supplied_magmom_dict=None):
+    magmom_dict={'Fe':2.0, 'Co':2.1, 'Ni':1.5, 'Ru':2.0, 'Rh':1.8}
+    if supplied_magmom_dict is not None:
+        magmom_dict.update(supplied_magmom_dict)
+    for atom in atoms:
+        if atom.symbol in magmom_dict.keys():
+            atom.magmom = magmom_dict[atom.symbol]
+    return atoms
