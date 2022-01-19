@@ -27,7 +27,7 @@ try:
 except ImportError:
     warnings.warn('Did not find fortran modules.')
 else:
-    fmodules_version = 13
+    fmodules_version = 14
     wrong_version = fmodules.check_version(version=fmodules_version)
     if wrong_version:
         raise RuntimeError('fortran modules are not updated. Recompile '
