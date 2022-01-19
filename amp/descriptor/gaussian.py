@@ -442,33 +442,29 @@ class FingerprintPrimeCalculator:
                     selfneighborpositions, selfindex, direction)
 
                 fingerprintprimes[(selfindex, selfsymbol, selfindex,
-                                   selfsymbol, direction)] = fpprime
+                    selfsymbol, direction)] = fpprime
                 # Calculating derivative of fingerprints of neighbor atom
                 # w.r.t. coordinates of self atom.
                 for nindex, nsymbol, noffset in \
                         zip(selfneighborindices,
                             selfneighborsymbols,
                             selfneighboroffsets):
-                    # for calculating forces, summation runs over neighbor
-                    # atoms of type II (within the main cell only)
-                    if (noffset[0] == 0 and noffset[1] == 0 and noffset[2] == 0):
+                    if (selfindex, selfsymbol, nindex,
+                            nsymbol, direction) not in fingerprintprimes:
                         nneighborindices, nneighboroffsets = nl[nindex]
-                        nneighborsymbols = chemical_symbols[nneighborindices]
-                        neighborpositions = (image.positions[nneighborindices] +
+                        nneighborsymbols = \
+                              chemical_symbols[nneighborindices]
+                        neighborpositions = \
+                              (image.positions[nneighborindices] +
                                              np.dot(nneighboroffsets,
                                                     image.get_cell()))
-
-                        # for calculating derivatives of fingerprints,
-                        # summation runs over neighboring atoms of type
-                        # I (either inside or outside the main cell)
                         fpprime = self.get_fingerprintprime(
                             nindex, nsymbol,
                             nneighborindices,
                             nneighborsymbols,
                             neighborpositions, selfindex, direction)
-
                         fingerprintprimes[(selfindex, selfsymbol, nindex,
-                                           nsymbol, direction)] = fpprime
+                                nsymbol, direction)] = fpprime
 
         return fingerprintprimes
 
