@@ -281,6 +281,11 @@ class LossFunction:
         times. Default is False.
     maxiter: int
         Terminate loss function optimization at a give step/epoch.
+    nft_ids: list of length-2 tuples
+        If nft_ids is not None, it should have the form of
+        [(hash_id_0, index_of_atom_0), (hash_id_1, index_of_atom_1), ...].
+        Only force_loss on the atom of given index is included in the image
+        with the corresponding hash id.
     """
 
     default_parameters = {'convergence': {'energy_rmse': 0.001,
@@ -292,7 +297,7 @@ class LossFunction:
     def __init__(self, energy_coefficient=1.0, force_coefficient=0.04,
                  convergence=None, parallel=None, overfit=0.,
                  raise_ConvergenceOccurred=True, log_losses=True, d=None,
-                 weight_duplicates=False, maxiter=100000):
+                 weight_duplicates=False, maxiter=100000, nft_ids=None):
         p = self.parameters = Parameters(
             {'importname': '.model.LossFunction'})
         # 'dict' creates a copy; otherwise mutable in class.
@@ -305,6 +310,7 @@ class LossFunction:
         p['overfit'] = overfit
         p['weight_duplicates'] = weight_duplicates
         p['maxiter'] = maxiter
+        p['nft_ids'] = nft_ids
         self.raise_ConvergenceOccurred = raise_ConvergenceOccurred
         self.log_losses = log_losses
         self.d = d
@@ -454,6 +460,11 @@ class LossFunction:
             log('  force_coefficient: ' + str(p.force_coefficient))
             log('  overfit: ' + str(p.overfit))
             log('  weight duplicates:' + str(p.weight_duplicates))
+            if p.nft_ids:
+                log('  nearsighted force training:' +
+                    str(len(p.nft_ids)) + ' nft ids')
+            else:
+                log('  nearsighted force training:' + str(p.nft_ids))
             log('\n')
             if p.force_coefficient is None:
                 header = '%5s %19s %12s %12s %12s'
@@ -490,6 +501,15 @@ class LossFunction:
         p = self.parameters
         energy_coefficient = p.energy_coefficient
         overfit = p.overfit
+        is_nft = [0] * num_images
+        nft_indices = [-1] * num_images
+        if p.nft_ids:
+            hash_ids = [_ for _, __ in p.nft_ids]
+            atom_indices = [__ for _, __ in p.nft_ids]
+            for ind, hash_id in enumerate(list(images.keys())):
+                if hash_id in hash_ids:
+                    is_nft[ind] = 1
+                    nft_indices[ind] = atom_indices[ind]
         if p.force_coefficient is None:
             train_forces = False
             force_coefficient = 0.
@@ -552,7 +572,9 @@ class LossFunction:
                              raveled_fingerprintprimes,
                              self._model,
                              self.d,
-                             image_weights)
+                             image_weights,
+                             is_nft,
+                             nft_indices,)
         self._data_sent = True
 
     def _cleanup(self):
@@ -674,7 +696,66 @@ class LossFunction:
         descriptor = self._model.trainingparameters.descriptor
         fingerprints = descriptor.fingerprints
         image_weight = 1.  # for weighting duplicates
+          ### Loss for nft images, where only forces on the central atoms
+        ### are trained.
+        if p.nft_ids:
+            hash_ids = [_ for _, __ in p.nft_ids]
+            atom_indices = [__ for _, __ in p.nft_ids]
+            if p.force_coefficient is not None:
+                for ind, hash in enumerate(hash_ids):
+                    if hash not in images.keys():
+                        continue
+                    image = images[hash]
+                    no_of_atoms = len(image)
+                    if p.weight_duplicates:
+                        if hash in images.metadata['duplicates']:
+                            image_weight = \
+                               float(images.metadata['duplicates'][hash])
+                        else:
+                            image_weight = 1.
+                    fingerprintprimes = descriptor.fingerprintprimes
+                    amp_forces = \
+                        model.calculate_forces(fingerprints[hash],
+                                               fingerprintprimes[hash])
+                    actual_forces = image.get_forces(apply_constraint=False)
+                    image_forceloss = 0.
+                    index = atom_indices[ind]
+                    for i in range(3):
+                        force_resid = abs(amp_forces[index][i] -
+                                          actual_forces[index][i])
+                        if force_resid > force_maxresid:
+                            force_maxresid = force_resid
+                        image_forceloss += force_resid**2
+                    image_forceloss /= 3.
+                    forceloss += image_weight * image_forceloss
+
+                    if lossprime:
+                        if self.d is None:
+                            dforces_dparameters = \
+                                model.calculate_dForces_dParameters(
+                                    fingerprints[hash],
+                                    fingerprintprimes[hash])
+                        else:
+                            dforces_dparameters = \
+                                model.calculate_numerical_dForces_dParameters(
+                                    fingerprints[hash],
+                                    fingerprintprimes[hash],
+                                    d=self.d)
+                        image_dldp = 0.
+                        for i in range(3):
+                            image_dldp += (
+                                (amp_forces[index][i] -
+                                 actual_forces[index][i]) *
+                                dforces_dparameters[(index, i)])
+                        image_dldp *= (p.force_coefficient * 2. / 3.)
+                        dloss_dparameters += image_weight * image_dldp
+
+        ### Loss for regular images, including both energy and force losses
         for hash in images.keys():
+            if p.nft_ids is not None:
+                hash_ids = [_ for _, __ in p.nft_ids]
+                if hash in hash_ids:
+                    continue
             if p.weight_duplicates:
                 if hash in images.metadata['duplicates']:
                     image_weight = float(images.metadata['duplicates'][hash])
@@ -1108,6 +1189,8 @@ def send_data_to_fortran(_fmodules,
                          model,
                          d,
                          image_weights,
+                         is_nft,
+                         nft_indices,
                          ):
     """
     Function that sends images data to fortran code. Is used just once on each
@@ -1122,6 +1205,8 @@ def send_data_to_fortran(_fmodules,
 
     _fmodules.images_props.num_images = num_images
     _fmodules.images_props.actual_energies = actual_energies
+    _fmodules.images_props.is_nft = is_nft
+    _fmodules.images_props.nft_indices = nft_indices
     if train_forces:
         _fmodules.images_props.actual_forces = actual_forces
     _fmodules.images_props.image_weights = image_weights
