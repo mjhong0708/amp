@@ -279,6 +279,8 @@ class LossFunction:
         duplicate images will only count as a single image, if True, then a
         triplicate image will weight the same as having that image three
         times. Default is False.
+    maxiter: int
+        Terminate loss function optimization at a give step/epoch.
     """
 
     default_parameters = {'convergence': {'energy_rmse': 0.001,
@@ -290,7 +292,7 @@ class LossFunction:
     def __init__(self, energy_coefficient=1.0, force_coefficient=0.04,
                  convergence=None, parallel=None, overfit=0.,
                  raise_ConvergenceOccurred=True, log_losses=True, d=None,
-                 weight_duplicates=False):
+                 weight_duplicates=False, maxiter=100000):
         p = self.parameters = Parameters(
             {'importname': '.model.LossFunction'})
         # 'dict' creates a copy; otherwise mutable in class.
@@ -302,6 +304,7 @@ class LossFunction:
         p['force_coefficient'] = force_coefficient
         p['overfit'] = overfit
         p['weight_duplicates'] = weight_duplicates
+        p['maxiter'] = maxiter
         self.raise_ConvergenceOccurred = raise_ConvergenceOccurred
         self.log_losses = log_losses
         self.d = d
@@ -880,6 +883,8 @@ class LossFunction:
                      'C' if force_rmse_converged else '-',
                      force_maxresid,
                      'C' if force_maxresid_converged else '-'))
+            if self._step > p.maxiter:
+                return True
             return energy_rmse_converged and energy_maxresid_converged and \
                 force_rmse_converged and force_maxresid_converged
         else:
@@ -889,6 +894,8 @@ class LossFunction:
                      'C' if energy_rmse_converged else '-',
                      energy_maxresid,
                      'C' if energy_maxresid_converged else '-'))
+            if self._step > p.maxiter:
+                return True
             return energy_rmse_converged and energy_maxresid_converged
 
 
