@@ -8,8 +8,76 @@ Fast Force Calls
 Force calls (or potential-energy calls) are done inside Amp in a single thread, which means they should be fast compared to something like DFT, but inherently much slower than an optimized molecular dynamics code.
 If you would like to run big, fast simulations, it's advisable to link the output of Amp to such a code, then run your simulation in a molecluar dynamics code.
 
-Here, we describe two ways to do fast force calls in Amp using PROPhet/LAMMPS and KIM/LAMMPS interface, respectively. 
-As of this writing, the former approach is more stable.
+Here, we describe three ways to do fast force calls in Amp using n2p2, PROPhet/LAMMPS and KIM/LAMMPS interface, respectively.
+As of this writing, the former two approaches are more stable.
+
+==========
+Using n2p2
+==========
+`n2p2 <https://github.com/CompPhysVienna/n2p2>`__ is a ready-to-use software for high-dimensional neural network potentials, originally developed by Andreas Singraber at the University of Vienna.
+Importantly, it provides python interface for fast predictions of energy and forces, which makes it really easy to be incorporated into other python-based code, such as Amp.
+It also allows using existing neural network potentials in `LAMMPS <https://github.com/lammps/lammps>`__.
+The LAMMPS NNP interface is detailed in the `documentation <https://compphysvienna.github.io/n2p2/interfaces/if_lammps.html>`__.
+
+
+The connection from Amp to n2p2's fast force calls is made possible via a utility function :py:func:`amp.convert.save_to_n2p2` written by Cheng Zeng (Brown).
+If you use this interface with Amp, please cite the n2p2 paper in addition to the Amp paper:
+
+    Singraber, A.; Behler, J.; Dellago, C. Library-Based LAMMPS Implementation of High-Dimensional Neural Network Potentials. J. Chem. Theory Comput. 2019, 15 (3), 1827–1840. |n2p2_paper|
+
+
+.. |n2p2_paper| raw:: html
+
+   <a href="https://doi.org/10.1021/acs.jctc.8b00770" target="_blank">[doi:10.1021/acs.jctc.8b00770] </a>
+
+In the next, an example for using this interface is described.
+Suppose you have a trained Amp calculator saved as "amp.amp", and you want to predict on an image in a trajectory file 'image.traj', you can convert the Amp calculator and the `ASE` trajectory to n2p2 input files by :
+
+.. code-block:: python
+
+   from amp import Amp
+   from amp.convert import save_to_n2p2
+   from ase.io import read
+
+   calc = Amp.load('amp.amp')
+   desc_pars = calc.descriptor.parameters
+   model_pars = calc.model.parameters
+   atoms = read('image.traj')
+   save_to_n2p2(desc_pars, model_pars, images=atoms)
+
+Then you can make prediction via the python interface shown below:
+
+.. code-block:: python
+
+   import pynnp
+
+   # Initialize NNP prediction mode.
+   p = pynnp.Prediction()
+   # Read settings and setup NNP.
+   p.setup()
+   # Read in structure.
+   p.readStructureFromFile()
+   # Predict energies and forces.
+   p.predict()
+   # Shortcut for structure container.
+   s = p.structure
+   print("------------")
+   print("Structure 1:")
+   print("------------")
+   print("numAtoms           : ", s.numAtoms)
+   print("numAtomsPerElement : ", s.numAtomsPerElement)
+   print("------------")
+   print("Energy (Ref) : ", s.energyRef)
+   print("Energy (NNP) : ", s.energy)
+   print("------------")
+   forces = []
+   for atom in s.atoms:
+       print(atom.index, atom.f.r)
+
+or simply use a command::
+
+   $ nnp-predict 1
+
 
 ==================================
 Using PROPhet/LAMMPS

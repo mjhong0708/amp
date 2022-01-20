@@ -1461,5 +1461,5 @@ def get_atomic_uncertainties(load, atoms, force=True, label='amp',
                                           q=100*abs(threshold))
             indices = np.arange(len(f_deltas))
             indices_chosen = indices[f_deltas > threshold]
-            sigma_chosen = f_deltas[indices_chosen]
-            return indices_chosen, sigma_chosen, f_deltas
+            delta_chosen = f_deltas[indices_chosen]
+            return indices_chosen, delta_chosen, f_deltas
