@@ -25,11 +25,10 @@ from amp import Amp
 from amp.descriptor.gaussian import Gaussian
 from amp.model.neuralnetwork import NeuralNetwork
 
-
 calc = Amp(descriptor=Gaussian(),
            model=NeuralNetwork(),
            dblabel='../amp-db')
-calc.model.lossfunction.parameters['weight_duplicates'] = True
+calc.model.lossfunction.parameters['weight_duplicates'] = False
 """
 
 train_line = "calc.train(images=trainfile)"
@@ -43,7 +42,7 @@ ${headerlines}
 
 import os, pickle
 from ase.parallel import paropen
-from testamp.utilities import TrainingConvergenceError, hash_images
+from amp.utilities import TrainingConvergenceError
 
 ensemble_index = int(os.path.split(os.getcwd())[-1])
 trainfile = '../training-images/%i.traj' % ensemble_index

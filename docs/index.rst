@@ -51,6 +51,7 @@ Amp is now installable via pip! This means you should be able to install with ju
    gaussian.rst
    tensorflow.rst
    bootstrap.rst
+   nearsightedforcetraining.rst
    databases.rst
    fastforcecalls.rst
    develop.rst
@@ -68,6 +69,8 @@ Amp is now installable via pip! This means you should be able to install with ju
    modules/analysis.rst
    modules/stats.rst
    modules/convert.rst
+   modules/preprocess.rst
+   modules/nft.rst
 
 
 **Indices and tables**
